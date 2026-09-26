@@ -1,0 +1,144 @@
+import { $, html, icon, logoMark, state, loadSession, api, toast, initials, observeReveals } from "./core.js";
+import { renderLanding } from "./views/landing.js";
+import { renderAuth } from "./views/auth.js";
+import { renderDashboard } from "./views/dashboard.js";
+import { renderStudio } from "./views/studio.js";
+
+const app = document.getElementById("app");
+let cleanup = null;
+
+const routes = [
+  { path: /^\/$/, view: renderLanding, chrome: "marketing", title: "HeadshotPro — Professional headshots, without the photo shoot" },
+  { path: /^\/signin$/, view: (ctx) => renderAuth(ctx, "signin"), chrome: "none", guestOnly: true, title: "Sign in · HeadshotPro" },
+  { path: /^\/signup$/, view: (ctx) => renderAuth(ctx, "signup"), chrome: "none", guestOnly: true, title: "Create your account · HeadshotPro" },
+  { path: /^\/app$/, view: renderDashboard, chrome: "app", auth: true, title: "Your shoots · HeadshotPro" },
+  { path: /^\/app\/new$/, view: (ctx) => renderStudio(ctx, null), chrome: "app", auth: true, title: "New shoot · HeadshotPro" },
+  { path: /^\/app\/shoot\/([\w-]+)$/, view: (ctx, id) => renderStudio(ctx, id), chrome: "app", auth: true, title: "Shoot · HeadshotPro" },
+];
+
+export function navigate(to, { replace = false } = {}) {
+  if (to === location.pathname + location.search + location.hash && !replace) return;
+  history[replace ? "replaceState" : "pushState"]({}, "", to);
+  render();
+}
+
+function marketingNav() {
+  const signedIn = !!state.user;
+  return html`
+  <header class="nav" id="nav">
+    <div class="container nav-inner">
+      <a class="logo" href="/" data-link aria-label="HeadshotPro home">${logoMark()}<b>Headshot</b><span>Pro</span></a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/#how">How it works</a><a href="/#styles">Styles</a><a href="/#pricing">Pricing</a><a href="/#teams">Teams</a><a href="/#reviews">Reviews</a>
+      </nav>
+      <div class="nav-actions">
+        ${signedIn
+          ? html`<a class="btn btn-ghost btn-sm hide-m" href="/app" data-link>Your shoots</a>`
+          : html`<a class="btn btn-ghost btn-sm hide-m" href="/signin" data-link>Sign in</a>`}
+        <a class="btn btn-flash btn-sm hide-m" href="${signedIn ? "/app/new" : "/signup"}" data-link>Get your headshots ${icon("arrow-right")}</a>
+        <button class="btn btn-ghost btn-icon nav-toggle" id="navToggle" aria-expanded="false" aria-controls="navSheet" aria-label="Open menu">${icon("menu")}</button>
+      </div>
+    </div>
+    <div class="nav-sheet" id="navSheet">
+      <a href="/#how">How it works</a><a href="/#styles">Styles</a><a href="/#pricing">Pricing</a><a href="/#reviews">Reviews</a>
+      ${signedIn ? html`<a href="/app" data-link>Your shoots</a>` : html`<a href="/signin" data-link>Sign in</a>`}
+      <a class="btn btn-flash btn-block" href="${signedIn ? "/app/new" : "/signup"}" data-link>Get your headshots ${icon("arrow-right")}</a>
+    </div>
+  </header>`;
+}
+
+function appNav() {
+  const u = state.user;
+  return html`
+  <header class="nav" id="nav">
+    <div class="container nav-inner">
+      <a class="logo" href="/app" data-link aria-label="HeadshotPro — your shoots">${logoMark()}<b>Headshot</b><span>Pro</span></a>
+      <nav class="nav-links" aria-label="App">
+        <a href="/app" data-link>Shoots</a><a href="/app/new" data-link>New shoot</a><a href="/#pricing">Pricing</a>
+      </nav>
+      <div class="nav-actions">
+        <span class="user-chip hide-m" title="${u.email}"><span class="avatar" aria-hidden="true">${initials(u.name)}</span>${u.name.split(" ")[0]}</span>
+        <button class="btn btn-ghost btn-sm" id="signOut">${icon("log-out")}<span class="hide-m">Sign out</span></button>
+      </div>
+    </div>
+  </header>`;
+}
+
+async function render() {
+  cleanup?.();
+  cleanup = null;
+  const path = location.pathname.replace(/\/+$/, "") || "/";
+  let match;
+  const route = routes.find((r) => (match = path.match(r.path)));
+  if (!route) {
+    document.title = "Not found · HeadshotPro";
+    app.innerHTML = html`${marketingNav()}<main id="main" class="container app-main view-enter"><div class="empty"><p class="eyebrow">Error 404</p><h1 class="display h-1">This frame didn't develop.</h1><p class="lede">The page you're looking for doesn't exist or has moved.</p><a class="btn btn-ink" href="/" data-link>Back to the studio ${icon("arrow-right")}</a></div></main>`.v;
+    return;
+  }
+  if (route.auth && !state.user) return navigate(`/signin?next=${encodeURIComponent(path)}`, { replace: true });
+  if (route.guestOnly && state.user) return navigate("/app", { replace: true });
+
+  document.title = route.title;
+  const chrome = route.chrome === "marketing" ? marketingNav() : route.chrome === "app" ? appNav() : html``;
+  app.innerHTML = html`${chrome}<div id="view"></div>`.v;
+  const view = $("#view");
+  const ctx = { root: view, navigate, setTitle: (t) => (document.title = `${t} · HeadshotPro`) };
+  try {
+    cleanup = (await route.view(ctx, ...(match?.slice(1) || []))) || null;
+  } catch (err) {
+    console.error(err);
+    view.innerHTML = html`<main id="main" class="container app-main"><div class="banner banner-danger">${icon("circle-alert")}<div><b>This page failed to load.</b>${err.message}</div><button class="btn btn-sm btn-ink" onclick="location.reload()">Reload</button></div></main>`.v;
+  }
+  wireChrome();
+  observeReveals(app);
+  if (location.hash) requestAnimationFrame(() => document.getElementById(location.hash.slice(1))?.scrollIntoView());
+  else window.scrollTo({ top: 0, behavior: "instant" });
+}
+
+function wireChrome() {
+  const nav = $("#nav");
+  if (nav) {
+    const onScroll = () => nav.classList.toggle("is-scrolled", window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    const prev = cleanup;
+    cleanup = () => {
+      window.removeEventListener("scroll", onScroll);
+      prev?.();
+    };
+  }
+  const toggle = $("#navToggle");
+  const sheet = $("#navSheet");
+  toggle?.addEventListener("click", () => {
+    const open = sheet.classList.toggle("open");
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+  });
+  sheet?.addEventListener("click", (e) => e.target.closest("a") && sheet.classList.remove("open"));
+  $("#signOut")?.addEventListener("click", async () => {
+    await api("/api/auth/signout", { method: "POST" }).catch(() => {});
+    state.user = null;
+    toast("Signed out. See you soon.", "success");
+    navigate("/");
+  });
+}
+
+// Intercept in-app links.
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("a[data-link], a[href^='/']");
+  if (!a || a.target || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0 || a.hasAttribute("download")) return;
+  const url = new URL(a.href, location.origin);
+  if (url.origin !== location.origin || url.pathname.startsWith("/media/")) return;
+  e.preventDefault();
+  if (url.pathname === location.pathname && url.hash) {
+    history.pushState({}, "", url.pathname + url.hash);
+    document.getElementById(url.hash.slice(1))?.scrollIntoView({ behavior: "smooth" });
+    return;
+  }
+  navigate(url.pathname + url.search + url.hash);
+});
+window.addEventListener("popstate", render);
+
+loadSession()
+  .catch(() => {})
+  .finally(render);

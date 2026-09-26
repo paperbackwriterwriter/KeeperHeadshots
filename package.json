@@ -1,0 +1,30 @@
+{
+  "name": "headshotpro",
+  "version": "1.0.0",
+  "description": "HeadshotPro rebuild — AI headshots from selfies",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node scripts/seed.js",
+    "mock-ai": "node scripts/dev/mock-ai.js",
+    "screenshots": "node scripts/dev/screenshots.js shots"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "@google/genai": "^2.24.0",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.2.1",
+    "lucide-static": "^1.48.0",
+    "sharp": "^0.35.4",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "private": true
+}
