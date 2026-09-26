@@ -531,6 +531,16 @@ ul, ol { margin: 0; padding: 0; }
 .thumb .idx { position: absolute; left: 6px; bottom: 5px; font-family: var(--font-mono); font-size: 10px; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); }
 @keyframes popIn { from { opacity: 0; transform: scale(0.92); } }
 
+.add-more { display: grid; grid-template-columns: 1fr minmax(260px, 360px); gap: var(--s-5); align-items: center; }
+.add-more .h-4 > svg { color: var(--accent-text); }
+.dropzone.busy { pointer-events: none; opacity: 0.7; }
+.rm-photo { position: absolute; top: 8px; right: 8px; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(11, 19, 32, 0.72); color: #fff; display: grid; place-items: center; cursor: pointer; z-index: 2; transition: background-color var(--dur-2); }
+.rm-photo:hover { background: var(--danger); }
+.rm-photo svg { width: 16px; height: 16px; }
+.rm-inline { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border); background: transparent; color: var(--text-subtle); display: grid; place-items: center; cursor: pointer; transition: color var(--dur-2), border-color var(--dur-2), background-color var(--dur-2); }
+.rm-inline:hover { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
+.rm-inline svg { width: 14px; height: 14px; }
+@media (max-width: 900px) { .add-more { grid-template-columns: 1fr; } }
 .guide { list-style: none; display: grid; gap: var(--s-3); font-size: var(--fs-sm); }
 .guide li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; }
 .guide .gi { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; }

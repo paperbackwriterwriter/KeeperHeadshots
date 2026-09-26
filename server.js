@@ -4,7 +4,7 @@ import cookieParser from "cookie-parser";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import { users, shoots, id, readMedia } from "./lib/store.js";
+import { users, shoots, id, readMedia, deleteMedia } from "./lib/store.js";
 import { backend } from "./lib/storage.js";
 import { hashPassword, verifyPassword, setSession, clearSession, currentUser, requireUser, publicUser } from "./lib/auth.js";
 import { aiStatus, AIError } from "./lib/ai.js";
@@ -123,19 +123,42 @@ app.post("/api/shoots", requireUser, async (req, res) => {
   res.status(201).json({ shoot });
 });
 
+// Photos can be added or removed until developing starts, so a person can
+// top up their set after the photo check without losing what they uploaded.
+const canEditPhotos = (meta) => !meta.sample && ["draft", "checked", "error"].includes(meta.status) && !(meta.shots || []).length;
+
 app.post("/api/shoots/:id/selfies", requireUser, async (req, res) => {
   const meta = await ownShoot(req, res, { full: false });
   if (!meta) return;
-  if (meta.sample || meta.status !== "draft" || meta.check) return res.status(400).json({ error: "Photos can only be added to a new shoot." });
-  if (meta.selfies.length >= MAX_SELFIES) return res.status(400).json({ error: `Up to ${MAX_SELFIES} photos per shoot.` });
+  if (!canEditPhotos(meta)) return res.status(400).json({ error: "Photos can't be changed once developing has started. Start a new shoot instead." });
+  if (meta.selfies.length >= MAX_SELFIES) return res.status(400).json({ error: `Up to ${MAX_SELFIES} photos per shoot. Remove one to make room.` });
   const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(req.body?.photo || "");
   if (!m) return res.status(400).json({ error: "Photos must be JPG, PNG or WebP." });
   const selfie = await ingestSelfie(meta.id, Buffer.from(m[2], "base64"));
   // Re-read before writing so sequential uploads never drop each other.
   const fresh = await shoots.getMeta(meta.id);
   fresh.selfies.push(selfie);
+  // The set changed, so the old check no longer describes it.
+  Object.assign(fresh, { check: null, status: "draft", error: null });
   await shoots.saveMeta(fresh);
   res.status(201).json({ selfie, count: fresh.selfies.length });
+});
+
+app.delete("/api/shoots/:id/selfies/:name", requireUser, async (req, res) => {
+  const meta = await ownShoot(req, res, { full: false });
+  if (!meta) return;
+  if (!canEditPhotos(meta)) return res.status(400).json({ error: "Photos can't be changed once developing has started." });
+  const index = meta.selfies.findIndex((s) => s.file === `${meta.id}/${req.params.name}`);
+  if (index < 0) return res.status(404).json({ error: "That photo isn't in this shoot." });
+  if (meta.selfies.length <= 1) return res.status(400).json({ error: "A shoot needs at least one photo." });
+  const [removed] = meta.selfies.splice(index, 1);
+  // Keep the rest of the photo check, re-pointed at the remaining photos.
+  if (meta.check?.photos) {
+    meta.check.photos = meta.check.photos.filter((p) => p.index !== index).map((p) => (p.index > index ? { ...p, index: p.index - 1 } : p));
+  }
+  await shoots.saveMeta(meta);
+  await deleteMedia(removed.file).catch(() => {});
+  res.json({ shoot: await shoots.get(meta.id) });
 });
 
 function requireAI(kind, res) {

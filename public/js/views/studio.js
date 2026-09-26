@@ -92,6 +92,9 @@ export async function renderStudio(ctx, id) {
     const ring = $("[data-ring]");
     if (ring) requestAnimationFrame(() => requestAnimationFrame(() => ring.style.setProperty("--val", ring.dataset.ring)));
     $("#runCheck")?.addEventListener("click", runCheck);
+    $("#recheck")?.addEventListener("click", runCheck);
+    wireAddPhotos();
+    $$("[data-remove-selfie]").forEach((b) => b.addEventListener("click", () => removeSelfie(b.dataset.removeSelfie, b)));
     $("#toLooks")?.addEventListener("click", () => {
       view = "looks";
       paintLooks(shoot);
@@ -125,6 +128,82 @@ export async function renderStudio(ctx, id) {
     }
   }
 
+  // Add photos to this shoot (keeping the existing ones), then re-check the set.
+  function addPhotosPanel(s, tips = []) {
+    const room = MAX_SELFIES - s.selfies.length;
+    return html`<section class="panel add-more" id="addMore" aria-labelledby="addMoreTitle">
+      <div class="add-more-copy">
+        <h3 class="h-4" id="addMoreTitle">${icon("image-plus")} Add more photos</h3>
+        <p class="small muted">Your ${s.selfies.length} photo${s.selfies.length === 1 ? "" : "s"} stay${s.selfies.length === 1 ? "s" : ""} in this shoot. Add ${room ? `up to ${room} more` : "more after removing one"} and we'll re-check the whole set.</p>
+        ${tips.length ? html`<ul class="tips" style="margin-top:14px">${tips.map((t) => html`<li>${icon("arrow-right")}<span>${t}</span></li>`)}</ul>` : ""}
+      </div>
+      ${room
+        ? html`<label class="dropzone dz-compact" id="addDz">
+            <input type="file" id="addFile" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple aria-describedby="addStatus" />
+            <span class="dz-icon">${icon("upload")}</span>
+            <span><span class="h-4" style="display:block">Add photos</span><span class="small muted" id="addStatus">${s.selfies.length} of ${MAX_SELFIES} used · JPG, PNG or WebP</span></span>
+          </label>`
+        : html`<p class="small muted" id="addStatus">You're at the ${MAX_SELFIES}-photo limit. Remove a skipped photo to make room.</p>`}
+    </section>`;
+  }
+
+  function wireAddPhotos() {
+    const input = $("#addFile");
+    const dz = $("#addDz");
+    if (!input || !dz) return;
+    input.addEventListener("change", () => {
+      const files = [...input.files];
+      input.value = "";
+      addPhotos(files);
+    });
+    ["dragenter", "dragover"].forEach((ev) => dz.addEventListener(ev, (e) => (e.preventDefault(), dz.classList.add("drag"))));
+    ["dragleave", "drop"].forEach((ev) => dz.addEventListener(ev, (e) => (e.preventDefault(), dz.classList.remove("drag"))));
+    dz.addEventListener("drop", (e) => addPhotos([...e.dataTransfer.files]));
+  }
+
+  async function addPhotos(files) {
+    const list = files.filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name));
+    if (!list.length) return toast("Those files aren't photos. Try JPG, PNG or WebP.", "error");
+    const room = MAX_SELFIES - shoot.selfies.length;
+    if (list.length > room) toast(`Only ${MAX_SELFIES} photos per shoot — adding the first ${room}.`, "info");
+    const status = $("#addStatus");
+    const dz = $("#addDz");
+    dz?.classList.add("busy");
+    let added = 0;
+    const batch = list.slice(0, room);
+    for (let i = 0; i < batch.length; i++) {
+      if (status) status.textContent = `Uploading ${i + 1} of ${batch.length}…`;
+      try {
+        await api(`/api/shoots/${id}/selfies`, { method: "POST", body: { photo: await toJpegDataURL(batch[i]) } });
+        added++;
+      } catch (err) {
+        toast(err.message, "error", 6000);
+      }
+    }
+    dz?.classList.remove("busy");
+    if (disposed) return;
+    if (!added) return refresh();
+    const data = await api(`/api/shoots/${id}`);
+    shoot = data.shoot;
+    toast(`Added ${added} photo${added === 1 ? "" : "s"}. Re-checking your set…`, "success");
+    if (state.ai.vision) runCheck();
+    else paintCheck(shoot);
+  }
+
+  async function removeSelfie(file, btn) {
+    if (!confirm("Remove this photo from the shoot?")) return;
+    const restore = busy(btn, "");
+    try {
+      const data = await api(`/api/shoots/${id}/selfies/${encodeURIComponent(file.split("/").pop())}`, { method: "DELETE" });
+      shoot = data.shoot;
+      paintCheck(shoot);
+      toast("Photo removed.", "success");
+    } catch (err) {
+      restore();
+      toast(err.message, "error");
+    }
+  }
+
   function checkPending(s, checking) {
     const phrases = ["Measuring light on your face…", "Checking focus and sharpness…", "Looking for sunglasses, hats and filters…", "Comparing angles across your set…"];
     if (checking) {
@@ -147,11 +226,11 @@ export async function renderStudio(ctx, id) {
         ? html`<p class="status-line">${spinner()}<span id="phrase" aria-live="polite">${phrases[0]}</span></p>`
         : html`<p class="lede" style="margin-bottom:24px">Our AI photo specialist scores every photo for lighting, sharpness, visibility and expression, then tells you what to fix — before any rendering time is spent.</p>`}
       <div class="scan-grid">
-        ${s.selfies.map((p, i) => html`<div class="scan ${checking ? "" : "idle"}" style="--i:${i}"><img src="${media(p.file)}" alt="Your photo ${i + 1}" /><span class="corners"></span></div>`)}
+        ${s.selfies.map((p, i) => html`<div class="scan ${checking ? "" : "idle"}" style="--i:${i}"><img src="${media(p.file)}" alt="Your photo ${i + 1}" /><span class="corners"></span>${!checking && s.selfies.length > 1 ? html`<button class="rm-photo" data-remove-selfie="${p.file}" aria-label="Remove photo ${i + 1}">${icon("x")}</button>` : ""}</div>`)}
       </div>
       ${checking
         ? html`<div class="panel" style="margin-top:24px"><div class="skel skel-line" style="width:40%"></div><div class="skel skel-line" style="width:85%"></div><div class="skel skel-line" style="width:70%"></div></div>`
-        : html`<div class="actions-bar"><button class="btn btn-ghost btn-sm" id="delete">${icon("trash-2")} Delete shoot</button><a class="btn btn-ghost btn-sm" href="/app/new" data-link>${icon("upload")} Use different photos</a></div>`}`;
+        : html`<div style="margin-top:24px">${addPhotosPanel(s)}</div><div class="actions-bar"><button class="btn btn-ghost btn-sm" id="delete">${icon("trash-2")} Delete shoot</button></div>`}`;
   }
 
   function checkResult(s) {
@@ -178,7 +257,7 @@ export async function renderStudio(ctx, id) {
           return html`<article class="pcheck ${p.keep ? "" : "skip"}" style="--i:${i}">
             <div class="pcheck-img"><img src="${media(selfie.file)}" alt="Your photo ${p.index + 1}" /></div>
             <div class="pcheck-body">
-              <div class="pcheck-top"><span class="pcheck-score tabular">${p.score}</span>${p.keep ? html`<span class="badge badge-success">${icon("check")} Using</span>` : html`<span class="badge badge-danger">${icon("x")} Skipped</span>`}</div>
+              <div class="pcheck-top"><span class="pcheck-score tabular">${p.score}</span><span style="display:flex;gap:6px;align-items:center">${p.keep ? html`<span class="badge badge-success">${icon("check")} Using</span>` : html`<span class="badge badge-danger">${icon("x")} Skipped</span>`}${s.selfies.length > 1 ? html`<button class="rm-inline" data-remove-selfie="${selfie.file}" aria-label="Remove photo ${p.index + 1}" title="Remove photo">${icon("trash-2")}</button>` : ""}</span></div>
               <div class="meters">
                 ${[["Lighting", p.lighting], ["Sharpness", p.sharpness], ["Visibility", p.face_visibility], ["Expression", p.expression]].map(
                   ([k, v]) => html`<div class="meter" style="--i:${i}"><span>${k}</span><div class="meter-track"><div class="meter-fill" style="--v:${v};--mcol:${meterColor(v)}"></div></div><b>${v}</b></div>`,
@@ -191,14 +270,12 @@ export async function renderStudio(ctx, id) {
         })}
       </div>
 
-      ${c.tips?.length
-        ? html`<div class="panel" style="margin-top:24px"><h3 class="h-4">${icon("sparkles")} To get even better results</h3><ul class="tips" style="margin-top:12px">${c.tips.map((t) => html`<li>${icon("arrow-right")}<span>${t}</span></li>`)}</ul></div>`
-        : ""}
+      <div style="margin-top:24px">${addPhotosPanel(s, c.tips || [])}</div>
 
       <div class="actions-bar">
-        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" id="delete">${icon("trash-2")} Delete</button><a class="btn btn-ghost btn-sm" href="/app/new" data-link>${icon("upload")} New photos</a></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" id="delete">${icon("trash-2")} Delete</button><button class="btn btn-ghost btn-sm" id="recheck">${icon("refresh-cw")} Re-check photos</button></div>
         ${c.verdict === "retake"
-          ? html`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost" id="override">Continue anyway</button><a class="btn btn-flash" href="/app/new" data-link>${icon("camera")} Upload better photos</a></div>`
+          ? html`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost" id="override">Continue anyway</button><a class="btn btn-flash" href="#addMore">${icon("camera")} Add better photos</a></div>`
           : html`<button class="btn btn-flash btn-lg" id="toLooks">Choose your looks ${icon("arrow-right")}</button>`}
       </div>
       <p class="disclaimer" style="margin-top:16px">${icon("info")} Scores are AI estimates of how well each photo will work as a reference — not a judgment of how you look.</p>`;
