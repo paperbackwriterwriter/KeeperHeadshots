@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "express",
+  "fluid": true,
+  "functions": {
+    "server.js": { "maxDuration": 300 }
+  }
+}

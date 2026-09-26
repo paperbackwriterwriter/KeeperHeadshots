@@ -111,7 +111,8 @@ export function observeReveals(root = document) {
   els.forEach((e) => io.observe(e));
 }
 
-export const media = (file, download = false) => (file ? `/media/${encodeURIComponent(file)}${download ? "?download=1" : ""}` : "");
+// Media files are "<shootId>/<name>.jpg"; both parts are URL-safe by construction.
+export const media = (file, download = false) => (file ? `/media/${file.split("/").map(encodeURIComponent).join("/")}${download ? "?download=1" : ""}` : "");
 
 export function relTime(iso) {
   const d = (Date.now() - new Date(iso).getTime()) / 1000;

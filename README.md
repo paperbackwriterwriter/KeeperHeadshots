@@ -31,9 +31,16 @@ npm start                 # http://localhost:3000
 
 - **Demo account:** `demo@aiheadshotguru.com` / `studio-demo`. It's seeded with two finished sample shoots so every screen has content. Sample images are illustrations and are labelled "Sample".
 - Without API keys the app still runs. The studio shows a clear "AI isn't switched on" banner, and the API returns `503 ai_not_configured` instead of pretending.
-- Data (users, shoots, images) lives in `./data` as JSON and files. Delete the folder to reset; the demo reseeds on the next start.
+- Locally, data (users, shoots, images) lives in `./data` as JSON and files. Delete the folder to reset; the demo reseeds the next time someone signs in as the demo user.
 
-This is a long-running Node server: rendering happens in the background while the browser polls. Deploy it to a Node host with a persistent disk (Render, Fly, Railway, a VM) rather than serverless functions.
+### Deploying to Vercel
+
+The same code runs on Vercel as an Express function:
+
+- **Storage:** with a private Vercel Blob store connected (`BLOB_READ_WRITE_TOKEN`), all users, shoots and images live in Blob. Without it, the app uses `./data` on disk.
+- **Rendering:** no long-lived background job. Each progress poll calls `advance()`, which claims pending frames up to `GENERATION_CONCURRENCY` and renders each one in the background of that request (`waitUntil`, up to 300 s). Frames that stall past the lease are marked failed and can be retried.
+- **Uploads:** photos go up one per request, so each body stays under Vercel's 4.5 MB limit.
+- **Environment variables:** `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` and `SESSION_SECRET` (required on Vercel).
 
 ### Flow
 
@@ -68,7 +75,8 @@ Testimonials on the landing page are placeholder copy, and `hello@aiheadshotguru
 server.js                 Express app: auth, shoots API, media, static SPA
 lib/ai.js                 Claude photo check + review, Gemini rendering, prompts
 lib/pipeline.js           Shoot orchestration, concurrency, retries, recovery
-lib/store.js, lib/auth.js JSON store, scrypt passwords, signed-cookie sessions
+lib/storage.js           disk or Vercel Blob backend
+lib/store.js, lib/auth.js data model, scrypt passwords, signed-cookie sessions
 public/js/views/*         landing, auth, dashboard, studio (the shoot flow)
 public/js/shared/*        style catalog + sample portrait illustrations (browser + server)
 scripts/seed.js           demo account and sample shoots

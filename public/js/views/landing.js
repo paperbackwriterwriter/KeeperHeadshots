@@ -180,7 +180,7 @@ export function renderLanding({ root }) {
           <ul class="feature-list">
             <li data-reveal style="--i:1"><span class="ficon">${icon("user-round")}</span><div><b>Likeness first</b><span>Every frame is compared against your originals. If it doesn't look like you, it's flagged.</span></div></li>
             <li data-reveal style="--i:2"><span class="ficon">${icon("focus")}</span><div><b>Artifact detection</b><span>Warped ears, melted collars, plastic skin — caught before you post them.</span></div></li>
-            <li data-reveal style="--i:3"><span class="ficon">${icon("linkedin")}</span><div><b>Where each shot works</b><span>LinkedIn, speaker bio, company site — matched to the right photo.</span></div></li>
+            <li data-reveal style="--i:3"><span class="ficon">${icon("briefcase")}</span><div><b>Where each shot works</b><span>LinkedIn, speaker bio, company site — matched to the right photo.</span></div></li>
           </ul>
         </div>
         <div data-reveal style="--i:2">
@@ -309,7 +309,7 @@ function reviewPreview() {
         <div class="bars">
           ${[["Likeness", 9], ["Polish", 9], ["Lighting", 10]].map(([k, v]) => html`<div class="bar-row"><span class="small">${k}</span><div class="meter-track"><div class="meter-fill" style="--v:${v};--mcol:var(--teal-600)"></div></div><b class="small">${v}</b></div>`)}
         </div>
-        <span class="chip" style="justify-self:start">${icon("linkedin")} Best for LinkedIn</span>
+        <span class="chip" style="justify-self:start">${icon("briefcase")} Best for LinkedIn</span>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px">

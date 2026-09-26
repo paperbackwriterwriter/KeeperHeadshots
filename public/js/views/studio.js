@@ -423,7 +423,7 @@ export async function renderStudio(ctx, id) {
           </div>
           ${bestG
             ? html`<div class="bars" style="max-width:420px;margin-bottom:24px">${[["Likeness", bestG.likeness], ["Polish", bestG.polish], ["Lighting", bestG.lighting]].map(([k, v]) => html`<div class="bar-row"><span>${k}</span><div class="meter-track"><div class="meter-fill" style="--v:${v};--mcol:var(--teal-600)"></div></div><b>${v}</b></div>`)}</div>
-              <p class="small" style="margin-bottom:24px"><span class="chip">${icon("linkedin")} Best for ${bestG.best_for}</span> <span class="muted" style="margin-left:6px">${bestG.note}</span></p>`
+              <p class="small" style="margin-bottom:24px"><span class="chip">${icon("briefcase")} Best for ${bestG.best_for}</span> <span class="muted" style="margin-left:6px">${bestG.note}</span></p>`
             : ""}
           <div style="display:flex;gap:10px;flex-wrap:wrap">
             ${best ? html`<a class="btn btn-flash btn-lg" href="${media(best.file, true)}" download>${icon("download")} Download best</a>` : ""}
@@ -698,12 +698,21 @@ function renderUpload({ root, navigate }) {
   });
   go.addEventListener("click", async () => {
     const restore = busy(go, "Uploading…");
+    const label = go.querySelector("span");
+    let shootId = null;
     try {
-      const { shoot } = await api("/api/shoots", { method: "POST", body: { photos: photos.map((p) => p.url) } });
-      sessionStorage.setItem("ahg-autocheck", shoot.id);
-      navigate(`/app/shoot/${shoot.id}`);
+      ({ shoot: { id: shootId } } = await api("/api/shoots", { method: "POST", body: {} }));
+      // One photo per request keeps each upload small and reliable.
+      for (let i = 0; i < photos.length; i++) {
+        if (label) label.textContent = `Uploading ${i + 1} of ${photos.length}…`;
+        await api(`/api/shoots/${shootId}/selfies`, { method: "POST", body: { photo: photos[i].url } });
+      }
+      sessionStorage.setItem("ahg-autocheck", shootId);
+      navigate(`/app/shoot/${shootId}`);
     } catch (err) {
       restore();
+      // Don't leave a half-uploaded shoot behind.
+      if (shootId) api(`/api/shoots/${shootId}`, { method: "DELETE" }).catch(() => {});
       toast(err.message, "error", 6000);
     }
   });

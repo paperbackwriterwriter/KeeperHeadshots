@@ -11,63 +11,66 @@ import { lookFor } from "../public/js/shared/catalog.js";
 
 export const DEMO = { email: "demo@aiheadshotguru.com", password: "studio-demo" };
 
-async function render(seedKey, opts) {
+async function render(sid, seedKey, opts) {
   const jpg = await sharp(Buffer.from(portraitSVG(seedKey, opts))).resize(768, 1024, { fit: "cover" }).jpeg({ quality: 88 }).toBuffer();
-  return saveMedia(jpg, "jpg");
+  return saveMedia(sid, jpg, "jpg");
 }
 
 const daysAgo = (d, h = 0) => new Date(Date.now() - d * 864e5 - h * 36e5).toISOString();
 
 async function sampleShoot(userId, spec) {
-  const selfies = [];
-  for (let i = 0; i < spec.selfies; i++) {
-    selfies.push({ file: await render(`${spec.key}-selfie-${i}`, { skin: spec.skin, hair: spec.hair, hairTone: 0, backdrop: ["botanical", "city-terrace", "glass-office", "library"][i % 4], outfit: "white-shirt" }), width: 768, height: 1024 });
-  }
+  const sid = id("sht");
+  const person = { skin: spec.skin, hair: spec.hair, hairTone: 0 };
+  const selfies = await Promise.all(
+    Array.from({ length: spec.selfies }, async (_, i) => ({
+      file: await render(sid, `${spec.key}-selfie-${i}`, { ...person, backdrop: ["botanical", "city-terrace", "glass-office", "library"][i % 4], outfit: "white-shirt" }),
+      width: 768,
+      height: 1024,
+    })),
+  );
   const shots = [];
   for (const l of spec.looks) {
     const look = lookFor(l.backdrop, l.outfit);
-    for (let take = 0; take < 2; take++) {
-      shots.push({
-        id: id("shot"),
-        lookId: look.id,
-        backdrop: l.backdrop,
-        outfit: l.outfit,
-        take,
-        status: "done",
-        file: await render(`${spec.key}-${look.id}-${take}`, { skin: spec.skin, hair: spec.hair, hairTone: 0, backdrop: l.backdrop, outfit: l.outfit }),
-        error: null,
-      });
-    }
+    for (let take = 0; take < 2; take++) shots.push({ id: id("shot"), lookId: look.id, backdrop: l.backdrop, outfit: l.outfit, take });
   }
-  const grades = spec.grades;
-  const reviewShots = Object.fromEntries(shots.map((s, i) => [s.id, { index: i, ...grades[i % grades.length] }]));
+  await Promise.all(
+    shots.map(async (s) => {
+      const file = await render(sid, `${spec.key}-${s.lookId}-${s.take}`, { ...person, backdrop: s.backdrop, outfit: s.outfit });
+      Object.assign(s, { file });
+      await shoots.saveShot(sid, { id: s.id, status: "done", file, error: null, startedAt: spec.createdAt, finishedAt: spec.createdAt });
+    }),
+  );
+  const reviewShots = Object.fromEntries(shots.map((s, i) => [s.id, { index: i, ...spec.grades[i % spec.grades.length] }]));
+  const best = shots[spec.review.best];
   return shoots.create({
-    id: id("sht"),
+    id: sid,
     userId,
     sample: true,
     name: spec.name,
     status: "done",
     createdAt: spec.createdAt,
-    updatedAt: spec.createdAt,
     selfies,
     check: spec.check,
     looks: spec.looks,
     shots,
-    review: { headline: spec.review.headline, summary: spec.review.summary, bestShotId: shots[spec.review.best].id, shots: reviewShots, at: spec.createdAt },
+    review: { headline: spec.review.headline, summary: spec.review.summary, bestShotId: best.id, shots: reviewShots, at: spec.createdAt },
+    cover: best.file,
+    doneCount: shots.length,
+    bestScore: reviewShots[best.id].overall,
     error: null,
   });
 }
 
-export async function seed() {
-  if (users.byEmail(DEMO.email)) return;
-  const user = users.create({
-    id: id("usr"),
-    name: "Maya Okafor",
-    email: DEMO.email,
-    password: hashPassword(DEMO.password),
-    createdAt: daysAgo(21),
-    demo: true,
-  });
+let seeding = null;
+// Idempotent; concurrent callers share one run.
+export function seed() {
+  return (seeding ??= doSeed().finally(() => (seeding = null)));
+}
+
+async function doSeed() {
+  if (await users.byEmail(DEMO.email)) return;
+  // The user record is written last, so a half-finished seed is retried.
+  const user = { id: id("usr") };
 
   await sampleShoot(user.id, {
     key: "maya-a",
@@ -150,6 +153,14 @@ export async function seed() {
       headline: "Botanical take wins — warm and candid.",
       summary: "The natural-light botanical look captures you best; the high-key white set is perfect for badges and printed programs.",
     },
+  });
+  await users.create({
+    id: user.id,
+    name: "Maya Okafor",
+    email: DEMO.email,
+    password: hashPassword(DEMO.password),
+    createdAt: daysAgo(21),
+    demo: true,
   });
   console.log(`Seeded demo account: ${DEMO.email} / ${DEMO.password}`);
 }

@@ -19,7 +19,8 @@ for (let i = 0; i < 3; i++) {
   const b = await sharp(Buffer.from(portraitSVG("sf" + i, { outfit: "white-shirt" }))).resize(900, 1125).jpeg().toBuffer();
   photos.push("data:image/jpeg;base64," + b.toString("base64"));
 }
-const { shoot } = await f("/api/shoots", { method: "POST", body: JSON.stringify({ photos }) });
+const { shoot } = await f("/api/shoots", { method: "POST", body: "{}" });
+for (const photo of photos) await f(`/api/shoots/${shoot.id}/selfies`, { method: "POST", body: JSON.stringify({ photo }) });
 console.log("created", shoot.id, shoot.status);
 const c = await f(`/api/shoots/${shoot.id}/check`, { method: "POST" });
 console.log("check", c.shoot.status, c.shoot.check.overall_score, c.shoot.check.photos.length);
