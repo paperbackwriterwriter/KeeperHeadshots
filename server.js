@@ -189,12 +189,27 @@ app.post("/api/shoots/:id/review", requireUser, async (req, res) => {
   res.status(202).json({ shoot: await startReview(shoot.id) });
 });
 
+// Rename a shoot, or set/clear the person's own best pick.
 app.patch("/api/shoots/:id", requireUser, async (req, res) => {
-  const meta = await ownShoot(req, res, { full: false });
-  if (!meta) return;
-  const name = String(req.body?.name || "").trim().slice(0, 60);
-  if (!name) return res.status(400).json({ error: "Give the shoot a name." });
-  meta.name = name;
+  const shoot = await ownShoot(req, res);
+  if (!shoot) return;
+  const meta = await shoots.getMeta(shoot.id);
+  if ("name" in (req.body || {})) {
+    const name = String(req.body.name || "").trim().slice(0, 60);
+    if (!name) return res.status(400).json({ error: "Give the shoot a name." });
+    meta.name = name;
+  }
+  if ("pickedShotId" in (req.body || {})) {
+    const pickId = req.body.pickedShotId;
+    const pick = pickId ? shoot.shots.find((s) => s.id === pickId && s.status === "done") : null;
+    if (pickId && !pick) return res.status(400).json({ error: "That headshot isn't available to pick." });
+    meta.pickedShotId = pick ? pick.id : null;
+    const featured = pick || shoot.shots.find((s) => s.id === meta.review?.bestShotId);
+    if (featured) {
+      meta.cover = featured.file;
+      meta.bestScore = meta.review?.shots?.[featured.id]?.overall ?? null;
+    }
+  }
   await shoots.saveMeta(meta);
   res.json({ shoot: await shoots.get(meta.id) });
 });

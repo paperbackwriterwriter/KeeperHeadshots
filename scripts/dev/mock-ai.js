@@ -52,7 +52,6 @@ function reviewResult(nShots) {
   const grades = ["keeper", "keeper", "solid", "keeper", "retake", "solid", "keeper", "solid"];
   const uses = ["LinkedIn", "Company site", "Speaker bio", "Personal site", "—", "Slack avatar", "Author photo", "Newsletter"];
   return {
-    best_shot_index: 0,
     headline: "Strong set — your first look leads.",
     summary: "Likeness held across nearly every frame. Use the top-scoring portrait for LinkedIn and the warmer looks where you want to feel more approachable.",
     shots: Array.from({ length: nShots }, (_, i) => {

@@ -389,8 +389,11 @@ export async function renderStudio(ctx, id) {
     const failed = s.shots.filter((t) => t.status === "error").length;
     const r = s.review;
     const grade = (t) => r?.shots?.[t.id];
-    const best = done.find((t) => t.id === r?.bestShotId) || done[0];
+    const aiBest = done.find((t) => t.id === r?.bestShotId) || done[0];
+    const picked = done.find((t) => t.id === s.pickedShotId);
+    const best = picked || aiBest;
     const bestG = best && grade(best);
+    const isMine = !!picked && picked.id !== aiBest?.id;
     const keepers = done.filter((t) => grade(t)?.grade === "keeper").length;
     const avgLikeness = r ? (done.reduce((a, t) => a + (grade(t)?.likeness || 0), 0) / Math.max(1, done.length)).toFixed(1) : "—";
     const counts = { all: done.length, keeper: keepers, solid: done.filter((t) => grade(t)?.grade === "solid").length, retake: done.filter((t) => grade(t)?.grade === "retake").length };
@@ -407,7 +410,7 @@ export async function renderStudio(ctx, id) {
       <section class="proof-hero">
         <div class="best-print">
           ${best
-            ? html`<span class="best-tag">${icon("crown")} Best pick${bestG ? ` · ${bestG.overall}` : ""}</span>
+            ? html`<span class="best-tag">${icon("crown")} ${isMine ? "Your pick" : "Best pick"}${bestG ? ` · ${bestG.overall}` : ""}</span>
               <div class="print"><button class="open" data-open="${best.id}" aria-label="Open best pick full size"><img src="${media(best.file)}" alt="Your best headshot: ${lookName(best.backdrop, best.outfit)}" /></button>
               <div class="print-cap"><b>Frame ${String(best.n).padStart(2, "0")}</b><span>${lookName(best.backdrop, best.outfit)}</span></div></div>${greaseCircle()}`
             : ""}
@@ -425,8 +428,11 @@ export async function renderStudio(ctx, id) {
             ? html`<div class="bars" style="max-width:420px;margin-bottom:24px">${[["Likeness", bestG.likeness], ["Polish", bestG.polish], ["Lighting", bestG.lighting]].map(([k, v]) => html`<div class="bar-row"><span>${k}</span><div class="meter-track"><div class="meter-fill" style="--v:${v};--mcol:var(--teal-600)"></div></div><b>${v}</b></div>`)}</div>
               <p class="small" style="margin-bottom:24px"><span class="chip">${icon("briefcase")} Best for ${bestG.best_for}</span> <span class="muted" style="margin-left:6px">${bestG.note}</span></p>`
             : ""}
+          ${isMine && aiBest
+            ? html`<p class="small muted" style="margin:-8px 0 20px">The retoucher's pick was frame ${String(aiBest.n).padStart(2, "0")}. <button class="link" id="resetPick" style="background:none;border:0;padding:0;cursor:pointer;font:inherit">Use the retoucher's pick</button></p>`
+            : ""}
           <div style="display:flex;gap:10px;flex-wrap:wrap">
-            ${best ? html`<a class="btn btn-flash btn-lg" href="${media(best.file, true)}" download>${icon("download")} Download best</a>` : ""}
+            ${best ? html`<a class="btn btn-flash btn-lg" href="${media(best.file, true)}" download>${icon("download")} Download ${isMine ? "your pick" : "best"}</a>` : ""}
             <button class="btn btn-ghost btn-lg" id="dlAll">${icon("download")} All ${done.length}</button>
           </div>
         </div>
@@ -471,6 +477,9 @@ export async function renderStudio(ctx, id) {
                 ${g ? html`<span class="score-pill g-${g.grade} score-badge" title="${g.grade}"><i></i>${g.overall}</span>` : ""}
                 <div class="print-cap"><b>${String(t.n).padStart(2, "0")} · ${lookFor(t.backdrop, t.outfit).backdrop.name}</b><span>${g ? g.best_for : lookFor(t.backdrop, t.outfit).outfit.name}</span></div>
                 ${g ? html`<p class="proof-note">${g.note}</p>` : ""}
+                <div class="proof-actions">${t.id === best?.id
+                  ? html`<span class="pick-label">${icon("crown")} ${isMine ? "Your pick" : "Best pick"}</span>`
+                  : html`<button class="pick-btn" data-pick="${t.id}">${icon("crown")} Make this my pick</button>`}</div>
               </div>
             </article>`;
           })}`.v
@@ -509,6 +518,9 @@ export async function renderStudio(ctx, id) {
               <p style="color:#a9b1bd">${g.note}</p><p class="small"><b>Best for:</b> ${g.best_for}</p>`
             : html`<p style="color:#a9b1bd">Not graded yet.</p>`}
           <a class="btn btn-flash" href="${media(t.file, true)}" download>${icon("download")} Download full resolution</a>
+          ${t.id === best?.id
+            ? html`<span class="chip" style="align-self:flex-start">${icon("crown")} ${isMine ? "Your pick" : "Best pick"}</span>`
+            : html`<button class="btn btn-ghost-inverse" data-pick="${t.id}">${icon("crown")} Make this my pick</button>`}
           <div class="lb-nav"><button class="btn btn-ghost-inverse btn-sm" id="lbPrev" ${ordered.length < 2 ? raw("disabled") : ""}>${icon("arrow-left")} Prev</button><button class="btn btn-ghost-inverse btn-sm" id="lbNext" ${ordered.length < 2 ? raw("disabled") : ""}>Next ${icon("arrow-right")}</button></div>
         </div>
       </div>`.v;
@@ -529,6 +541,30 @@ export async function renderStudio(ctx, id) {
       const b = e.target.closest("[data-open]");
       if (b) openAt(b.dataset.open);
     });
+
+    // The person's own pick overrides the retoucher's and becomes the cover.
+    async function setPick(shotId, btn) {
+      const restore = btn ? busy(btn, "Saving…") : () => {};
+      try {
+        const data = await api(`/api/shoots/${id}`, { method: "PATCH", body: { pickedShotId: shotId } });
+        if (lb.open) lb.close();
+        shoot = data.shoot;
+        paintProofs(shoot);
+        toast(shotId ? "Saved as your pick." : "Back to the retoucher's pick.", "success");
+      } catch (err) {
+        restore();
+        toast(err.message, "error");
+      }
+    }
+    $("#main").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-pick]");
+      if (b) setPick(b.dataset.pick, b);
+    });
+    lb.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-pick]");
+      if (b) setPick(b.dataset.pick, b);
+    });
+    $("#resetPick")?.addEventListener("click", (e) => setPick(null, e.currentTarget));
 
     $("#dlAll")?.addEventListener("click", async (e) => {
       const restore = busy(e.currentTarget, "Downloading…");

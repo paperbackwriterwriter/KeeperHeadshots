@@ -684,7 +684,11 @@ ul, ol { margin: 0; padding: 0; }
 .proof .score-badge { position: absolute; top: 16px; right: 16px; }
 .proof.is-best .print { outline: 2px solid var(--flash-500); outline-offset: 3px; }
 .proof-note { font-size: var(--fs-xs); color: var(--text-muted); padding: 0 2px 12px; line-height: 1.45; min-height: 3.4em; }
-.proof-actions { display: flex; gap: 6px; padding: 0 0 8px; }
+.proof-actions { display: flex; align-items: center; min-height: 40px; padding: 0 0 8px; margin-top: -4px; }
+.pick-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--surface); font-size: var(--fs-xs); font-weight: 700; color: var(--text-muted); cursor: pointer; transition: border-color var(--dur-2), color var(--dur-2), background-color var(--dur-2); }
+.pick-btn:hover { border-color: var(--flash-500); color: var(--accent-text); background: var(--accent-soft); }
+.pick-btn svg, .pick-label svg { width: 14px; height: 14px; }
+.pick-label { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 700; color: var(--accent-text); padding: 0 4px; }
 .score-pill { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--r-pill); font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 500; background: rgba(251, 249, 245, 0.94); box-shadow: var(--shadow-1); font-variant-numeric: tabular-nums; }
 .score-pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
 .g-keeper { --c: var(--success); }
