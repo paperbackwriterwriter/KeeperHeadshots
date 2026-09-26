@@ -1,8 +1,8 @@
-import { $, $$, html, icon, logoMark, api, state, toast, busy } from "../core.js";
+import { $, $$, html, icon, logoMark, wordmark, api, state, toast, busy } from "../core.js";
 import { portraitDataURL } from "../shared/portrait.js";
 import { BACKDROPS, OUTFITS } from "../shared/catalog.js";
 
-const DEMO = { email: "demo@headshotpro.app", password: "studio-demo" };
+const DEMO = { email: "demo@aiheadshotguru.com", password: "studio-demo" };
 
 export function renderAuth({ root, navigate }, mode) {
   const isUp = mode === "signup";
@@ -16,7 +16,7 @@ export function renderAuth({ root, navigate }, mode) {
   root.innerHTML = html`
   <main id="main" class="auth">
     <div class="auth-form-wrap">
-      <a class="logo" href="/" data-link aria-label="HeadshotPro home">${logoMark()}<b>Headshot</b><span>Pro</span></a>
+      <a class="logo" href="/" data-link aria-label="AI Headshot Guru home">${logoMark()}${wordmark()}</a>
       <div class="auth-form view-enter">
         <p class="eyebrow"><span class="dot"></span>${isUp ? "Step 1 of 3" : "Welcome back"}</p>
         <h1 class="display h-2">${isUp ? "Create your account" : "Sign in to your studio"}</h1>
@@ -38,7 +38,7 @@ export function renderAuth({ root, navigate }, mode) {
           <button class="btn btn-flash btn-lg btn-block" type="submit" id="submit">${isUp ? "Create account" : "Sign in"} ${icon("arrow-right")}</button>
         </form>
         <p class="muted small" style="margin-top:20px;text-align:center">
-          ${isUp ? "Already have an account?" : "New to HeadshotPro?"}
+          ${isUp ? "Already have an account?" : "New to AI Headshot Guru?"}
           <a class="link" href="${isUp ? "/signin" : "/signup"}${next ? `?next=${encodeURIComponent(next)}` : ""}" data-link>${isUp ? "Sign in" : "Create an account"}</a>
         </p>
         ${!isUp
@@ -50,7 +50,7 @@ export function renderAuth({ root, navigate }, mode) {
       <div class="auth-mosaic">${mosaic.map((src) => html`<img src="${src}" alt="" />`)}</div>
       <span class="stars" style="color:#5fd3c7">${[1, 2, 3, 4, 5].map(() => icon("star"))}</span>
       <p class="display h-2" style="margin:16px 0 12px;max-width:18ch">“Four selfies at lunch. New LinkedIn photo by 2 p.m.”</p>
-      <p style="color:#a9b1bd">Daniel R., product lead — one of 197,000+ professionals</p>
+      <p style="color:#a9b1bd">Daniel R., product lead, fintech</p>
     </aside>
   </main>`.v;
 

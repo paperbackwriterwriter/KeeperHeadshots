@@ -1,4 +1,4 @@
-import { html, icon, raw, greaseCircle, state } from "../core.js";
+import { html, icon, raw, greaseCircle, state, logoMark, wordmark } from "../core.js";
 import { portraitDataURL } from "../shared/portrait.js";
 import { BACKDROPS, OUTFITS, PACKAGES } from "../shared/catalog.js";
 
@@ -45,9 +45,9 @@ export function renderLanding({ root }) {
             <a class="btn btn-ghost btn-lg" href="/#how">See how it works</a>
           </div>
           <div class="hero-proof" data-reveal style="--i:4">
-            <div class="proof-item"><strong>4.8<span class="sr-only"> out of 5</span></strong><span class="stars" aria-hidden="true">${[1, 2, 3, 4, 5].map(() => icon("star"))}</span></div>
-            <div class="proof-item"><strong class="tabular">18M+</strong><span>headshots created</span></div>
-            <div class="proof-item"><strong class="tabular">197k</strong><span>happy customers</span></div>
+            <div class="proof-item"><strong class="tabular">&lt; 1 hr</strong><span>typical turnaround</span></div>
+            <div class="proof-item"><strong class="tabular">From $29</strong><span>one-time, no subscription</span></div>
+            <div class="proof-item"><strong class="tabular">100%</strong><span>money-back guarantee</span></div>
           </div>
         </div>
 
@@ -71,12 +71,12 @@ export function renderLanding({ root }) {
     </section>
 
     <!-- Stats -->
-    <section class="section-tight" aria-label="HeadshotPro by the numbers">
+    <section class="section-tight" aria-label="AI Headshot Guru at a glance">
       <div class="container">
         <div class="stats">
           ${[
-            ["18,000,000+", "Headshots created"],
-            ["197,000+", "Professionals & teams"],
+            ["3", "AI passes on every shoot"],
+            ["16", "Looks on Executive"],
             ["< 1 hr", "Typical turnaround"],
             ["$29", "vs. $200+ at a studio"],
           ].map(([n, l], i) => html`<div class="stat" data-reveal style="--i:${i}"><div class="num">${n}</div><div class="lbl">${l}</div></div>`)}
@@ -161,7 +161,7 @@ export function renderLanding({ root }) {
             )}
           </dl>
           <dl class="compare-col">
-            <h3 class="h-4">HeadshotPro</h3>
+            <h3 class="h-4">AI Headshot Guru</h3>
             ${[["Cost", "From $29"], ["Turnaround", "Under 1 hour"], ["Backdrops & outfits", "Up to 16 looks"], ["Number of photos", "40 – 240"], ["Retakes", "Included"]].map(
               ([k, v]) => html`<div class="compare-row"><dt>${k}</dt><dd class="hi">${v}</dd></div>`,
             )}
@@ -195,7 +195,7 @@ export function renderLanding({ root }) {
         <div class="section-head">
           <div>
             <p class="eyebrow" data-reveal>Reviews</p>
-            <h2 class="display h-1" data-reveal style="--i:1;margin-top:16px">Rated 4.8 out of 5 by people who hate being photographed.</h2>
+            <h2 class="display h-1" data-reveal style="--i:1;margin-top:16px">Loved by people who hate being photographed.</h2>
           </div>
           <p class="lede" data-reveal style="--i:2">Founders, recruiters, nurses, lawyers, whole sales teams. Here's what they say.</p>
         </div>
@@ -262,7 +262,7 @@ export function renderLanding({ root }) {
         <div>
           <p class="eyebrow" data-reveal>FAQ</p>
           <h2 class="display h-1" data-reveal style="--i:1;margin-top:16px">Questions, answered.</h2>
-          <p class="lede" data-reveal style="--i:2;margin-top:20px">Still unsure? Write to us any time at <a class="link" href="mailto:hello@headshotpro.app">hello@headshotpro.app</a>.</p>
+          <p class="lede" data-reveal style="--i:2;margin-top:20px">Still unsure? Write to us any time at <a class="link" href="mailto:hello@aiheadshotguru.com">hello@aiheadshotguru.com</a>.</p>
         </div>
         <div class="faq-list">
           ${FAQ.map(([q, a], i) => html`<details data-reveal style="--i:${i % 3}" ${i === 0 ? raw("open") : ""}><summary>${q}${icon("chevron-down")}</summary><p>${a}</p></details>`)}
@@ -326,14 +326,14 @@ export function footer() {
     <div class="container">
       <div class="footer-grid">
         <div>
-          <a class="logo" href="/" data-link style="color:var(--text)">${raw('<svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#0b1320"/><circle cx="16" cy="16" r="9" fill="none" stroke="#f5f1ea" stroke-width="2"/><circle cx="16" cy="16" r="3.2" fill="#ff5b2e"/></svg>')}<b>Headshot</b><span>Pro</span></a>
+          <a class="logo" href="/" data-link style="color:var(--text)">${logoMark()}${wordmark()}</a>
           <p style="margin-top:12px;max-width:34ch">Professional headshots from the photos you already have. Checked, developed and graded by AI.</p>
         </div>
         <div><h4>Product</h4><ul><li><a href="/#how">How it works</a></li><li><a href="/#styles">Styles</a></li><li><a href="/#pricing">Pricing</a></li><li><a href="/#teams">Teams</a></li></ul></div>
         <div><h4>Account</h4><ul><li><a href="/signin" data-link>Sign in</a></li><li><a href="/signup" data-link>Create account</a></li><li><a href="/app" data-link>Your shoots</a></li></ul></div>
-        <div><h4>Company</h4><ul><li><a href="/#reviews">Reviews</a></li><li><a href="mailto:hello@headshotpro.app">Contact</a></li><li><a href="/#pricing">Money-back guarantee</a></li></ul></div>
+        <div><h4>Company</h4><ul><li><a href="/#reviews">Reviews</a></li><li><a href="mailto:hello@aiheadshotguru.com">Contact</a></li><li><a href="/#pricing">Money-back guarantee</a></li></ul></div>
       </div>
-      <div class="footer-base"><span>© ${new Date().getFullYear()} HeadshotPro</span><span>Your photos are never used to train AI models.</span></div>
+      <div class="footer-base"><span>© ${new Date().getFullYear()} AI Headshot Guru</span><span>Your photos are never used to train AI models.</span></div>
     </div>
   </footer>`;
 }

@@ -588,8 +588,8 @@ export async function renderStudio(ctx, id) {
 
   // After uploading, the new shoot's check starts automatically.
   await refresh();
-  if (shoot?.status === "draft" && !shoot.check && sessionStorage.getItem("hp-autocheck") === id) {
-    sessionStorage.removeItem("hp-autocheck");
+  if (shoot?.status === "draft" && !shoot.check && sessionStorage.getItem("ahg-autocheck") === id) {
+    sessionStorage.removeItem("ahg-autocheck");
     if (state.ai.vision) runCheck();
   }
   return () => {
@@ -700,7 +700,7 @@ function renderUpload({ root, navigate }) {
     const restore = busy(go, "Uploading…");
     try {
       const { shoot } = await api("/api/shoots", { method: "POST", body: { photos: photos.map((p) => p.url) } });
-      sessionStorage.setItem("hp-autocheck", shoot.id);
+      sessionStorage.setItem("ahg-autocheck", shoot.id);
       navigate(`/app/shoot/${shoot.id}`);
     } catch (err) {
       restore();

@@ -268,7 +268,7 @@ app.use((err, req, res, next) => {
 const port = Number(process.env.PORT || 3000);
 app.listen(port, () => {
   const s = aiStatus();
-  console.log(`HeadshotPro running at http://localhost:${port}`);
+  console.log(`AI Headshot Guru running at http://localhost:${port}`);
   console.log(`  Claude (${s.visionModel}): ${s.vision ? "ready" : "missing ANTHROPIC_API_KEY"}`);
   console.log(`  Gemini (${s.imageModel}): ${s.imaging ? "ready" : "missing GEMINI_API_KEY"}`);
 });

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   HeadshotPro — "Studio contact sheet"
+   AI Headshot Guru — "Studio contact sheet"
    Ink-navy studio, warm backdrop paper, one tungsten flash of orange.
    ========================================================================== */
 
@@ -229,7 +229,7 @@ ul, ol { margin: 0; padding: 0; }
 .logo { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 800; font-size: 1.125rem; letter-spacing: -0.03em; }
 .logo-mark { width: 30px; height: 30px; }
 .logo b { font-weight: 800; }
-.logo span { font-weight: 500; color: var(--text-muted); }
+.logo span { font-family: var(--font-display); font-style: italic; font-weight: 400; font-size: 1.32em; letter-spacing: -0.01em; line-height: 1; color: var(--accent-text); margin-left: -3px; }
 .nav-links { display: flex; gap: 4px; margin-left: var(--s-5); }
 .nav-links a { text-decoration: none; font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); padding: 8px 12px; border-radius: var(--r-pill); transition: color var(--dur-2), background-color var(--dur-2); }
 .nav-links a:hover { color: var(--text); background: rgba(11, 19, 32, 0.05); }
@@ -279,7 +279,7 @@ ul, ol { margin: 0; padding: 0; }
 /* Contact sheet collage */
 .sheet { position: relative; max-width: 540px; margin-left: auto; width: 100%; padding: 28px 0 44px 13%; }
 .sheet-board { position: relative; background: var(--ink-950); border-radius: var(--r-md); padding: 18px 18px 40px; box-shadow: var(--shadow-3); display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-content: start; }
-.sheet-board::after { content: "HEADSHOTPRO · ROLL 01 · PORTRAIT 400 · AI DEVELOPED"; position: absolute; left: 18px; bottom: 14px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; color: #6d7788; }
+.sheet-board::after { content: "AI HEADSHOT GURU · ROLL 01 · PORTRAIT 400 · AI DEVELOPED"; position: absolute; left: 18px; bottom: 14px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; color: #6d7788; }
 .sheet-frame { position: relative; aspect-ratio: 4 / 5; border-radius: 2px; background: var(--ink-800); }
 .sheet-frame img { width: 100%; height: 100%; object-fit: cover; border-radius: 2px; }
 .sheet-frame.keeper { z-index: 2; }
