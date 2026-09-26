@@ -7,7 +7,9 @@ export const BACKDROPS = [
     name: "Studio Gray",
     blurb: "Seamless charcoal paper, soft key light",
     prompt:
-      "a seamless mid-charcoal studio paper backdrop with a gentle radial falloff behind the head, classic three-point studio lighting with a large soft key light from camera left",
+      "a seamless mid-grey paper backdrop with a soft, graduated glow behind the head that falls off smoothly to deep charcoal at the edges",
+    light:
+      "classic studio lighting: a large octabox as the key light, 45 degrees to camera-left and slightly above eye level; a white reflector camera-right for gentle fill (about a 2:1 ratio); a soft strip light behind the subject for a subtle rim on the hair and shoulders so they separate cleanly from the background",
     tones: ["#3b3f45", "#1d2025"],
   },
   {
@@ -15,7 +17,9 @@ export const BACKDROPS = [
     name: "Glass Office",
     blurb: "Bright modern office, creamy bokeh",
     prompt:
-      "a bright modern glass-walled office, heavily out of focus with creamy bokeh, daylight from large windows, shallow depth of field at f/2",
+      "a bright, modern glass-walled office rendered as soft, creamy bokeh at f/2, with hints of windows, light and plants but nothing sharp or distracting and no legible text or logos",
+    light:
+      "soft, diffused window daylight from camera-left as the key, balanced with gentle fill so both sides of the face are well exposed; the background sits about one stop brighter than the face but keeps its detail and is never blown out",
     tones: ["#c9d3d6", "#8e9ea4"],
   },
   {
@@ -23,7 +27,9 @@ export const BACKDROPS = [
     name: "City Terrace",
     blurb: "Rooftop, golden hour skyline",
     prompt:
-      "an outdoor city rooftop terrace at golden hour, softly blurred skyline behind, warm natural backlight with a subtle rim on the hair",
+      "an outdoor rooftop terrace at golden hour, with a city skyline far behind, softly out of focus",
+    light:
+      "the low sun behind and to one side of the subject as a warm rim light on the hair and shoulders, while a large diffused reflector lights the face evenly from the front; the face is correctly exposed and the sky keeps its warm colour and detail (never blown out to white)",
     tones: ["#e0b98a", "#8a6a55"],
   },
   {
@@ -31,7 +37,9 @@ export const BACKDROPS = [
     name: "Library",
     blurb: "Warm wood and bookshelves",
     prompt:
-      "a warm wood-panelled library with softly blurred bookshelves, tungsten ambient light balanced with a soft window key",
+      "a warm, wood-panelled library with bookshelves softly out of focus and a table lamp glowing in the background",
+    light:
+      "soft window light from camera-left as the key with warm tungsten practicals in the background; rich but natural colour, with no orange cast on the skin",
     tones: ["#7a5a42", "#3a2a20"],
   },
   {
@@ -39,7 +47,9 @@ export const BACKDROPS = [
     name: "Studio White",
     blurb: "Clean high-key, crisp and bright",
     prompt:
-      "a clean high-key white studio backdrop, bright even lighting, crisp and airy, the kind used for corporate team pages",
+      "a clean, bright white seamless studio backdrop, evenly lit to a pure white-to-very-light-grey, with no visible edges or props",
+    light:
+      "high-key clamshell lighting: a large beauty dish or octabox slightly above the face and a reflector below for soft, even, flattering light with minimal shadows; crisp and airy",
     tones: ["#f4f2ee", "#d9d6d0"],
   },
   {
@@ -47,18 +57,20 @@ export const BACKDROPS = [
     name: "Botanical",
     blurb: "Soft greenery, natural light",
     prompt:
-      "a softly blurred background of lush green foliage and plants, diffuse natural light, calm and fresh",
+      "lush green foliage and plants softly out of focus, fresh and natural",
+    light:
+      "open-shade natural light with a soft reflector for fill; natural skin tones with no green colour cast on the face",
     tones: ["#9bb08c", "#4d6446"],
   },
 ];
 
 export const OUTFITS = [
-  { id: "navy-suit", name: "Navy Suit", prompt: "a tailored navy suit jacket over a crisp white dress shirt", colors: ["#1c2a44", "#f3f1ec"] },
-  { id: "charcoal-blazer", name: "Charcoal Blazer", prompt: "a charcoal wool blazer over a light blue open-collar shirt", colors: ["#34373c", "#bcd0e2"] },
-  { id: "white-shirt", name: "Crisp White Shirt", prompt: "a crisp, well-pressed white button-up shirt, top button open", colors: ["#f1efea", "#f1efea"] },
-  { id: "black-turtleneck", name: "Black Turtleneck", prompt: "a fine-knit black turtleneck", colors: ["#151619", "#151619"] },
-  { id: "camel-knit", name: "Camel Knit", prompt: "a soft camel-coloured knit sweater over a white collared shirt", colors: ["#b88a5a", "#f1efea"] },
-  { id: "oxford", name: "Smart Casual", prompt: "a light blue oxford shirt with a navy crew-neck sweater layered over it", colors: ["#26324d", "#b8cbe3"] },
+  { id: "navy-suit", name: "Navy Suit", prompt: "a tailored navy wool suit jacket with notch lapels over a crisp white dress shirt with the collar open (no tie); fitted shoulders and a clean, wrinkle-free drape", colors: ["#1c2a44", "#f3f1ec"] },
+  { id: "charcoal-blazer", name: "Charcoal Blazer", prompt: "a tailored charcoal wool blazer with a fine visible weave over a light-blue open-collar dress shirt; sharp shoulders, symmetrical collar", colors: ["#34373c", "#bcd0e2"] },
+  { id: "white-shirt", name: "Crisp White Shirt", prompt: "a crisp, well-pressed white button-up dress shirt with the top button open and a structured collar; no jacket", colors: ["#f1efea", "#f1efea"] },
+  { id: "black-turtleneck", name: "Black Turtleneck", prompt: "a fitted fine-gauge black merino turtleneck with a smooth, even texture", colors: ["#151619", "#151619"] },
+  { id: "camel-knit", name: "Camel Knit", prompt: "a soft camel-coloured fine-knit crew-neck sweater with a crisp white shirt collar showing at the neckline", colors: ["#b88a5a", "#f1efea"] },
+  { id: "oxford", name: "Smart Casual", prompt: "a light-blue oxford button-down shirt with a navy crew-neck sweater layered over it, collar points neat and symmetrical", colors: ["#26324d", "#b8cbe3"] },
 ];
 
 // The flow caps a single shoot so every run finishes in a few minutes.
