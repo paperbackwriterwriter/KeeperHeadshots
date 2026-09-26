@@ -3,6 +3,7 @@ import { renderLanding } from "./views/landing.js";
 import { renderAuth } from "./views/auth.js";
 import { renderDashboard } from "./views/dashboard.js";
 import { renderStudio } from "./views/studio.js";
+import { renderBuy } from "./views/buy.js";
 
 const app = document.getElementById("app");
 let cleanup = null;
@@ -12,14 +13,15 @@ const routes = [
   { path: /^\/signin$/, view: (ctx) => renderAuth(ctx, "signin"), chrome: "none", guestOnly: true, title: "Sign in · AI Headshot Guru" },
   { path: /^\/signup$/, view: (ctx) => renderAuth(ctx, "signup"), chrome: "none", guestOnly: true, title: "Create your account · AI Headshot Guru" },
   { path: /^\/app$/, view: renderDashboard, chrome: "app", auth: true, title: "Your shoots · AI Headshot Guru" },
+  { path: /^\/app\/buy\/([\w-]+)$/, view: (ctx, id) => renderBuy(ctx, id), chrome: "app", auth: true, title: "Checkout · AI Headshot Guru" },
   { path: /^\/app\/new$/, view: (ctx) => renderStudio(ctx, null), chrome: "app", auth: true, title: "New shoot · AI Headshot Guru" },
   { path: /^\/app\/shoot\/([\w-]+)$/, view: (ctx, id) => renderStudio(ctx, id), chrome: "app", auth: true, title: "Shoot · AI Headshot Guru" },
 ];
 
-export function navigate(to, { replace = false } = {}) {
+export function navigate(to, { replace = false, silent = false } = {}) {
   if (to === location.pathname + location.search + location.hash && !replace) return;
   history[replace ? "replaceState" : "pushState"]({}, "", to);
-  render();
+  if (!silent) render();
 }
 
 function marketingNav() {

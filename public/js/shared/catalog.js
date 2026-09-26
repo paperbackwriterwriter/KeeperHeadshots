@@ -67,34 +67,30 @@ export const TAKES_PER_LOOK = 2;
 export const MAX_SELFIES = 6;
 export const MIN_SELFIES = 1;
 
+// What each one-time package buys. A paid shoot allows MAX_LOOKS looks,
+// TAKES_PER_LOOK takes each (8 headshots).
 export const PACKAGES = [
   {
-    id: "small",
+    id: "starter",
     name: "Starter",
     price: 29,
-    headshots: 40,
-    looks: 4,
-    turnaround: "3 hours",
-    features: ["40 headshots", "4 backdrops", "4 outfits", "3-hour turnaround"],
+    shoots: 3,
+    features: ["3 shoots", "Up to 24 headshots", "4 looks per shoot", "AI photo check & grading"],
   },
   {
-    id: "normal",
+    id: "professional",
     name: "Professional",
     price: 39,
-    headshots: 120,
-    looks: 8,
-    turnaround: "2 hours",
+    shoots: 6,
     popular: true,
-    features: ["120 headshots", "8 backdrops", "8 outfits", "2-hour turnaround", "AI photo review"],
+    features: ["6 shoots", "Up to 48 headshots", "4 looks per shoot", "AI photo check & grading", "Best value per shoot"],
   },
   {
-    id: "premium",
+    id: "executive",
     name: "Executive",
     price: 49,
-    headshots: 240,
-    looks: 16,
-    turnaround: "1 hour",
-    features: ["240 headshots", "16 backdrops", "16 outfits", "1-hour turnaround", "AI photo review", "Priority rendering"],
+    shoots: 12,
+    features: ["12 shoots", "Up to 96 headshots", "4 looks per shoot", "AI photo check & grading", "Great for small teams"],
   },
 ];
 

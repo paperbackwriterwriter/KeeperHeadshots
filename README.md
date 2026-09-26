@@ -52,6 +52,23 @@ Enforced on the server (`lib/plan.js`):
 - **Demo account:** read-only (browse the sample shoots only).
 - **Owners:** emails listed in `OWNER_EMAILS` (comma-separated) have no limits.
 
+### Payments (Stripe)
+
+With `STRIPE_SECRET_KEY` set, the pricing buttons open Stripe Checkout (`lib/billing.js`). Packages live in `public/js/shared/catalog.js`:
+
+| Package | Price | Shoots |
+|---|---|---|
+| Starter | $29 | 3 |
+| Professional | $39 | 6 |
+| Executive | $49 | 12 |
+
+A paid shoot allows 4 looks (8 headshots). Purchases add credits to the account, and each developed shoot uses one. Payments are confirmed in two ways, recorded once per Checkout Session so a purchase is never credited twice:
+
+- when the buyer returns to the dashboard after paying;
+- on later dashboard visits, which catches a closed tab.
+
+You can also add a webhook: point a Stripe webhook at `/api/billing/webhook` for `checkout.session.completed`, and set `STRIPE_WEBHOOK_SECRET`.
+
 ### Flow
 
 `/` landing → `/signup` or `/signin` → `/app` (your shoots) → `/app/new` (upload) → `/app/shoot/:id`, which moves through **Photo check → Looks → Develop → Proofs** based on the shoot's server-side status.

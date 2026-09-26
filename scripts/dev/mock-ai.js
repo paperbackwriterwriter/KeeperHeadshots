@@ -102,9 +102,48 @@ async function gemini(req, res, body, url) {
   res.end(JSON.stringify({ candidates: [{ content: { role: "model", parts: [{ inlineData: { mimeType: "image/jpeg", data: jpg.toString("base64") } }] }, finishReason: "STOP" }] }));
 }
 
+// Minimal Stripe API stand-in: customers, Checkout Sessions, and a fake
+// hosted payment page at /mock-pay/:id that marks the session paid.
+const stripeSessions = new Map();
+let stripeSeq = 0;
+function stripe(req, res, raw) {
+  const url = new URL(req.url, "http://x");
+  const form = Object.fromEntries(new URLSearchParams(raw || ""));
+  const json = (o, code = 200) => (res.writeHead(code, { "content-type": "application/json" }), res.end(JSON.stringify(o)));
+  if (req.method === "POST" && url.pathname === "/v1/customers") return json({ id: `cus_mock${++stripeSeq}`, object: "customer", email: form.email });
+  if (req.method === "POST" && url.pathname === "/v1/checkout/sessions") {
+    const id = `cs_mock_${++stripeSeq}`;
+    const s = {
+      id, object: "checkout.session", customer: form.customer, client_reference_id: form.client_reference_id, payment_status: "unpaid",
+      amount_total: Number(form["line_items[0][price_data][unit_amount]"]), currency: "usd",
+      metadata: { userId: form["metadata[userId]"], packageId: form["metadata[packageId]"], shoots: form["metadata[shoots]"] },
+      success_url: form.success_url, cancel_url: form.cancel_url, url: `http://localhost:${PORT}/mock-pay/${id}`,
+    };
+    stripeSessions.set(id, s);
+    console.log(`[mock] stripe session ${id} ${s.metadata.packageId} $${s.amount_total / 100}`);
+    return json(s);
+  }
+  const m = /^\/v1\/checkout\/sessions\/([\w-]+)$/.exec(url.pathname);
+  if (req.method === "GET" && m) return stripeSessions.has(m[1]) ? json(stripeSessions.get(m[1])) : json({ error: { type: "invalid_request_error", message: "No such session" } }, 404);
+  if (req.method === "GET" && url.pathname === "/v1/checkout/sessions") {
+    const data = [...stripeSessions.values()].filter((s) => s.customer === url.searchParams.get("customer"));
+    return json({ object: "list", data, has_more: false, url: "/v1/checkout/sessions" });
+  }
+  const pay = /^\/mock-pay\/([\w-]+)$/.exec(url.pathname);
+  if (pay && stripeSessions.has(pay[1])) {
+    const s = stripeSessions.get(pay[1]);
+    const cancel = url.searchParams.get("cancel");
+    if (!cancel) s.payment_status = "paid";
+    res.writeHead(302, { location: cancel ? s.cancel_url : s.success_url.replace("{CHECKOUT_SESSION_ID}", s.id) });
+    return res.end();
+  }
+  return json({ error: { type: "invalid_request_error", message: "mock: not found" } }, 404);
+}
+
 http
   .createServer(async (req, res) => {
     const raw = await readBody(req);
+    if (req.url.startsWith("/v1/customers") || req.url.startsWith("/v1/checkout") || req.url.startsWith("/mock-pay")) return stripe(req, res, raw);
     const body = raw ? JSON.parse(raw) : {};
     try {
       if (req.url.startsWith("/v1/messages")) return await anthropic(req, res, body);

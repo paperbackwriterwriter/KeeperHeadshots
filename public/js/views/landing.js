@@ -26,7 +26,7 @@ const FAQ = [
   ["Will the headshots actually look like me?", "Likeness is the whole game. We pass your best reference photos to the image model with strict instructions to preserve your features, and every finished headshot is scored for likeness against your originals. Anything that drifts is flagged as a retake."],
   ["Who owns the photos?", "You do. Use your headshots anywhere — LinkedIn, your company site, print, press kits. We never use your photos to train models or for marketing."],
   ["What if I don't like the results?", "Every paid shoot is covered by our 100% money-back guarantee. If none of your headshots are usable, we'll refund you in full."],
-  ["Can I order for my whole team?", "Yes. Team shoots use the same studio with matching backdrops and wardrobe so everyone looks consistent on your website — at $39 per person, with 20% off for teams of five or more."],
+  ["Can I order for my whole team?", "Yes. Each shoot is one person, so a package covers several people: the Executive package includes 12 shoots. Everyone can use the same backdrops and wardrobe so your team page looks consistent. For larger teams, email us about volume pricing."],
 ];
 
 export function renderLanding({ root }) {
@@ -76,7 +76,7 @@ export function renderLanding({ root }) {
         <div class="stats">
           ${[
             ["3", "AI passes on every shoot"],
-            ["16", "Looks on Executive"],
+            ["4", "Looks per shoot"],
             ["< 1 hr", "Typical turnaround"],
             ["$29", "vs. $200+ at a studio"],
           ].map(([n, l], i) => html`<div class="stat" data-reveal style="--i:${i}"><div class="num">${n}</div><div class="lbl">${l}</div></div>`)}
@@ -162,7 +162,7 @@ export function renderLanding({ root }) {
           </dl>
           <dl class="compare-col">
             <h3 class="h-4">AI Headshot Guru</h3>
-            ${[["Cost", "From $29"], ["Turnaround", "Under 1 hour"], ["Backdrops & outfits", "Up to 16 looks"], ["Number of photos", "40 – 240"], ["Retakes", "Included"]].map(
+            ${[["Cost", "From $29"], ["Turnaround", "Under 1 hour"], ["Backdrops & outfits", "Up to 4 looks per shoot"], ["Number of photos", "8 per shoot"], ["Retakes", "Included"]].map(
               ([k, v]) => html`<div class="compare-row"><dt>${k}</dt><dd class="hi">${v}</dd></div>`,
             )}
           </dl>
@@ -237,11 +237,11 @@ export function renderLanding({ root }) {
               ${p.popular ? html`<span class="plan-badge">Most popular</span>` : ""}
               <div>
                 <h3 class="h-4">${p.name}</h3>
-                <p class="muted small">${p.headshots} headshots · ${p.turnaround}</p>
+                <p class="muted small">${p.shoots} shoots · up to ${p.shoots * 8} headshots</p>
               </div>
               <div class="plan-price"><span class="amt">$${p.price}</span><span class="muted small">one-time</span></div>
               <ul class="plan-feats">${p.features.map((f) => html`<li>${icon("check")}${f}</li>`)}</ul>
-              <a class="btn ${p.popular ? "btn-flash" : "btn-ghost"} btn-block" href="${cta}" data-link>Choose ${p.name} ${icon("arrow-right")}</a>
+              <a class="btn ${p.popular ? "btn-flash" : "btn-ghost"} btn-block" href="/app/buy/${p.id}" data-link>Choose ${p.name} ${icon("arrow-right")}</a>
             </article>`,
           )}
         </div>
@@ -249,9 +249,9 @@ export function renderLanding({ root }) {
         <div class="teams" id="teams" data-reveal>
           <div style="display:flex;gap:16px;align-items:center">
             <span class="t-ic">${icon("users")}</span>
-            <div><b class="h-4" style="display:block">Headshots for your whole team</b><span class="muted small">Consistent backdrops and wardrobe for everyone. $39 per person, 20% off for teams of 5+.</span></div>
+            <div><b class="h-4" style="display:block">Headshots for your whole team</b><span class="muted small">One shoot per person, with the same backdrops and wardrobe for everyone. Executive covers 12 people. Larger team? Email us for volume pricing.</span></div>
           </div>
-          <a class="btn btn-ink" href="${cta}" data-link>Start a team shoot ${icon("arrow-right")}</a>
+          <a class="btn btn-ink" href="mailto:hello@aiheadshotguru.com?subject=Team%20headshots">Email us ${icon("arrow-right")}</a>
         </div>
       </div>
     </section>

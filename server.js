@@ -12,13 +12,28 @@ import { ingestSelfie, runCheck, advance, startGeneration, retryFailed, startRev
 import { lookFor, MAX_LOOKS, MAX_SELFIES } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
 import { planFor, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT } from "./lib/plan.js";
+import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook } from "./lib/billing.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const INDEX_HTML = fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf8");
 
 const app = express();
 app.disable("x-powered-by");
+app.set("trust proxy", true);
 app.use(cookieParser());
+
+// Stripe webhook needs the raw body for signature checks, so it's registered
+// before the JSON parser. Optional: purchases are also confirmed on return.
+app.post("/api/billing/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+  if (!process.env.STRIPE_WEBHOOK_SECRET || !billingEnabled()) return res.status(404).end();
+  try {
+    await handleWebhook(req.body, req.headers["stripe-signature"]);
+    res.json({ received: true });
+  } catch (err) {
+    console.error("[webhook]", err.message);
+    res.status(400).json({ error: "Invalid webhook" });
+  }
+});
 // Photos are uploaded one per request, which keeps every body well under
 // Vercel's 4.5 MB request limit.
 app.use(express.json({ limit: "4mb" }));
@@ -186,7 +201,7 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   if (!meta.selfies.length) return res.status(400).json({ error: "Add at least one photo first." });
   const plan = planFor(req.user);
   if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
-  if (plan.checksLeft === 0) throw new PlanError(`Free accounts include ${FREE.checks} photo checks, and you've used them. Paid packages are launching soon.`);
+  if (plan.checksLeft === 0) throw new PlanError(`Free accounts include ${FREE.checks} photo checks, and you've used them. Buy a package to keep going.`);
   if (plan.checksLeft != null) await users.update(req.user.id, (u) => (u.usage = { ...u.usage, checks: (u.usage?.checks || 0) + 1 }));
   await runCheck(meta.id);
   res.json({ shoot: await shoots.get(meta.id) });
@@ -280,6 +295,38 @@ app.delete("/api/shoots/:id", requireUser, async (req, res) => {
   res.json({ ok: true });
 });
 
+/* ------------------------------ Billing ----------------------------- */
+
+function requireBilling(req, res) {
+  if (!billingEnabled()) {
+    res.status(503).json({ error: "Payments aren't set up yet. Please check back soon.", code: "billing_not_configured" });
+    return false;
+  }
+  if (req.user.demo) {
+    res.status(403).json({ error: DEMO_READ_ONLY, code: "demo_read_only" });
+    return false;
+  }
+  return true;
+}
+
+app.post("/api/billing/checkout", requireUser, async (req, res) => {
+  if (!requireBilling(req, res)) return;
+  const origin = `${req.protocol}://${req.get("host")}`;
+  res.json({ url: await createCheckout(req.user, String(req.body?.packageId || ""), origin) });
+});
+
+app.post("/api/billing/confirm", requireUser, async (req, res) => {
+  if (!requireBilling(req, res)) return;
+  const result = await confirmCheckout(req.user, req.body?.sessionId);
+  res.json({ ...result, user: publicUser(await users.byId(req.user.id)) });
+});
+
+app.post("/api/billing/sync", requireUser, async (req, res) => {
+  if (!billingEnabled() || req.user.demo) return res.json({ added: 0, user: publicUser(req.user) });
+  const added = await syncPurchases(req.user);
+  res.json({ added, user: publicUser(added ? await users.byId(req.user.id) : req.user) });
+});
+
 /* ------------------------------- Media ------------------------------ */
 
 app.get("/media/:sid/:name", requireUser, async (req, res) => {
@@ -307,6 +354,11 @@ app.get(/.*/, (req, res) => res.type("html").send(INDEX_HTML));
 
 app.use((err, req, res, next) => {
   if (err instanceof PlanError) return res.status(err.status).json({ error: err.message, code: err.code });
+  if (err?.type?.startsWith?.("Stripe")) {
+    console.error("[stripe]", err.type, err.message);
+    return res.status(502).json({ error: "The payment provider couldn't complete that request. Please try again." });
+  }
+  if (err?.status && err.status < 500 && !(err instanceof AIError)) return res.status(err.status).json({ error: err.message });
   const status = err instanceof AIError ? err.status : err.type === "entity.too.large" ? 413 : 500;
   if (status >= 500) console.error(err);
   res.status(status).json({ error: status === 413 ? "That photo is too large. Try a smaller one." : status === 500 && !(err instanceof AIError) ? "Something went wrong on our side. Please try again." : err.message });
