@@ -739,6 +739,32 @@ body:has(.develop-bar) .toasts { bottom: calc(96px + env(safe-area-inset-bottom)
 .refs { display: flex; gap: var(--s-2); flex-wrap: wrap; }
 .refs img { width: 64px; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 4px; }
 
+/* Upsell after the proofs */
+.upsell { margin-top: var(--s-8); padding: clamp(24px, 4vw, 48px); border-radius: var(--r-xl); color: var(--paper-100); background: radial-gradient(110% 140% at 100% 0%, rgba(255, 91, 46, 0.32), transparent 50%), radial-gradient(90% 120% at 0% 100%, rgba(14, 127, 120, 0.3), transparent 55%), var(--ink-950); display: grid; grid-template-columns: 1.1fr 1fr; gap: var(--s-6); align-items: center; scroll-margin-top: 96px; }
+.upsell .eyebrow { color: #a9b1bd; }
+.upsell h2 { margin: var(--s-3) 0 var(--s-3); }
+.upsell-sub { color: #c4cad3; max-width: 52ch; }
+.upsell-perks { list-style: none; display: grid; gap: var(--s-3); margin-top: var(--s-5); }
+.upsell-perks li { display: grid; grid-template-columns: 36px 1fr; gap: var(--s-3); align-items: start; }
+.upsell-perks .ficon { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: rgba(245, 241, 234, 0.08); }
+.upsell-perks .ficon svg { width: 18px; height: 18px; }
+.upsell-perks b { display: block; font-size: var(--fs-sm); }
+.upsell-perks span { color: #a9b1bd; font-size: var(--fs-xs); }
+.upsell-pkgs { display: grid; gap: var(--s-3); }
+.upsell-pkg { position: relative; display: grid; grid-template-columns: 1fr auto; grid-template-areas: "name go" "price go"; gap: 2px var(--s-4); align-items: center; padding: var(--s-4) var(--s-5); border-radius: var(--r-md); border: 1px solid var(--border-inverse); background: rgba(245, 241, 234, 0.05); color: var(--paper-100); text-decoration: none; transition: border-color var(--dur-2), background-color var(--dur-2), transform var(--dur-2) var(--ease-out); }
+.upsell-pkg:hover { border-color: var(--paper-100); background: rgba(245, 241, 234, 0.1); transform: translateY(-2px); }
+.upsell-pkg.pop { background: var(--flash-500); border-color: var(--flash-500); box-shadow: 0 12px 28px -12px rgba(232, 70, 26, 0.8); }
+.upsell-pkg.pop:hover { background: var(--flash-600); }
+.upsell-name { grid-area: name; font-weight: 800; font-size: var(--fs-md); }
+.upsell-price { grid-area: price; font-size: var(--fs-sm); color: #c4cad3; }
+.upsell-pkg.pop .upsell-price { color: #fff; opacity: 0.9; }
+.upsell-price strong { color: var(--paper-100); font-size: var(--fs-base); }
+.upsell-go { grid-area: go; display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: var(--fs-sm); }
+.upsell-go svg { width: 16px; height: 16px; }
+.upsell-badge { position: absolute; top: -10px; right: 16px; background: var(--paper-100); color: var(--ink-950); font-family: var(--font-mono); font-size: var(--fs-2xs); letter-spacing: var(--tracking-caps); text-transform: uppercase; padding: 3px 8px; border-radius: var(--r-pill); }
+.upsell-actions { display: flex; gap: var(--s-3); flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 900px) { .upsell { grid-template-columns: 1fr; } .upsell-actions { justify-content: flex-start; } }
+
 /* Lightbox */
 dialog.lightbox { border: 0; padding: 0; background: transparent; max-width: min(1080px, 100vw - 24px); width: 100%; max-height: calc(100dvh - 24px); color: var(--paper-100); overflow: visible; }
 dialog.lightbox::backdrop { background: rgba(8, 12, 20, 0.86); backdrop-filter: blur(6px); animation: fade var(--dur-3) var(--ease-out); }

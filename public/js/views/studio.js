@@ -2,7 +2,7 @@
 //   (new) upload -> draft/checking -> checked (photo check + looks) -> generating/reviewing -> done (proofs)
 
 import { $, $$, html, raw, icon, api, state, toast, media, busy, spinner, greaseCircle, silhouette, esc, reduceMotion, loadSession } from "../core.js";
-import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, TAKES_PER_LOOK, MAX_SELFIES, lookFor } from "../shared/catalog.js";
+import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, lookFor } from "../shared/catalog.js";
 import { portraitDataURL } from "../shared/portrait.js";
 import { aiBanner, planBanner } from "./dashboard.js";
 
@@ -525,6 +525,46 @@ export async function renderStudio(ctx, id) {
 
   /* ------------------------------- Proofs ------------------------------ */
 
+  // The upsell after the proofs, tailored to what the account can do next.
+  function upgradeBand(s, doneCount) {
+    const plan = state.user?.plan;
+    const perks = [
+      [icon("layers"), `${MAX_LOOKS_ALL} looks per shoot`, `${MAX_LOOKS_ALL * TAKES_PER_LOOK} headshots instead of ${doneCount}`],
+      [icon("briefcase"), `All ${BACKDROPS.length} backdrops & ${OUTFITS.length} outfits`, "Studio, office, rooftop, library and more"],
+      [icon("badge-check"), "Every shot checked & graded", "The same AI retoucher on every shoot"],
+    ];
+    const pkgs = html`<div class="upsell-pkgs">${PACKAGES.map(
+      (p) => html`<a class="upsell-pkg ${p.popular ? "pop" : ""}" href="/app/buy/${p.id}" data-link>
+        ${p.popular ? html`<span class="upsell-badge">Most popular</span>` : ""}
+        <span class="upsell-name">${p.name}</span>
+        <span class="upsell-price"><strong>$${p.price}</strong> · ${p.shoots} shoots</span>
+        <span class="upsell-go">Choose ${icon("arrow-right")}</span>
+      </a>`,
+    )}</div>`;
+
+    if (s.sample || plan?.tier === "demo") {
+      return html`<section class="upsell" id="upgrade" aria-labelledby="upsellTitle">
+        <div><p class="eyebrow">Your turn</p><h2 class="display h-2" id="upsellTitle">Make headshots like these from your own selfies.</h2><p class="upsell-sub">Your first shoot is free: 2 looks, 4 headshots, checked and graded by AI.</p></div>
+        <div class="upsell-actions"><a class="btn btn-flash btn-lg" href="/signup" data-link>Create free account ${icon("arrow-right")}</a></div>
+      </section>`;
+    }
+    if (plan?.tier === "paid") {
+      return html`<section class="upsell" id="upgrade" aria-labelledby="upsellTitle">
+        <div><p class="eyebrow">Keep going</p><h2 class="display h-2" id="upsellTitle">Try another look.</h2><p class="upsell-sub">You have ${plan.credits} shoot${plan.credits === 1 ? "" : "s"} left. Each one is ${MAX_LOOKS_ALL} looks and ${MAX_LOOKS_ALL * TAKES_PER_LOOK} fresh headshots.</p></div>
+        <div class="upsell-actions"><a class="btn btn-flash btn-lg" href="/app/new" data-link>${icon("plus")} Start another shoot</a><a class="btn btn-ghost-inverse btn-lg" href="/#pricing">Buy more</a></div>
+      </section>`;
+    }
+    return html`<section class="upsell" id="upgrade" aria-labelledby="upsellTitle">
+      <div>
+        <p class="eyebrow">Upgrade</p>
+        <h2 class="display h-2" id="upsellTitle">Upgrade for more options.</h2>
+        <p class="upsell-sub">${doneCount < MAX_LOOKS_ALL * TAKES_PER_LOOK ? `That was a free trial shoot. ` : ""}Paid shoots give you more looks, more takes and more headshots to choose from.</p>
+        <ul class="upsell-perks">${perks.map(([ic, t, d]) => html`<li><span class="ficon">${ic}</span><div><b>${t}</b><span>${d}</span></div></li>`)}</ul>
+      </div>
+      ${pkgs}
+    </section>`;
+  }
+
   function paintProofs(s) {
     const done = s.shots.map((t, i) => ({ ...t, n: i + 1 })).filter((t) => t.status === "done");
     const failed = s.shots.filter((t) => t.status === "error").length;
@@ -575,6 +615,7 @@ export async function renderStudio(ctx, id) {
           <div style="display:flex;gap:10px;flex-wrap:wrap">
             ${best ? html`<a class="btn btn-flash btn-lg" href="${media(best.file, true)}" download>${icon("download")} Download ${isMine ? "your pick" : "best"}</a>` : ""}
             <button class="btn btn-ghost btn-lg" id="dlAll">${icon("download")} All ${done.length}</button>
+            <a class="btn btn-ghost btn-lg" href="#upgrade">${icon("sparkles")} More options</a>
           </div>
         </div>
       </section>
@@ -590,6 +631,8 @@ export async function renderStudio(ctx, id) {
         </div>
         <div class="proofs" id="proofs"></div>
       </section>
+
+      ${upgradeBand(s, done.length)}
 
       <section class="panel" style="margin-top:48px;display:flex;gap:24px;align-items:center;justify-content:space-between;flex-wrap:wrap">
         <div>
