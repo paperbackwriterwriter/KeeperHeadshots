@@ -42,6 +42,16 @@ The same code runs on Vercel as an Express function:
 - **Uploads:** photos go up one per request, so each body stays under Vercel's 4.5 MB limit.
 - **Environment variables:** `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` and `SESSION_SECRET` (required on Vercel).
 
+### Free trial and limits
+
+Enforced on the server (`lib/plan.js`):
+
+- **Free trial:** one free shoot per account, up to 2 looks (4 headshots).
+- **After the trial:** developing needs a credit (`user.credits`); each paid shoot uses one. Stripe will add credits.
+- **Free-account caps:** 6 photo checks in total and 2 re-grades per shoot.
+- **Demo account:** read-only (browse the sample shoots only).
+- **Owners:** emails listed in `OWNER_EMAILS` (comma-separated) have no limits.
+
 ### Flow
 
 `/` landing → `/signup` or `/signin` → `/app` (your shoots) → `/app/new` (upload) → `/app/shoot/:id`, which moves through **Photo check → Looks → Develop → Proofs** based on the shoot's server-side status.

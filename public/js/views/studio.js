@@ -1,10 +1,10 @@
 // The shoot flow. One page, driven by the shoot's server-side status:
 //   (new) upload -> draft/checking -> checked (photo check + looks) -> generating/reviewing -> done (proofs)
 
-import { $, $$, html, raw, icon, api, state, toast, media, busy, spinner, greaseCircle, silhouette, esc, reduceMotion } from "../core.js";
-import { BACKDROPS, OUTFITS, MAX_LOOKS, TAKES_PER_LOOK, MAX_SELFIES, lookFor } from "../shared/catalog.js";
+import { $, $$, html, raw, icon, api, state, toast, media, busy, spinner, greaseCircle, silhouette, esc, reduceMotion, loadSession } from "../core.js";
+import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, TAKES_PER_LOOK, MAX_SELFIES, lookFor } from "../shared/catalog.js";
 import { portraitDataURL } from "../shared/portrait.js";
-import { aiBanner } from "./dashboard.js";
+import { aiBanner, planBanner } from "./dashboard.js";
 
 const STEPS = ["Upload", "Photo check", "Looks", "Develop", "Proofs"];
 const LIVE = ["checking", "generating", "reviewing"];
@@ -119,6 +119,7 @@ export async function renderStudio(ctx, id) {
       shoot = data.shoot;
       paintCheck(shoot);
       toast("Photo check complete.", "success");
+      loadSession().catch(() => {});
     } catch (err) {
       restore();
       if (disposed) return;
@@ -294,7 +295,10 @@ export async function renderStudio(ctx, id) {
   ];
 
   function paintLooks(s) {
-    let looks = s.looks?.length ? s.looks.map((l) => ({ ...l })) : SUGGESTED.slice(0, 2).map(([backdrop, outfit]) => ({ backdrop, outfit }));
+    const plan = state.user?.plan;
+    const MAX_LOOKS = plan?.maxLooks || MAX_LOOKS_ALL;
+    const trial = plan?.tier === "trial";
+    let looks = (s.looks?.length ? s.looks.map((l) => ({ ...l })) : SUGGESTED.slice(0, 2).map(([backdrop, outfit]) => ({ backdrop, outfit }))).slice(0, MAX_LOOKS);
     let active = 0;
     const same = (a, b) => a.backdrop === b.backdrop && a.outfit === b.outfit;
     const taken = (look, except = -1) => looks.some((l, i) => i !== except && same(l, look));
@@ -309,6 +313,8 @@ export async function renderStudio(ctx, id) {
       ${stepper(2)}
       <div class="page-head"><div><p class="eyebrow">${s.name}</p><h1 class="display h-1" style="margin-top:8px">Dress the set.</h1><p class="lede" style="margin-top:12px">Up to ${MAX_LOOKS} looks, ${TAKES_PER_LOOK} takes each. Tap a look to change its backdrop or outfit, or tap an empty slot to add one.</p></div></div>
 
+      ${trial ? html`<div class="banner banner-info">${icon("sparkles")}<div><b>Free trial shoot.</b>Up to ${MAX_LOOKS} looks (${MAX_LOOKS * TAKES_PER_LOOK} headshots). Paid packages unlock up to ${MAX_LOOKS_ALL} looks per shoot.</div></div>` : ""}
+      ${plan && !plan.canDevelop ? planBanner() : ""}
       <section aria-labelledby="looksTitle">
         <div class="looks-head">
           <h2 class="h-4" id="looksTitle">Your looks <span class="mono muted" id="lookCount"></span></h2>
@@ -365,7 +371,7 @@ export async function renderStudio(ctx, id) {
       $$("#outfits .pill-opt").forEach((b) => b.setAttribute("aria-pressed", String(!!cur && b.dataset.outfit === cur.outfit)));
       $("#tally").textContent = looks.length * TAKES_PER_LOOK;
       $("#tallySub").textContent = `headshots · ${looks.length} look${looks.length === 1 ? "" : "s"} × ${TAKES_PER_LOOK}`;
-      $("#develop").disabled = !looks.length;
+      $("#develop").disabled = !looks.length || (plan && !plan.canDevelop);
     };
 
     const addLook = () => {
@@ -427,6 +433,7 @@ export async function renderStudio(ctx, id) {
         paintDevelop(shoot);
         window.scrollTo({ top: 0, behavior: "instant" });
         timer = setTimeout(refresh, 1500);
+        loadSession().catch(() => {});
       } catch (err) {
         restore();
         toast(err.message, "error", 7000);
@@ -611,7 +618,7 @@ export async function renderStudio(ctx, id) {
                 ${g ? html`<span class="score-pill g-${g.grade} score-badge" title="${g.grade}"><i></i>${g.overall}</span>` : ""}
                 <div class="print-cap"><b>${String(t.n).padStart(2, "0")} · ${lookFor(t.backdrop, t.outfit).backdrop.name}</b><span>${g ? g.best_for : lookFor(t.backdrop, t.outfit).outfit.name}</span></div>
                 ${g ? html`<p class="proof-note">${g.note}</p>` : ""}
-                <div class="proof-actions">${t.id === best?.id
+                <div class="proof-actions">${s.sample ? "" : t.id === best?.id
                   ? html`<span class="pick-label">${icon("crown")} ${isMine ? "Your pick" : "Best pick"}</span>`
                   : html`<button class="pick-btn" data-pick="${t.id}">${icon("crown")} Make this my pick</button>`}</div>
               </div>
@@ -652,7 +659,7 @@ export async function renderStudio(ctx, id) {
               <p style="color:#a9b1bd">${g.note}</p><p class="small"><b>Best for:</b> ${g.best_for}</p>`
             : html`<p style="color:#a9b1bd">Not graded yet.</p>`}
           <a class="btn btn-flash" href="${media(t.file, true)}" download>${icon("download")} Download full resolution</a>
-          ${t.id === best?.id
+          ${s.sample ? "" : t.id === best?.id
             ? html`<span class="chip" style="align-self:flex-start">${icon("crown")} ${isMine ? "Your pick" : "Best pick"}</span>`
             : html`<button class="btn btn-ghost-inverse" data-pick="${t.id}">${icon("crown")} Make this my pick</button>`}
           <div class="lb-nav"><button class="btn btn-ghost-inverse btn-sm" id="lbPrev" ${ordered.length < 2 ? raw("disabled") : ""}>${icon("arrow-left")} Prev</button><button class="btn btn-ghost-inverse btn-sm" id="lbNext" ${ordered.length < 2 ? raw("disabled") : ""}>Next ${icon("arrow-right")}</button></div>
@@ -792,6 +799,7 @@ function renderUpload({ root, navigate }) {
   root.innerHTML = html`<main id="main" class="container app-main view-enter">
     ${stepper(0)}
     ${aiBanner()}
+    ${planBanner()}
     <div class="studio-grid">
       <div>
         <p class="eyebrow">New shoot</p>
@@ -830,13 +838,15 @@ function renderUpload({ root, navigate }) {
   const input = $("#file");
   const thumbs = $("#thumbs");
   const go = $("#go");
+  // Demo accounts and accounts without a shoot left can't start one.
+  const canStart = state.user?.plan?.canDevelop !== false;
 
   const draw = () => {
     thumbs.innerHTML = html`${photos.map(
       (p, i) => html`<div class="thumb"><img src="${p.url}" alt="Photo ${i + 1}: ${p.name}" /><span class="idx">${String(i + 1).padStart(2, "0")}</span><button class="rm" data-rm="${i}" aria-label="Remove photo ${i + 1}">${icon("x")}</button></div>`,
     )}`.v;
     $("#count").textContent = `${photos.length} / ${MAX_SELFIES} PHOTOS`;
-    go.disabled = !photos.length;
+    go.disabled = !photos.length || !canStart;
     dz.classList.toggle("dz-compact", photos.length > 0);
   };
 

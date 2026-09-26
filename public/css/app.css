@@ -145,6 +145,7 @@ ul, ol { margin: 0; padding: 0; }
 ::selection { background: var(--flash-500); color: #fff; }
 .skip-link { position: absolute; left: 12px; top: -60px; z-index: 200; background: var(--ink-950); color: var(--paper-100); padding: 10px 16px; border-radius: var(--r-sm); transition: top var(--dur-2) var(--ease-out); }
 .skip-link:focus { top: 12px; }
+[hidden] { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 .container { width: 100%; max-width: var(--maxw); margin-inline: auto; padding-inline: var(--gutter); }

@@ -118,7 +118,6 @@ for (const [label, w, h] of [["desktop", 1440, 900], ["mobile", 390, 844]]) {
   await p.click("#toLooks");
   await p.click('[data-backdrop="library"]');
   await p.click('[data-outfit="black-turtleneck"]');
-  await p.click("#addLook");
   await overflow(p, `${label} looks`);
   await shot(p, `${label}-13-looks`);
   await p.click("#develop");

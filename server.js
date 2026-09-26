@@ -11,6 +11,7 @@ import { aiStatus, AIError } from "./lib/ai.js";
 import { ingestSelfie, runCheck, advance, startGeneration, retryFailed, startReview } from "./lib/pipeline.js";
 import { lookFor, MAX_LOOKS, MAX_SELFIES } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
+import { planFor, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT } from "./lib/plan.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const INDEX_HTML = fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf8");
@@ -105,6 +106,9 @@ app.get("/api/shoots/:id", requireUser, async (req, res) => {
 });
 
 app.post("/api/shoots", requireUser, async (req, res) => {
+  const plan = planFor(req.user);
+  if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
+  if (!plan.canDevelop) throw new PlanError(NO_SHOOTS_LEFT);
   const count = (await shoots.forUser(req.user.id)).length + 1;
   const now = new Date().toISOString();
   const shoot = await shoots.create({
@@ -128,6 +132,7 @@ app.post("/api/shoots", requireUser, async (req, res) => {
 const canEditPhotos = (meta) => !meta.sample && ["draft", "checked", "error"].includes(meta.status) && !(meta.shots || []).length;
 
 app.post("/api/shoots/:id/selfies", requireUser, async (req, res) => {
+  if (req.user.demo) throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
   const meta = await ownShoot(req, res, { full: false });
   if (!meta) return;
   if (!canEditPhotos(meta)) return res.status(400).json({ error: "Photos can't be changed once developing has started. Start a new shoot instead." });
@@ -179,6 +184,10 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   if (!meta || !requireAI("vision", res)) return;
   if (meta.sample) return res.status(400).json({ error: "Sample shoots are read-only. Start a new shoot to use your own photos." });
   if (!meta.selfies.length) return res.status(400).json({ error: "Add at least one photo first." });
+  const plan = planFor(req.user);
+  if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
+  if (plan.checksLeft === 0) throw new PlanError(`Free accounts include ${FREE.checks} photo checks, and you've used them. Paid packages are launching soon.`);
+  if (plan.checksLeft != null) await users.update(req.user.id, (u) => (u.usage = { ...u.usage, checks: (u.usage?.checks || 0) + 1 }));
   await runCheck(meta.id);
   res.json({ shoot: await shoots.get(meta.id) });
 });
@@ -194,10 +203,28 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
   const unique = [...new Map(looks.map((l) => [l.id, l])).values()];
   if (!unique.length) return res.status(400).json({ error: "Pick at least one look." });
   if (unique.length > MAX_LOOKS) return res.status(400).json({ error: `Pick up to ${MAX_LOOKS} looks.` });
+  // Pay for the shoot: owner free; the free trial covers up to FREE.looks
+  // looks; otherwise it uses one credit.
+  const plan = planFor(req.user);
+  if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
+  if (plan.tier !== "owner") {
+    if (plan.freeShootAvailable && unique.length <= FREE.looks) {
+      await users.update(req.user.id, (u) => (u.usage = { ...u.usage, freeShootUsed: meta.id }));
+      meta.paidWith = "free";
+    } else if (plan.credits > 0) {
+      await users.update(req.user.id, (u) => (u.credits = Math.max(0, (u.credits || 0) - 1)));
+      meta.paidWith = "credit";
+    } else if (plan.freeShootAvailable) {
+      throw new PlanError(`Your free shoot includes up to ${FREE.looks} looks. Remove ${unique.length - FREE.looks} to continue.`, "too_many_looks", 400);
+    } else {
+      throw new PlanError(NO_SHOOTS_LEFT);
+    }
+  }
   res.status(202).json({ shoot: await startGeneration(meta, unique) });
 });
 
 app.post("/api/shoots/:id/resume", requireUser, async (req, res) => {
+  if (req.user.demo) throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
   const shoot = await ownShoot(req, res);
   if (!shoot || !requireAI("imaging", res)) return;
   if (!shoot.shots.some((s) => s.status === "error")) return res.status(400).json({ error: "Nothing to resume." });
@@ -209,6 +236,12 @@ app.post("/api/shoots/:id/review", requireUser, async (req, res) => {
   if (!shoot || !requireAI("vision", res)) return;
   if (!shoot.shots.some((s) => s.status === "done")) return res.status(400).json({ error: "There are no finished headshots to grade yet." });
   if (LIVE.includes(shoot.status)) return res.status(409).json({ error: "This shoot is still in progress." });
+  const plan = planFor(req.user);
+  if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
+  if (plan.tier !== "owner" && (shoot.regrades || 0) >= FREE.regradesPerShoot) throw new PlanError(`You can re-grade a shoot up to ${FREE.regradesPerShoot} times.`, "regrade_limit", 429);
+  const meta = await shoots.getMeta(shoot.id);
+  meta.regrades = (meta.regrades || 0) + 1;
+  await shoots.saveMeta(meta);
   res.status(202).json({ shoot: await startReview(shoot.id) });
 });
 
@@ -216,6 +249,7 @@ app.post("/api/shoots/:id/review", requireUser, async (req, res) => {
 app.patch("/api/shoots/:id", requireUser, async (req, res) => {
   const shoot = await ownShoot(req, res);
   if (!shoot) return;
+  if (shoot.sample) return res.status(400).json({ error: "Sample shoots are read-only." });
   const meta = await shoots.getMeta(shoot.id);
   if ("name" in (req.body || {})) {
     const name = String(req.body.name || "").trim().slice(0, 60);
@@ -240,6 +274,7 @@ app.patch("/api/shoots/:id", requireUser, async (req, res) => {
 app.delete("/api/shoots/:id", requireUser, async (req, res) => {
   const meta = await ownShoot(req, res, { full: false });
   if (!meta) return;
+  if (meta.sample) return res.status(400).json({ error: "Sample shoots are read-only." });
   if (LIVE.includes(meta.status)) return res.status(409).json({ error: "Wait for the shoot to finish before deleting it." });
   await shoots.remove(meta);
   res.json({ ok: true });
@@ -271,6 +306,7 @@ app.use("/media", (req, res) => res.status(404).end());
 app.get(/.*/, (req, res) => res.type("html").send(INDEX_HTML));
 
 app.use((err, req, res, next) => {
+  if (err instanceof PlanError) return res.status(err.status).json({ error: err.message, code: err.code });
   const status = err instanceof AIError ? err.status : err.type === "entity.too.large" ? 413 : 500;
   if (status >= 500) console.error(err);
   res.status(status).json({ error: status === 413 ? "That photo is too large. Try a smaller one." : status === 500 && !(err instanceof AIError) ? "Something went wrong on our side. Please try again." : err.message });
