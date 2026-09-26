@@ -283,87 +283,144 @@ export async function renderStudio(ctx, id) {
 
   /* ------------------------------- Looks ------------------------------- */
 
-  function paintLooks(s) {
-    let looks = s.looks?.length ? s.looks.map((l) => ({ ...l })) : [{ backdrop: "studio-gray", outfit: "navy-suit" }, { backdrop: "glass-office", outfit: "charcoal-blazer" }];
-    let backdrop = "city-terrace";
-    let outfit = "camel-knit";
+  // Well-matched starting looks, in the order new slots get filled.
+  const SUGGESTED = [
+    ["studio-gray", "navy-suit"],
+    ["glass-office", "charcoal-blazer"],
+    ["city-terrace", "camel-knit"],
+    ["library", "black-turtleneck"],
+    ["studio-white", "white-shirt"],
+    ["botanical", "oxford"],
+  ];
 
-    root.innerHTML = html`<main id="main" class="container app-main view-enter">
+  function paintLooks(s) {
+    let looks = s.looks?.length ? s.looks.map((l) => ({ ...l })) : SUGGESTED.slice(0, 2).map(([backdrop, outfit]) => ({ backdrop, outfit }));
+    let active = 0;
+    const same = (a, b) => a.backdrop === b.backdrop && a.outfit === b.outfit;
+    const taken = (look, except = -1) => looks.some((l, i) => i !== except && same(l, look));
+    const suggest = () => {
+      const fresh = SUGGESTED.map(([backdrop, outfit]) => ({ backdrop, outfit })).filter((l) => !taken(l));
+      // Prefer a backdrop that isn't on the list yet, for variety.
+      return fresh.find((l) => !looks.some((x) => x.backdrop === l.backdrop)) || fresh[0] || { backdrop: BACKDROPS[0].id, outfit: OUTFITS.find((o) => !taken({ backdrop: BACKDROPS[0].id, outfit: o.id }))?.id };
+    };
+    const preview = (l) => portraitDataURL("look-" + l.backdrop + l.outfit, { backdrop: l.backdrop, outfit: l.outfit, skin: 2, hair: "short", hairTone: 1 });
+
+    root.innerHTML = html`<main id="main" class="container app-main view-enter looks-page">
       ${stepper(2)}
-      <div class="page-head"><div><p class="eyebrow">${s.name}</p><h1 class="display h-1" style="margin-top:8px">Dress the set.</h1><p class="lede" style="margin-top:12px">Pair a backdrop with an outfit to make a look. Pick up to ${MAX_LOOKS}; we'll shoot ${TAKES_PER_LOOK} takes of each with different poses.</p></div></div>
-      <div class="look-builder">
-        <div>
-          <div class="opt-group">
-            <h3 class="h-4">Backdrop <span class="mono muted">01</span></h3>
-            <div class="backdrops" id="backdrops" role="group" aria-label="Backdrop">
-              ${BACKDROPS.map((b) => html`<button type="button" class="opt" data-backdrop="${b.id}" aria-pressed="false">
-                <span class="sw" style="background:radial-gradient(circle at 42% 34%, ${b.tones[0]}, ${b.tones[1]})"></span>
-                <span><span class="opt-name">${b.name}</span><br /><span class="opt-sub">${b.blurb}</span></span>
-                <span class="tick">${icon("check")}</span>
-              </button>`)}
-            </div>
-          </div>
-          <div class="opt-group">
-            <h3 class="h-4">Outfit <span class="mono muted">02</span></h3>
-            <div class="outfits" id="outfits" role="group" aria-label="Outfit">
-              ${OUTFITS.map((o) => html`<button type="button" class="pill-opt" data-outfit="${o.id}" aria-pressed="false"><span class="swatch" style="background:linear-gradient(135deg, ${o.colors[0]} 55%, ${o.colors[1]} 55%)"></span>${o.name}</button>`)}
-            </div>
-          </div>
-          <div style="margin-top:24px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-            <button class="btn btn-ink" id="addLook">${icon("plus")} Add look</button>
-            <span class="small muted" id="addHint" aria-live="polite"></span>
+      <div class="page-head"><div><p class="eyebrow">${s.name}</p><h1 class="display h-1" style="margin-top:8px">Dress the set.</h1><p class="lede" style="margin-top:12px">Up to ${MAX_LOOKS} looks, ${TAKES_PER_LOOK} takes each. Tap a look to change its backdrop or outfit, or tap an empty slot to add one.</p></div></div>
+
+      <section aria-labelledby="looksTitle">
+        <div class="looks-head">
+          <h2 class="h-4" id="looksTitle">Your looks <span class="mono muted" id="lookCount"></span></h2>
+          <button type="button" class="btn btn-ghost btn-sm" id="fillAll">${icon("sparkles")} Fill remaining slots</button>
+        </div>
+        <ol class="look-cards" id="slots"></ol>
+      </section>
+
+      <section class="look-editor" id="editor" aria-labelledby="editorTitle">
+        <p class="eyebrow" id="editorTitle" aria-live="polite"></p>
+        <div class="opt-group">
+          <h3 class="h-4">Backdrop</h3>
+          <div class="backdrops" id="backdrops" role="group" aria-label="Backdrop">
+            ${BACKDROPS.map((b) => html`<button type="button" class="opt" data-backdrop="${b.id}" aria-pressed="false">
+              <span class="sw" style="background:radial-gradient(circle at 42% 34%, ${b.tones[0]}, ${b.tones[1]})"></span>
+              <span><span class="opt-name">${b.name}</span><br /><span class="opt-sub">${b.blurb}</span></span>
+              <span class="tick">${icon("check")}</span>
+            </button>`)}
           </div>
         </div>
-        <aside class="look-summary panel panel-ink" aria-label="Your looks">
-          <p class="eyebrow">Shot list</p>
-          <ul class="look-slots" id="slots"></ul>
-          <div class="tally"><span class="muted">Headshots to develop</span><strong class="tabular" id="tally">0</strong></div>
-          <button class="btn btn-flash btn-lg btn-block" id="develop">${icon("aperture")} Develop headshots</button>
-          <p class="small" style="color:#a9b1bd;margin-top:12px;text-align:center">Usually ready in a few minutes.</p>
-        </aside>
+        <div class="opt-group">
+          <h3 class="h-4">Outfit</h3>
+          <div class="outfits" id="outfits" role="group" aria-label="Outfit">
+            ${OUTFITS.map((o) => html`<button type="button" class="pill-opt" data-outfit="${o.id}" aria-pressed="false"><span class="swatch" style="background:linear-gradient(135deg, ${o.colors[0]} 55%, ${o.colors[1]} 55%)"></span>${o.name}</button>`)}
+          </div>
+        </div>
+      </section>
+
+      <div class="develop-bar">
+        <button class="btn btn-ghost btn-sm" id="backCheck">${icon("arrow-left")}<span class="hide-s">Photo check</span></button>
+        <p class="develop-tally"><strong class="tabular" id="tally">0</strong> <span id="tallySub">headshots</span></p>
+        <button class="btn btn-flash btn-lg" id="develop">${icon("aperture")} Develop</button>
       </div>
-      <div class="actions-bar"><button class="btn btn-ghost btn-sm" id="backCheck">${icon("arrow-left")} Back to photo check</button></div>
     </main>`.v;
 
     const sync = () => {
-      $$("#backdrops .opt").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.backdrop === backdrop)));
-      $$("#outfits .pill-opt").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.outfit === outfit)));
-      const exists = looks.some((l) => l.backdrop === backdrop && l.outfit === outfit);
-      const full = looks.length >= MAX_LOOKS;
-      const add = $("#addLook");
-      add.disabled = exists || full;
-      $("#addHint").textContent = full ? `That's the maximum of ${MAX_LOOKS} looks for one shoot.` : exists ? "That look is already on your shot list." : `Add “${lookName(backdrop, outfit)}”`;
-      $("#slots").innerHTML = html`${looks.map(
-        (l, i) => html`<li class="look-slot"><img src="${portraitDataURL("look-" + l.backdrop + l.outfit, { backdrop: l.backdrop, outfit: l.outfit, skin: 2, hair: "short", hairTone: 1 })}" alt="" />
-          <div><b>${lookFor(l.backdrop, l.outfit).backdrop.name}</b><span>${lookFor(l.backdrop, l.outfit).outfit.name} · ${TAKES_PER_LOOK} takes</span></div>
-          <button type="button" data-remove="${i}" aria-label="Remove ${lookName(l.backdrop, l.outfit)}">${icon("x")}</button></li>`,
-      )}${Array.from({ length: Math.max(0, MAX_LOOKS - looks.length) }, () => html`<li class="look-slot empty-slot">Empty slot</li>`)}`.v;
+      const cur = looks[active];
+      $("#slots").innerHTML = html`${looks.map((l, i) => {
+        const look = lookFor(l.backdrop, l.outfit);
+        return html`<li class="look-card-wrap">
+          <button type="button" class="look-card" data-select="${i}" aria-pressed="${i === active}" aria-label="Look ${i + 1}: ${lookName(l.backdrop, l.outfit)}${i === active ? ", editing" : ""}">
+            <img src="${preview(l)}" alt="" />
+            <span class="look-num">${i + 1}</span>
+            <span class="look-text"><b>${look.backdrop.name}</b><span>${look.outfit.name}</span></span>
+            ${i === active ? html`<span class="look-editing">${icon("pencil")} Editing</span>` : html`<span class="look-tap">Tap to edit</span>`}
+          </button>
+          ${looks.length > 1 ? html`<button type="button" class="look-remove" data-remove="${i}" aria-label="Remove look ${i + 1}">${icon("x")}</button>` : ""}
+        </li>`;
+      })}${Array.from({ length: MAX_LOOKS - looks.length }, (_, k) => html`<li class="look-card-wrap"><button type="button" class="look-card empty" data-add aria-label="Add look ${looks.length + k + 1}"><span class="plus">${icon("plus")}</span><span>Add look</span></button></li>`)}`.v;
+      $("#lookCount").textContent = `${looks.length}/${MAX_LOOKS}`;
+      $("#fillAll").hidden = looks.length >= MAX_LOOKS;
+      $("#editorTitle").textContent = cur ? `Editing look ${active + 1} · ${lookName(cur.backdrop, cur.outfit)}` : "Add a look to start";
+      $$("#backdrops .opt").forEach((b) => b.setAttribute("aria-pressed", String(!!cur && b.dataset.backdrop === cur.backdrop)));
+      $$("#outfits .pill-opt").forEach((b) => b.setAttribute("aria-pressed", String(!!cur && b.dataset.outfit === cur.outfit)));
       $("#tally").textContent = looks.length * TAKES_PER_LOOK;
+      $("#tallySub").textContent = `headshots · ${looks.length} look${looks.length === 1 ? "" : "s"} × ${TAKES_PER_LOOK}`;
       $("#develop").disabled = !looks.length;
     };
 
+    const addLook = () => {
+      if (looks.length >= MAX_LOOKS) return;
+      looks.push(suggest());
+      active = looks.length - 1;
+      sync();
+      // On small screens, bring the editor into view so the change is obvious.
+      const ed = $("#editor");
+      if (ed.getBoundingClientRect().top > window.innerHeight * 0.6) ed.scrollIntoView({ behavior: reduceMotion() ? "instant" : "smooth", block: "start" });
+    };
+
+    const edit = (patch) => {
+      if (active < 0 || !looks[active]) {
+        if (looks.length >= MAX_LOOKS) return;
+        looks.push({ ...suggest(), ...patch });
+        active = looks.length - 1;
+        return sync();
+      }
+      const next = { ...looks[active], ...patch };
+      if (taken(next, active)) return toast(`“${lookName(next.backdrop, next.outfit)}” is already look ${looks.findIndex((l) => same(l, next)) + 1}.`, "info");
+      looks[active] = next;
+      sync();
+    };
+
+    $("#slots").addEventListener("click", (e) => {
+      const rm = e.target.closest("[data-remove]");
+      if (rm) {
+        const i = Number(rm.dataset.remove);
+        looks.splice(i, 1);
+        if (active >= i) active = Math.max(0, active - 1);
+        return sync();
+      }
+      if (e.target.closest("[data-add]")) return addLook();
+      const sel = e.target.closest("[data-select]");
+      if (sel) (active = Number(sel.dataset.select)), sync();
+    });
+    $("#fillAll").addEventListener("click", () => {
+      while (looks.length < MAX_LOOKS) looks.push(suggest());
+      sync();
+    });
     $("#backdrops").addEventListener("click", (e) => {
       const b = e.target.closest("[data-backdrop]");
-      if (b) (backdrop = b.dataset.backdrop), sync();
+      if (b) edit({ backdrop: b.dataset.backdrop });
     });
     $("#outfits").addEventListener("click", (e) => {
       const b = e.target.closest("[data-outfit]");
-      if (b) (outfit = b.dataset.outfit), sync();
-    });
-    $("#addLook").addEventListener("click", () => {
-      looks.push({ backdrop, outfit });
-      sync();
-    });
-    $("#slots").addEventListener("click", (e) => {
-      const b = e.target.closest("[data-remove]");
-      if (b) looks.splice(Number(b.dataset.remove), 1), sync();
+      if (b) edit({ outfit: b.dataset.outfit });
     });
     $("#backCheck").addEventListener("click", () => {
       view = "check";
       paintCheck(shoot);
     });
     $("#develop").addEventListener("click", async (e) => {
-      const restore = busy(e.currentTarget, "Setting up the studio…");
+      const restore = busy(e.currentTarget, "Setting up…");
       try {
         const data = await api(`/api/shoots/${id}/generate`, { method: "POST", body: { looks, override: !!shoot._override } });
         shoot = data.shoot;
