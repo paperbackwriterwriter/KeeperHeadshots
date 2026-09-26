@@ -57,7 +57,7 @@ function reviewResult(nShots) {
     shots: Array.from({ length: nShots }, (_, i) => {
       const g = grades[i % grades.length];
       const overall = g === "keeper" ? 94 - i : g === "solid" ? 76 - i : 55;
-      return { index: i, likeness: g === "retake" ? 5 : 9 - (i % 2), polish: g === "retake" ? 6 : 8 + (i % 2), lighting: 8, overall, grade: g, best_for: uses[i % uses.length], note: g === "retake" ? "Ear shape drifts from your references — skip this one." : "Clean light and a natural expression." };
+      return { likeness: g === "retake" ? 5 : 9 - (i % 2), polish: g === "retake" ? 6 : 8 + (i % 2), lighting: 8, overall, grade: g, best_for: uses[i % uses.length], note: g === "retake" ? "Ear shape drifts from your references — skip this one." : "Clean light and a natural expression." };
     }),
   };
 }
@@ -71,9 +71,10 @@ async function anthropic(req, res, body) {
   let out;
   if (system.includes("photo-intake")) out = checkResult(images);
   else {
-    const refs = content.findIndex((c) => c.type === "text" && c.text.startsWith("Generated headshots"));
-    const shots = content.slice(refs).filter((c) => c.type === "image").length;
-    out = reviewResult(shots);
+    const frames = content.filter((c) => c.type === "text" && /^Frame \d+/.test(c.text)).map((c) => Number(/^Frame (\d+)/.exec(c.text)[1]));
+    out = reviewResult(frames.length);
+    out.shots.forEach((sh, i) => (sh.frame = frames[i]));
+    out.best_frame = frames[0];
   }
   res.writeHead(200, { "content-type": "application/json", "request-id": "req_mock" });
   res.end(JSON.stringify({

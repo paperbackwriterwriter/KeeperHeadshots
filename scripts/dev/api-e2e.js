@@ -13,7 +13,7 @@ const f = async (p, o = {}) => {
   if (!r.ok) console.log("ERR", p, r.status, j);
   return j;
 };
-await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Test User", email: `t${Date.now()}@x.com`, password: "password123" }) });
+await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Test User", email: process.env.E || `t${Date.now()}@x.com`, password: "password123" }) });
 const photos = [];
 for (let i = 0; i < 3; i++) {
   const b = await sharp(Buffer.from(portraitSVG("sf" + i, { outfit: "white-shirt" }))).resize(900, 1125).jpeg().toBuffer();

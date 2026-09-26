@@ -591,7 +591,7 @@ export async function renderStudio(ctx, id) {
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           ${s.check ? html`<span class="score-pill g-${s.check.overall_score >= 80 ? "keeper" : s.check.overall_score >= 60 ? "solid" : "retake"}"><i></i>Photo check ${s.check.overall_score}</span>` : ""}
-          ${s.sample ? "" : html`<button class="btn btn-ghost btn-sm" id="delete">${icon("trash-2")} Delete shoot</button>`}
+          ${s.sample ? "" : html`<button class="btn btn-ghost btn-sm" id="regradeAll" title="Run the AI grading again on these headshots">${icon("refresh-cw")} Re-grade</button><button class="btn btn-ghost btn-sm" id="delete">${icon("trash-2")} Delete shoot</button>`}
           <a class="btn btn-ink btn-sm" href="/app/new" data-link>${icon("plus")} New shoot</a>
         </div>
       </section>
@@ -714,7 +714,7 @@ export async function renderStudio(ctx, id) {
       restore();
       toast(`${ordered.length} headshots downloaded.`, "success");
     });
-    $("#regrade")?.addEventListener("click", async (e) => {
+    $$("#regrade, #regradeAll").forEach((el) => el.addEventListener("click", async (e) => {
       const restore = busy(e.currentTarget, "Grading…");
       try {
         const data = await api(`/api/shoots/${id}/review`, { method: "POST" });
@@ -725,7 +725,7 @@ export async function renderStudio(ctx, id) {
         restore();
         toast(err.message, "error");
       }
-    });
+    }));
     $("#resume")?.addEventListener("click", async (e) => {
       const restore = busy(e.currentTarget, "Resuming…");
       try {
