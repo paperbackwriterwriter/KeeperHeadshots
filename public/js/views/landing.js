@@ -54,6 +54,7 @@ export function renderLanding({ root }) {
           </div>
         </div>
 
+        <div class="hero-visual">
         <div class="sheet" id="heroSheet" data-reveal style="--i:2">
           <div class="sheet-board" role="img" aria-label="Example: one casual selfie becomes a contact sheet of nine professional headshots of the same person">
             ${HERO_FRAMES.map(
@@ -69,10 +70,11 @@ export function renderLanding({ root }) {
             <figcaption><span>BEFORE</span><span>SELFIE</span></figcaption>
           </figure>
           <span class="tag-keeper">${icon("badge-check")} Best pick <span class="score" id="heroScore">96</span></span>
-          <div class="sheet-controls">
-            <div class="sheet-dots">${HERO_SETS.map((_, i) => html`<button type="button" class="sheet-dot" data-set="${i}" aria-label="Show example ${i + 1} of ${HERO_SETS.length}" aria-pressed="${i === 0 ? "true" : "false"}"></button>`)}</div>
-            <button type="button" class="sheet-pause" id="heroPause" aria-label="Pause examples">${icon("pause")}</button>
-          </div>
+        </div>
+        <div class="sheet-controls" role="group" aria-label="Example people">
+          <div class="sheet-dots">${HERO_SETS.map((_, i) => html`<button type="button" class="sheet-dot" data-set="${i}" aria-label="Show example ${i + 1} of ${HERO_SETS.length}" aria-pressed="${i === 0 ? "true" : "false"}"></button>`)}</div>
+          <button type="button" class="sheet-pause" id="heroPause" aria-label="Pause examples">${icon("pause")}</button>
+        </div>
         </div>
       </div>
     </section>
@@ -303,7 +305,7 @@ function heroCycle() {
   if (!sheet) return null;
   const imgs = $$(".sheet-frame img", sheet);
   const selfie = $(".polaroid img", sheet);
-  const dots = $$(".sheet-dot", sheet);
+  const dots = $$(".sheet-dot");
   const pauseBtn = $("#heroPause");
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   let current = 0;
@@ -353,7 +355,8 @@ function heroCycle() {
   pauseBtn.addEventListener("click", () => { paused = !paused; setPauseUI(); });
   sheet.addEventListener("mouseenter", () => (hovering = true));
   sheet.addEventListener("mouseleave", () => (hovering = false));
-  sheet.addEventListener("focusin", () => (hovering = true));
+  // Keyboard focus inside the sheet pauses too (mouse clicks don't count).
+  sheet.addEventListener("focusin", (e) => { if (e.target.matches(":focus-visible")) hovering = true; });
   sheet.addEventListener("focusout", () => (hovering = false));
   setPauseUI();
   start();

@@ -298,7 +298,8 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .tag-keeper { position: absolute; z-index: 3; right: -12px; top: 0; white-space: nowrap; background: var(--paper-50); border-radius: var(--r-pill); padding: 8px 14px 8px 10px; display: inline-flex; gap: 8px; align-items: center; box-shadow: var(--shadow-2); font-size: var(--fs-sm); font-weight: 700; }
 .sheet-frame img, .polaroid img { transition: opacity 0.45s var(--ease-out) calc(var(--d, 0) * 35ms); }
 .sheet.swapping .sheet-frame img, .sheet.swapping .polaroid img { opacity: 0; }
-.sheet-controls { position: absolute; right: 0; bottom: 6px; display: flex; align-items: center; gap: 10px; }
+.hero-visual { min-width: 0; }
+.sheet-controls { max-width: 540px; margin: 6px 0 0 auto; display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
 .sheet-dots { display: flex; gap: 2px; }
 .sheet-dot { width: 22px; height: 28px; border: 0; padding: 0; background: none; cursor: pointer; display: grid; place-items: center; }
 .sheet-dot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); transition: background var(--dur-2), transform var(--dur-2); }
@@ -821,6 +822,7 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
   .section-head .lede { justify-self: start; }
   .steps-sticky { position: static; }
   .sheet { margin: var(--s-4) auto 0; max-width: 480px; }
+  .sheet-controls { max-width: 480px; margin: 12px auto 0; justify-content: center; }
   .stats { grid-template-columns: repeat(2, 1fr); }
   .stat:nth-child(3) { border-left: 0; padding-left: 0; }
   .stat:nth-child(n + 3) { border-top: 1px solid var(--border); }
