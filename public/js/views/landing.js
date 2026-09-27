@@ -17,14 +17,21 @@ const HERO_FRAMES = [
   ["studio-white", "white-shirt"], ["glass-office", "navy-suit"], ["city-terrace", "oxford"],
 ];
 
+// The wardrobe strip: example headshots (lib/examples.js), including the
+// looks from the lawyer and doctor pages. Ordered so no two neighbours share a
+// backdrop, including across the loop from the last card back to the first.
 const STRIP = [
-  { seed: "s1", backdrop: "studio-gray", outfit: "navy-suit" },
-  { seed: "s2", backdrop: "glass-office", outfit: "charcoal-blazer" },
-  { seed: "s3", backdrop: "city-terrace", outfit: "camel-knit" },
-  { seed: "s4", backdrop: "library", outfit: "black-turtleneck" },
-  { seed: "s5", backdrop: "studio-white", outfit: "white-shirt" },
-  { seed: "s6", backdrop: "botanical", outfit: "oxford" },
-  { seed: "s7", backdrop: "studio-gray", outfit: "charcoal-blazer" },
+  { id: "strip-1", backdrop: "studio-gray", outfit: "navy-suit" },
+  { id: "md-1", backdrop: "glass-office", outfit: "white-coat" },
+  { id: "strip-3", backdrop: "city-terrace", outfit: "camel-knit" },
+  { id: "lw-1", backdrop: "library", outfit: "suit-tie" },
+  { id: "strip-5", backdrop: "studio-white", outfit: "white-shirt" },
+  { id: "strip-7", backdrop: "studio-gray", outfit: "charcoal-blazer" },
+  { id: "md-3", backdrop: "glass-office", outfit: "scrubs" },
+  { id: "strip-6", backdrop: "botanical", outfit: "oxford" },
+  { id: "strip-4", backdrop: "library", outfit: "black-turtleneck" },
+  { id: "lw-4", backdrop: "studio-white", outfit: "charcoal-blazer" },
+  { id: "strip-2", backdrop: "glass-office", outfit: "charcoal-blazer" },
 ];
 
 
@@ -137,15 +144,21 @@ export function renderLanding({ root }) {
         </div>
         <p class="lede" data-reveal style="--i:2">Corporate, creative or somewhere in between. Each backdrop is lit like a real set, and each outfit is tailored to fit.</p>
       </div>
-      <div class="strip" tabindex="0" aria-label="Example looks, scroll horizontally">
-        ${STRIP.map((s, i) => {
-          const b = BACKDROPS.find((x) => x.id === s.backdrop);
-          const o = OUTFITS.find((x) => x.id === s.outfit);
-          return html`<figure class="strip-card print" data-reveal style="--i:${i % 5};margin:0">
-            <img src="${example(`strip-${i + 1}`)}" alt="Example headshot: ${b.name} backdrop, ${o.name}" loading="lazy" />
-            <figcaption class="print-cap"><b>${b.name}</b><span>${o.name}</span></figcaption>
-          </figure>`;
-        })}
+      <div class="marquee" data-reveal style="--i:3" role="region" aria-label="Example looks" tabindex="0">
+        <div class="marquee-track">
+          ${[0, 1].map(
+            (copy) => html`<ul class="marquee-group" ${copy ? raw('aria-hidden="true"') : ""}>
+              ${STRIP.map((s) => {
+                const b = BACKDROPS.find((x) => x.id === s.backdrop);
+                const o = OUTFITS.find((x) => x.id === s.outfit);
+                return html`<li><figure class="strip-card print">
+                  <img src="${example(s.id)}" alt="${copy ? "" : `Example headshot: ${b.name} backdrop, ${o.name}`}" loading="lazy" decoding="async" width="224" height="280" />
+                  <figcaption class="print-cap"><b>${b.name}</b><span>${o.name}</span></figcaption>
+                </figure></li>`;
+              })}
+            </ul>`,
+          )}
+        </div>
       </div>
     </section>
 

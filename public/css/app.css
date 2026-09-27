@@ -343,10 +343,26 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .chip svg { width: 14px; height: 14px; }
 
 /* Style strip */
-.strip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 240px); gap: var(--s-4); overflow-x: auto; padding: 4px var(--gutter) var(--s-5); scroll-snap-type: x mandatory; scrollbar-width: thin; scroll-padding-inline: var(--gutter); }
-.strip::-webkit-scrollbar { height: 6px; }
-.strip::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
-.strip-card { scroll-snap-align: start; }
+/* An endless carousel: the list is rendered twice and the track slides left
+   by exactly one copy (each copy ends in one gap), so the loop has no seam. */
+.marquee { overflow: hidden; padding: 4px 0 var(--s-5); -webkit-mask-image: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent); mask-image: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent); }
+.marquee:focus-visible { outline: none; box-shadow: var(--ring); }
+.marquee-track { display: flex; width: max-content; animation: marquee 75s linear infinite; will-change: transform; }
+.marquee-group { display: flex; gap: var(--s-4); padding: 0 var(--s-4) 0 0; margin: 0; list-style: none; }
+.marquee-group > li { flex: 0 0 240px; display: flex; }
+/* Equal-height cards even when a long caption wraps on a narrow card. */
+.strip-card { margin: 0; flex: 1; display: flex; flex-direction: column; }
+.strip-card .print-cap { flex: 1; align-items: flex-start; }
+.strip-card .print-cap span { text-align: right; }
+.strip-card img { height: auto; }
+@keyframes marquee { to { transform: translateX(-50%); } }
+@media (max-width: 640px) { .marquee-group > li { flex-basis: 200px; } .marquee-track { animation-duration: 60s; } }
+/* Reduced motion: a still row you can scroll yourself. */
+@media (prefers-reduced-motion: reduce) {
+  .marquee { overflow-x: auto; -webkit-mask-image: none; mask-image: none; padding-inline: var(--gutter); scrollbar-width: thin; }
+  .marquee-track { animation: none; }
+  .marquee-group[aria-hidden="true"] { display: none; }
+}
 .print { position: relative; background: #fff; padding: 8px 8px 0; border-radius: var(--r-xs); box-shadow: var(--shadow-print); }
 .print img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 1px; }
 .print-cap { display: flex; justify-content: space-between; gap: 8px; padding: 10px 2px 10px; font-family: var(--font-mono); font-size: var(--fs-2xs); letter-spacing: 0.06em; color: var(--ink-500); text-transform: uppercase; }
