@@ -75,6 +75,7 @@ export function renderPrivacy({ root }) {
       <h2 class="h-3">Advertising and cookies</h2>
       <ul>
         <li><b>Sign-in cookie:</b> keeps you signed in for up to 30 days. The site can't work without it.</li>
+        <li><b>Site analytics:</b> we use Vercel Web Analytics to count visits and see which pages are viewed. It doesn't use cookies and doesn't identify you.</li>
         <li><b>Session storage:</b> the studio saves one small setting in your browser while a shoot is being set up.</li>
         <li><b>Meta Pixel:</b> we use Meta's advertising tools to find out whether our Facebook and Instagram ads lead to sign-ups and purchases. The Meta Pixel sets cookies in your browser, and our server also tells Meta when you create an account, start a checkout or buy a package. It sends a scrambled (hashed) version of your email address and account ID, your IP address and browser details. Meta uses this to measure and improve our ads, and may use it to show you ads.</li>
       </ul>

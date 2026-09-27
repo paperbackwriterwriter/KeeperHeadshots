@@ -187,9 +187,22 @@ document.addEventListener("click", (e) => {
 });
 window.addEventListener("popstate", render);
 
+// Vercel Web Analytics: cookieless visit counts. Production domain only, and
+// loaded after the first render so one-time tokens (e.g. /verify?token=) have
+// already been removed from the URL. It follows in-app navigation itself.
+function loadAnalytics() {
+  if (location.hostname !== "keeperheadshots.com" || window.va) return;
+  window.va = (...args) => (window.vaq = window.vaq || []).push(args);
+  const s = document.createElement("script");
+  s.defer = true;
+  s.src = "/_vercel/insights/script.js";
+  document.head.append(s);
+}
+
 loadSession()
   .catch(() => {})
   .finally(() => {
     initPixel();
     render();
+    loadAnalytics();
   });
