@@ -275,7 +275,31 @@ export function renderLanding({ root }) {
     </section>
   </main>
   ${footer()}`.v;
-  return heroCycle();
+  const stopHero = heroCycle();
+  const stopStrip = stripPreload();
+  return () => {
+    stopHero?.();
+    stopStrip?.();
+  };
+}
+
+// The wardrobe strip's photos are lazy, but most of them sit outside the
+// clipped row until the animation slides them in, so browsers (Safari
+// especially) would only fetch each one as it arrives, showing empty cards.
+// Load them all once the section is near the screen.
+function stripPreload() {
+  const row = $(".marquee");
+  if (!row) return null;
+  const load = () => $$("img[loading=lazy]", row).forEach((im) => (im.loading = "eager"));
+  if (!("IntersectionObserver" in window)) return void load();
+  const io = new IntersectionObserver((entries) => {
+    if (entries.some((e) => e.isIntersecting)) {
+      io.disconnect();
+      load();
+    }
+  }, { rootMargin: "800px 0px" });
+  io.observe(row);
+  return () => io.disconnect();
 }
 
 // Rotate the hero through example people. The next set is decoded before the
