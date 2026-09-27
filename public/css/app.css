@@ -1027,6 +1027,11 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
 .inverse .li-card { color: var(--text); }
 @media (max-width: 900px) { .cv-where { grid-template-columns: 1fr; } }
 
+/* Doctor headshots page (also uses the re-* styles above) */
+.md-accepting { display: inline-flex; align-items: center; gap: 6px; font-style: normal; font-size: 12px; font-weight: 600; color: #2f6b4f; margin: 2px 0 4px; }
+.md-accepting svg { width: 14px; height: 14px; }
+.inverse .re-look figcaption span { color: var(--text-inverse-muted); }
+
 /* Email confirmation page */
 .verify-page { display: grid; place-items: center; min-height: 60vh; }
 .verify-card { max-width: 560px; text-align: center; display: grid; justify-items: center; gap: var(--s-4); }

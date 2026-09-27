@@ -10,7 +10,7 @@ const ICONS = [
   "sparkles", "shield-check", "clock-3", "download", "star", "trash-2", "log-out", "plus", "refresh-cw", "sun", "focus", "scan-face",
   "smile", "badge-check", "users", "building-2", "lock", "zap", "chevron-down", "menu", "loader", "eye", "eye-off", "wand-sparkles",
   "crown", "aperture", "info", "briefcase", "rotate-ccw", "mail", "pencil", "play", "layers", "user-round",
-  "send", "receipt", "circle-help", "mail-check", "pause", "house", "id-card", "signpost", "share-2", "globe", "file-user", "video", "contact-round", "search-check",
+  "send", "receipt", "circle-help", "mail-check", "pause", "house", "id-card", "signpost", "share-2", "globe", "file-user", "video", "contact-round", "search-check", "stethoscope", "map-pin", "calendar-check", "mic",
 ];
 const dir = path.join(root, "node_modules/lucide-static/icons");
 const map = {};

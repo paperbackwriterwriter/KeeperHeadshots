@@ -49,3 +49,13 @@ export const RESUME_FAQ = [
   ["What should I wear?", "Dress for the job you're applying for, one step above the everyday dress code. A suit or blazer suits finance, law and management; a crisp shirt or smart-casual knit works for tech and creative roles. You can try up to four looks in one shoot."],
   ["How quickly can I get it?", "In minutes. Your photo check takes seconds and a shoot usually develops in a few minutes, so you can have a new headshot before today's application deadline."],
 ];
+
+// /doctor-headshots
+export const MEDICAL_FAQ = [
+  ["What should a doctor wear for a headshot?", "Whatever your patients will see you in. A white coat over a collared shirt is the classic choice for physicians, scrubs suit nurses, PAs and surgical teams, and a blazer or smart-casual look works well for private practice, dentistry and therapy. You can try up to four looks in one shoot."],
+  ["Do I need to wear my white coat in my selfies?", "No. White Coat and Medical Scrubs are wardrobe options, so your selfies can be in anything. Choose the outfit when you pick your looks, and every headshot shows it without names, logos or badges."],
+  ["Where can I use my headshot?", "On your practice or hospital website, doctor directories and booking sites, your Google Business Profile, telehealth profiles, LinkedIn, conference programs and speaker bios. Download the 3:4 portrait for websites and print, the 1:1 square for round profile photos, or both."],
+  ["Can I use an AI headshot as a doctor?", "Yes, as long as it looks like you. Patients should recognize you when you walk into the exam room, so your headshot should be a current, accurate likeness; every Keeper headshot is made from your own recent photos and checked for likeness. Many hospitals and health systems have their own photo guidelines, so check yours first."],
+  ["Can our whole practice match?", "Yes. Choose the same backdrop and outfit for every clinician and your website's provider pages look consistent. The Executive package is 12 shoots for $49, about $4 a person, and unused shoots are there for new providers when they join."],
+  ["How quickly will I get it?", "In minutes. Your photo check takes seconds and a shoot usually develops in a few minutes, so you can update your profile between patients."],
+];

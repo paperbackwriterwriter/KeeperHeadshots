@@ -71,6 +71,8 @@ export const OUTFITS = [
   { id: "black-turtleneck", name: "Black Turtleneck", prompt: "a fitted fine-gauge black merino turtleneck with a smooth, even texture", colors: ["#151619", "#151619"] },
   { id: "camel-knit", name: "Camel Knit", prompt: "a soft camel-coloured fine-knit crew-neck sweater with a crisp white shirt collar showing at the neckline", colors: ["#b88a5a", "#f1efea"] },
   { id: "oxford", name: "Smart Casual", prompt: "a light-blue oxford button-down shirt with a navy crew-neck sweater layered over it, collar points neat and symmetrical", colors: ["#26324d", "#b8cbe3"] },
+  { id: "white-coat", name: "White Coat", prompt: "a crisp, well-fitted white physician's lab coat, clean and pressed, worn open over a light-blue collared dress shirt; no name badge, embroidery, logos, pens or stethoscope", colors: ["#f4f4f1", "#bcd0e2"] },
+  { id: "scrubs", name: "Medical Scrubs", prompt: "clean, well-fitted navy-blue medical scrubs with a V-neck top; no name badge, embroidery, logos or stethoscope", colors: ["#23324f", "#23324f"] },
 ];
 
 // The flow caps a single shoot so every run finishes in a few minutes.
