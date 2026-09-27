@@ -462,8 +462,18 @@ app.post("/api/shoots/:id/resume", requireUser, async (req, res) => {
   if (LIVE.includes(shoot.status)) return res.status(409).json({ error: "This shoot is still in progress." });
   if (!shoot.shots.some((s) => s.status === "error")) return res.status(400).json({ error: "Nothing to resume." });
   // Retries are free, but capped so a shoot that keeps failing can't loop forever.
-  if ((shoot.resumes || 0) >= MAX_RESUMES) return res.status(429).json({ error: "These frames still didn't develop after several tries. Contact us and we'll sort it out.", code: "resume_limit" });
-  await shoots.updateMeta(shoot.id, (m) => void (m.resumes = (m.resumes || 0) + 1));
+  // Counted atomically; a second click in the same moment is ignored, not counted.
+  let refused = null;
+  const now = Date.now();
+  await shoots.updateMeta(shoot.id, (m) => {
+    if (LIVE.includes(m.status) || (m.resumeStartedAt && now - Date.parse(m.resumeStartedAt) < 15_000)) refused = "busy";
+    else if ((m.resumes || 0) >= MAX_RESUMES) refused = "limit";
+    if (refused) return false;
+    m.resumes = (m.resumes || 0) + 1;
+    m.resumeStartedAt = new Date(now).toISOString();
+  });
+  if (refused === "busy") return res.status(409).json({ error: "This shoot is still in progress." });
+  if (refused === "limit") return res.status(429).json({ error: "These frames still didn't develop after several tries. Contact us and we'll sort it out.", code: "resume_limit" });
   res.status(202).json({ shoot: await retryFailed(shoot.id) });
 });
 

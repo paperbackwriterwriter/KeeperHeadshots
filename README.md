@@ -39,7 +39,7 @@ npm start                 # http://localhost:3000
 The same code runs on Vercel as an Express function:
 
 - **Storage:** with a private Vercel Blob store connected (`BLOB_READ_WRITE_TOKEN`), all users, shoots and images live in Blob. Without it, the app uses `./data` on disk.
-- **Rendering:** no long-lived background job. Each progress poll calls `advance()`, which claims pending frames up to `GENERATION_CONCURRENCY` and renders each one in the background of that request (`waitUntil`, up to 300 s). Frames that stall past the lease are marked failed and can be retried.
+- **Rendering:** no long-lived background job. Each progress poll calls `advance()`, which claims pending frames up to `GENERATION_CONCURRENCY` and renders each one in the background of that request (`waitUntil`, up to 300 s). Claims are atomic in storage (`shoots.claimShot`: a Blob conditional write), so when several serverless instances poll the same shoot each frame still renders once; the worker's later writes carry its claim token (`shoots.writeShot`), so a worker that timed out can't overwrite a retry. Moving a shoot on to grading is also a conditional write, so it's graded once. Frames that stall past the lease are marked failed and can be retried.
 - **Uploads:** photos go up one per request, so each body stays under Vercel's 4.5 MB limit.
 - **Environment variables:** `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `SESSION_SECRET` (required on Vercel), `BLOB_READ_WRITE_TOKEN` (added when the Blob store is connected), and optionally `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `OWNER_EMAILS`.
 
@@ -142,5 +142,8 @@ node scripts/dev/api-e2e.js   # add RESEND_API_KEY=test RESEND_BASE_URL=http://l
 node scripts/dev/screenshots.js shots   # phone (390px) + desktop (1440px) click-through
 node scripts/dev/race-tests.js   # double-spend, lockout, open-redirect and other regression checks
 node scripts/dev/reset-tests.js  # password reset and sign-out-everywhere checks
+# Two instances at once: run two servers on one DATA_DIR (ports 3100 + 3101), mock started with
+# MOCK_QA_FAIL=none and its output in MOCKLOG; each frame must render once and grade once:
+MOCKLOG=mock.log node scripts/dev/render-race.js
 node scripts/dev/csp-sweep.mjs   # every public page at 1280px and 390px: console/CSP errors, broken images, overflow
 ```
