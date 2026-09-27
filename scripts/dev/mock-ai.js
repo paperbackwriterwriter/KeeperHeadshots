@@ -118,6 +118,15 @@ async function gemini(req, res, body, url) {
 // hosted payment page at /mock-pay/:id that marks the session paid.
 const stripeSessions = new Map();
 let stripeSeq = 0;
+// Meta Conversions API stand-in: logs each event it receives.
+const metaEvents = [];
+function meta(req, res, raw) {
+  const body = JSON.parse(raw || "{}");
+  for (const e of body.data || []) metaEvents.push(e), console.log(`[mock] meta ${e.event_name} id=${e.event_id} value=${e.custom_data?.value ?? "-"} em=${e.user_data?.em ? "hashed" : "none"}`);
+  res.writeHead(200, { "content-type": "application/json" });
+  res.end(JSON.stringify({ events_received: (body.data || []).length }));
+}
+
 function stripe(req, res, raw) {
   const url = new URL(req.url, "http://x");
   const form = Object.fromEntries(new URLSearchParams(raw || ""));
@@ -138,8 +147,18 @@ function stripe(req, res, raw) {
   const m = /^\/v1\/checkout\/sessions\/([\w-]+)$/.exec(url.pathname);
   if (req.method === "GET" && m) return stripeSessions.has(m[1]) ? json(stripeSessions.get(m[1])) : json({ error: { type: "invalid_request_error", message: "No such session" } }, 404);
   if (req.method === "GET" && url.pathname === "/v1/checkout/sessions") {
-    const data = [...stripeSessions.values()].filter((s) => s.customer === url.searchParams.get("customer"));
+    // Sessions carry their charge (as with expand[]=data.payment_intent.latest_charge) so refunds can be reconciled.
+    const data = [...stripeSessions.values()]
+      .filter((s) => s.customer === url.searchParams.get("customer"))
+      .map((s) => ({ ...s, payment_intent: s.payment_status === "paid" ? { id: `pi_${s.id}`, latest_charge: { id: `ch_${s.id}`, amount: s.amount_total, amount_refunded: s.refunded || 0, refunded: (s.refunded || 0) >= s.amount_total } } : null }));
     return json({ object: "list", data, has_more: false, url: "/v1/checkout/sessions" });
+  }
+  // QA helper: /mock-refund/<session>?amount=<cents> (defaults to a full refund).
+  const refund = /^\/mock-refund\/([\w-]+)$/.exec(url.pathname);
+  if (refund && stripeSessions.has(refund[1])) {
+    const s = stripeSessions.get(refund[1]);
+    s.refunded = Math.min(s.amount_total, Number(url.searchParams.get("amount") || s.amount_total));
+    return json({ refunded: s.refunded });
   }
   const pay = /^\/mock-pay\/([\w-]+)$/.exec(url.pathname);
   if (pay && stripeSessions.has(pay[1])) {
@@ -155,7 +174,8 @@ function stripe(req, res, raw) {
 http
   .createServer(async (req, res) => {
     const raw = await readBody(req);
-    if (req.url.startsWith("/v1/customers") || req.url.startsWith("/v1/checkout") || req.url.startsWith("/mock-pay")) return stripe(req, res, raw);
+    if (req.url.startsWith("/v1/customers") || req.url.startsWith("/v1/checkout") || req.url.startsWith("/mock-pay") || req.url.startsWith("/mock-refund")) return stripe(req, res, raw);
+    if (/^\/v\d+\.\d+\/\d+\/events/.test(req.url)) return meta(req, res, raw);
     const body = raw ? JSON.parse(raw) : {};
     try {
       if (req.url.startsWith("/v1/messages")) return await anthropic(req, res, body);

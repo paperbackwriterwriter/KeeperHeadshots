@@ -12,6 +12,7 @@ import { ingestSelfie, runCheck, advance, startGeneration, retryFailed, startRev
 import { lookFor, MAX_LOOKS, MAX_SELFIES } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
 import { planFor, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT } from "./lib/plan.js";
+import { metaPixelId, track as trackMeta } from "./lib/meta.js";
 import { contactEnabled, validate as validateContact, rateLimited, submit as submitContact } from "./lib/contact.js";
 import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExample, generateSet as generateExampleSet, exampleImage, sheet as exampleSheet } from "./lib/examples.js";
 import crypto from "node:crypto";
@@ -62,6 +63,7 @@ app.post("/api/auth/signup", async (req, res) => {
     createdAt: new Date().toISOString(),
   });
   setSession(res, user.id);
+  trackMeta("CompleteRegistration", { eventId: `reg_${user.id}`, user, req });
   res.status(201).json({ user: publicUser(user) });
 });
 
@@ -84,7 +86,7 @@ app.post("/api/auth/signout", (req, res) => {
 app.get("/api/me", async (req, res) => {
   const user = await currentUser(req);
   const { vision, imaging } = aiStatus();
-  res.json({ user: user ? publicUser(user) : null, ai: { vision, imaging } });
+  res.json({ user: user ? publicUser(user) : null, ai: { vision, imaging }, meta: { pixelId: metaPixelId() } });
 });
 
 /* ------------------------------ Shoots ------------------------------ */
@@ -320,7 +322,10 @@ function requireBilling(req, res) {
 app.post("/api/billing/checkout", requireUser, async (req, res) => {
   if (!requireBilling(req, res)) return;
   const origin = `${req.protocol}://${req.get("host")}`;
-  res.json({ url: await createCheckout(req.user, String(req.body?.packageId || ""), origin) });
+  const checkout = await createCheckout(req.user, String(req.body?.packageId || ""), origin);
+  const eventId = `checkout_${checkout.id}`;
+  trackMeta("InitiateCheckout", { eventId, user: req.user, req, value: checkout.value });
+  res.json({ url: checkout.url, eventId, value: checkout.value });
 });
 
 app.post("/api/billing/confirm", requireUser, async (req, res) => {
@@ -330,9 +335,9 @@ app.post("/api/billing/confirm", requireUser, async (req, res) => {
 });
 
 app.post("/api/billing/sync", requireUser, async (req, res) => {
-  if (!billingEnabled() || req.user.demo) return res.json({ added: 0, user: publicUser(req.user) });
-  const added = await syncPurchases(req.user);
-  res.json({ added, user: publicUser(added ? await users.byId(req.user.id) : req.user) });
+  if (!billingEnabled() || req.user.demo) return res.json({ added: 0, removed: 0, user: publicUser(req.user) });
+  const { added, removed } = await syncPurchases(req.user);
+  res.json({ added, removed, user: publicUser(added || removed ? await users.byId(req.user.id) : req.user) });
 });
 
 /* ------------------------------ Contact ----------------------------- */

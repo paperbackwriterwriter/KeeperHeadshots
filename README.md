@@ -98,8 +98,8 @@ The brand is about replacing a photo studio, so the UI borrows a studio's own ar
 
 ## Before launch
 
-- The testimonials on the landing page and sign-in screen are placeholder copy. Replace them with real customer quotes.
-- The landing page promises a 100% money-back guarantee. Make sure there's a refund policy and a way to honour it.
+- Placeholder testimonials were removed. Add real customer quotes (with permission) once you have them.
+- The money-back guarantee's terms live at `/refunds` (`public/js/views/refunds.js`). Refunds are issued in the Stripe dashboard; the next dashboard visit by that customer removes the refunded package's credits automatically (`lib/billing.js`).
 - `hello@keeperheadshots.com` is live (ImprovMX forwarding; Gmail "Send mail as").
 
 ## Project layout

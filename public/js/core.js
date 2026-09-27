@@ -71,12 +71,13 @@ export async function api(path, { method = "GET", body, signal } = {}) {
   return data;
 }
 
-export const state = { user: null, ai: { vision: false, imaging: false } };
+export const state = { user: null, ai: { vision: false, imaging: false }, meta: {} };
 
 export async function loadSession() {
   const data = await api("/api/me");
   state.user = data.user;
   state.ai = data.ai;
+  state.meta = data.meta || {};
   return data;
 }
 

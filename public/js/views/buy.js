@@ -1,4 +1,5 @@
 import { html, icon, api, spinner } from "../core.js";
+import { pixel } from "../pixel.js";
 import { PACKAGES } from "../shared/catalog.js";
 
 // /app/buy/:package — hands off to Stripe's hosted checkout page.
@@ -12,7 +13,10 @@ export async function renderBuy({ root }, packageId) {
   }
   shell(html`<p class="eyebrow">${icon("lock")} Secure checkout</p><h1 class="display h-2">${pkg.name}: ${pkg.shoots} shoots for $${pkg.price}</h1><p class="lede">Taking you to Stripe to pay…</p><div style="display:flex;justify-content:center">${spinner()}</div>`);
   try {
-    const { url } = await api("/api/billing/checkout", { method: "POST", body: { packageId: pkg.id } });
+    const { url, eventId, value } = await api("/api/billing/checkout", { method: "POST", body: { packageId: pkg.id } });
+    pixel("InitiateCheckout", { value, currency: "USD", content_name: pkg.name }, eventId);
+    // Give the Pixel a moment to send before leaving for Stripe (the server sends it too).
+    if (window.fbq) await new Promise((r) => setTimeout(r, 300));
     location.assign(url);
   } catch (err) {
     shell(html`<p class="eyebrow">Checkout</p><h1 class="display h-2">We couldn't start checkout.</h1><p class="lede">${err.message}</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><a class="btn btn-ink" href="/app" data-link>Back to your shoots</a><a class="btn btn-ghost" href="/#pricing">Pricing</a></div>`);

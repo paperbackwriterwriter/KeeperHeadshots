@@ -1,4 +1,5 @@
 import { $, $$, html, icon, logoMark, wordmark, api, state, toast, busy, example } from "../core.js";
+import { pixel } from "../pixel.js";
 
 const DEMO = { email: "demo@keeperheadshots.com", password: "studio-demo" };
 
@@ -44,9 +45,8 @@ export function renderAuth({ root, navigate }, mode) {
     </div>
     <aside class="auth-side" aria-hidden="true">
       <div class="auth-mosaic">${mosaic.map((src) => html`<img src="${src}" alt="" />`)}</div>
-      <span class="stars" style="color:#d2a85c">${[1, 2, 3, 4, 5].map(() => icon("star"))}</span>
-      <p class="display h-2" style="margin:16px 0 12px;max-width:18ch">“Four selfies at lunch. New LinkedIn photo by 2 p.m.”</p>
-      <p style="color:#a9b1bd">Daniel R., product lead, fintech</p>
+      <p class="display h-2" style="margin:0 0 12px;max-width:18ch">Headshots worth keeping.</p>
+      <p style="color:#a9b1bd;max-width:44ch">Every headshot is checked against your own photos for likeness and polish before you see it.</p>
     </aside>
   </main>`.v;
 
@@ -100,6 +100,7 @@ export function renderAuth({ root, navigate }, mode) {
     try {
       const res = await api(`/api/auth/${isUp ? "signup" : "signin"}`, { method: "POST", body: data });
       state.user = res.user;
+      if (isUp) pixel("CompleteRegistration", {}, `reg_${res.user.id}`);
       toast(isUp ? `Welcome, ${res.user.name.split(" ")[0]}. Let's make some headshots.` : `Welcome back, ${res.user.name.split(" ")[0]}.`, "success");
       navigate(dest);
     } catch (err) {

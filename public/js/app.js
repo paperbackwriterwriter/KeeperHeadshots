@@ -5,12 +5,15 @@ import { renderDashboard } from "./views/dashboard.js";
 import { renderStudio } from "./views/studio.js";
 import { renderBuy } from "./views/buy.js";
 import { renderContact } from "./views/contact.js";
+import { renderRefunds } from "./views/refunds.js";
+import { initPixel, pixel } from "./pixel.js";
 
 const app = document.getElementById("app");
 let cleanup = null;
 
 const routes = [
   { path: /^\/$/, view: renderLanding, chrome: "marketing", title: "Keeper Headshots — Professional headshots, without the photo shoot" },
+  { path: /^\/refunds$/, view: renderRefunds, chrome: "marketing", title: "Money-back guarantee · Keeper Headshots" },
   { path: /^\/contact$/, view: renderContact, chrome: "marketing", title: "Contact us · Keeper Headshots" },
   { path: /^\/signin$/, view: (ctx) => renderAuth(ctx, "signin"), chrome: "none", guestOnly: true, title: "Sign in · Keeper Headshots" },
   { path: /^\/signup$/, view: (ctx) => renderAuth(ctx, "signup"), chrome: "none", guestOnly: true, title: "Create your account · Keeper Headshots" },
@@ -33,7 +36,7 @@ function marketingNav() {
     <div class="container nav-inner">
       <a class="logo" href="/" data-link aria-label="Keeper Headshots home">${logoMark()}${wordmark()}</a>
       <nav class="nav-links" aria-label="Primary">
-        <a href="/#how">How it works</a><a href="/#styles">Styles</a><a href="/#pricing">Pricing</a><a href="/#teams">Teams</a><a href="/#reviews">Reviews</a>
+        <a href="/#how">How it works</a><a href="/#styles">Styles</a><a href="/#pricing">Pricing</a><a href="/#teams">Teams</a><a href="/#faq">FAQ</a>
       </nav>
       <div class="nav-actions">
         ${signedIn
@@ -44,7 +47,7 @@ function marketingNav() {
       </div>
     </div>
     <div class="nav-sheet" id="navSheet">
-      <a href="/#how">How it works</a><a href="/#styles">Styles</a><a href="/#pricing">Pricing</a><a href="/#teams">Teams</a><a href="/#reviews">Reviews</a><a href="/contact" data-link>Contact</a>
+      <a href="/#how">How it works</a><a href="/#styles">Styles</a><a href="/#pricing">Pricing</a><a href="/#teams">Teams</a><a href="/#faq">FAQ</a><a href="/contact" data-link>Contact</a>
       ${signedIn ? html`<a href="/app" data-link>Your shoots</a>` : html`<a href="/signin" data-link>Sign in</a>`}
       <a class="btn btn-flash btn-block" href="${signedIn ? "/app/new" : "/signup"}" data-link>Get your headshots ${icon("arrow-right")}</a>
     </div>
@@ -107,6 +110,7 @@ async function render() {
   wireChrome();
   observeReveals(app);
   focusHeading();
+  pixel("PageView");
   if (location.hash) requestAnimationFrame(() => document.getElementById(location.hash.slice(1))?.scrollIntoView());
   else window.scrollTo({ top: 0, behavior: "instant" });
 }
@@ -157,4 +161,7 @@ window.addEventListener("popstate", render);
 
 loadSession()
   .catch(() => {})
-  .finally(render);
+  .finally(() => {
+    initPixel();
+    render();
+  });

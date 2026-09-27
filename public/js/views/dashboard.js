@@ -1,4 +1,5 @@
 import { html, icon, api, state, media, relTime, toast, example } from "../core.js";
+import { pixel } from "../pixel.js";
 
 const STATUS = {
   draft: ["badge", "Photo check pending"],
@@ -49,7 +50,10 @@ async function handleCheckoutReturn(navigate) {
   try {
     const res = await api("/api/billing/confirm", { method: "POST", body: { sessionId: q.get("session_id") } });
     state.user = res.user;
-    if (res.added) toast(`Payment received: ${res.added} shoots added to your account.`, "success", 7000);
+    if (res.added) {
+      pixel("Purchase", { value: res.value, currency: "USD" }, res.eventId);
+      toast(`Payment received: ${res.added} shoots added to your account.`, "success", 7000);
+    }
     else if (!res.paid) toast("Your payment is still processing. Your shoots will appear as soon as it clears.", "info", 7000);
     return true;
   } catch (err) {
@@ -63,9 +67,9 @@ export async function renderDashboard({ root, navigate }) {
     // Pick up any purchase whose return trip didn't finish (e.g. closed tab).
     api("/api/billing/sync", { method: "POST" })
       .then((res) => {
-        if (res.added) {
+        if (res.added || res.removed) {
           state.user = res.user;
-          toast(`${res.added} purchased shoots added to your account.`, "success", 7000);
+          if (res.added) toast(`${res.added} purchased shoots added to your account.`, "success", 7000);
           navigate("/app", { replace: true });
         }
       })

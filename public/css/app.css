@@ -859,6 +859,18 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
 }
 
 /* ---------- 13. Reduced motion ---------- */
+/* ---------- Policy pages ---------- */
+.policy-page { padding-top: var(--s-8); }
+.policy { max-width: 720px; display: grid; gap: var(--s-4); }
+.policy h2 { margin-top: var(--s-5); }
+.policy ul, .policy ol { margin: 0; padding-left: 1.3em; display: grid; gap: var(--s-2); color: var(--text-muted); }
+.policy li b, .policy p b { color: var(--text); }
+.policy > p:not(.eyebrow):not(.lede) { color: var(--text-muted); }
+.policy-callout { display: flex; gap: var(--s-4); padding: var(--s-5); border-radius: var(--r-lg); background: var(--brand-soft); margin-top: var(--s-3); }
+.policy-callout > svg { width: 24px; height: 24px; flex: none; color: var(--accent-text); margin-top: 2px; }
+.policy-callout div { display: grid; gap: 4px; }
+.policy-callout span { color: var(--text-muted); }
+
 /* ---------- Contact ---------- */
 .contact-page { padding-top: var(--s-8); }
 .contact-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: var(--s-8); align-items: start; }

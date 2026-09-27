@@ -28,7 +28,7 @@ const FAQ = [
   ["How long does it take?", "Your photo check comes back in seconds. Rendering a shoot usually takes a few minutes; you can watch each frame develop live, then our AI retoucher grades the set and picks your best shot."],
   ["Will the headshots actually look like me?", "Likeness is the whole game. We pass your best reference photos to the image model with strict instructions to preserve your features, and every finished headshot is scored for likeness against your originals. Anything that drifts is flagged as a retake."],
   ["Who owns the photos?", "You do. Use your headshots anywhere — LinkedIn, your company site, print, press kits. We never use your photos to train models or for marketing."],
-  ["What if I don't like the results?", "Every paid shoot is covered by our 100% money-back guarantee. If none of your headshots are usable, we'll refund you in full."],
+  ["What if I don't like the results?", "Every paid package is covered by our 100% money-back guarantee. If none of the headshots from your first paid shoot are usable, tell us within 30 days and we'll refund you in full. The full terms are on our refund policy page."],
   ["Can I order for my whole team?", "Yes. Each shoot is one person, so a package covers several people: the Executive package includes 12 shoots. Everyone can use the same backdrops and wardrobe so your team page looks consistent. For larger teams, contact us about volume pricing."],
 ];
 
@@ -198,38 +198,6 @@ export function renderLanding({ root }) {
       </div>
     </section>
 
-    <!-- Reviews -->
-    <section class="section" id="reviews">
-      <div class="container">
-        <div class="section-head">
-          <div>
-            <p class="eyebrow" data-reveal>Reviews</p>
-            <h2 class="display h-1" data-reveal style="--i:1;margin-top:16px">Loved by people who hate being photographed.</h2>
-          </div>
-          <p class="lede" data-reveal style="--i:2">Founders, recruiters, nurses, lawyers, whole sales teams. Here's what they say.</p>
-        </div>
-        <div class="quotes">
-          <figure class="quote quote-lg" data-reveal style="margin:0">
-            <span class="stars" role="img" aria-label="5 out of 5 stars">${[1, 2, 3, 4, 5].map(() => icon("star"))}</span>
-            <blockquote>“I'd put off new headshots for three years. Uploaded four selfies on my lunch break and had my new LinkedIn photo before my next meeting.”</blockquote>
-            <figcaption class="quote-by"><span class="initials" aria-hidden="true">DR</span><div><b>Daniel R.</b><span>Product lead, fintech</span></div></figcaption>
-          </figure>
-          <div class="quote-stack">
-            <figure class="quote quote-sm" data-reveal style="--i:1;margin:0">
-              <span class="stars" role="img" aria-label="5 out of 5 stars">${[1, 2, 3, 4, 5].map(() => icon("star"))}</span>
-              <blockquote>“The photo check told me my selfies were too dark. Retook two by a window and the results were uncanny — in a good way.”</blockquote>
-              <figcaption class="quote-by"><span class="initials" aria-hidden="true">PS</span><div><b>Priya S.</b><span>Clinical nurse educator</span></div></figcaption>
-            </figure>
-            <figure class="quote quote-sm" data-reveal style="--i:2;margin:0">
-              <span class="stars" role="img" aria-label="5 out of 5 stars">${[1, 2, 3, 4, 5].map(() => icon("star"))}</span>
-              <blockquote>“We did our whole 12-person team. Matching backdrops, zero scheduling. Our about page finally looks like one company.”</blockquote>
-              <figcaption class="quote-by"><span class="initials" aria-hidden="true">MT</span><div><b>Marcus T.</b><span>Head of People, SaaS</span></div></figcaption>
-            </figure>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- Pricing -->
     <section class="section" id="pricing" style="padding-top:0">
       <div class="container">
@@ -254,7 +222,7 @@ export function renderLanding({ root }) {
             </article>`,
           )}
         </div>
-        <p class="guarantee">${icon("shield-check")} 100% money-back guarantee — if none of your headshots are usable, you pay nothing.</p>
+        <p class="guarantee">${icon("shield-check")} 100% money-back guarantee: if none of your headshots are usable, we'll refund you in full. <a class="link" href="/refunds" data-link>See the terms</a></p>
         <div class="teams" id="teams" data-reveal>
           <div style="display:flex;gap:16px;align-items:center">
             <span class="t-ic">${icon("users")}</span>
@@ -408,7 +376,7 @@ export function footer() {
         </div>
         <div><h4>Product</h4><ul><li><a href="/#how">How it works</a></li><li><a href="/#styles">Styles</a></li><li><a href="/#pricing">Pricing</a></li><li><a href="/#teams">Teams</a></li></ul></div>
         <div><h4>Account</h4><ul><li><a href="/signin" data-link>Sign in</a></li><li><a href="/signup" data-link>Create account</a></li><li><a href="/app" data-link>Your shoots</a></li></ul></div>
-        <div><h4>Company</h4><ul><li><a href="/#reviews">Reviews</a></li><li><a href="/contact" data-link>Contact us</a></li><li><a href="/#pricing">Money-back guarantee</a></li></ul></div>
+        <div><h4>Company</h4><ul><li><a href="/#faq">FAQ</a></li><li><a href="/contact" data-link>Contact us</a></li><li><a href="/refunds" data-link>Money-back guarantee</a></li></ul></div>
       </div>
       <div class="footer-base"><span>© ${new Date().getFullYear()} Keeper Headshots</span><span>Your photos are never used to train AI models.</span></div>
     </div>
