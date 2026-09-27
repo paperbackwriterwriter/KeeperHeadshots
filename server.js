@@ -592,6 +592,13 @@ app.post("/api/billing/checkout", requireUser, async (req, res) => {
   res.json(embedded ? { clientSecret: checkout.clientSecret, eventId, value: checkout.value } : { url: checkout.url, eventId, value: checkout.value });
 });
 
+// The buy page reports here when Stripe's embedded form fails to load (it
+// then falls back to the hosted page), so the reason reaches the logs.
+app.post("/api/billing/embed-error", requireUser, (req, res) => {
+  console.warn("[checkout] embedded form failed for", req.user.id, "-", String(req.body?.message || "").slice(0, 300).replace(/[\r\n]+/g, " "));
+  res.json({ ok: true });
+});
+
 app.post("/api/billing/confirm", requireUser, async (req, res) => {
   if (!requireBilling(req, res)) return;
   const result = await confirmCheckout(req.user, req.body?.sessionId);

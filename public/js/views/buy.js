@@ -85,7 +85,11 @@ export function renderBuy({ root }, packageId) {
     try {
       const Stripe = await loadStripe();
       if (disposed) return;
-      checkout = await Stripe(key).initEmbeddedCheckout({
+      const stripe = Stripe(key);
+      // Stripe.js "dahlia" renamed initEmbeddedCheckout() to
+      // createEmbeddedCheckoutPage() (the old name now throws).
+      const create = (stripe.createEmbeddedCheckoutPage || stripe.initEmbeddedCheckout).bind(stripe);
+      checkout = await create({
         fetchClientSecret: async () => {
           const { clientSecret, eventId, value } = await api("/api/billing/checkout", { method: "POST", body: { packageId: pkg.id, embedded: true } });
           if (!clientSecret) throw new Error("Checkout isn't available right now.");
@@ -101,6 +105,8 @@ export function renderBuy({ root }, packageId) {
       // If the embedded form can't load (blocked script, old browser), fall
       // back to Stripe's hosted page rather than leaving the buyer stuck.
       console.warn("[checkout] embedded form failed; using hosted checkout:", err.message);
+      // Tell the server why, so a broken embedded form shows up in the logs.
+      api("/api/billing/embed-error", { method: "POST", body: { message: String(err?.message || err).slice(0, 300) } }).catch(() => {});
       checkout?.destroy();
       redirect();
     }
