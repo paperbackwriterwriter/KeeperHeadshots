@@ -1,4 +1,4 @@
-import { html, icon, api, state, media, relTime, raw, toast } from "../core.js";
+import { html, icon, api, state, media, relTime, toast } from "../core.js";
 import { portraitDataURL } from "../shared/portrait.js";
 
 const STATUS = {
@@ -14,8 +14,7 @@ const STATUS = {
 export function aiBanner() {
   const { vision, imaging } = state.ai;
   if (vision && imaging) return "";
-  const missing = [!vision && "ANTHROPIC_API_KEY", !imaging && "GEMINI_API_KEY"].filter(Boolean);
-  return html`<div class="banner banner-warn" role="status">${icon("circle-alert")}<div><b>The AI studio isn't switched on yet.</b>Add ${raw(missing.map((m) => `<code>${m}</code>`).join(" and "))} to the server environment and restart to check photos and develop real headshots. Sample shoots below still show the full experience.</div></div>`;
+  return html`<div class="banner banner-warn" role="status">${icon("circle-alert")}<div><b>The AI studio is temporarily unavailable.</b>Photo checks and new shoots will be back shortly. Sample shoots below still show the full experience.</div></div>`;
 }
 
 // Explains what the account can do right now (free shoot, demo, credits).
@@ -27,7 +26,7 @@ export function planBanner() {
   if (plan.tier === "trial")
     return html`<div class="banner banner-info">${icon("sparkles")}<div><b>Your first shoot is free.</b>Up to 2 looks, which makes 4 headshots, each checked and graded by AI.</div></div>`;
   if (plan.tier === "none")
-    return html`<div class="banner banner-warn">${icon("circle-alert")}<div><b>You've used your free shoot.</b>Buy a package to develop more. Your existing shoots and downloads stay available.</div><a class="btn btn-sm btn-flash" href="/#pricing">Buy shoots</a></div>`;
+    return html`<div class="banner banner-warn">${icon("circle-alert")}<div><b>You're out of shoots.</b>Buy a package to develop more. Your existing shoots and downloads stay available.</div><a class="btn btn-sm btn-flash" href="/#pricing">Buy shoots</a></div>`;
   if (plan.tier === "paid")
     return html`<div class="banner banner-info">${icon("check-circle-2")}<div><b>${plan.credits} shoot${plan.credits === 1 ? "" : "s"} available.</b>Each developed shoot uses one, with up to 4 looks (8 headshots).</div><a class="btn btn-sm btn-ghost" href="/#pricing">Buy more</a></div>`;
   return "";
@@ -116,12 +115,12 @@ export async function renderDashboard({ root, navigate }) {
       <div class="shoot-body">
         <div>
           <h3>${s.name}</h3>
-          <p class="muted small">${relTime(s.createdAt)} · ${s.doneCount ? `${s.doneCount} headshots` : `${s.selfieCount} photo${s.selfieCount === 1 ? "" : "s"}`}</p>
+          <p class="muted small">${relTime(s.createdAt)} · ${s.doneCount ? `${s.doneCount} headshot${s.doneCount === 1 ? "" : "s"}` : `${s.selfieCount} photo${s.selfieCount === 1 ? "" : "s"}`}</p>
         </div>
         ${s.bestScore != null
-          ? html`<span class="score-pill g-keeper" title="Best headshot score"><i></i>${s.bestScore}</span>`
+          ? html`<span class="score-pill g-keeper" title="Best headshot score" aria-label="Best headshot score ${s.bestScore} out of 100"><i></i>${s.bestScore}</span>`
           : s.checkScore != null
-            ? html`<span class="score-pill g-solid" title="Photo check score"><i></i>${s.checkScore}</span>`
+            ? html`<span class="score-pill g-solid" title="Photo check score" aria-label="Photo check score ${s.checkScore} out of 100"><i></i>${s.checkScore}</span>`
             : html`<span class="muted">${icon("arrow-right")}</span>`}
       </div>
     </a>`;

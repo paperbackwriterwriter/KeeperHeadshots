@@ -80,7 +80,8 @@ app.post("/api/auth/signout", (req, res) => {
 
 app.get("/api/me", async (req, res) => {
   const user = await currentUser(req);
-  res.json({ user: user ? publicUser(user) : null, ai: aiStatus() });
+  const { vision, imaging } = aiStatus();
+  res.json({ user: user ? publicUser(user) : null, ai: { vision, imaging } });
 });
 
 /* ------------------------------ Shoots ------------------------------ */
@@ -184,11 +185,11 @@ app.delete("/api/shoots/:id/selfies/:name", requireUser, async (req, res) => {
 function requireAI(kind, res) {
   const s = aiStatus();
   if (kind === "vision" && !s.vision) {
-    res.status(503).json({ error: "The AI photo reviewer isn't configured. Add ANTHROPIC_API_KEY to the server environment.", code: "ai_not_configured" });
+    res.status(503).json({ error: "The AI studio is temporarily unavailable. Please try again later.", code: "ai_not_configured" });
     return false;
   }
   if (kind === "imaging" && !s.imaging) {
-    res.status(503).json({ error: "The AI image studio isn't configured. Add GEMINI_API_KEY to the server environment.", code: "ai_not_configured" });
+    res.status(503).json({ error: "The AI studio is temporarily unavailable. Please try again later.", code: "ai_not_configured" });
     return false;
   }
   return true;
@@ -199,11 +200,13 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   if (!meta || !requireAI("vision", res)) return;
   if (meta.sample) return res.status(400).json({ error: "Sample shoots are read-only. Start a new shoot to use your own photos." });
   if (!meta.selfies.length) return res.status(400).json({ error: "Add at least one photo first." });
+  if (!canEditPhotos(meta)) return res.status(409).json({ error: "This shoot has already been developed. Start a new shoot to check new photos." });
   const plan = planFor(req.user);
   if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
   if (plan.checksLeft === 0) throw new PlanError(`Free accounts include ${FREE.checks} photo checks, and you've used them. Buy a package to keep going.`);
-  if (plan.checksLeft != null) await users.update(req.user.id, (u) => (u.usage = { ...u.usage, checks: (u.usage?.checks || 0) + 1 }));
   await runCheck(meta.id);
+  // Only a completed check counts toward the free allowance.
+  if (plan.checksLeft != null) await users.update(req.user.id, (u) => (u.usage = { ...u.usage, checks: (u.usage?.checks || 0) + 1 }));
   res.json({ shoot: await shoots.get(meta.id) });
 });
 
@@ -214,6 +217,8 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
   if (!meta.check) return res.status(400).json({ error: "Run the photo check first." });
   if (meta.check.verdict === "retake" && !req.body?.override) return res.status(400).json({ error: "These photos need a retake before we can shoot. Add better photos and re-check." });
   if (LIVE.includes(meta.status)) return res.status(409).json({ error: "This shoot is already in progress." });
+  // A shoot is developed once; retries of failed frames go through /resume.
+  if (meta.status !== "checked" || (meta.shots || []).length) return res.status(409).json({ error: "This shoot has already been developed. Start a new shoot for new looks." });
   const looks = (req.body?.looks || []).map((l) => lookFor(l.backdrop, l.outfit)).filter(Boolean);
   const unique = [...new Map(looks.map((l) => [l.id, l])).values()];
   if (!unique.length) return res.status(400).json({ error: "Pick at least one look." });
@@ -358,10 +363,12 @@ app.use((err, req, res, next) => {
     console.error("[stripe]", err.type, err.message);
     return res.status(502).json({ error: "The payment provider couldn't complete that request. Please try again." });
   }
+  if (err?.type === "entity.too.large") return res.status(413).json({ error: "That photo is too large. Try a smaller one." });
+  if (err?.type === "entity.parse.failed") return res.status(400).json({ error: "That request couldn't be read. Please try again." });
   if (err?.status && err.status < 500 && !(err instanceof AIError)) return res.status(err.status).json({ error: err.message });
-  const status = err instanceof AIError ? err.status : err.type === "entity.too.large" ? 413 : 500;
+  const status = err instanceof AIError ? err.status : 500;
   if (status >= 500) console.error(err);
-  res.status(status).json({ error: status === 413 ? "That photo is too large. Try a smaller one." : status === 500 && !(err instanceof AIError) ? "Something went wrong on our side. Please try again." : err.message });
+  res.status(status).json({ error: status === 500 && !(err instanceof AIError) ? "Something went wrong on our side. Please try again." : err.message });
 });
 
 export default app;

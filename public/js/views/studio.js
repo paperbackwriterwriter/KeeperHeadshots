@@ -20,7 +20,9 @@ const lookName = (b, o) => {
   return l ? `${l.backdrop.name} · ${l.outfit.name}` : "";
 };
 
-const scoreColor = (n) => (n >= 80 ? "#5fd3c7" : n >= 60 ? "#f5b94a" : "#ff8a73");
+const scoreColor = (n) => (n >= 80 ? "#6fdca8" : n >= 60 ? "#f5b94a" : "#ff8a73");
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const gradeLabel = (g) => ({ keeper: "Keeper", solid: "Solid", retake: "Retake" })[g] || g;
 const meterColor = (v) => (v >= 8 ? "var(--success)" : v >= 6 ? "var(--warning)" : "var(--danger)");
 
 export async function renderStudio(ctx, id) {
@@ -144,7 +146,7 @@ export async function renderStudio(ctx, id) {
             <span class="dz-icon">${icon("upload")}</span>
             <span><span class="h-4" style="display:block">Add photos</span><span class="small muted" id="addStatus">${s.selfies.length} of ${MAX_SELFIES} used · JPG, PNG or WebP</span></span>
           </label>`
-        : html`<p class="small muted" id="addStatus">You're at the ${MAX_SELFIES}-photo limit. Remove a skipped photo to make room.</p>`}
+        : html`<p class="small muted" id="addStatus">You're at the ${MAX_SELFIES}-photo limit. Remove a photo to make room.</p>`}
     </section>`;
   }
 
@@ -225,7 +227,7 @@ export async function renderStudio(ctx, id) {
       </div>
       ${checking
         ? html`<p class="status-line">${spinner()}<span id="phrase" aria-live="polite">${phrases[0]}</span></p>`
-        : html`<p class="lede" style="margin-bottom:24px">Our AI photo specialist scores every photo for lighting, sharpness, visibility and expression, then tells you what to fix — before any rendering time is spent.</p>`}
+        : html`<p class="lede" style="margin-bottom:24px">Our AI photo check scores every photo for lighting, sharpness, visibility and expression, then tells you what to fix — before any rendering time is spent.</p>`}
       <div class="scan-grid">
         ${s.selfies.map((p, i) => html`<div class="scan ${checking ? "" : "idle"}" style="--i:${i}"><img src="${media(p.file)}" alt="Your photo ${i + 1}" /><span class="corners"></span>${!checking && s.selfies.length > 1 ? html`<button class="rm-photo" data-remove-selfie="${p.file}" aria-label="Remove photo ${i + 1}">${icon("x")}</button>` : ""}</div>`)}
       </div>
@@ -238,7 +240,7 @@ export async function renderStudio(ctx, id) {
     const c = s.check;
     const verdict = { ready: ["Ready to shoot", "badge-success"], usable: ["Usable", "badge-warn"], retake: ["Retake needed", "badge-danger"] }[c.verdict];
     const kept = c.photos.filter((p) => p.keep).length;
-    return html`<section class="verdict" style="--verdict-glow:${scoreColor(c.overall_score)}44">
+    return html`<section class="verdict">
         <div class="ring" style="--val:0;--col:${scoreColor(c.overall_score)}" data-ring="${c.overall_score}">
           <svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="54"/><circle class="bar" cx="60" cy="60" r="54"/></svg>
           <div class="val"><strong class="tabular">${c.overall_score}</strong><span>of 100</span></div>
@@ -313,7 +315,7 @@ export async function renderStudio(ctx, id) {
       ${stepper(2)}
       <div class="page-head"><div><p class="eyebrow">${s.name}</p><h1 class="display h-1" style="margin-top:8px">Dress the set.</h1><p class="lede" style="margin-top:12px">Up to ${MAX_LOOKS} looks, ${TAKES_PER_LOOK} takes each. Tap a look to change its backdrop or outfit, or tap an empty slot to add one.</p></div></div>
 
-      ${trial ? html`<div class="banner banner-info">${icon("sparkles")}<div><b>Free trial shoot.</b>Up to ${MAX_LOOKS} looks (${MAX_LOOKS * TAKES_PER_LOOK} headshots). Paid packages unlock up to ${MAX_LOOKS_ALL} looks per shoot.</div></div>` : ""}
+      ${trial ? html`<div class="banner banner-info">${icon("sparkles")}<div><b>Your free shoot.</b>Up to ${MAX_LOOKS} looks (${MAX_LOOKS * TAKES_PER_LOOK} headshots). Paid packages unlock up to ${MAX_LOOKS_ALL} looks per shoot.</div></div>` : ""}
       ${plan && !plan.canDevelop ? planBanner() : ""}
       <section aria-labelledby="looksTitle">
         <div class="looks-head">
@@ -344,7 +346,7 @@ export async function renderStudio(ctx, id) {
       </section>
 
       <div class="develop-bar">
-        <button class="btn btn-ghost btn-sm" id="backCheck">${icon("arrow-left")}<span class="hide-s">Photo check</span></button>
+        <button class="btn btn-ghost btn-sm" id="backCheck" aria-label="Back to photo check">${icon("arrow-left")}<span class="hide-s">Photo check</span></button>
         <p class="develop-tally"><strong class="tabular" id="tally">0</strong> <span id="tallySub">headshots</span></p>
         <button class="btn btn-flash btn-lg" id="develop">${icon("aperture")} Develop</button>
       </div>
@@ -456,9 +458,9 @@ export async function renderStudio(ctx, id) {
     const done = s.shots.filter((x) => x.status === "done").length;
     const failed = s.shots.filter((x) => x.status === "error").length;
     const total = s.shots.length;
-    if (s.status === "reviewing") return { title: "Your retoucher is grading the set", sub: `All ${done} headshots developed. Now scoring likeness, polish and lighting, and picking your best shot…`, pct: 96, done, total, failed };
+    if (s.status === "reviewing") return { title: "Your retoucher is grading the set", sub: `All ${plural(done, "headshot")} developed. Now scoring likeness, polish and lighting, and picking your best shot…`, pct: 96, done, total, failed };
     if (s.status === "error") return { title: "The shoot hit a snag", sub: s.error || "Some frames couldn't be developed.", pct: (done / total) * 100, done, total, failed };
-    return { title: done ? `${done} of ${total} developed` : "Developing your headshots", sub: "Each frame is rendered from your reference photos. Stay on this page to watch them come in — or come back later, we'll keep working.", pct: Math.max(4, ((done + failed) / total) * 92), done, total, failed };
+    return { title: done ? `${done} of ${total} developed` : "Developing your headshots", sub: "Each frame is rendered from your reference photos. Keep this page open while they develop; if you leave, the shoot picks up again when you come back.", pct: Math.max(4, ((done + failed) / total) * 92), done, total, failed };
   }
 
   function paintDevelop(s) {
@@ -530,7 +532,7 @@ export async function renderStudio(ctx, id) {
     const plan = state.user?.plan;
     const perks = [
       [icon("layers"), `${MAX_LOOKS_ALL} looks per shoot`, `${MAX_LOOKS_ALL * TAKES_PER_LOOK} headshots instead of ${doneCount}`],
-      [icon("briefcase"), `All ${BACKDROPS.length} backdrops & ${OUTFITS.length} outfits`, "Studio, office, rooftop, library and more"],
+      [icon("briefcase"), "Mix more backdrops & outfits", "Studio, office, rooftop and library looks in one shoot"],
       [icon("badge-check"), "Every shot checked & graded", "The same AI retoucher on every shoot"],
     ];
     const pkgs = html`<div class="upsell-pkgs">${PACKAGES.map(
@@ -558,7 +560,7 @@ export async function renderStudio(ctx, id) {
       <div>
         <p class="eyebrow">Upgrade</p>
         <h2 class="display h-2" id="upsellTitle">Upgrade for more options.</h2>
-        <p class="upsell-sub">${doneCount < MAX_LOOKS_ALL * TAKES_PER_LOOK ? `That was a free trial shoot. ` : ""}Paid shoots give you more looks, more takes and more headshots to choose from.</p>
+        <p class="upsell-sub">${s.paidWith === "free" ? `That was your free shoot. ` : ""}Paid shoots give you more looks, more takes and more headshots to choose from.</p>
         <ul class="upsell-perks">${perks.map(([ic, t, d]) => html`<li><span class="ficon">${ic}</span><div><b>${t}</b><span>${d}</span></div></li>`)}</ul>
       </div>
       ${pkgs}
@@ -598,7 +600,7 @@ export async function renderStudio(ctx, id) {
         </div>
         <div>
           <p class="eyebrow"><span class="dot"></span>${r ? "Retoucher's verdict" : "Your proofs"} · ${s.name}</p>
-          <h1 class="display h-1">${r?.headline || `${done.length} headshots, developed.`}</h1>
+          <h1 class="display h-1">${r?.headline || `${plural(done.length, "headshot")}, developed.`}</h1>
           <p class="lede">${r?.summary || "Every frame is below. Grading scores will appear here once the AI review completes."}</p>
           <div class="scoreboard">
             <div><strong class="tabular">${r ? keepers : done.length}</strong><span>${r ? "Keepers" : "Headshots"}</span></div>
@@ -613,8 +615,8 @@ export async function renderStudio(ctx, id) {
             ? html`<p class="small muted" style="margin:-8px 0 20px">The retoucher's pick was frame ${String(aiBest.n).padStart(2, "0")}. <button class="link" id="resetPick" style="background:none;border:0;padding:0;cursor:pointer;font:inherit">Use the retoucher's pick</button></p>`
             : ""}
           <div style="display:flex;gap:10px;flex-wrap:wrap">
-            ${best ? html`<a class="btn btn-flash btn-lg" href="${media(best.file, true)}" download>${icon("download")} Download ${isMine ? "your pick" : "best"}</a>` : ""}
-            <button class="btn btn-ghost btn-lg" id="dlAll">${icon("download")} All ${done.length}</button>
+            ${best ? html`<a class="btn btn-flash btn-lg" href="${media(best.file, true)}" download>${icon("download")} Download ${isMine ? "your pick" : "best pick"}</a>` : ""}
+            <button class="btn btn-ghost btn-lg" id="dlAll" aria-label="Download all ${plural(done.length, "headshot")}">${icon("download")} All ${done.length}</button>
             <a class="btn btn-ghost btn-lg" href="#upgrade">${icon("sparkles")} More options</a>
           </div>
         </div>
@@ -658,7 +660,7 @@ export async function renderStudio(ctx, id) {
             return html`<article class="proof ${t.id === best?.id ? "is-best" : ""}" style="--i:${i}">
               <div class="print">
                 <button class="open" data-open="${t.id}" aria-label="Open frame ${t.n} full size"><img src="${media(t.file)}" alt="Headshot ${t.n}: ${lookName(t.backdrop, t.outfit)}" loading="lazy" /></button>
-                ${g ? html`<span class="score-pill g-${g.grade} score-badge" title="${g.grade}"><i></i>${g.overall}</span>` : ""}
+                ${g ? html`<span class="score-pill g-${g.grade} score-badge" title="${gradeLabel(g.grade)}" aria-label="${gradeLabel(g.grade)}, ${g.overall} out of 100"><i></i>${g.overall}</span>` : ""}
                 <div class="print-cap"><b>${String(t.n).padStart(2, "0")} · ${lookFor(t.backdrop, t.outfit).backdrop.name}</b><span>${g ? g.best_for : lookFor(t.backdrop, t.outfit).outfit.name}</span></div>
                 ${g ? html`<p class="proof-note">${g.note}</p>` : ""}
                 <div class="proof-actions">${s.sample ? "" : t.id === best?.id
@@ -697,7 +699,7 @@ export async function renderStudio(ctx, id) {
         <div class="lb-side">
           <div><p class="eyebrow">Frame ${String(t.n).padStart(2, "0")} · ${current + 1} of ${ordered.length}</p><h2 class="display h-3" style="margin-top:8px">${lookName(t.backdrop, t.outfit)}</h2></div>
           ${g
-            ? html`<div style="display:flex;gap:12px;align-items:center"><span class="score-pill g-${g.grade}" style="height:34px;font-size:14px"><i></i>${g.overall} / 100</span><span class="badge ${g.grade === "keeper" ? "badge-success" : g.grade === "solid" ? "badge-warn" : "badge-danger"}">${g.grade}</span></div>
+            ? html`<div style="display:flex;gap:12px;align-items:center"><span class="score-pill g-${g.grade}" style="height:34px;font-size:14px"><i></i>${g.overall} / 100</span><span class="badge ${g.grade === "keeper" ? "badge-success" : g.grade === "solid" ? "badge-warn" : "badge-danger"}">${gradeLabel(g.grade)}</span></div>
               <div class="bars">${[["Likeness", g.likeness], ["Polish", g.polish], ["Lighting", g.lighting]].map(([k, v]) => html`<div class="bar-row"><span>${k}</span><div class="meter-track"><div class="meter-fill" style="--v:${v};--mcol:${meterColor(v)}"></div></div><b>${v}</b></div>`)}</div>
               <p style="color:#a9b1bd">${g.note}</p><p class="small"><b>Best for:</b> ${g.best_for}</p>`
             : html`<p style="color:#a9b1bd">Not graded yet.</p>`}
@@ -762,7 +764,7 @@ export async function renderStudio(ctx, id) {
         await new Promise((r) => setTimeout(r, 350));
       }
       restore();
-      toast(`${ordered.length} headshots downloaded.`, "success");
+      toast(`${plural(ordered.length, "headshot")} downloaded.`, "success");
     });
     $$("#regrade, #regradeAll").forEach((el) => el.addEventListener("click", async (e) => {
       const restore = busy(e.currentTarget, "Grading…");
@@ -897,7 +899,7 @@ function renderUpload({ root, navigate }) {
     const list = [...files].filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name));
     if (files.length && !list.length) return toast("Those files aren't photos. Try JPG, PNG or WebP.", "error");
     const room = MAX_SELFIES - photos.length;
-    if (list.length > room) toast(`Only ${MAX_SELFIES} photos per shoot — added the first ${room}.`, "info");
+    if (list.length > room) toast(`Only ${MAX_SELFIES} photos per shoot — adding the first ${room}.`, "info");
     for (const f of list.slice(0, room)) {
       try {
         photos.push({ name: f.name, url: await toJpegDataURL(f) });

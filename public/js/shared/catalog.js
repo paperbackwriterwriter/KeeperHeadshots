@@ -5,7 +5,7 @@ export const BACKDROPS = [
   {
     id: "studio-gray",
     name: "Studio Gray",
-    blurb: "Seamless charcoal paper, soft key light",
+    blurb: "Seamless grey paper, soft key light",
     prompt:
       "a seamless mid-grey paper backdrop with a soft, graduated glow behind the head that falls off smoothly to deep charcoal at the edges",
     light:
@@ -95,14 +95,14 @@ export const PACKAGES = [
     price: 39,
     shoots: 6,
     popular: true,
-    features: ["6 shoots", "Up to 48 headshots", "4 looks per shoot", "AI photo check & grading", "Best value per shoot"],
+    features: ["6 shoots", "Up to 48 headshots", "4 looks per shoot", "AI photo check & grading", "Our most popular package"],
   },
   {
     id: "executive",
     name: "Executive",
     price: 49,
     shoots: 12,
-    features: ["12 shoots", "Up to 96 headshots", "4 looks per shoot", "AI photo check & grading", "Great for small teams"],
+    features: ["12 shoots", "Up to 96 headshots", "4 looks per shoot", "AI photo check & grading", "Best value per shoot", "Great for small teams"],
   },
 ];
 

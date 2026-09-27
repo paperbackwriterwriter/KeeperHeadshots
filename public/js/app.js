@@ -42,7 +42,7 @@ function marketingNav() {
       </div>
     </div>
     <div class="nav-sheet" id="navSheet">
-      <a href="/#how">How it works</a><a href="/#styles">Styles</a><a href="/#pricing">Pricing</a><a href="/#reviews">Reviews</a>
+      <a href="/#how">How it works</a><a href="/#styles">Styles</a><a href="/#pricing">Pricing</a><a href="/#teams">Teams</a><a href="/#reviews">Reviews</a>
       ${signedIn ? html`<a href="/app" data-link>Your shoots</a>` : html`<a href="/signin" data-link>Sign in</a>`}
       <a class="btn btn-flash btn-block" href="${signedIn ? "/app/new" : "/signup"}" data-link>Get your headshots ${icon("arrow-right")}</a>
     </div>
@@ -60,10 +60,21 @@ function appNav() {
       </nav>
       <div class="nav-actions">
         <span class="user-chip hide-m" title="${u.email}"><span class="avatar" aria-hidden="true">${initials(u.name)}</span>${u.name.split(" ")[0]}</span>
-        <button class="btn btn-ghost btn-sm" id="signOut">${icon("log-out")}<span class="hide-m">Sign out</span></button>
+        <button class="btn btn-ghost btn-sm" id="signOut" aria-label="Sign out">${icon("log-out")}<span class="hide-m">Sign out</span></button>
       </div>
     </div>
   </header>`;
+}
+
+let firstRender = true;
+// After in-app navigation, move focus to the new page's heading so screen
+// readers announce it (the first load is announced by the browser itself).
+function focusHeading() {
+  if (firstRender) return void (firstRender = false);
+  const h = app.querySelector("main h1");
+  if (!h) return;
+  h.setAttribute("tabindex", "-1");
+  h.focus({ preventScroll: true });
 }
 
 async function render() {
@@ -93,6 +104,7 @@ async function render() {
   }
   wireChrome();
   observeReveals(app);
+  focusHeading();
   if (location.hash) requestAnimationFrame(() => document.getElementById(location.hash.slice(1))?.scrollIntoView());
   else window.scrollTo({ top: 0, behavior: "instant" });
 }

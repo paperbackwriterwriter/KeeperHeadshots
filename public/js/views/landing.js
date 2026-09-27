@@ -76,7 +76,7 @@ export function renderLanding({ root }) {
         <div class="stats">
           ${[
             ["3", "AI passes on every shoot"],
-            ["4", "Looks per shoot"],
+            ["4", "Looks per paid shoot"],
             ["< 1 hr", "Typical turnaround"],
             ["$29", "vs. $200+ at a studio"],
           ].map(([n, l], i) => html`<div class="stat" data-reveal style="--i:${i}"><div class="num">${n}</div><div class="lbl">${l}</div></div>`)}
@@ -106,7 +106,7 @@ export function renderLanding({ root }) {
             <span class="step-no">02</span>
             <div>
               <h3 class="display h-3">Choose your looks</h3>
-              <p>Pair studio backdrops with wardrobe — from charcoal seamless paper and a navy suit to golden-hour rooftops and a camel knit. Mix up to four looks per shoot.</p>
+              <p>Pair studio backdrops with wardrobe — from seamless studio grey and a navy suit to golden-hour rooftops and a camel knit. Mix up to four looks per shoot.</p>
               <div class="step-meta"><span class="chip">${icon("layers")} ${BACKDROPS.length} backdrops</span><span class="chip">${icon("briefcase")} ${OUTFITS.length} outfits</span></div>
             </div>
           </li>
@@ -156,13 +156,13 @@ export function renderLanding({ root }) {
         <div class="compare" data-reveal>
           <dl class="compare-col">
             <h3 class="h-4">Traditional photographer</h3>
-            ${[["Average cost", "$200 – $400"], ["Time to book & shoot", "1 – 3 weeks"], ["Backdrops & outfits", "1 – 2 looks"], ["Number of photos", "3 – 10 edited"], ["Retakes", "Extra fee"]].map(
+            ${[["Average cost", "$200 – $400"], ["Time to book & shoot", "1 – 3 weeks"], ["Backdrops & outfits", "1 – 2 looks"], ["Number of photos", "3 – 10 edited"], ["Help choosing", "You decide alone"]].map(
               ([k, v]) => html`<div class="compare-row"><dt>${k}</dt><dd>${v}</dd></div>`,
             )}
           </dl>
           <dl class="compare-col">
             <h3 class="h-4">Keeper Headshots</h3>
-            ${[["Cost", "From $29"], ["Turnaround", "Under 1 hour"], ["Backdrops & outfits", "Up to 4 looks per shoot"], ["Number of photos", "8 per shoot"], ["Retakes", "Included"]].map(
+            ${[["Cost", "From $29"], ["Turnaround", "Under 1 hour"], ["Backdrops & outfits", "Up to 4 looks per shoot"], ["Number of photos", "Up to 8 per shoot"], ["Help choosing", "Every frame graded"]].map(
               ([k, v]) => html`<div class="compare-row"><dt>${k}</dt><dd class="hi">${v}</dd></div>`,
             )}
           </dl>
@@ -176,7 +176,7 @@ export function renderLanding({ root }) {
         <div>
           <p class="eyebrow" data-reveal>Your AI retoucher</p>
           <h2 class="display h-1" data-reveal style="--i:1;margin-top:16px">Know which headshot to use — <em>instantly.</em></h2>
-          <p class="lede" data-reveal style="--i:2;margin-top:20px">Dozens of headshots is only useful if you can tell the great ones apart. Every shoot is graded before it reaches you.</p>
+          <p class="lede" data-reveal style="--i:2;margin-top:20px">A set of headshots is only useful if you can tell the great ones apart. Every shoot is graded before it reaches you.</p>
           <ul class="feature-list">
             <li data-reveal style="--i:1"><span class="ficon">${icon("user-round")}</span><div><b>Likeness first</b><span>Every frame is compared against your originals. If it doesn't look like you, it's flagged.</span></div></li>
             <li data-reveal style="--i:2"><span class="ficon">${icon("focus")}</span><div><b>Artifact detection</b><span>Warped ears, melted collars, plastic skin — caught before you post them.</span></div></li>
@@ -201,19 +201,19 @@ export function renderLanding({ root }) {
         </div>
         <div class="quotes">
           <figure class="quote quote-lg" data-reveal style="margin:0">
-            <span class="stars" aria-label="5 stars">${[1, 2, 3, 4, 5].map(() => icon("star"))}</span>
+            <span class="stars" role="img" aria-label="5 out of 5 stars">${[1, 2, 3, 4, 5].map(() => icon("star"))}</span>
             <blockquote>“I'd put off new headshots for three years. Uploaded four selfies on my lunch break and had my new LinkedIn photo before my next meeting.”</blockquote>
             <figcaption class="quote-by"><img src="${P("q1", { skin: 1, hair: "side", backdrop: "studio-gray", outfit: "navy-suit" })}" alt="" /><div><b>Daniel R.</b><span>Product lead, fintech</span></div></figcaption>
           </figure>
           <div class="quote-stack">
             <figure class="quote quote-sm" data-reveal style="--i:1;margin:0">
-              <span class="stars" aria-label="5 stars">${[1, 2, 3, 4, 5].map(() => icon("star"))}</span>
+              <span class="stars" role="img" aria-label="5 out of 5 stars">${[1, 2, 3, 4, 5].map(() => icon("star"))}</span>
               <blockquote>“The photo check told me my selfies were too dark. Retook two by a window and the results were uncanny — in a good way.”</blockquote>
               <figcaption class="quote-by"><img src="${P("q2", { skin: 3, hair: "long", backdrop: "botanical", outfit: "camel-knit" })}" alt="" /><div><b>Priya S.</b><span>Clinical nurse educator</span></div></figcaption>
             </figure>
             <figure class="quote quote-sm" data-reveal style="--i:2;margin:0">
-              <span class="stars" aria-label="5 stars">${[1, 2, 3, 4, 5].map(() => icon("star"))}</span>
-              <blockquote>“We did our whole 22-person team. Matching backdrops, zero scheduling. Our about page finally looks like one company.”</blockquote>
+              <span class="stars" role="img" aria-label="5 out of 5 stars">${[1, 2, 3, 4, 5].map(() => icon("star"))}</span>
+              <blockquote>“We did our whole 12-person team. Matching backdrops, zero scheduling. Our about page finally looks like one company.”</blockquote>
               <figcaption class="quote-by"><img src="${P("q3", { skin: 5, hair: "crop", backdrop: "glass-office", outfit: "charcoal-blazer" })}" alt="" /><div><b>Marcus T.</b><span>Head of People, SaaS</span></div></figcaption>
             </figure>
           </div>

@@ -1,6 +1,6 @@
 # Keeper Headshots
 
-Upload a few selfies and get professional AI headshots back — checked, developed and graded by AI. Modelled on [headshotpro.com](https://www.headshotpro.com)'s product and promise ("professional headshots without the photo shoot"), rebranded as **AI Headshot Guru**, with the whole product designed like a photographer's **contact sheet**.
+Upload a few selfies and get professional AI headshots back — checked, developed and graded by AI. Live at [keeperheadshots.com](https://keeperheadshots.com). The whole product is designed like a photographer's **contact sheet**; the tagline is *"Headshots worth keeping."*
 
 ![Landing](docs/landing.jpg)
 
@@ -30,7 +30,7 @@ npm start                 # http://localhost:3000
 ```
 
 - **Demo account:** `demo@keeperheadshots.com` / `studio-demo`. It's seeded with two finished sample shoots so every screen has content. Sample images are illustrations and are labelled "Sample".
-- Without API keys the app still runs. The studio shows a clear "AI isn't switched on" banner, and the API returns `503 ai_not_configured` instead of pretending.
+- Without API keys the app still runs. The studio shows an "AI studio is temporarily unavailable" banner, and the API returns `503 ai_not_configured` instead of pretending.
 - Locally, data (users, shoots, images) lives in `./data` as JSON and files. Delete the folder to reset; the demo reseeds the next time someone signs in as the demo user.
 
 ### Deploying to Vercel
@@ -40,15 +40,16 @@ The same code runs on Vercel as an Express function:
 - **Storage:** with a private Vercel Blob store connected (`BLOB_READ_WRITE_TOKEN`), all users, shoots and images live in Blob. Without it, the app uses `./data` on disk.
 - **Rendering:** no long-lived background job. Each progress poll calls `advance()`, which claims pending frames up to `GENERATION_CONCURRENCY` and renders each one in the background of that request (`waitUntil`, up to 300 s). Frames that stall past the lease are marked failed and can be retried.
 - **Uploads:** photos go up one per request, so each body stays under Vercel's 4.5 MB limit.
-- **Environment variables:** `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` and `SESSION_SECRET` (required on Vercel).
+- **Environment variables:** `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `SESSION_SECRET` (required on Vercel), `BLOB_READ_WRITE_TOKEN` (added when the Blob store is connected), and optionally `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `OWNER_EMAILS`.
 
 ### Free trial and limits
 
 Enforced on the server (`lib/plan.js`):
 
 - **Free trial:** one free shoot per account, up to 2 looks (4 headshots).
-- **After the trial:** developing needs a credit (`user.credits`); each paid shoot uses one. Stripe will add credits.
-- **Free-account caps:** 6 photo checks in total and 2 re-grades per shoot.
+- **After the trial:** developing needs a credit (`user.credits`); each paid shoot uses one. Stripe purchases add credits.
+- **Free-account cap:** 6 completed photo checks in total.
+- **Everyone except owners:** up to 2 re-grades per shoot.
 - **Demo account:** read-only (browse the sample shoots only).
 - **Owners:** emails listed in `OWNER_EMAILS` (comma-separated) have no limits.
 
@@ -62,12 +63,11 @@ With `STRIPE_SECRET_KEY` set, the pricing buttons open Stripe Checkout (`lib/bil
 | Professional | $39 | 6 |
 | Executive | $49 | 12 |
 
-A paid shoot allows 4 looks (8 headshots). Purchases add credits to the account, and each developed shoot uses one. Payments are confirmed in two ways, recorded once per Checkout Session so a purchase is never credited twice:
+A paid shoot allows 4 looks (8 headshots). Purchases add credits to the account, and each developed shoot uses one. Payments are confirmed in up to three ways, recorded once per Checkout Session so a purchase is never credited twice:
 
 - when the buyer returns to the dashboard after paying;
-- on later dashboard visits, which catches a closed tab.
-
-You can also add a webhook: point a Stripe webhook at `/api/billing/webhook` for `checkout.session.completed`, and set `STRIPE_WEBHOOK_SECRET`.
+- on later dashboard visits, which catches a closed tab;
+- optionally, a Stripe webhook: point it at `/api/billing/webhook` for `checkout.session.completed`, and set `STRIPE_WEBHOOK_SECRET`.
 
 ### Flow
 
@@ -85,16 +85,11 @@ The brand is about replacing a photo studio, so the UI borrows a studio's own ar
 
 - **Logo:** a Fraunces serif "K" framed by brass viewfinder corners, beside "Keeper" in Fraunces semibold over "HEADSHOTS" in tracked Figtree caps. Tagline: "Headshots worth keeping."
 
-## Notes from the reference product
+## Before launch
 
-The live headshotpro.com site was blocked from the build sandbox. The notes below come from public reviews and listings. HeadshotPro's own proof points are listed for reference only; Keeper Headshots doesn't claim them:
-
-- **Promise:** studio-quality business headshots from selfies, in under an hour, with no photographer.
-- **Proof points:** 18M+ headshots, 197k+ customers, 4.8★ on Trustpilot, 100% money-back guarantee.
-- **Pricing:** $29 / $39 / $49 one-time packages (40 / 120 / 240 headshots), and team pricing at $39 per person.
-- **Tone:** plain, confident and reassuring. The copy focuses on saving time and money.
-
-Testimonials on the landing page are placeholder copy, and `hello@keeperheadshots.com` is a placeholder address. Replace both before launch.
+- The testimonials on the landing page and sign-in screen are placeholder copy. Replace them with real customer quotes.
+- The landing page promises a 100% money-back guarantee. Make sure there's a refund policy and a way to honour it.
+- `hello@keeperheadshots.com` is live (ImprovMX forwarding; Gmail "Send mail as").
 
 ## Project layout
 
@@ -102,7 +97,7 @@ Testimonials on the landing page are placeholder copy, and `hello@keeperheadshot
 server.js                 Express app: auth, shoots API, media, static SPA
 lib/ai.js                 Claude photo check + review, Gemini rendering, prompts
 lib/pipeline.js           Shoot orchestration, concurrency, retries, recovery
-lib/storage.js           disk or Vercel Blob backend
+lib/storage.js            disk or Vercel Blob backend
 lib/store.js, lib/auth.js data model, scrypt passwords, signed-cookie sessions
 public/js/views/*         landing, auth, dashboard, studio (the shoot flow)
 public/js/shared/*        style catalog + sample portrait illustrations (browser + server)
