@@ -1,5 +1,7 @@
-import { $, html, icon, state, api, toast, busy, initials } from "../core.js";
+import { $, $$, html, raw, icon, state, api, toast, busy, initials } from "../core.js";
 import { CONTACT_EMAIL } from "./contact.js";
+import { PHOTO_FORMATS } from "../shared/catalog.js";
+import { currentFormat, formatName, saveFormat } from "./format.js";
 
 const plural = (n) => `${n} ${n === 1 ? "shoot" : "shoots"}`;
 function shootsLeft(plan, credits) {
@@ -28,6 +30,20 @@ export function renderAccount({ root, navigate }) {
     </section>
     <p class="small muted" style="margin-top:12px">Need to change your name or email? <a class="link" href="/contact?topic=general" data-link>Contact us</a>. Your data and rights are explained in our <a class="link" href="/privacy" data-link>Privacy Policy</a>.</p>
 
+    <section class="panel prefs" aria-labelledby="prefs-title">
+      <h2 class="h-3" id="prefs-title">Download format</h2>
+      <p class="muted">Choose the shape your download buttons give you. Every headshot is always available in both, and you can switch at any time.</p>
+      <div class="fmt-options" role="radiogroup" aria-labelledby="prefs-title">
+        ${PHOTO_FORMATS.map(
+          (f) => html`<label class="fmt-option">
+            <input type="radio" name="photoFormat" value="${f.id}" ${f.id === currentFormat() ? raw("checked") : ""} />
+            <span class="fmt-shape fmt-${f.id}" aria-hidden="true"><i></i><i></i></span>
+            <span><b>${f.name}</b><small>${f.blurb}</small></span>
+          </label>`,
+        )}
+      </div>
+    </section>
+
     <section class="danger-zone" aria-labelledby="dz-title">
       <h2 class="h-3" id="dz-title">Delete your account</h2>
       ${u.demo
@@ -53,6 +69,17 @@ export function renderAccount({ root, navigate }) {
       <p class="small muted" style="margin-top:16px">Prefer to ask us? Email <a class="link" href="mailto:${CONTACT_EMAIL}?subject=Delete%20my%20account">${CONTACT_EMAIL}</a> from this address and we'll delete it within 30 days.</p>`}
     </section>
   </main>`.v;
+
+  $$('input[name="photoFormat"]', root).forEach((r) =>
+    r.addEventListener("change", async () => {
+      try {
+        await saveFormat(r.value);
+        toast(`Downloads set to ${formatName(r.value).toLowerCase()}.`, "success", 2500);
+      } catch {
+        $(`input[name="photoFormat"][value="${currentFormat()}"]`, root).checked = true;
+      }
+    }),
+  );
 
   if (u.demo) return;
   const form = $("#deleteForm", root);

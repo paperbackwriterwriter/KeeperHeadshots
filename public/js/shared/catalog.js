@@ -112,3 +112,13 @@ export function lookFor(backdropId, outfitId) {
   if (!backdrop || !outfit) return null;
   return { id: `${backdrop.id}__${outfit.id}`, backdrop, outfit };
 }
+
+// How finished headshots download. Every headshot is always available in both
+// shapes; this only sets the default for the download buttons.
+export const PHOTO_FORMATS = [
+  { id: "portrait", name: "Portrait 3:4", blurb: "Full-resolution, for websites, print, business cards and résumés" },
+  { id: "square", name: "Square 1:1", blurb: "Framed for round profile photos on LinkedIn, Teams, Slack and social media" },
+  { id: "both", name: "Both", blurb: "Each headshot as a portrait and a square" },
+];
+export const DEFAULT_PHOTO_FORMAT = "both";
+export const photoFormat = (id) => (PHOTO_FORMATS.some((f) => f.id === id) ? id : DEFAULT_PHOTO_FORMAT);

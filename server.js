@@ -12,7 +12,7 @@ import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import { pageFor, isCanonicalHost } from "./lib/seo.js";
 import { aiStatus, AIError } from "./lib/ai.js";
 import { ingestSelfie, runCheck, advance, startGeneration, retryFailed, startReview } from "./lib/pipeline.js";
-import { lookFor, MAX_LOOKS, MAX_SELFIES } from "./public/js/shared/catalog.js";
+import { lookFor, MAX_LOOKS, MAX_SELFIES, PHOTO_FORMATS } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
 import { planFor, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, EMAIL_UNCONFIRMED } from "./lib/plan.js";
 import { gpc, metaPixelId, track as trackMeta } from "./lib/meta.js";
@@ -383,6 +383,16 @@ app.post("/api/account/delete", requireUser, async (req, res) => {
   clearSession(res);
   console.log("[account] deleted", req.user.id);
   res.json({ ok: true });
+});
+
+// Account preferences. photoFormat sets which shape the download buttons give
+// (every headshot is always available as both).
+app.post("/api/account/preferences", requireUser, async (req, res) => {
+  if (req.user.demo) return res.status(403).json({ error: DEMO_READ_ONLY, code: "demo_read_only" });
+  const want = req.body?.photoFormat;
+  if (!PHOTO_FORMATS.some((f) => f.id === want)) return res.status(400).json({ error: "Choose portrait, square or both." });
+  const user = await users.update(req.user.id, (u) => (u.photoFormat = want));
+  res.json({ user: publicUser(user) });
 });
 
 /* ------------------------------ Billing ----------------------------- */
