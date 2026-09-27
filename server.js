@@ -289,7 +289,7 @@ app.get("/api/shoots/:id", requireUser, async (req, res) => {
   if (!LIVE.includes(shoot.status)) return res.json({ shoot });
   // A failed step (e.g. a storage conflict) is retried by the next poll; the
   // person sees the current state, not an error.
-  const moved = await advance(shoot.id).catch((err) => (console.error("[advance]", shoot.id, err.message), null));
+  const moved = await advance(shoot.id, shoot).catch((err) => (console.error("[advance]", shoot.id, err.message), null));
   res.json({ shoot: moved || shoot });
 });
 

@@ -69,7 +69,7 @@ export async function renderStudio(ctx, id) {
       // poll) and back off until a poll succeeds again.
       if (!pollErrors++) toast(err.message, "error");
     }
-    if (!disposed && shoot && LIVE.includes(shoot.status)) timer = setTimeout(refresh, Math.min(2000 * 2 ** pollErrors, 15000));
+    if (!disposed && shoot && LIVE.includes(shoot.status)) timer = setTimeout(refresh, Math.min(3000 * 2 ** pollErrors, 15000));
   }
 
   function paint(prev) {
