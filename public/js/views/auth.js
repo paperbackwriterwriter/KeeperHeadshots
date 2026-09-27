@@ -1,5 +1,7 @@
 import { $, $$, html, icon, logoMark, wordmark, api, state, toast, busy, example } from "../core.js";
 
+import { mountTurnstile } from "../turnstile.js";
+
 const DEMO = { email: "demo@keeperheadshots.com", password: "studio-demo" };
 
 export function renderAuth({ root, navigate }, mode) {
@@ -31,6 +33,7 @@ export function renderAuth({ root, navigate }, mode) {
             </div>
             <span class="field-error" id="err-password" hidden></span>
           </div>
+          ${isUp ? html`<div class="turnstile-slot" id="botCheck"></div>` : ""}
           <button class="btn btn-flash btn-lg btn-block" type="submit" id="submit">${isUp ? "Create account" : "Sign in"} ${icon("arrow-right")}</button>
         </form>
         <p class="muted small" style="margin-top:20px;text-align:center">
@@ -51,6 +54,8 @@ export function renderAuth({ root, navigate }, mode) {
   </main>`.v;
 
   const form = $("#authForm");
+  // Bot check on sign-up (Cloudflare Turnstile), when configured.
+  const human = isUp ? mountTurnstile($("#botCheck"), { action: "signup" }) : null;
   const alertBox = $("#formAlert");
   const pw = $("#password");
 
@@ -98,6 +103,7 @@ export function renderAuth({ root, navigate }, mode) {
     }
     const restore = busy($("#submit"), isUp ? "Creating account…" : "Signing in…");
     try {
+      if (human) data = { ...data, turnstileToken: await human.token() };
       const res = await api(`/api/auth/${isUp ? "signup" : "signin"}`, { method: "POST", body: data });
       state.user = res.user;
       const first = res.user.name.split(" ")[0];
@@ -107,6 +113,7 @@ export function renderAuth({ root, navigate }, mode) {
       navigate(dest);
     } catch (err) {
       restore();
+      human?.reset(); // tokens are single-use
       if (err.data?.fields) setErrors(err.data.fields);
       alertBox.innerHTML = `${icon("circle-alert").v}<span>${err.message.replace(/</g, "&lt;")}</span>`;
       alertBox.hidden = false;
@@ -129,4 +136,5 @@ export function renderAuth({ root, navigate }, mode) {
     submit(DEMO);
   });
   (isUp ? $("#name") : $("#email")).focus({ preventScroll: true });
+  return () => human?.remove();
 }

@@ -871,6 +871,10 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
 .policy-callout div { display: grid; gap: 4px; }
 .policy-callout span { color: var(--text-muted); }
 
+/* Turnstile bot check: invisible unless Cloudflare needs a click */
+.turnstile-slot:empty { display: none; }
+.turnstile-slot { display: flex; justify-content: center; min-height: 0; }
+
 /* Email confirmation page */
 .verify-page { display: grid; place-items: center; min-height: 60vh; }
 .verify-card { max-width: 560px; text-align: center; display: grid; justify-items: center; gap: var(--s-4); }

@@ -8,6 +8,7 @@ import { users, shoots, id, readMedia, deleteMedia } from "./lib/store.js";
 import { backend } from "./lib/storage.js";
 import { hashPassword, verifyPassword, setSession, clearSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailVerified } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, SMTP_USER } from "./lib/mail.js";
+import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import { aiStatus, AIError } from "./lib/ai.js";
 import { ingestSelfie, runCheck, advance, startGeneration, retryFailed, startReview } from "./lib/pipeline.js";
 import { lookFor, MAX_LOOKS, MAX_SELFIES } from "./public/js/shared/catalog.js";
@@ -67,8 +68,11 @@ app.post("/api/auth/signup", async (req, res) => {
   if (!name || String(name).trim().length < 2) errors.name = "Tell us what to call you.";
   if (!isEmail(email)) errors.email = "Enter a valid email address.";
   if (!password || String(password).length < 8) errors.password = "Use at least 8 characters.";
-  if (!errors.email && (await users.byEmail(email))) errors.email = "An account with this email already exists. Sign in instead?";
   if (Object.keys(errors).length) return res.status(400).json({ error: "Please fix the highlighted fields.", fields: errors });
+  // Bot check first, so the "already exists" answer can't be scraped by scripts.
+  const human = await checkHuman(req.body?.turnstileToken, { ip: req.ip, action: "signup" });
+  if (!human.ok) return res.status(400).json({ error: "We couldn't confirm you're a person. Please complete the security check and try again.", code: "bot_check" });
+  if (await users.byEmail(email)) return res.status(400).json({ error: "Please fix the highlighted fields.", fields: { email: "An account with this email already exists. Sign in instead?" } });
   const user = await users.create({
     id: id("usr"),
     name: String(name).trim(),
@@ -140,7 +144,7 @@ app.post("/api/auth/signout", (req, res) => {
 app.get("/api/me", async (req, res) => {
   const user = await currentUser(req);
   const { vision, imaging } = aiStatus();
-  res.json({ user: user ? publicUser(user) : null, ai: { vision, imaging }, meta: { pixelId: metaPixelId() } });
+  res.json({ user: user ? publicUser(user) : null, ai: { vision, imaging }, meta: { pixelId: metaPixelId() }, turnstile: { siteKey: turnstileSiteKey() } });
 });
 
 /* ------------------------------ Shoots ------------------------------ */

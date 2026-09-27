@@ -66,6 +66,7 @@ export function renderPrivacy({ root }) {
         <li><b>Vercel</b>: hosts the website and stores your account, photos and headshots (in the United States).</li>
         <li><b>Anthropic</b> and <b>Google</b>: AI processing, as described above.</li>
         <li><b>Stripe</b>: payments and refunds.</li>
+        <li><b>Cloudflare</b>: the Turnstile security check on the sign-up form, which checks that you're a person and not a bot. It looks at technical signals from your browser and isn't used for advertising.</li>
         <li><b>ImprovMX</b> and <b>Google (Gmail)</b>: delivering emails and contact-form messages.</li>
         <li><b>Meta</b> (Facebook and Instagram): advertising measurement, as described below.</li>
       </ul>

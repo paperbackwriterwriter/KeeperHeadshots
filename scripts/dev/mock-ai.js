@@ -180,6 +180,12 @@ http
     const raw = await readBody(req);
     if (req.url.startsWith("/v1/customers") || req.url.startsWith("/v1/checkout") || req.url.startsWith("/mock-pay") || req.url.startsWith("/mock-refund")) return stripe(req, res, raw);
     if (/^\/v\d+\.\d+\/\d+\/events/.test(req.url)) return meta(req, res, raw);
+    if (req.url === "/turnstile/v0/siteverify") {
+      const t = JSON.parse(raw || "{}");
+      const ok = t.response && t.response !== "fail-token";
+      console.log(`[mock] turnstile ${ok ? "pass" : "fail"}`);
+      return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify(ok ? { success: true, action: "signup", hostname: "localhost" } : { success: false, "error-codes": ["invalid-input-response"] }));
+    }
     if (req.url === "/mock-mail") return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify(mail));
     const body = raw ? JSON.parse(raw) : {};
     try {
