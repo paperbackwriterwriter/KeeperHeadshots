@@ -23,7 +23,7 @@ Claude calls use the server-side refusal fallback (`fallbacks: "default"`), and 
 ## Run it
 
 ```bash
-cd aiheadshotguru
+cd keeperheadshots
 npm install
 cp .env.example .env      # add ANTHROPIC_API_KEY and GEMINI_API_KEY
 npm start                 # http://localhost:3000
