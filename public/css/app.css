@@ -296,6 +296,17 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .polaroid img { aspect-ratio: 4 / 5; object-fit: cover; width: 100%; filter: saturate(0.85) contrast(0.92) brightness(1.03); }
 .polaroid figcaption { position: absolute; left: 10px; right: 10px; bottom: 7px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; color: var(--ink-500); display: flex; justify-content: space-between; }
 .tag-keeper { position: absolute; z-index: 3; right: -12px; top: 0; white-space: nowrap; background: var(--paper-50); border-radius: var(--r-pill); padding: 8px 14px 8px 10px; display: inline-flex; gap: 8px; align-items: center; box-shadow: var(--shadow-2); font-size: var(--fs-sm); font-weight: 700; }
+.sheet-frame img, .polaroid img { transition: opacity 0.45s var(--ease-out) calc(var(--d, 0) * 35ms); }
+.sheet.swapping .sheet-frame img, .sheet.swapping .polaroid img { opacity: 0; }
+.sheet-controls { position: absolute; right: 0; bottom: 6px; display: flex; align-items: center; gap: 10px; }
+.sheet-dots { display: flex; gap: 2px; }
+.sheet-dot { width: 22px; height: 28px; border: 0; padding: 0; background: none; cursor: pointer; display: grid; place-items: center; }
+.sheet-dot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); transition: background var(--dur-2), transform var(--dur-2); }
+.sheet-dot[aria-pressed="true"]::before { background: var(--brass-500); transform: scale(1.35); }
+.sheet-dot:hover::before { background: var(--ink-400); }
+.sheet-pause { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink-950); display: grid; place-items: center; cursor: pointer; }
+.sheet-pause svg { width: 14px; height: 14px; }
+.sheet-pause:hover { border-color: var(--ink-400); }
 .tag-keeper .score { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--success); background: var(--success-soft); padding: 2px 8px; border-radius: var(--r-pill); }
 .arrow-doodle { position: absolute; left: 22%; bottom: 36%; width: 20%; z-index: 3; color: var(--ink-950); transform: rotate(-8deg); }
 

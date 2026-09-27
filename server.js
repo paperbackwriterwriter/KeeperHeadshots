@@ -13,7 +13,7 @@ import { lookFor, MAX_LOOKS, MAX_SELFIES } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
 import { planFor, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT } from "./lib/plan.js";
 import { contactEnabled, validate as validateContact, rateLimited, submit as submitContact } from "./lib/contact.js";
-import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExample, exampleImage, sheet as exampleSheet } from "./lib/examples.js";
+import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExample, generateSet as generateExampleSet, exampleImage, sheet as exampleSheet } from "./lib/examples.js";
 import crypto from "node:crypto";
 import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook } from "./lib/billing.js";
 
@@ -386,6 +386,9 @@ function adminOnly(req, res, next) {
   next();
 }
 app.get("/api/admin/examples", adminOnly, async (req, res) => res.json({ examples: await exampleStatus() }));
+app.get("/api/admin/examples-set/:set", adminOnly, async (req, res) => {
+  res.status(202).json({ started: generateExampleSet(req.params.set, { force: req.query.force === "1" }) });
+});
 app.get("/api/admin/examples-sheet", adminOnly, async (req, res) => {
   const ids = String(req.query.ids || Object.keys(EXAMPLE_JOBS).join(",")).split(",");
   const jpg = await exampleSheet(ids, Math.min(600, Number(req.query.w) || 240), Math.max(1, Number(req.query.cols) || 4));

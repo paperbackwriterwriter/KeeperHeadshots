@@ -1,5 +1,11 @@
-import { html, icon, raw, greaseCircle, state, logoMark, wordmark, example } from "../core.js";
+import { $, $$, html, icon, raw, greaseCircle, state, logoMark, wordmark, example } from "../core.js";
 import { BACKDROPS, OUTFITS, PACKAGES } from "../shared/catalog.js";
+
+// People the hero rotates through: a selfie plus nine headshots each.
+const HERO_SETS = [
+  ["hero", 96], ["p1", 95], ["p2", 94], ["p3", 97], ["p4", 95], ["p5", 96], ["p6", 94], ["p7", 95], ["p8", 97],
+];
+const CYCLE_MS = 8000;
 
 const HERO_FRAMES = [
   ["studio-gray", "navy-suit"], ["glass-office", "charcoal-blazer"], ["city-terrace", "camel-knit"],
@@ -48,10 +54,10 @@ export function renderLanding({ root }) {
           </div>
         </div>
 
-        <div class="sheet" data-reveal style="--i:2" aria-label="Example: one casual selfie becomes a contact sheet of nine professional headshots of the same person" role="img">
-          <div class="sheet-board">
+        <div class="sheet" id="heroSheet" data-reveal style="--i:2">
+          <div class="sheet-board" role="img" aria-label="Example: one casual selfie becomes a contact sheet of nine professional headshots of the same person">
             ${HERO_FRAMES.map(
-              ([b, o], i) => html`<div class="sheet-frame ${i === 4 ? "keeper" : ""}">
+              ([b, o], i) => html`<div class="sheet-frame ${i === 4 ? "keeper" : ""}" style="--d:${i}">
                 <img src="${example(`hero-${i + 1}`)}" alt="" loading="${i < 6 ? "eager" : "lazy"}" />
                 <span class="fno">${String(i + 1).padStart(2, "0")}A</span>
                 ${i === 4 ? greaseCircle() : ""}
@@ -62,7 +68,11 @@ export function renderLanding({ root }) {
             <img src="${example("hero-selfie")}" alt="" />
             <figcaption><span>BEFORE</span><span>SELFIE</span></figcaption>
           </figure>
-          <span class="tag-keeper">${icon("badge-check")} Best pick <span class="score">96</span></span>
+          <span class="tag-keeper">${icon("badge-check")} Best pick <span class="score" id="heroScore">96</span></span>
+          <div class="sheet-controls">
+            <div class="sheet-dots">${HERO_SETS.map((_, i) => html`<button type="button" class="sheet-dot" data-set="${i}" aria-label="Show example ${i + 1} of ${HERO_SETS.length}" aria-pressed="${i === 0 ? "true" : "false"}"></button>`)}</div>
+            <button type="button" class="sheet-pause" id="heroPause" aria-label="Pause examples">${icon("pause")}</button>
+          </div>
         </div>
       </div>
     </section>
@@ -282,6 +292,74 @@ export function renderLanding({ root }) {
     </section>
   </main>
   ${footer()}`.v;
+  return heroCycle();
+}
+
+// Rotate the hero through example people. The next set is decoded before the
+// swap so frames never flash empty. Pauses on hover/focus, when the tab is
+// hidden, or via the button; no autoplay for reduced-motion users.
+function heroCycle() {
+  const sheet = $("#heroSheet");
+  if (!sheet) return null;
+  const imgs = $$(".sheet-frame img", sheet);
+  const selfie = $(".polaroid img", sheet);
+  const dots = $$(".sheet-dot", sheet);
+  const pauseBtn = $("#heroPause");
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let current = 0;
+  let paused = reduce;
+  let hovering = false;
+  let busy = false;
+  let timer = null;
+  const urls = (i) => [example(`${HERO_SETS[i][0]}-selfie`), ...Array.from({ length: 9 }, (_, j) => example(`${HERO_SETS[i][0]}-${j + 1}`))];
+  const preload = (i) =>
+    Promise.all(urls(i).map((u) => { const im = new Image(); im.src = u; return im.decode(); }));
+
+  const setPauseUI = () => {
+    pauseBtn.setAttribute("aria-label", paused ? "Play examples" : "Pause examples");
+    pauseBtn.innerHTML = icon(paused ? "play" : "pause").v;
+  };
+  async function show(i) {
+    if (busy || i === current) return;
+    busy = true;
+    try {
+      await preload(i);
+    } catch {
+      busy = false;
+      return; // a missing image: stay on the current person
+    }
+    sheet.classList.add("swapping");
+    await new Promise((r) => setTimeout(r, reduce ? 0 : 520));
+    const [sel, ...frames] = urls(i);
+    selfie.src = sel;
+    imgs.forEach((im, j) => (im.src = frames[j]));
+    $("#heroScore").textContent = HERO_SETS[i][1];
+    const circle = $(".sheet-circle", sheet);
+    if (circle && !reduce) circle.replaceWith(circle.cloneNode(true)); // replays the pencil loop
+    sheet.classList.remove("swapping");
+    dots.forEach((d, j) => d.setAttribute("aria-pressed", String(j === i)));
+    current = i;
+    busy = false;
+  }
+  const tick = () => {
+    if (!paused && !hovering && !document.hidden) show((current + 1) % HERO_SETS.length);
+  };
+  const start = () => {
+    clearInterval(timer);
+    timer = setInterval(tick, CYCLE_MS);
+  };
+
+  dots.forEach((d) => d.addEventListener("click", () => { show(Number(d.dataset.set)); start(); }));
+  pauseBtn.addEventListener("click", () => { paused = !paused; setPauseUI(); });
+  sheet.addEventListener("mouseenter", () => (hovering = true));
+  sheet.addEventListener("mouseleave", () => (hovering = false));
+  sheet.addEventListener("focusin", () => (hovering = true));
+  sheet.addEventListener("focusout", () => (hovering = false));
+  setPauseUI();
+  start();
+  // Warm the next person's photos once the page has settled.
+  setTimeout(() => preload(1).catch(() => {}), 2500);
+  return () => clearInterval(timer);
 }
 
 function reviewPreview() {
