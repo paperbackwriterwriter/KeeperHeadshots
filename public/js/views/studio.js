@@ -49,10 +49,12 @@ export async function renderStudio(ctx, id) {
     <div class="skel" style="height:14px;width:120px"></div><div class="skel" style="height:56px;width:min(520px,90%)"></div>
     <div class="skel" style="height:320px;border-radius:18px"></div></div></main>`.v;
 
+  let pollErrors = 0;
   async function refresh() {
     try {
       const data = await api(`/api/shoots/${id}`);
       if (disposed) return;
+      pollErrors = 0;
       const prev = shoot;
       shoot = data.shoot;
       ctx.setTitle(shoot.name);
@@ -63,9 +65,11 @@ export async function renderStudio(ctx, id) {
         root.innerHTML = html`<main id="main" class="container app-main"><div class="empty"><p class="eyebrow">Not found</p><h1 class="display h-2">We couldn't find that shoot.</h1><p class="lede">It may have been deleted.</p><a class="btn btn-ink" href="/app" data-link>Back to your shoots</a></div></main>`.v;
         return;
       }
-      toast(err.message, "error");
+      // Keep polling through a hiccup, but show the message once (not every
+      // poll) and back off until a poll succeeds again.
+      if (!pollErrors++) toast(err.message, "error");
     }
-    if (!disposed && shoot && LIVE.includes(shoot.status)) timer = setTimeout(refresh, 2000);
+    if (!disposed && shoot && LIVE.includes(shoot.status)) timer = setTimeout(refresh, Math.min(2000 * 2 ** pollErrors, 15000));
   }
 
   function paint(prev) {
