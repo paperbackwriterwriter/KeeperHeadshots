@@ -18,14 +18,6 @@ const errors = [];
 
 async function page(width, height = 900) {
   const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, reducedMotion: "reduce", ignoreHTTPSErrors: true });
-  // Serve Google Fonts from a local cache when the sandbox can't reach them.
-  if (process.env.FONT_CACHE) {
-    await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (route) => {
-      const u = new URL(route.request().url());
-      if (u.host === "fonts.googleapis.com") return route.fulfill({ contentType: "text/css", body: fs.readFileSync(path.join(process.env.FONT_CACHE, "fonts.css")) });
-      return route.fulfill({ contentType: "font/woff2", body: fs.readFileSync(path.join(process.env.FONT_CACHE, u.pathname.slice(1).replace(/\//g, "_"))) });
-    });
-  }
   const p = await ctx.newPage();
   p.on("console", (m) => m.type() === "error" && errors.push(`[${width}] ${m.text()}`));
   p.on("pageerror", (e) => errors.push(`[${width}] ${e.message}`));

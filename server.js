@@ -771,8 +771,8 @@ app.use("/media", (req, res) => res.status(404).end());
 const CSP = [
   "default-src 'self'",
   "script-src 'self' https://challenges.cloudflare.com https://connect.facebook.net https://js.stripe.com https://*.js.stripe.com",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self'",
   "img-src 'self' data: blob: https://www.facebook.com https://*.stripe.com",
   "connect-src 'self' https://www.facebook.com https://connect.facebook.net https://api.stripe.com https://*.stripe.com",
   "frame-src https://challenges.cloudflare.com https://js.stripe.com https://*.js.stripe.com https://checkout.stripe.com https://hooks.stripe.com",
