@@ -150,7 +150,6 @@ export function renderLanding({ root }) {
           </figure>`;
         })}
       </div>
-      <p class="container small muted examples-note">${icon("info")} Every example on this page was made by the Keeper Headshots AI studio. The people shown are AI-generated models, not customers.</p>
     </section>
 
     <!-- Comparison -->

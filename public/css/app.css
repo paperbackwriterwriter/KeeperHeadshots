@@ -381,8 +381,6 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .quote-stack { display: grid; gap: var(--s-5); }
 .quote-by { display: flex; align-items: center; gap: var(--s-3); margin-top: auto; }
 .quote-by .initials { width: 48px; height: 48px; border-radius: 50%; flex: none; display: grid; place-items: center; background: var(--ink-950); color: #d2a85c; font-family: var(--font-display); font-weight: 600; font-size: 1.05rem; letter-spacing: 0.02em; }
-.examples-note { margin-top: var(--s-4); display: flex; align-items: center; gap: 6px; }
-.examples-note svg { width: 14px; height: 14px; flex: none; }
 .quote-by b { display: block; font-size: var(--fs-sm); }
 .quote-by span { font-size: var(--fs-xs); color: var(--text-muted); }
 
