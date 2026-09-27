@@ -55,65 +55,69 @@ export function renderBuy({ root }, packageId) {
     }
   };
 
-  const key = state.stripe?.publishableKey;
-  if (!key) {
-    redirect();
-    return () => (disposed = true);
-  }
-
-  // Embedded checkout: order summary beside Stripe's payment form.
-  const others = PACKAGES.filter((p) => p.id !== pkg.id);
-  root.innerHTML = html`
-  <main id="main" class="container app-main view-enter">
-    <div class="checkout">
-      <section class="checkout-summary" aria-labelledby="order-title">
-        <p class="eyebrow">${icon("lock")} Secure checkout</p>
-        <h1 class="display h-2" id="order-title">${pkg.name} package</h1>
-        <p class="checkout-price"><strong class="tabular">$${pkg.price}</strong><span>one-time · no subscription</span></p>
-        <ul class="checkout-features">${pkg.features.map((f) => html`<li>${icon("check")}<span>${f}</span></li>`)}</ul>
-        <p class="checkout-note">${icon("shield-check")}<span>Covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>. Unused shoots don't expire while your account is open.</span></p>
-        <p class="small muted">Want a different package? ${others.map((p, i) => html`${i ? " or " : ""}<a class="link" href="/app/buy/${p.id}" data-link>${p.name} ($${p.price})</a>`)}.</p>
-      </section>
-      <section class="checkout-pay" aria-label="Payment">
-        <div class="checkout-frame light-island" id="checkout"><div class="checkout-loading">${spinner()}<span>Loading the secure payment form…</span></div></div>
-        <p class="small muted checkout-fine">Payments are processed securely by Stripe. We never see or store your card number.</p>
-      </section>
-    </div>
-  </main>`.v;
-
-  (async () => {
-    try {
-      const Stripe = await loadStripe();
-      if (disposed) return;
-      const stripe = Stripe(key);
-      // Stripe.js "dahlia" renamed initEmbeddedCheckout() to
-      // createEmbeddedCheckoutPage() (the old name now throws).
-      const create = (stripe.createEmbeddedCheckoutPage || stripe.initEmbeddedCheckout).bind(stripe);
-      checkout = await create({
-        fetchClientSecret: async () => {
-          const { clientSecret, eventId, value } = await api("/api/billing/checkout", { method: "POST", body: { packageId: pkg.id, embedded: true } });
-          if (!clientSecret) throw new Error("Checkout isn't available right now.");
-          pixel("InitiateCheckout", { value, currency: "USD", content_name: pkg.name }, eventId);
-          return clientSecret;
-        },
-      });
-      if (disposed) return void checkout.destroy();
-      $("#checkout").innerHTML = "";
-      checkout.mount("#checkout");
-    } catch (err) {
-      if (disposed) return;
-      // If the embedded form can't load (blocked script, old browser), fall
-      // back to Stripe's hosted page rather than leaving the buyer stuck.
-      console.warn("[checkout] embedded form failed; using hosted checkout:", err.message);
-      // Tell the server why, so a broken embedded form shows up in the logs.
-      api("/api/billing/embed-error", { method: "POST", body: { message: String(err?.message || err).slice(0, 300) } }).catch(() => {});
-      checkout?.destroy();
-      redirect();
-    }
-  })();
-
+  // The key normally arrives with the session (core.js). A tab opened before
+  // a deploy can be running older core code without it, so ask the server.
+  const withKey = async () => state.stripe?.publishableKey || (await api("/api/me").catch(() => null))?.stripe?.publishableKey || null;
+  withKey().then((key) => {
+    if (disposed) return;
+    if (key) embed(key);
+    else redirect();
+  });
   return () => {
     disposed = true;
     checkout?.destroy();
   };
+
+  // Embedded checkout: order summary beside Stripe's payment form.
+  function embed(key) {
+    const others = PACKAGES.filter((p) => p.id !== pkg.id);
+    root.innerHTML = html`
+    <main id="main" class="container app-main view-enter">
+      <div class="checkout">
+        <section class="checkout-summary" aria-labelledby="order-title">
+          <p class="eyebrow">${icon("lock")} Secure checkout</p>
+          <h1 class="display h-2" id="order-title">${pkg.name} package</h1>
+          <p class="checkout-price"><strong class="tabular">$${pkg.price}</strong><span>one-time · no subscription</span></p>
+          <ul class="checkout-features">${pkg.features.map((f) => html`<li>${icon("check")}<span>${f}</span></li>`)}</ul>
+          <p class="checkout-note">${icon("shield-check")}<span>Covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>. Unused shoots don't expire while your account is open.</span></p>
+          <p class="small muted">Want a different package? ${others.map((p, i) => html`${i ? " or " : ""}<a class="link" href="/app/buy/${p.id}" data-link>${p.name} ($${p.price})</a>`)}.</p>
+        </section>
+        <section class="checkout-pay" aria-label="Payment">
+          <div class="checkout-frame light-island" id="checkout"><div class="checkout-loading">${spinner()}<span>Loading the secure payment form…</span></div></div>
+          <p class="small muted checkout-fine">Payments are processed securely by Stripe. We never see or store your card number.</p>
+        </section>
+      </div>
+    </main>`.v;
+
+    (async () => {
+      try {
+        const Stripe = await loadStripe();
+        if (disposed) return;
+        const stripe = Stripe(key);
+        // Stripe.js "dahlia" renamed initEmbeddedCheckout() to
+        // createEmbeddedCheckoutPage() (the old name now throws).
+        const create = (stripe.createEmbeddedCheckoutPage || stripe.initEmbeddedCheckout).bind(stripe);
+        checkout = await create({
+          fetchClientSecret: async () => {
+            const { clientSecret, eventId, value } = await api("/api/billing/checkout", { method: "POST", body: { packageId: pkg.id, embedded: true } });
+            if (!clientSecret) throw new Error("Checkout isn't available right now.");
+            pixel("InitiateCheckout", { value, currency: "USD", content_name: pkg.name }, eventId);
+            return clientSecret;
+          },
+        });
+        if (disposed) return void checkout.destroy();
+        $("#checkout").innerHTML = "";
+        checkout.mount("#checkout");
+      } catch (err) {
+        if (disposed) return;
+        // If the embedded form can't load (blocked script, old browser), fall
+        // back to Stripe's hosted page rather than leaving the buyer stuck.
+        console.warn("[checkout] embedded form failed; using hosted checkout:", err.message);
+        // Tell the server why, so a broken embedded form shows up in the logs.
+        api("/api/billing/embed-error", { method: "POST", body: { message: String(err?.message || err).slice(0, 300) } }).catch(() => {});
+        checkout?.destroy();
+        redirect();
+      }
+    })();
+  }
 }
