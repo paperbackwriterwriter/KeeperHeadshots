@@ -884,7 +884,7 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
 .li-square-frame, .li-circle { width: 100%; max-width: 240px; aspect-ratio: 1; overflow: hidden; }
 .li-square-frame { border-radius: var(--r-xs); box-shadow: var(--shadow-print); border: 6px solid #fff; }
 .li-circle { max-width: 150px; border-radius: 50%; box-shadow: 0 0 0 4px var(--paper-100), 0 0 0 5px var(--border-strong), var(--shadow-2); }
-.li-square-frame img, .li-circle img, .li-look-sq img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+.li-square-frame img, .li-circle img, .li-look-sq img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
 .li-square-cap { display: grid; text-align: center; font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
 .li-square-cap b { color: var(--text); font-weight: 500; }
 .li-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-4); }

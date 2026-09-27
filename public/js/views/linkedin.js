@@ -11,9 +11,8 @@ const LOOKS = [
   { id: "strip-4", look: "Library · Black Turtleneck", fit: "Creative, academic, advisory" },
 ];
 
-// Shows the two deliverables: the 3:4 portrait and the 1:1 square as a
-// profile circle. The square is cropped the same way the server crops it
-// (full width, anchored at the top).
+// Shows the two deliverables: the 3:4 portrait and the 1:1 square (the
+// example's "-sq" version, widened for a circle like customers' squares).
 function deliverables(id) {
   return html`<div class="li-deliverables" role="img" aria-label="One headshot delivered two ways: a 3:4 portrait and a 1:1 square shown in a round profile frame">
     <figure class="print li-portrait">
@@ -21,8 +20,8 @@ function deliverables(id) {
       <figcaption class="print-cap"><b>Portrait</b><span>3:4 · full resolution</span></figcaption>
     </figure>
     <div class="li-square">
-      <div class="li-square-frame"><img src="${example(id)}" alt="" /></div>
-      <div class="li-circle"><img src="${example(id)}" alt="" /></div>
+      <div class="li-square-frame"><img src="${example(`${id}-sq`)}" alt="" /></div>
+      <div class="li-circle"><img src="${example(`${id}-sq`)}" alt="" /></div>
       <p class="li-square-cap"><b>Square 1:1</b><span>Ready for LinkedIn &amp; Teams</span></p>
     </div>
   </div>`;
@@ -93,7 +92,7 @@ export function renderLinkedIn({ root }) {
         <div class="li-looks">
           ${LOOKS.map(
             (l, i) => html`<figure class="li-look" data-reveal style="--i:${i}">
-              <div class="li-look-sq"><img src="${example(l.id)}" alt="Example LinkedIn headshot: ${l.look}" loading="lazy" /></div>
+              <div class="li-look-sq"><img src="${example(`${l.id}-sq`)}" alt="Example LinkedIn headshot: ${l.look}" loading="lazy" /></div>
               <figcaption><b>${l.look}</b><span>${l.fit}</span></figcaption>
             </figure>`,
           )}
