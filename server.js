@@ -12,7 +12,7 @@ import { ingestSelfie, runCheck, advance, startGeneration, retryFailed, startRev
 import { lookFor, MAX_LOOKS, MAX_SELFIES } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
 import { planFor, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT } from "./lib/plan.js";
-import { metaPixelId, track as trackMeta } from "./lib/meta.js";
+import { gpc, metaPixelId, track as trackMeta } from "./lib/meta.js";
 import { contactEnabled, validate as validateContact, rateLimited, submit as submitContact } from "./lib/contact.js";
 import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExample, generateSet as generateExampleSet, exampleImage, sheet as exampleSheet } from "./lib/examples.js";
 import crypto from "node:crypto";
@@ -322,7 +322,7 @@ function requireBilling(req, res) {
 app.post("/api/billing/checkout", requireUser, async (req, res) => {
   if (!requireBilling(req, res)) return;
   const origin = `${req.protocol}://${req.get("host")}`;
-  const checkout = await createCheckout(req.user, String(req.body?.packageId || ""), origin);
+  const checkout = await createCheckout(req.user, String(req.body?.packageId || ""), origin, { gpc: gpc(req) });
   const eventId = `checkout_${checkout.id}`;
   trackMeta("InitiateCheckout", { eventId, user: req.user, req, value: checkout.value });
   res.json({ url: checkout.url, eventId, value: checkout.value });

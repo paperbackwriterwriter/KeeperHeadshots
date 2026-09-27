@@ -101,6 +101,8 @@ The brand is about replacing a photo studio, so the UI borrows a studio's own ar
 - Placeholder testimonials were removed. Add real customer quotes (with permission) once you have them.
 - The money-back guarantee's terms live at `/refunds` (`public/js/views/refunds.js`). Refunds are issued in the Stripe dashboard; the next dashboard visit by that customer removes the refunded package's credits automatically (`lib/billing.js`).
 - `hello@keeperheadshots.com` is live (ImprovMX forwarding; Gmail "Send mail as").
+- Privacy Policy (`/privacy`) and Terms (`/terms`) live in `public/js/views/legal.js`. Update them whenever data handling changes (new provider, new tracking, retention). They are plain-English drafts; have a lawyer review them.
+- Meta tracking honours Global Privacy Control: no Pixel when `navigator.globalPrivacyControl` is set, and no Conversions API events for requests with `Sec-GPC: 1` (purchases carry the flag through Stripe checkout metadata).
 
 ## Project layout
 

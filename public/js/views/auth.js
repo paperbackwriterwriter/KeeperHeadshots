@@ -40,7 +40,8 @@ export function renderAuth({ root, navigate }, mode) {
         </p>
         ${!isUp
           ? html`<div class="demo-box"><div><b>Just looking?</b><div class="muted">Explore a demo account with sample shoots.</div></div><button class="btn btn-ghost btn-sm" id="demo" type="button">Use demo</button></div>`
-          : html`<p class="field-hint" style="margin-top:20px;text-align:center">${icon("lock")} Your photos are private and never used to train AI.</p>`}
+          : html`<p class="field-hint" style="margin-top:20px;display:flex;justify-content:center;align-items:center;gap:6px">${icon("lock")} Your photos are private and never used to train AI.</p>
+            <p class="field-hint" style="margin-top:8px;text-align:center">By creating an account, you agree to our <a class="link" href="/terms" data-link>Terms</a> and <a class="link" href="/privacy" data-link>Privacy Policy</a>.</p>`}
       </div>
     </div>
     <aside class="auth-side" aria-hidden="true">

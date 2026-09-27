@@ -5,7 +5,8 @@ import { state } from "./core.js";
 
 export function initPixel() {
   const id = state.meta?.pixelId;
-  if (!id || window.fbq) return;
+  // Respect Global Privacy Control (a browser-level "don't share my data" signal).
+  if (!id || window.fbq || navigator.globalPrivacyControl) return;
   /* eslint-disable */
   !(function (f, b, e, v, n, t, s) {
     if (f.fbq) return;

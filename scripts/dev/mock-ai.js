@@ -137,7 +137,7 @@ function stripe(req, res, raw) {
     const s = {
       id, object: "checkout.session", customer: form.customer, client_reference_id: form.client_reference_id, payment_status: "unpaid",
       amount_total: Number(form["line_items[0][price_data][unit_amount]"]), currency: "usd",
-      metadata: { userId: form["metadata[userId]"], packageId: form["metadata[packageId]"], shoots: form["metadata[shoots]"] },
+      metadata: { userId: form["metadata[userId]"], packageId: form["metadata[packageId]"], shoots: form["metadata[shoots]"], ...(form["metadata[gpc]"] ? { gpc: form["metadata[gpc]"] } : {}) },
       success_url: form.success_url, cancel_url: form.cancel_url, url: `http://localhost:${PORT}/mock-pay/${id}`,
     };
     stripeSessions.set(id, s);

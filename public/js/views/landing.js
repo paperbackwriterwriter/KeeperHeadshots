@@ -376,7 +376,7 @@ export function footer() {
         </div>
         <div><h4>Product</h4><ul><li><a href="/#how">How it works</a></li><li><a href="/#styles">Styles</a></li><li><a href="/#pricing">Pricing</a></li><li><a href="/#teams">Teams</a></li></ul></div>
         <div><h4>Account</h4><ul><li><a href="/signin" data-link>Sign in</a></li><li><a href="/signup" data-link>Create account</a></li><li><a href="/app" data-link>Your shoots</a></li></ul></div>
-        <div><h4>Company</h4><ul><li><a href="/#faq">FAQ</a></li><li><a href="/contact" data-link>Contact us</a></li><li><a href="/refunds" data-link>Money-back guarantee</a></li></ul></div>
+        <div><h4>Company</h4><ul><li><a href="/#faq">FAQ</a></li><li><a href="/contact" data-link>Contact us</a></li><li><a href="/refunds" data-link>Money-back guarantee</a></li><li><a href="/privacy" data-link>Privacy policy</a></li><li><a href="/terms" data-link>Terms of service</a></li></ul></div>
       </div>
       <div class="footer-base"><span>© ${new Date().getFullYear()} Keeper Headshots</span><span>Your photos are never used to train AI models.</span></div>
     </div>

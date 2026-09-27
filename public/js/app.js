@@ -6,6 +6,7 @@ import { renderStudio } from "./views/studio.js";
 import { renderBuy } from "./views/buy.js";
 import { renderContact } from "./views/contact.js";
 import { renderRefunds } from "./views/refunds.js";
+import { renderPrivacy, renderTerms } from "./views/legal.js";
 import { initPixel, pixel } from "./pixel.js";
 
 const app = document.getElementById("app");
@@ -14,6 +15,8 @@ let cleanup = null;
 const routes = [
   { path: /^\/$/, view: renderLanding, chrome: "marketing", title: "Keeper Headshots — Professional headshots, without the photo shoot" },
   { path: /^\/refunds$/, view: renderRefunds, chrome: "marketing", title: "Money-back guarantee · Keeper Headshots" },
+  { path: /^\/privacy$/, view: renderPrivacy, chrome: "marketing", title: "Privacy policy · Keeper Headshots" },
+  { path: /^\/terms$/, view: renderTerms, chrome: "marketing", title: "Terms of service · Keeper Headshots" },
   { path: /^\/contact$/, view: renderContact, chrome: "marketing", title: "Contact us · Keeper Headshots" },
   { path: /^\/signin$/, view: (ctx) => renderAuth(ctx, "signin"), chrome: "none", guestOnly: true, title: "Sign in · Keeper Headshots" },
   { path: /^\/signup$/, view: (ctx) => renderAuth(ctx, "signup"), chrome: "none", guestOnly: true, title: "Create your account · Keeper Headshots" },
