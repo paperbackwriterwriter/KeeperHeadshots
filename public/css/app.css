@@ -530,8 +530,8 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .shoot-card:hover .shoot-cover img { transform: scale(1.03); }
 .shoot-cover .badge-row { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; gap: 8px; }
 .shoot-body { padding: var(--s-4) var(--s-5) var(--s-5); display: flex; justify-content: space-between; align-items: flex-end; gap: var(--s-3); }
-.shoot-body h3 { font-size: var(--fs-md); font-weight: 700; letter-spacing: -0.01em; }
-.shoot-card:first-child .shoot-body h3 { font-family: var(--font-display); font-weight: 400; font-size: var(--fs-xl); }
+.shoot-body h2 { font-size: var(--fs-md); font-weight: 700; letter-spacing: -0.01em; }
+.shoot-card:first-child .shoot-body h2 { font-family: var(--font-display); font-weight: 400; font-size: var(--fs-xl); }
 .new-card { grid-column: span 4; display: grid; place-items: center; text-align: center; gap: var(--s-3); padding: var(--s-6); border: 1.5px dashed var(--border-strong); border-radius: var(--r-lg); text-decoration: none; color: var(--text-muted); min-height: 220px; transition: border-color var(--dur-2), background-color var(--dur-2), color var(--dur-2); }
 .new-card:hover { border-color: var(--ink); color: var(--text); background: var(--surface); }
 .new-card .plus { width: 52px; height: 52px; border-radius: 50%; background: var(--ink); color: var(--on-ink); display: grid; place-items: center; margin: 0 auto; transition: transform var(--dur-3) var(--ease-spring); }
@@ -568,6 +568,15 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .stepper li.current { color: var(--accent-text); }
 .stepper li.current::before { background: var(--flash-500); }
 .stepper li.current b { color: var(--text); }
+/* Small phones: all five steps fit without scrolling. Only the current step
+   shows its name; the others keep theirs for screen readers. */
+@media (max-width: 560px) {
+  .stepper { overflow: visible; }
+  .stepper li { flex: 1 1 0; min-width: 0; }
+  .stepper li.current { flex-grow: 2.6; }
+  .stepper li:not(.current) b { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .stepper li.current b { white-space: nowrap; }
+}
 
 .studio-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: var(--s-7); align-items: start; }
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--s-5); }
@@ -1259,4 +1268,8 @@ select.input { appearance: none; padding-right: 44px; cursor: pointer; backgroun
     color: var(--text);
   }
   .re-card-body i, .cv-sheet > i, .cv-head i { background: #ddd4c2; }
+  /* Warning and error text needs a light tint on the dark soft backgrounds. */
+  .banner-warn { border-color: #5a4424; color: #f0c98a; }
+  .banner-danger { border-color: #5e2b26; color: #f5b1a8; }
+  .issue { color: #f0c98a; }
 }

@@ -34,16 +34,18 @@ export async function renderStudio(ctx, id) {
   let disposed = false;
   let view = null; // local sub-view for "checked" shoots: "check" | "looks"
   let shoot = null;
+  // Reads and photo uploads started on this page are cancelled when you leave
+  // it. One-off actions (start, grade, delete…) are left to finish: the server
+  // completes them either way.
+  const aborter = new AbortController();
+  const signal = aborter.signal;
 
   const stop = () => {
     clearTimeout(timer);
     timer = null;
   };
 
-  if (!id) {
-    renderUpload(ctx);
-    return () => (disposed = true);
-  }
+  if (!id) return renderUpload(ctx);
 
   root.innerHTML = html`<main id="main" class="container app-main"><div class="loading-page" aria-busy="true">
     <div class="skel" style="height:14px;width:120px"></div><div class="skel" style="height:56px;width:min(520px,90%)"></div>
@@ -52,7 +54,7 @@ export async function renderStudio(ctx, id) {
   let pollErrors = 0;
   async function refresh() {
     try {
-      const data = await api(`/api/shoots/${id}`);
+      const data = await api(`/api/shoots/${id}`, { signal });
       if (disposed) return;
       pollErrors = 0;
       const prev = shoot;
@@ -184,19 +186,25 @@ export async function renderStudio(ctx, id) {
     dz?.classList.add("busy");
     let added = 0;
     const batch = list.slice(0, room);
-    for (let i = 0; i < batch.length; i++) {
+    for (let i = 0; i < batch.length && !disposed; i++) {
       if (status) status.textContent = `Uploading ${i + 1} of ${batch.length}…`;
       try {
-        await api(`/api/shoots/${id}/selfies`, { method: "POST", body: { photo: await toJpegDataURL(batch[i]) } });
+        await api(`/api/shoots/${id}/selfies`, { method: "POST", body: { photo: await toJpegDataURL(batch[i]) }, signal });
         added++;
       } catch (err) {
-        toast(err.message, "error", 6000);
+        if (!disposed) toast(err.message, "error", 6000);
       }
     }
     dz?.classList.remove("busy");
     if (disposed) return;
     if (!added) return refresh();
-    const data = await api(`/api/shoots/${id}`);
+    let data;
+    try {
+      data = await api(`/api/shoots/${id}`, { signal });
+    } catch {
+      return refresh();
+    }
+    if (disposed) return;
     shoot = data.shoot;
     toast(`Added ${added} photo${added === 1 ? "" : "s"}. Re-checking your set…`, "success");
     if (state.ai.vision) runCheck();
@@ -464,7 +472,7 @@ export async function renderStudio(ctx, id) {
       return html`<div class="frame error" data-id="${t.id}" data-status="${frameKey(t)}" title="${t.error}"><div>${icon(held ? "shield-check" : "circle-alert")}<b>Frame ${i + 1} ${held ? "held back" : "failed"}</b><div style="opacity:.8;margin-top:4px">${held ? "It didn't pass our quality check. Retry it for free." : String(t.error || "").slice(0, 90)}</div></div></div>`;
     }
     const stage = t.status !== "rendering" ? "Queued" : t.stage === "qa" ? "Quality check" : t.attempt > 1 ? `Retake ${t.attempt}` : "Developing";
-    return html`<div class="frame ${t.status}" data-id="${t.id}" data-status="${frameKey(t)}" aria-label="Frame ${i + 1}: ${stage.toLowerCase()}">${silhouette()}
+    return html`<div class="frame ${t.status}" data-id="${t.id}" data-status="${frameKey(t)}" role="img" aria-label="Frame ${i + 1}: ${stage.toLowerCase()}">${silhouette()}
       <span class="frame-state">${t.status === "rendering" ? html`<span class="badge badge-live">${stage}</span>` : html`<span class="badge" style="background:rgba(245,241,234,.1);color:#a9b1bd">Queued</span>`}</span><div class="fcap">${label}</div></div>`;
   }
 
@@ -708,7 +716,7 @@ export async function renderStudio(ctx, id) {
             return html`<article class="proof ${t.id === best?.id ? "is-best" : ""}" style="--i:${i}">
               <div class="print">
                 <button class="open" data-open="${t.id}" aria-label="Open frame ${t.n} full size"><img src="${media(t.file)}" alt="Headshot ${t.n}: ${lookName(t.backdrop, t.outfit)}" loading="lazy" /></button>
-                ${g ? html`<span class="score-pill g-${g.grade} score-badge" title="${gradeLabel(g.grade)}" aria-label="${gradeLabel(g.grade)}, ${g.overall} out of 100"><i></i>${g.overall}</span>` : ""}
+                ${g ? html`<span class="score-pill g-${g.grade} score-badge" title="${gradeLabel(g.grade)}" role="img" aria-label="${gradeLabel(g.grade)}, ${g.overall} out of 100"><i></i>${g.overall}</span>` : ""}
                 <div class="print-cap"><b>${String(t.n).padStart(2, "0")} · ${lookFor(t.backdrop, t.outfit).backdrop.name}</b><span>${g ? g.best_for : lookFor(t.backdrop, t.outfit).outfit.name}</span></div>
                 ${g ? html`<p class="proof-note">${g.note}</p>` : ""}
                 <div class="proof-actions">${s.sample ? "" : t.id === best?.id
@@ -857,6 +865,7 @@ export async function renderStudio(ctx, id) {
   return () => {
     disposed = true;
     stop();
+    aborter.abort();
   };
 }
 
@@ -881,6 +890,9 @@ async function toJpegDataURL(file) {
 
 function renderUpload({ root, navigate }) {
   const photos = [];
+  // Leaving mid-upload cancels the rest (and removes the half-made shoot).
+  const aborter = new AbortController();
+  const signal = aborter.signal;
   root.innerHTML = html`<main id="main" class="container app-main view-enter">
     ${stepper(0)}
     ${aiBanner()}
@@ -969,16 +981,20 @@ function renderUpload({ root, navigate }) {
       ({ shoot: { id: shootId } } = await api("/api/shoots", { method: "POST", body: {} }));
       // One photo per request keeps each upload small and reliable.
       for (let i = 0; i < photos.length; i++) {
+        signal.throwIfAborted();
         if (label) label.textContent = `Uploading ${i + 1} of ${photos.length}…`;
-        await api(`/api/shoots/${shootId}/selfies`, { method: "POST", body: { photo: photos[i].url } });
+        await api(`/api/shoots/${shootId}/selfies`, { method: "POST", body: { photo: photos[i].url }, signal });
       }
+      signal.throwIfAborted();
       sessionStorage.setItem("ahg-autocheck", shootId);
       navigate(`/app/shoot/${shootId}`);
     } catch (err) {
-      restore();
       // Don't leave a half-uploaded shoot behind.
       if (shootId) api(`/api/shoots/${shootId}`, { method: "DELETE" }).catch(() => {});
+      if (signal.aborted) return;
+      restore();
       toast(err.message, "error", 6000);
     }
   });
+  return () => aborter.abort();
 }

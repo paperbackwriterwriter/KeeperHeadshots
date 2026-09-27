@@ -119,13 +119,13 @@ export async function renderDashboard({ root, navigate }) {
       </div>
       <div class="shoot-body">
         <div>
-          <h3>${s.name}</h3>
+          <h2>${s.name}</h2>
           <p class="muted small">${relTime(s.createdAt)} · ${s.doneCount ? `${s.doneCount} headshot${s.doneCount === 1 ? "" : "s"}` : `${s.selfieCount} photo${s.selfieCount === 1 ? "" : "s"}`}</p>
         </div>
         ${s.bestScore != null
-          ? html`<span class="score-pill g-keeper" title="Best headshot score" aria-label="Best headshot score ${s.bestScore} out of 100"><i></i>${s.bestScore}</span>`
+          ? html`<span class="score-pill g-keeper" title="Best headshot score" role="img" aria-label="Best headshot score ${s.bestScore} out of 100"><i></i>${s.bestScore}</span>`
           : s.checkScore != null
-            ? html`<span class="score-pill g-solid" title="Photo check score" aria-label="Photo check score ${s.checkScore} out of 100"><i></i>${s.checkScore}</span>`
+            ? html`<span class="score-pill g-solid" title="Photo check score" role="img" aria-label="Photo check score ${s.checkScore} out of 100"><i></i>${s.checkScore}</span>`
             : html`<span class="muted">${icon("arrow-right")}</span>`}
       </div>
     </a>`;
