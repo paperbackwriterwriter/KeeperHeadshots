@@ -92,7 +92,7 @@ export function renderPrivacy({ root }) {
         <li><b>Account details:</b> while your account is open. You can delete your account at any time on your <a class="link" href="/app/account" data-link>Account page</a>. That removes your account and all your shoots, selfies and headshots straight away. If you email us instead, we'll do it within 30 days.</li>
         <li><b>Free-shoot record:</b> if you used your free shoot, we keep a scrambled (hashed) copy of your email address after your account is deleted, with a note that the free shoot was used. That stops the free shoot being claimed twice. It doesn't include your name, photos or anything else.</li>
         <li><b>Purchase records:</b> as long as tax and accounting rules require, usually up to 7 years.</li>
-        <li><b>Messages:</b> as long as we need them to help you and keep a record of the conversation.</li>
+        <li><b>Messages:</b> the copy stored from the contact form is deleted automatically after 12 months. Replies we exchange by email stay in our inbox as a record of the conversation.</li>
       </ul>
 
       <h2 class="h-3">Your choices and rights</h2>

@@ -16,6 +16,7 @@ import { lookFor, MAX_LOOKS, MAX_SELFIES, PHOTO_FORMATS } from "./public/js/shar
 import { seed, DEMO } from "./scripts/seed.js";
 import { planFor, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, EMAIL_UNCONFIRMED } from "./lib/plan.js";
 import { gpc, metaPixelId, track as trackMeta } from "./lib/meta.js";
+import { runCleanup } from "./lib/cleanup.js";
 import { contactEnabled, validate as validateContact, rateLimited, submit as submitContact } from "./lib/contact.js";
 import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExample, generateSquare as generateExampleSquare, generateSet as generateExampleSet, exampleImage, sheet as exampleSheet } from "./lib/examples.js";
 import crypto from "node:crypto";
@@ -736,6 +737,21 @@ app.get("/api/admin/examples/:id", adminOnly, async (req, res) => {
   const started = Date.now();
   const bytes = await generateExample(req.params.id);
   res.json({ ok: true, id: req.params.id, bytes, ms: Date.now() - started });
+});
+
+/* -------------------------------- Cron ------------------------------ */
+
+// Daily storage clean-up (vercel.json "crons"). Vercel sends
+// "Authorization: Bearer $CRON_SECRET"; without CRON_SECRET the route is off.
+app.get("/api/cron/cleanup", async (req, res) => {
+  const secret = process.env.CRON_SECRET;
+  const got = String(req.get("authorization") || "");
+  const want = `Bearer ${secret}`;
+  const digest = (v) => crypto.createHash("sha256").update(v).digest();
+  if (!secret || secret.length < 24 || !crypto.timingSafeEqual(digest(got), digest(want))) return res.status(404).json({ error: "Not found" });
+  const report = await runCleanup();
+  console.log("[cleanup]", JSON.stringify(report));
+  res.json(report);
 });
 
 /* ------------------------------- Static ----------------------------- */
