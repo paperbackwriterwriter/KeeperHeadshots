@@ -158,7 +158,7 @@ async function doSeed() {
     id: user.id,
     name: "Maya Okafor",
     email: DEMO.email,
-    password: hashPassword(DEMO.password),
+    password: await hashPassword(DEMO.password),
     createdAt: daysAgo(21),
     demo: true,
   });

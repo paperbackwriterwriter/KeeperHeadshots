@@ -11,7 +11,7 @@ import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, MAIL_FROM
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import { pageFor, isCanonicalHost } from "./lib/seo.js";
 import { aiStatus, AIError } from "./lib/ai.js";
-import { ingestSelfie, runCheck, advance, startGeneration, retryFailed, startReview } from "./lib/pipeline.js";
+import { background, ingestSelfie, beginCheck, runCheck, advance, startGeneration, retryFailed, startReview } from "./lib/pipeline.js";
 import { lookFor, MAX_LOOKS, MAX_SELFIES, PHOTO_FORMATS } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
 import { planFor, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, EMAIL_UNCONFIRMED } from "./lib/plan.js";
@@ -62,7 +62,7 @@ const appOrigin = (req) => process.env.APP_ORIGIN || (process.env.VERCEL_ENV ===
 
 const SIGNIN_WINDOW_MS = 15 * 60 * 1000;
 const SIGNIN_MAX_FAILS = 10;
-const DUMMY_HASH = hashPassword("not-a-real-password");
+const DUMMY_HASH = await hashPassword("not-a-real-password");
 
 const LIVE = ["checking", "generating", "reviewing"];
 const MAX_RESUMES = 3;
@@ -90,20 +90,23 @@ app.post("/api/auth/signup", async (req, res) => {
   else if (String(name).trim().length > 80 || /https?:|www\.|[<>\u0000-\u001f]/i.test(String(name))) errors.name = "Use just your name (up to 80 characters, no links).";
   if (!isEmail(email)) errors.email = "Enter a valid email address.";
   if (!password || String(password).length < 8) errors.password = "Use at least 8 characters.";
+  else if (String(password).length > 200) errors.password = "Use 200 characters or fewer.";
   if (Object.keys(errors).length) return res.status(400).json({ error: "Please fix the highlighted fields.", fields: errors });
   // Bot check first, so the "already exists" answer can't be scraped by scripts.
   const human = await checkHuman(req.body?.turnstileToken, { ip: req.ip, action: "signup" });
   if (!human.ok) return res.status(400).json({ error: "We couldn't confirm you're a person. Please complete the security check and try again.", code: "bot_check" });
-  if (await users.byEmail(email)) return res.status(400).json({ error: "Please fix the highlighted fields.", fields: { email: "An account with this email already exists. Sign in instead?" } });
+  const exists = () => res.status(400).json({ error: "Please fix the highlighted fields.", fields: { email: "An account with this email already exists. Sign in instead?" } });
+  if (await users.byEmail(email)) return exists();
   const user = await users.create({
     id: id("usr"),
     name: String(name).trim(),
     email: String(email).toLowerCase().trim(),
-    password: hashPassword(String(password)),
+    password: await hashPassword(String(password)),
     createdAt: new Date().toISOString(),
     emailVerified: false,
     verifySends: [Date.now()],
   });
+  if (!user) return exists(); // the same address signed up a moment ago
   setSession(res, user);
   // Meta's CompleteRegistration fires when the email is confirmed (below).
   const verificationSent = await sendVerification(user, req).catch((err) => {
@@ -120,17 +123,23 @@ app.post("/api/auth/signin", async (req, res) => {
   // Slow down password guessing: after 10 wrong passwords in 15 minutes the
   // account refuses sign-ins for the rest of that window (stored on the user,
   // so it holds across serverless instances).
+  // The attempt is recorded (atomically) before the password is checked and
+  // cleared on success, so a burst of parallel guesses counts every one.
   const now = Date.now();
-  const recent = (user?.signinFails || []).filter((t) => now - t < SIGNIN_WINDOW_MS);
-  if (recent.length >= SIGNIN_MAX_FAILS) return res.status(429).json({ error: "Too many attempts. Wait 15 minutes and try again, or reset your password." });
+  let locked = false;
+  if (user) {
+    await users.update(user.id, (u) => {
+      const recent = (u.signinFails || []).filter((t) => now - t < SIGNIN_WINDOW_MS);
+      locked = recent.length >= SIGNIN_MAX_FAILS;
+      u.signinFails = locked ? recent : [...recent, now];
+    });
+  }
+  if (locked) return res.status(429).json({ error: "Too many attempts. Wait 15 minutes and try again, or reset your password." });
   // Always run the (async) password hash, even for unknown emails, so timing
   // doesn't reveal which addresses have accounts.
-  const ok = await verifyPassword(String(password || ""), user?.password || DUMMY_HASH);
-  if (!user || !password || !ok) {
-    if (user) await users.update(user.id, (u) => (u.signinFails = [...(u.signinFails || []).filter((t) => now - t < SIGNIN_WINDOW_MS), now])).catch(() => {});
-    return res.status(401).json({ error: "That email and password don't match an account." });
-  }
-  if (recent.length) await users.update(user.id, (u) => (u.signinFails = [])).catch(() => {});
+  const ok = await verifyPassword(String(password || "").slice(0, 1000), user?.password || DUMMY_HASH);
+  if (!user || !password || !ok) return res.status(401).json({ error: "That email and password don't match an account." });
+  await users.update(user.id, (u) => (u.signinFails = [])).catch(() => {});
   setSession(res, user);
   res.json({ user: publicUser(user) });
 });
@@ -140,17 +149,17 @@ app.post("/api/auth/verify", async (req, res) => {
   if (error === "invalid") return res.status(400).json({ error: "This confirmation link isn't valid. Make sure you copied the whole link, or ask for a new one.", code: "invalid" });
   const me = await currentUser(req);
   if (emailVerified(user)) return res.json({ status: "already", user: me ? publicUser(me) : null });
+  // The link confirms the address; it never signs anyone in. (Signing in from
+  // it would let someone send their own unclicked link to another person and
+  // have that person work, and upload photos, inside the sender's account.)
   if (error === "expired") return res.status(410).json({ error: "This confirmation link has expired. Ask for a new one below.", code: "expired", signedIn: me?.id === user.id });
   const updated = await users.update(user.id, (u) => {
     u.emailVerified = true;
     u.emailVerifiedAt = new Date().toISOString();
   });
-  // Opening the link on another device signs you in there too (only on the
-  // first, confirming click; the link can't be reused to sign in later).
-  if (me?.id !== user.id) setSession(res, user);
   const eventId = `reg_${user.id}`;
   trackMeta("CompleteRegistration", { eventId, user: updated, req });
-  res.json({ status: "verified", user: publicUser(updated), eventId });
+  res.json({ status: "verified", user: me?.id === user.id ? publicUser(updated) : me ? publicUser(me) : null, eventId });
 });
 
 app.post("/api/auth/verify/resend", requireUser, async (req, res) => {
@@ -198,14 +207,11 @@ app.post("/api/auth/password/forgot", async (req, res) => {
     if (allowed) u.resetSends = [...sends, now];
   });
   if (!allowed) return sent();
+  // Sent after answering, so neither the response nor its timing reveals
+  // whether the address has an account.
   const link = `${appOrigin(req)}/reset?token=${resetToken(user)}`;
-  try {
-    const { subject, text, html } = passwordResetEmail({ name: user.name, link });
-    await sendMail({ from: { name: "Keeper Headshots", address: MAIL_FROM }, to: { name: user.name, address: user.email }, subject, text, html });
-  } catch (err) {
-    console.error("[reset] send failed", user.id, err.message);
-    return res.status(502).json({ error: "We couldn't send the email just now. Please try again in a few minutes." });
-  }
+  const { subject, text, html } = passwordResetEmail({ name: user.name, link });
+  background(sendMail({ from: { name: "Keeper Headshots", address: MAIL_FROM }, to: { name: user.name, address: user.email }, subject, text, html }).catch((err) => console.error("[reset] send failed", user.id, err.message)));
   sent();
 });
 
@@ -219,7 +225,7 @@ app.post("/api/auth/password/reset", async (req, res) => {
   const { user, error } = await checkResetToken(token);
   if (error === "expired") return res.status(410).json({ error: "This reset link has expired. Ask for a new one below.", code: "expired" });
   if (error) return invalid();
-  const hash = hashPassword(String(password));
+  const hash = await hashPassword(String(password));
   const at = new Date().toISOString();
   let used = false;
   let newlyVerified = false;
@@ -327,6 +333,10 @@ app.post("/api/shoots", requireUser, async (req, res) => {
   res.status(201).json({ shoot });
 });
 
+// Photo checks per day for accounts past the free allowance (each is a paid
+// AI call). Generous for real use: about seven re-checks of every shoot.
+const DAILY_CHECKS = 40;
+
 // Photos can be added or removed until developing starts, so a person can
 // top up their set after the photo check without losing what they uploaded.
 const canEditPhotos = (meta) => !meta.sample && ["draft", "checked", "error"].includes(meta.status) && !(meta.shots || []).length;
@@ -340,28 +350,46 @@ app.post("/api/shoots/:id/selfies", requireUser, async (req, res) => {
   const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(req.body?.photo || "");
   if (!m) return res.status(400).json({ error: "Photos must be JPG, PNG or WebP." });
   const selfie = await ingestSelfie(meta.id, Buffer.from(m[2], "base64"));
-  // Re-read before writing so sequential uploads never drop each other.
-  const fresh = await shoots.getMeta(meta.id);
-  fresh.selfies.push(selfie);
-  // The set changed, so the old check no longer describes it.
-  Object.assign(fresh, { check: null, status: "draft", error: null });
-  await shoots.saveMeta(fresh);
-  res.status(201).json({ selfie, count: fresh.selfies.length });
+  // Added atomically, re-checking the rules against the stored shoot, so
+  // parallel uploads can't drop each other or go past the limit.
+  let refused = null;
+  let count = 0;
+  await shoots.updateMeta(meta.id, (fresh) => {
+    if (!canEditPhotos(fresh)) refused = "Photos can't be changed once developing has started. Start a new shoot instead.";
+    else if (fresh.selfies.length >= MAX_SELFIES) refused = `Up to ${MAX_SELFIES} photos per shoot. Remove one to make room.`;
+    if (refused) return false;
+    fresh.selfies.push(selfie);
+    count = fresh.selfies.length;
+    // The set changed, so the old check no longer describes it.
+    Object.assign(fresh, { check: null, status: "draft", error: null });
+  });
+  if (refused) {
+    await deleteMedia(selfie.file).catch(() => {});
+    return res.status(400).json({ error: refused });
+  }
+  res.status(201).json({ selfie, count });
 });
 
 app.delete("/api/shoots/:id/selfies/:name", requireUser, async (req, res) => {
   const meta = await ownShoot(req, res, { full: false });
   if (!meta) return;
   if (!canEditPhotos(meta)) return res.status(400).json({ error: "Photos can't be changed once developing has started." });
-  const index = meta.selfies.findIndex((s) => s.file === `${meta.id}/${req.params.name}`);
-  if (index < 0) return res.status(404).json({ error: "That photo isn't in this shoot." });
-  if (meta.selfies.length <= 1) return res.status(400).json({ error: "A shoot needs at least one photo." });
-  const [removed] = meta.selfies.splice(index, 1);
-  // Keep the rest of the photo check, re-pointed at the remaining photos.
-  if (meta.check?.photos) {
-    meta.check.photos = meta.check.photos.filter((p) => p.index !== index).map((p) => (p.index > index ? { ...p, index: p.index - 1 } : p));
-  }
-  await shoots.saveMeta(meta);
+  const file = `${meta.id}/${req.params.name}`;
+  let problem = null;
+  let removed = null;
+  await shoots.updateMeta(meta.id, (m) => {
+    const index = m.selfies.findIndex((s) => s.file === file);
+    if (!canEditPhotos(m)) problem = [400, "Photos can't be changed once developing has started."];
+    else if (index < 0) problem = [404, "That photo isn't in this shoot."];
+    else if (m.selfies.length <= 1) problem = [400, "A shoot needs at least one photo."];
+    if (problem) return false;
+    [removed] = m.selfies.splice(index, 1);
+    // Keep the rest of the photo check, re-pointed at the remaining photos.
+    if (m.check?.photos) {
+      m.check.photos = m.check.photos.filter((p) => p.index !== index).map((p) => (p.index > index ? { ...p, index: p.index - 1 } : p));
+    }
+  });
+  if (problem) return res.status(problem[0]).json({ error: problem[1] });
   await deleteMedia(removed.file).catch(() => {});
   res.json({ shoot: await shoots.get(meta.id) });
 });
@@ -390,19 +418,39 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   if (plan.needsEmail) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
   const limitMsg = `Free accounts include ${FREE.checks} photo checks, and you've used them. Buy a package to keep going.`;
   if (plan.checksLeft === 0) throw new PlanError(limitMsg);
+  // One check at a time per shoot: a double-click doesn't run (or count) twice.
+  const startedAt = await beginCheck(meta.id);
+  if (!startedAt) return res.status(409).json({ error: "A photo check is already running for this shoot." });
   // Reserve the check before the (paid) AI call so parallel requests can't
-  // exceed the free allowance; give it back if the check fails.
-  const counted = plan.checksLeft != null;
-  if (counted) {
-    await users.update(req.user.id, (u) => {
-      if (planFor(u).checksLeft === 0) throw new PlanError(limitMsg);
-      u.usage = { ...u.usage, checks: (u.usage?.checks || 0) + 1 };
-    });
+  // exceed the allowance; give it back if the check fails. Free accounts have
+  // a lifetime allowance; paid accounts a generous daily one (each check is a
+  // paid AI call, and a package alone shouldn't make them unlimited).
+  const counted = plan.tier !== "owner";
+  const today = new Date().toISOString().slice(0, 10);
+  const dayMsg = `That's ${DAILY_CHECKS} photo checks today. You can check more photos tomorrow.`;
+  try {
+    if (counted) {
+      await users.update(req.user.id, (u) => {
+        if (planFor(u).checksLeft === 0) throw new PlanError(limitMsg);
+        const day = u.usage?.checkDay?.date === today ? u.usage.checkDay.n : 0;
+        if (day >= DAILY_CHECKS) throw new PlanError(dayMsg, "daily_checks", 429);
+        u.usage = { ...u.usage, checks: (u.usage?.checks || 0) + 1, checkDay: { date: today, n: day + 1 } };
+      });
+    }
+  } catch (err) {
+    await shoots.updateMeta(meta.id, (m) => (m.status === "checking" && m.checkStartedAt === startedAt ? void Object.assign(m, { status: "draft" }) : false)).catch(() => {});
+    throw err;
   }
   try {
-    await runCheck(meta.id);
+    await runCheck(meta.id, startedAt);
   } catch (err) {
-    if (counted) await users.update(req.user.id, (u) => (u.usage = { ...u.usage, checks: Math.max(0, (u.usage?.checks || 0) - 1) })).catch(() => {});
+    if (counted)
+      await users
+        .update(req.user.id, (u) => {
+          const d = u.usage?.checkDay;
+          u.usage = { ...u.usage, checks: Math.max(0, (u.usage?.checks || 0) - 1), ...(d?.date === today ? { checkDay: { date: today, n: Math.max(0, d.n - 1) } } : {}) };
+        })
+        .catch(() => {});
     throw err;
   }
   res.json({ shoot: await shoots.get(meta.id) });
@@ -475,7 +523,8 @@ app.post("/api/shoots/:id/resume", requireUser, async (req, res) => {
   const shoot = await ownShoot(req, res);
   if (!shoot || !requireAI("imaging", res)) return;
   if (LIVE.includes(shoot.status)) return res.status(409).json({ error: "This shoot is still in progress." });
-  if (!shoot.shots.some((s) => s.status === "error")) return res.status(400).json({ error: "Nothing to resume." });
+  // Pending frames on a stopped shoot (an interrupted retry) are resumable too.
+  if (!shoot.shots.some((s) => s.status === "error" || s.status === "pending")) return res.status(400).json({ error: "Nothing to resume." });
   // Retries are free, but capped so a shoot that keeps failing can't loop forever.
   // Counted atomically; a second click in the same moment is ignored, not counted.
   let refused = null;
@@ -596,6 +645,16 @@ function requireBilling(req, res) {
 app.post("/api/billing/checkout", requireUser, async (req, res) => {
   if (!requireBilling(req, res)) return;
   const origin = appOrigin(req);
+  // At most 10 checkouts started an hour per account (a person needs one or
+  // two); stops scripts from flooding Stripe with sessions.
+  const now = Date.now();
+  let tooMany = false;
+  await users.update(req.user.id, (u) => {
+    const recent = (u.checkoutStarts || []).filter((t) => now - t < 60 * 60 * 1000);
+    tooMany = recent.length >= 10;
+    u.checkoutStarts = tooMany ? recent : [...recent, now];
+  });
+  if (tooMany) return res.status(429).json({ error: "You've started several checkouts in the last hour. Please try again a little later, or contact us." });
   const embedded = req.body?.embedded === true && !!stripePublishableKey();
   const checkout = await createCheckout(req.user, String(req.body?.packageId || ""), origin, { gpc: gpc(req), embedded });
   const eventId = `checkout_${checkout.id}`;
@@ -612,7 +671,9 @@ app.post("/api/billing/embed-error", requireUser, (req, res) => {
 
 app.post("/api/billing/confirm", requireUser, async (req, res) => {
   if (!requireBilling(req, res)) return;
-  const result = await confirmCheckout(req.user, req.body?.sessionId);
+  const sessionId = req.body?.sessionId;
+  if (typeof sessionId !== "string" || !/^cs_\w{4,200}$/.test(sessionId)) return res.status(400).json({ error: "That checkout link isn't valid." });
+  const result = await confirmCheckout(req.user, sessionId);
   res.json({ ...result, user: publicUser(await users.byId(req.user.id)) });
 });
 
@@ -721,7 +782,8 @@ app.get(/^\/examples\/([a-z0-9-]+)\.(jpg|webp)$/, async (req, res) => {
 // Owner-only generator, enabled only while ADMIN_TOKEN is set.
 function adminOnly(req, res, next) {
   const want = process.env.ADMIN_TOKEN || "";
-  const got = String(req.query.token || req.get("x-admin-token") || "");
+  // Header only: a token in the query string would end up in request logs.
+  const got = String(req.get("x-admin-token") || "");
   const digest = (v) => crypto.createHash("sha256").update(v).digest();
   const ok = want.length >= 24 && crypto.timingSafeEqual(digest(got), digest(want));
   if (!ok) return res.status(404).json({ error: "Not found" });
@@ -805,6 +867,7 @@ app.get(/.*/, (req, res) => {
 
 app.use((err, req, res, next) => {
   if (err instanceof PlanError) return res.status(err.status).json({ error: err.message, code: err.code });
+  if (err?.type === "StripeInvalidRequestError" && err.statusCode === 404) return res.status(404).json({ error: "We couldn't find that checkout." });
   if (err?.type?.startsWith?.("Stripe")) {
     console.error("[stripe]", err.type, err.message);
     return res.status(502).json({ error: "The payment provider couldn't complete that request. Please try again." });
@@ -812,6 +875,12 @@ app.use((err, req, res, next) => {
   if (err?.type === "entity.too.large") return res.status(413).json({ error: "That photo is too large. Try a smaller one." });
   if (err?.type === "entity.parse.failed") return res.status(400).json({ error: "That request couldn't be read. Please try again." });
   if (err?.status && err.status < 500 && !(err instanceof AIError)) return res.status(err.status).json({ error: err.message });
+  // Storage busy (lib/storage.js gives up after repeated write conflicts): a
+  // retryable 503 with its own message, not a generic 500.
+  if (err?.status === 503 && !(err instanceof AIError)) {
+    console.warn("[503]", req.method, req.path, err.message);
+    return res.status(503).json({ error: err.message });
+  }
   const status = err instanceof AIError ? err.status : 500;
   if (status >= 500) console.error(err);
   res.status(status).json({ error: status === 500 && !(err instanceof AIError) ? "Something went wrong on our side. Please try again." : err.message });

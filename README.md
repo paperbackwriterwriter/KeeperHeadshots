@@ -146,6 +146,8 @@ node scripts/dev/api-e2e.js   # add RESEND_API_KEY=test RESEND_BASE_URL=http://l
 node scripts/dev/screenshots.js shots   # phone (390px) + desktop (1440px) click-through
 node scripts/dev/race-tests.js   # double-spend, lockout, open-redirect and other regression checks
 node scripts/dev/reset-tests.js  # password reset and sign-out-everywhere checks
+node scripts/dev/hardening-tests.js  # verify links, parallel sign-ins, atomic photo edits/checks, checkout limits
+                                   # (set ADMIN_TOKEN on the server and QA_ADMIN_TOKEN here to test the admin header)
 # Two instances at once: run two servers on one DATA_DIR (ports 3100 + 3101), mock started with
 # MOCK_QA_FAIL=none and its output in MOCKLOG; each frame must render once and grade once:
 MOCKLOG=mock.log node scripts/dev/render-race.js
