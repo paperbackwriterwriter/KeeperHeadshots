@@ -391,7 +391,7 @@ app.get("/api/admin/examples-set/:set", adminOnly, async (req, res) => {
 });
 app.get("/api/admin/examples-sheet", adminOnly, async (req, res) => {
   const ids = String(req.query.ids || Object.keys(EXAMPLE_JOBS).join(",")).split(",");
-  const jpg = await exampleSheet(ids, Math.min(600, Number(req.query.w) || 240), Math.max(1, Number(req.query.cols) || 4));
+  const jpg = await exampleSheet(ids, Math.min(900, Number(req.query.w) || 240), Math.max(1, Number(req.query.cols) || 4), req.query.labels !== "0");
   res.json({ jpeg: jpg ? jpg.toString("base64") : null });
 });
 app.get("/api/admin/examples/:id", adminOnly, async (req, res) => {
