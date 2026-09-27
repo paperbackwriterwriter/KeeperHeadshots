@@ -112,6 +112,7 @@ The brand is about replacing a photo studio, so the UI borrows a studio's own ar
 - Privacy Policy (`/privacy`) and Terms (`/terms`) live in `public/js/views/legal.js`. Update them whenever data handling changes (new provider, new tracking, retention). They are plain-English drafts; have a lawyer review them.
 - Sign-up is protected by Cloudflare Turnstile when `TURNSTILE_SITE_KEY` (public) and `TURNSTILE_SECRET_KEY` (sensitive) are both set (`lib/turnstile.js`, `public/js/turnstile.js`). The widget is invisible unless Cloudflare wants a click. The server checks the token before anything else, including whether the email already exists. If Cloudflare is unreachable, sign-up is allowed and email confirmation still guards the free shoot.
 - New accounts must confirm their email before the free shoot (and free photo checks) unlock: sign-up emails a signed link (`/verify?token=…`, valid 3 days) through the same provider as the contact form (`lib/mail.js`). Resends are limited to 1/minute and 5/day. Meta's `CompleteRegistration` fires on confirmation, not sign-up. Accounts created before this change count as confirmed. Without an email provider the link is logged instead of sent.
+- Password reset: "Forgot password?" on sign-in goes to `/forgot-password`, which emails a link to `/reset` (`POST /api/auth/password/forgot` and `/api/auth/password/reset`). Links last 1 hour and work once, because the signature covers the current password hash. Each account gets at most 3 reset emails an hour. A reset signs out every other device: sessions carry the user's `sessionVersion`, which a reset or "Sign out of other devices" on `/app/account` (`POST /api/auth/signout-all`) increments.
 - Customers can delete their account at `/app/account` (`POST /api/account/delete`, password required). It removes the user, every shoot and all media; only a hashed-email record of free-shoot usage (`users/deleted/`) and payment records (`payments/`) remain, as the privacy policy states.
 - Meta tracking honours Global Privacy Control: no Pixel when `navigator.globalPrivacyControl` is set, and no Conversions API events for requests with `Sec-GPC: 1` (purchases carry the flag through Stripe checkout metadata).
 
@@ -140,5 +141,6 @@ ANTHROPIC_BASE_URL=http://localhost:4010 GEMINI_BASE_URL=http://localhost:4010 P
 node scripts/dev/api-e2e.js   # add RESEND_API_KEY=test RESEND_BASE_URL=http://localhost:4010 to the server to test the Resend path
 node scripts/dev/screenshots.js shots   # phone (390px) + desktop (1440px) click-through
 node scripts/dev/race-tests.js   # double-spend, lockout, open-redirect and other regression checks
+node scripts/dev/reset-tests.js  # password reset and sign-out-everywhere checks
 node scripts/dev/csp-sweep.mjs   # every public page at 1280px and 390px: console/CSP errors, broken images, overflow
 ```

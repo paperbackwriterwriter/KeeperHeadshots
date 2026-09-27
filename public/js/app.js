@@ -13,6 +13,8 @@ const renderPrivacy = lazy(() => import("./views/legal.js"), "renderPrivacy");
 const renderTerms = lazy(() => import("./views/legal.js"), "renderTerms");
 const renderAccount = lazy(() => import("./views/account.js"), "renderAccount");
 const renderVerify = lazy(() => import("./views/verify.js"), "renderVerify");
+const renderForgot = lazy(() => import("./views/password.js"), "renderForgot");
+const renderReset = lazy(() => import("./views/password.js"), "renderReset");
 const renderLinkedIn = lazy(() => import("./views/linkedin.js"), "renderLinkedIn");
 const renderTeam = lazy(() => import("./views/team.js"), "renderTeam");
 const renderRealEstate = lazy(() => import("./views/realestate.js"), "renderRealEstate");
@@ -36,6 +38,8 @@ const routes = [
   { path: /^\/privacy$/, view: renderPrivacy, chrome: "marketing", title: "Privacy policy · Keeper Headshots" },
   { path: /^\/terms$/, view: renderTerms, chrome: "marketing", title: "Terms of service · Keeper Headshots" },
   { path: /^\/verify$/, view: renderVerify, chrome: "marketing", title: "Confirm your email · Keeper Headshots" },
+  { path: /^\/forgot-password$/, view: renderForgot, chrome: "marketing", title: "Reset your password · Keeper Headshots" },
+  { path: /^\/reset$/, view: renderReset, chrome: "marketing", title: "Choose a new password · Keeper Headshots" },
   { path: /^\/contact$/, view: renderContact, chrome: "marketing", title: "Contact us · Keeper Headshots" },
   { path: /^\/signin$/, view: (ctx) => renderAuth(ctx, "signin"), chrome: "none", guestOnly: true, title: "Sign in · Keeper Headshots" },
   { path: /^\/signup$/, view: (ctx) => renderAuth(ctx, "signup"), chrome: "none", guestOnly: true, title: "Create your account · Keeper Headshots" },
@@ -277,7 +281,8 @@ function loadAnalytics() {
 loadSession()
   .catch(() => {})
   .finally(() => {
-    initPixel();
+    // Not on a password reset link: nothing may see that URL's one-time token.
+    if (location.pathname !== "/reset") initPixel();
     render();
     loadAnalytics();
   });

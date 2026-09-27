@@ -6,8 +6,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { users, shoots, id, readMedia, writeMedia, deleteMedia, freeClaimKey } from "./lib/store.js";
 import { backend, createJSON, getJSON, del } from "./lib/storage.js";
-import { hashPassword, verifyPassword, setSession, clearSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailVerified } from "./lib/auth.js";
-import { mailEnabled, sendMail, verificationEmail, MAIL_FROM } from "./lib/mail.js";
+import { hashPassword, verifyPassword, setSession, clearSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailVerified, resetToken, checkResetToken } from "./lib/auth.js";
+import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, MAIL_FROM } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import { pageFor, isCanonicalHost } from "./lib/seo.js";
 import { aiStatus, AIError } from "./lib/ai.js";
@@ -93,7 +93,7 @@ app.post("/api/auth/signup", async (req, res) => {
     emailVerified: false,
     verifySends: [Date.now()],
   });
-  setSession(res, user.id);
+  setSession(res, user);
   // Meta's CompleteRegistration fires when the email is confirmed (below).
   const verificationSent = await sendVerification(user, req).catch((err) => {
     console.error("[verify] send failed", user.id, err.message);
@@ -111,7 +111,7 @@ app.post("/api/auth/signin", async (req, res) => {
   // so it holds across serverless instances).
   const now = Date.now();
   const recent = (user?.signinFails || []).filter((t) => now - t < SIGNIN_WINDOW_MS);
-  if (recent.length >= SIGNIN_MAX_FAILS) return res.status(429).json({ error: "Too many attempts. Wait 15 minutes, then try again, or contact us for help." });
+  if (recent.length >= SIGNIN_MAX_FAILS) return res.status(429).json({ error: "Too many attempts. Wait 15 minutes and try again, or reset your password." });
   // Always run the (async) password hash, even for unknown emails, so timing
   // doesn't reveal which addresses have accounts.
   const ok = await verifyPassword(String(password || ""), user?.password || DUMMY_HASH);
@@ -120,7 +120,7 @@ app.post("/api/auth/signin", async (req, res) => {
     return res.status(401).json({ error: "That email and password don't match an account." });
   }
   if (recent.length) await users.update(user.id, (u) => (u.signinFails = [])).catch(() => {});
-  setSession(res, user.id);
+  setSession(res, user);
   res.json({ user: publicUser(user) });
 });
 
@@ -136,7 +136,7 @@ app.post("/api/auth/verify", async (req, res) => {
   });
   // Opening the link on another device signs you in there too (only on the
   // first, confirming click; the link can't be reused to sign in later).
-  if (me?.id !== user.id) setSession(res, user.id);
+  if (me?.id !== user.id) setSession(res, user);
   const eventId = `reg_${user.id}`;
   trackMeta("CompleteRegistration", { eventId, user: updated, req });
   res.json({ status: "verified", user: publicUser(updated), eventId });
@@ -160,6 +160,85 @@ app.post("/api/auth/verify/resend", requireUser, async (req, res) => {
 
 app.post("/api/auth/signout", (req, res) => {
   clearSession(res);
+  res.json({ ok: true });
+});
+
+// Password reset. Step 1 emails a one-hour, single-use link (lib/auth.js
+// resetToken). The answer is the same whether or not the address has an
+// account, and each account gets at most 3 emails an hour, a minute apart.
+const RESET_WINDOW_MS = 60 * 60 * 1000;
+const RESET_MAX_SENDS = 3;
+
+app.post("/api/auth/password/forgot", async (req, res) => {
+  const email = req.body?.email;
+  if (!isEmail(email)) return res.status(400).json({ error: "Please fix the highlighted fields.", fields: { email: "Enter a valid email address." } });
+  const human = await checkHuman(req.body?.turnstileToken, { ip: req.ip, action: "reset" });
+  if (!human.ok) return res.status(400).json({ error: "We couldn't confirm you're a person. Please complete the security check and try again.", code: "bot_check" });
+  if (!mailEnabled()) return res.status(503).json({ error: "Email isn't set up on this site yet. Please contact us to reset your password." });
+  const sent = () => res.json({ status: "sent" });
+  const user = await users.byEmail(email);
+  if (!user || user.demo) return sent();
+  // Record the send atomically first, so parallel requests can't get past the limit.
+  const now = Date.now();
+  let allowed = false;
+  await users.update(user.id, (u) => {
+    const sends = (u.resetSends || []).filter((t) => now - t < RESET_WINDOW_MS);
+    allowed = sends.length < RESET_MAX_SENDS && !(sends.length && now - sends[sends.length - 1] < 60 * 1000);
+    if (allowed) u.resetSends = [...sends, now];
+  });
+  if (!allowed) return sent();
+  const link = `${appOrigin(req)}/reset?token=${resetToken(user)}`;
+  try {
+    const { subject, text, html } = passwordResetEmail({ name: user.name, link });
+    await sendMail({ from: { name: "Keeper Headshots", address: MAIL_FROM }, to: { name: user.name, address: user.email }, subject, text, html });
+  } catch (err) {
+    console.error("[reset] send failed", user.id, err.message);
+    return res.status(502).json({ error: "We couldn't send the email just now. Please try again in a few minutes." });
+  }
+  sent();
+});
+
+// Step 2 sets the new password, signs out every other device (by bumping the
+// session version) and signs this browser in.
+app.post("/api/auth/password/reset", async (req, res) => {
+  const { token, password } = req.body || {};
+  if (!password || String(password).length < 8) return res.status(400).json({ error: "Please fix the highlighted fields.", fields: { password: "Use at least 8 characters." } });
+  if (String(password).length > 200) return res.status(400).json({ error: "Please fix the highlighted fields.", fields: { password: "Use at most 200 characters." } });
+  const invalid = () => res.status(400).json({ error: "This reset link isn't valid or has already been used. Ask for a new one below.", code: "invalid" });
+  const { user, error } = await checkResetToken(token);
+  if (error === "expired") return res.status(410).json({ error: "This reset link has expired. Ask for a new one below.", code: "expired" });
+  if (error) return invalid();
+  const hash = hashPassword(String(password));
+  const at = new Date().toISOString();
+  let used = false;
+  let newlyVerified = false;
+  const updated = await users.update(user.id, (u) => {
+    // Another request already used this link (the password changed since we checked).
+    used = u.password !== user.password;
+    if (used) return;
+    u.password = hash;
+    u.passwordChangedAt = at;
+    u.sessionVersion = (u.sessionVersion || 0) + 1;
+    u.signinFails = [];
+    u.resetSends = [];
+    // The link came from their inbox, so this also confirms the email address.
+    newlyVerified = u.emailVerified === false;
+    if (newlyVerified) {
+      u.emailVerified = true;
+      u.emailVerifiedAt = at;
+    }
+  });
+  if (used) return invalid();
+  if (newlyVerified) trackMeta("CompleteRegistration", { eventId: `reg_${user.id}`, user: updated, req });
+  setSession(res, updated);
+  res.json({ user: publicUser(updated) });
+});
+
+// Signs out every other browser and device; this one stays signed in.
+app.post("/api/auth/signout-all", requireUser, async (req, res) => {
+  if (req.user.demo) return res.status(403).json({ error: "The demo account is shared, so it can't sign out other devices." });
+  const updated = await users.update(req.user.id, (u) => (u.sessionVersion = (u.sessionVersion || 0) + 1));
+  setSession(res, updated);
   res.json({ ok: true });
 });
 

@@ -26,7 +26,9 @@ export function renderAuth({ root, navigate }, mode) {
             : ""}
           <div class="field"><label for="email">Email</label><input class="input" id="email" name="email" type="email" autocomplete="email" inputmode="email" placeholder="you@company.com" required /><span class="field-error" id="err-email" hidden></span></div>
           <div class="field">
-            <label for="password">Password</label>
+            ${isUp
+              ? html`<label for="password">Password</label>`
+              : html`<div class="label-row"><label for="password">Password</label><a class="link small" href="/forgot-password" data-link id="forgotLink">Forgot password?</a></div>`}
             <div class="input-wrap">
               <input class="input" id="password" name="password" type="password" autocomplete="${isUp ? "new-password" : "current-password"}" placeholder="${isUp ? "At least 8 characters" : "Your password"}" required minlength="${isUp ? 8 : 1}" style="padding-right:52px" />
               <button type="button" class="reveal" id="reveal" aria-label="Show password" aria-pressed="false">${icon("eye")}</button>
@@ -129,6 +131,11 @@ export function renderAuth({ root, navigate }, mode) {
       e.target.removeAttribute("aria-invalid");
       $(`#err-${e.target.id}`).hidden = true;
     }
+  });
+  // Carry the typed email over to the reset page.
+  $("#forgotLink")?.addEventListener("click", (e) => {
+    const address = $("#email").value.trim();
+    if (address) e.currentTarget.href = `/forgot-password?email=${encodeURIComponent(address)}`;
   });
   $("#demo")?.addEventListener("click", () => {
     $("#email").value = DEMO.email;

@@ -44,6 +44,17 @@ export function renderAccount({ root, navigate }) {
       </div>
     </section>
 
+    ${u.demo
+      ? ""
+      : html`<section class="panel prefs" aria-labelledby="security-title">
+      <h2 class="h-3" id="security-title">Password and sign-in</h2>
+      <p class="muted">To change your password, we'll email you a link to choose a new one. If you signed in on a shared or lost device, sign out of it from here.</p>
+      <div class="security-actions">
+        <a class="btn btn-ghost" href="/forgot-password" data-link>${icon("mail")} Email me a password link</a>
+        <button class="btn btn-ghost" id="signoutAll" type="button">${icon("log-out")} Sign out of other devices</button>
+      </div>
+    </section>`}
+
     <section class="danger-zone" aria-labelledby="dz-title">
       <h2 class="h-3" id="dz-title">Delete your account</h2>
       ${u.demo
@@ -82,6 +93,16 @@ export function renderAccount({ root, navigate }) {
   );
 
   if (u.demo) return;
+  $("#signoutAll", root).addEventListener("click", async (e) => {
+    const restore = busy(e.currentTarget, "Signing out…");
+    try {
+      await api("/api/auth/signout-all", { method: "POST" });
+      toast("Signed out of your other devices. You're still signed in here.", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    }
+    restore();
+  });
   const form = $("#deleteForm", root);
   const start = $("#startDelete", root);
   const pw = $("#delPassword", root);

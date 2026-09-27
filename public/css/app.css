@@ -1070,6 +1070,11 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
 .prefs { margin-top: var(--s-6); }
 .prefs h2 { margin: 0 0 var(--s-2); }
 .prefs > p { margin: 0 0 var(--s-5); max-width: 60ch; }
+.label-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.label-row label { margin: 0; }
+.security-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.reset-card { width: 100%; max-width: 440px; }
+.reset-form { width: 100%; text-align: left; }
 .fmt-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3); }
 .fmt-option { position: relative; display: grid; gap: 10px; align-content: start; padding: var(--s-4); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); cursor: pointer; transition: border-color var(--dur-2), box-shadow var(--dur-2); }
 .fmt-option:hover { border-color: var(--ink-400); }
