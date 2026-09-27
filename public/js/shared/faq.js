@@ -39,3 +39,13 @@ export const REAL_ESTATE_FAQ = [
   ["Can I use an AI headshot in my real estate marketing?", "Your headshot should be a current, accurate likeness of you, and that's what Keeper is built for: every headshot is made from your own recent photos and checked for likeness before you see it. Advertising rules vary by state and brokerage, so check your brokerage's marketing guidelines if you're unsure."],
   ["Can our whole brokerage or team match?", "Yes. Choose the same backdrop and dress code for every agent and your team page, signs and listings all look consistent. The Executive package is 12 shoots for $49, about $4 an agent, and unused shoots are there for new agents when they join."],
 ];
+
+// /resume-headshots
+export const RESUME_FAQ = [
+  ["Should I put a photo on my résumé?", "It depends on where you're applying. In the US, UK, Canada, Ireland and Australia, résumés usually leave the photo off, and many employers prefer it that way. In much of continental Europe, including Germany, Austria, Switzerland, France and Spain, and in countries such as Japan and South Korea, a CV photo is common or expected. Always follow the job listing, and either way recruiters will look at your LinkedIn photo."],
+  ["What shape is a CV photo?", "CV photos are usually a head-and-shoulders portrait, taller than it is wide. Download the 3:4 portrait for your CV: it fits the photo box in most CV templates. For LinkedIn and job-site profiles, use the 1:1 square, which is framed for round profile photos."],
+  ["Can I use the same headshot on LinkedIn?", "Yes, and you should. Recruiters often check your LinkedIn profile after reading your application, so using the same photo on your CV and LinkedIn makes you easy to recognize. The 1:1 square is ready to upload with no cropping."],
+  ["Is it OK to use an AI headshot for job applications?", "Yes, as long as it looks like you. The people who interview you will compare it with the person they meet, so your headshot should be a current, accurate likeness. Every Keeper headshot is made from your own recent photos and checked for likeness before you see it."],
+  ["What should I wear?", "Dress for the job you're applying for, one step above the everyday dress code. A suit or blazer suits finance, law and management; a crisp shirt or smart-casual knit works for tech and creative roles. You can try up to four looks in one shoot."],
+  ["How quickly can I get it?", "In minutes. Your photo check takes seconds and a shoot usually develops in a few minutes, so you can have a new headshot before today's application deadline."],
+];

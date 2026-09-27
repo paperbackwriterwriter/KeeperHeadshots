@@ -1010,6 +1010,23 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
   .re-looks { gap: var(--s-3); }
 }
 
+/* Résumé headshots page (also uses the re-* styles above) */
+.cv-sheet { width: 100%; max-width: 420px; padding: clamp(16px, 3vw, 26px); background: #fff; border-radius: 6px; box-shadow: var(--shadow-3); transform: rotate(-2deg); display: grid; gap: 8px; }
+.cv-sheet > i, .cv-head i { display: block; height: 7px; border-radius: 4px; background: #e8e0d0; }
+.cv-sheet > i.short { width: 60%; }
+.cv-head { display: grid; grid-template-columns: 30% 1fr; gap: 16px; align-items: center; padding-bottom: 14px; margin-bottom: 4px; border-bottom: 2px solid var(--ink-950); }
+.cv-head img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; object-position: top; display: block; border-radius: 2px; }
+.cv-head div { display: grid; gap: 6px; min-width: 0; }
+.cv-head b { font-family: var(--font-display); font-size: clamp(1.1rem, 2.4vw, 1.5rem); font-weight: 600; color: var(--ink-950); line-height: 1.1; }
+.cv-head span { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+.cv-head i:last-child { width: 70%; }
+.cv-label { margin: 8px 0 2px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-text); }
+.cv-where { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); }
+.cv-where .li-card { display: flex; flex-direction: column; }
+.cv-note { margin: var(--s-4) 0 0; }
+.inverse .li-card { color: var(--text); }
+@media (max-width: 900px) { .cv-where { grid-template-columns: 1fr; } }
+
 /* Email confirmation page */
 .verify-page { display: grid; place-items: center; min-height: 60vh; }
 .verify-card { max-width: 560px; text-align: center; display: grid; justify-items: center; gap: var(--s-4); }

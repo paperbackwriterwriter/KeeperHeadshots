@@ -12,6 +12,7 @@ import { renderVerify } from "./views/verify.js";
 import { renderLinkedIn } from "./views/linkedin.js";
 import { renderTeam } from "./views/team.js";
 import { renderRealEstate } from "./views/realestate.js";
+import { renderResume } from "./views/resume.js";
 import { initPixel, pixel } from "./pixel.js";
 
 const app = document.getElementById("app");
@@ -22,6 +23,7 @@ const routes = [
   { path: /^\/linkedin-headshots$/, view: renderLinkedIn, chrome: "marketing", title: "LinkedIn Headshots from Selfies, Ready to Upload | Keeper Headshots" },
   { path: /^\/team-headshots$/, view: renderTeam, chrome: "marketing", title: "Team Headshots for Companies, Remote Teams Included | Keeper Headshots" },
   { path: /^\/real-estate-headshots$/, view: renderRealEstate, chrome: "marketing", title: "Real Estate Headshots for Agents, Print & Profile Ready | Keeper Headshots" },
+  { path: /^\/resume-headshots$/, view: renderResume, chrome: "marketing", title: "Résumé & CV Headshots from Selfies, Ready in Minutes | Keeper Headshots" },
   { path: /^\/refunds$/, view: renderRefunds, chrome: "marketing", title: "Money-back guarantee · Keeper Headshots" },
   { path: /^\/privacy$/, view: renderPrivacy, chrome: "marketing", title: "Privacy policy · Keeper Headshots" },
   { path: /^\/terms$/, view: renderTerms, chrome: "marketing", title: "Terms of service · Keeper Headshots" },
