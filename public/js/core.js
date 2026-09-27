@@ -118,6 +118,8 @@ export function observeReveals(root = document) {
 
 // Media files are "<shootId>/<name>.jpg"; both parts are URL-safe by construction.
 export const media = (file, download = false) => (file ? `/media/${file.split("/").map(encodeURIComponent).join("/")}${download ? "?download=1" : ""}` : "");
+// 1:1 square version for LinkedIn / Microsoft Teams profile photos.
+export const squareMedia = (file) => (file ? `/media/${file.split("/").map(encodeURIComponent).join("/")}?square=1&download=1` : "");
 
 export function relTime(iso) {
   const d = (Date.now() - new Date(iso).getTime()) / 1000;

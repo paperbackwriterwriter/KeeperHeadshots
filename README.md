@@ -99,6 +99,8 @@ The brand is about replacing a photo studio, so the UI borrows a studio's own ar
 ## SEO
 
 - `lib/seo.js` builds every HTML response from `templates/index.html`: per-page title, description, canonical URL (always https://keeperheadshots.com), robots rule, and JSON-LD on the home page (Organization, WebSite, Service with the package prices, FAQPage from `public/js/shared/faq.js`). App pages (`/app/*`, `/signin`, `/verify`) are `noindex`; unknown paths return a real 404; trailing slashes 301 to the canonical path; `*.vercel.app` hosts get `X-Robots-Tag: noindex`.
+- Every headshot is also downloadable as a 1:1 square for LinkedIn / Microsoft Teams: `GET /media/<sid>/<file>?square=1` crops full width, anchored at the top (kept the whole head inside the profile circle on the example set; saliency cropping clipped foreheads), and caches it as `<file>-square.jpg` next to the original.
+- `/linkedin-headshots` is the first search landing page (`public/js/views/linkedin.js`, FAQ in `public/js/shared/faq.js`, JSON-LD in `lib/seo.js`).
 - Public pages ship prerendered content from `lib/prerendered.js` so crawlers that don't run JavaScript see the page. **After changing copy on a public page, run the server and `npm run prerender`, then commit `lib/prerendered.js`.** Adding a public page means adding it to `PAGES` in `lib/seo.js` and to `public/sitemap.xml`.
 
 ## Before launch

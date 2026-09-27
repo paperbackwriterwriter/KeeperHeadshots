@@ -87,7 +87,7 @@ export const PACKAGES = [
     name: "Starter",
     price: 29,
     shoots: 3,
-    features: ["3 shoots", "Up to 24 headshots", "4 looks per shoot", "AI photo check & grading"],
+    features: ["3 shoots", "Up to 24 headshots", "4 looks per shoot", "AI photo check & grading", "LinkedIn & Teams square crops"],
   },
   {
     id: "professional",
@@ -95,14 +95,14 @@ export const PACKAGES = [
     price: 39,
     shoots: 6,
     popular: true,
-    features: ["6 shoots", "Up to 48 headshots", "4 looks per shoot", "AI photo check & grading", "Our most popular package"],
+    features: ["6 shoots", "Up to 48 headshots", "4 looks per shoot", "AI photo check & grading", "LinkedIn & Teams square crops", "Our most popular package"],
   },
   {
     id: "executive",
     name: "Executive",
     price: 49,
     shoots: 12,
-    features: ["12 shoots", "Up to 96 headshots", "4 looks per shoot", "AI photo check & grading", "Best value per shoot", "Great for small teams"],
+    features: ["12 shoots", "Up to 96 headshots", "4 looks per shoot", "AI photo check & grading", "LinkedIn & Teams square crops", "Best value per shoot", "Great for small teams"],
   },
 ];
 

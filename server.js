@@ -1,9 +1,10 @@
 import "./lib/env.js";
 import express from "express";
+import sharp from "sharp";
 import cookieParser from "cookie-parser";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { users, shoots, id, readMedia, deleteMedia } from "./lib/store.js";
+import { users, shoots, id, readMedia, writeMedia, deleteMedia } from "./lib/store.js";
 import { backend } from "./lib/storage.js";
 import { hashPassword, verifyPassword, setSession, clearSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailVerified } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, SMTP_USER } from "./lib/mail.js";
@@ -439,16 +440,44 @@ app.post("/api/contact", async (req, res) => {
 
 /* ------------------------------- Media ------------------------------ */
 
+// Headshots are 3:4 head-and-shoulders portraits. The 1:1 square keeps the
+// full width and is anchored at the top, which keeps the whole head inside
+// the circle LinkedIn and Teams display (tested against the example set;
+// saliency-based cropping clipped foreheads). Never upscaled.
+async function squareCrop(buf) {
+  const img = sharp(buf);
+  const { width, height } = await img.metadata();
+  const side = Math.min(width, height);
+  return img
+    .extract({ left: Math.floor((width - side) / 2), top: 0, width: side, height: side })
+    .jpeg({ quality: 92, mozjpeg: true })
+    .toBuffer();
+}
+
 app.get("/media/:sid/:name", requireUser, async (req, res) => {
   const { sid, name } = req.params;
   if (!/^[\w-]+$/.test(sid) || !/^[\w-]+\.(jpg|png|svg)$/.test(name)) return res.status(404).end();
   const meta = await shoots.getMeta(sid);
   if (!meta || meta.userId !== req.user.id) return res.status(404).end();
+  const base = name.replace(/\.\w+$/, "");
+  if (req.query.square && !name.endsWith(".svg")) {
+    // 1:1 square for LinkedIn / Microsoft Teams profile photos (see squareCrop).
+    let sq = await readMedia(`${sid}/${base}-square.jpg`);
+    if (!sq) {
+      const src = await readMedia(`${sid}/${name}`);
+      if (!src) return res.status(404).end();
+      sq = await squareCrop(src);
+      await writeMedia(`${sid}/${base}-square.jpg`, sq);
+    }
+    res.set("Cache-Control", "private, max-age=31536000, immutable").type("image/jpeg");
+    if (req.query.download) res.attachment(`headshot-${base}-square.jpg`);
+    return res.send(sq);
+  }
   const buf = await readMedia(`${sid}/${name}`);
   if (!buf) return res.status(404).end();
   const type = name.endsWith(".svg") ? "image/svg+xml" : name.endsWith(".png") ? "image/png" : "image/jpeg";
   res.set("Cache-Control", "private, max-age=31536000, immutable").type(type);
-  if (req.query.download) res.attachment(`headshot-${name.replace(/\.\w+$/, "")}.${name.split(".").pop()}`);
+  if (req.query.download) res.attachment(`headshot-${base}.${name.split(".").pop()}`);
   res.send(buf);
 });
 

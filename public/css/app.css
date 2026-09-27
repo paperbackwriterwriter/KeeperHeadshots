@@ -876,6 +876,47 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
 .turnstile-slot:empty { display: none; }
 .turnstile-slot { display: flex; justify-content: center; min-height: 0; }
 
+/* LinkedIn headshots page */
+.li-deliverables { display: grid; grid-template-columns: 1.1fr 1fr; gap: clamp(16px, 3vw, 32px); align-items: center; }
+.li-portrait { transform: rotate(-2deg); }
+.li-portrait img { aspect-ratio: 3 / 4; }
+.li-square { display: grid; gap: 14px; justify-items: center; }
+.li-square-frame, .li-circle { width: 100%; max-width: 240px; aspect-ratio: 1; overflow: hidden; }
+.li-square-frame { border-radius: var(--r-xs); box-shadow: var(--shadow-print); border: 6px solid #fff; }
+.li-circle { max-width: 150px; border-radius: 50%; box-shadow: 0 0 0 4px var(--paper-100), 0 0 0 5px var(--border-strong), var(--shadow-2); }
+.li-square-frame img, .li-circle img, .li-look-sq img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+.li-square-cap { display: grid; text-align: center; font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+.li-square-cap b { color: var(--text); font-weight: 500; }
+.li-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-4); }
+.li-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--s-6); display: grid; gap: var(--s-3); align-content: start; }
+.li-card p { color: var(--text-muted); margin: 0; }
+.li-ic { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--ink-950); color: #d2a85c; }
+.li-ic svg { width: 22px; height: 22px; }
+.li-looks { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-5); }
+.li-look { margin: 0; display: grid; gap: 14px; }
+.li-look-sq { aspect-ratio: 1; border-radius: 50%; overflow: hidden; max-width: 260px; width: 100%; justify-self: center; box-shadow: 0 0 0 5px rgba(245, 241, 234, 0.12); }
+.li-look figcaption { display: grid; gap: 2px; text-align: center; }
+.li-look figcaption span { color: var(--text-inverse-muted); font-size: var(--fs-sm); }
+.li-guide { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: var(--s-8); align-items: start; }
+.li-tips { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-4); }
+.li-tips li { display: grid; grid-template-columns: 44px 1fr; gap: var(--s-3); padding-bottom: var(--s-4); border-bottom: 1px solid var(--border); }
+.li-tips li:last-child { border-bottom: 0; }
+.li-tips b { display: block; }
+.li-tips span:not(.li-no) { color: var(--text-muted); font-size: var(--fs-sm); }
+.li-no { font-family: var(--font-mono); color: var(--accent-text); padding-top: 2px; }
+.li-howto { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-xl); padding: clamp(24px, 4vw, 48px); display: grid; grid-template-columns: 0.8fr 1.2fr; gap: var(--s-7); }
+.li-howto-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-6); }
+.li-howto ol { margin: 12px 0 0; padding-left: 20px; display: grid; gap: 8px; color: var(--text-muted); }
+@media (max-width: 900px) {
+  .li-cards, .li-looks { grid-template-columns: 1fr; }
+  .li-guide, .li-howto, .li-howto-cols { grid-template-columns: 1fr; }
+  .li-looks { max-width: 320px; margin: 0 auto; }
+}
+@media (max-width: 560px) {
+  .li-deliverables { grid-template-columns: 1fr 1fr; gap: 14px; }
+  .li-circle { max-width: 110px; }
+}
+
 /* Email confirmation page */
 .verify-page { display: grid; place-items: center; min-height: 60vh; }
 .verify-card { max-width: 560px; text-align: center; display: grid; justify-items: center; gap: var(--s-4); }

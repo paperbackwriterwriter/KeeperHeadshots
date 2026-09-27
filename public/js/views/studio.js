@@ -1,7 +1,7 @@
 // The shoot flow. One page, driven by the shoot's server-side status:
 //   (new) upload -> draft/checking -> checked (photo check + looks) -> generating/reviewing -> done (proofs)
 
-import { $, $$, html, raw, icon, api, state, toast, media, busy, spinner, greaseCircle, silhouette, esc, reduceMotion, loadSession } from "../core.js";
+import { $, $$, html, raw, icon, api, state, toast, media, squareMedia, busy, spinner, greaseCircle, silhouette, esc, reduceMotion, loadSession } from "../core.js";
 import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, lookFor } from "../shared/catalog.js";
 import { portraitDataURL } from "../shared/portrait.js";
 import { aiBanner, planBanner } from "./dashboard.js";
@@ -622,9 +622,11 @@ export async function renderStudio(ctx, id) {
             : ""}
           <div style="display:flex;gap:10px;flex-wrap:wrap">
             ${best ? html`<a class="btn btn-flash btn-lg" href="${media(best.file, true)}" download>${icon("download")} Download ${isMine ? "your pick" : "best pick"}</a>` : ""}
-            <button class="btn btn-ghost btn-lg" id="dlAll" aria-label="Download all ${plural(done.length, "headshot")}">${icon("download")} All ${done.length}</button>
+            ${best ? html`<a class="btn btn-ghost btn-lg" href="${squareMedia(best.file)}" download>${icon("focus")} Square for LinkedIn &amp; Teams</a>` : ""}
+            <button class="btn btn-ghost btn-lg" id="dlAll" aria-label="Download all ${plural(done.length, "headshot")}, as portraits and squares">${icon("download")} All ${done.length}</button>
             <a class="btn btn-ghost btn-lg" href="#upgrade">${icon("sparkles")} More options</a>
           </div>
+          <p class="small muted" style="margin-top:14px;max-width:60ch">Every headshot is ready to use as it is: a full-resolution 3:4 portrait, plus a 1:1 square framed for LinkedIn and Microsoft Teams profile photos. No cropping needed.</p>
         </div>
       </section>
 
@@ -709,7 +711,8 @@ export async function renderStudio(ctx, id) {
               <div class="bars">${[["Likeness", g.likeness], ["Polish", g.polish], ["Lighting", g.lighting]].map(([k, v]) => html`<div class="bar-row"><span>${k}</span><div class="meter-track"><div class="meter-fill" style="--v:${v};--mcol:${meterColor(v)}"></div></div><b>${v}</b></div>`)}</div>
               <p style="color:#a9b1bd">${g.note}</p><p class="small"><b>Best for:</b> ${g.best_for}</p>`
             : html`<p style="color:#a9b1bd">Not graded yet.</p>`}
-          <a class="btn btn-flash" href="${media(t.file, true)}" download>${icon("download")} Download full resolution</a>
+          <a class="btn btn-flash" href="${media(t.file, true)}" download>${icon("download")} Download portrait (3:4)</a>
+          <a class="btn btn-ghost-inverse" href="${squareMedia(t.file)}" download>${icon("focus")} Square 1:1 for LinkedIn &amp; Teams</a>
           ${s.sample ? "" : t.id === best?.id
             ? html`<span class="chip" style="align-self:flex-start">${icon("crown")} ${isMine ? "Your pick" : "Best pick"}</span>`
             : html`<button class="btn btn-ghost-inverse" data-pick="${t.id}">${icon("crown")} Make this my pick</button>`}
@@ -760,9 +763,10 @@ export async function renderStudio(ctx, id) {
 
     $("#dlAll")?.addEventListener("click", async (e) => {
       const restore = busy(e.currentTarget, "Downloading…");
-      for (const t of ordered) {
+      // Each headshot as the full portrait and the 1:1 square.
+      for (const href of ordered.flatMap((t) => [media(t.file, true), squareMedia(t.file)])) {
         const a = document.createElement("a");
-        a.href = media(t.file, true);
+        a.href = href;
         a.download = "";
         document.body.appendChild(a);
         a.click();
@@ -770,7 +774,7 @@ export async function renderStudio(ctx, id) {
         await new Promise((r) => setTimeout(r, 350));
       }
       restore();
-      toast(`${plural(ordered.length, "headshot")} downloaded.`, "success");
+      toast(`${plural(ordered.length, "headshot")} downloaded, each as a portrait and a 1:1 square.`, "success");
     });
     $$("#regrade, #regradeAll").forEach((el) => el.addEventListener("click", async (e) => {
       const restore = busy(e.currentTarget, "Grading…");
