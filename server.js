@@ -2,13 +2,13 @@ import "./lib/env.js";
 import express from "express";
 import cookieParser from "cookie-parser";
 import path from "node:path";
-import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { users, shoots, id, readMedia, deleteMedia } from "./lib/store.js";
 import { backend } from "./lib/storage.js";
 import { hashPassword, verifyPassword, setSession, clearSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailVerified } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, SMTP_USER } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
+import { pageFor, isCanonicalHost } from "./lib/seo.js";
 import { aiStatus, AIError } from "./lib/ai.js";
 import { ingestSelfie, runCheck, advance, startGeneration, retryFailed, startReview } from "./lib/pipeline.js";
 import { lookFor, MAX_LOOKS, MAX_SELFIES } from "./public/js/shared/catalog.js";
@@ -21,7 +21,6 @@ import crypto from "node:crypto";
 import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook } from "./lib/billing.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const INDEX_HTML = fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf8");
 
 const app = express();
 app.disable("x-powered-by");
@@ -494,7 +493,16 @@ app.use(express.static(path.join(__dirname, "public"), { extensions: ["html"], m
 app.use("/api", (req, res) => res.status(404).json({ error: "Not found" }));
 app.use("/media", (req, res) => res.status(404).end());
 // SPA fallback for client routes.
-app.get(/.*/, (req, res) => res.type("html").send(INDEX_HTML));
+// Every other GET is the single-page app. lib/seo.js gives each path its own
+// title, description, canonical URL and robots rule (plus prerendered content
+// for public pages), and unknown paths a real 404 status.
+app.get(/.*/, (req, res) => {
+  const clean = req.path.length > 1 ? req.path.replace(/\/+$/, "") : "/";
+  if (clean !== req.path) return res.redirect(301, clean + req.url.slice(req.path.length));
+  const { status, html } = pageFor(clean);
+  if (!isCanonicalHost(req.get("host"))) res.set("X-Robots-Tag", "noindex");
+  res.status(status).type("html").send(html);
+});
 
 app.use((err, req, res, next) => {
   if (err instanceof PlanError) return res.status(err.status).json({ error: err.message, code: err.code });

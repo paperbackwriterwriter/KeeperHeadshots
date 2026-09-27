@@ -15,7 +15,7 @@ const app = document.getElementById("app");
 let cleanup = null;
 
 const routes = [
-  { path: /^\/$/, view: renderLanding, chrome: "marketing", title: "Keeper Headshots — Professional headshots, without the photo shoot" },
+  { path: /^\/$/, view: renderLanding, chrome: "marketing", title: "Professional AI Headshots from Selfies | Keeper Headshots" },
   { path: /^\/refunds$/, view: renderRefunds, chrome: "marketing", title: "Money-back guarantee · Keeper Headshots" },
   { path: /^\/privacy$/, view: renderPrivacy, chrome: "marketing", title: "Privacy policy · Keeper Headshots" },
   { path: /^\/terms$/, view: renderTerms, chrome: "marketing", title: "Terms of service · Keeper Headshots" },
@@ -92,6 +92,10 @@ function focusHeading() {
 async function render() {
   cleanup?.();
   cleanup = null;
+  // On the first load, public pages arrive with prerendered content (lib/seo.js).
+  // Swap in the live view without replaying the entrance animations.
+  const hydrating = firstRender && app.childElementCount > 0;
+  if (hydrating) document.documentElement.classList.add("hydrating");
   const path = location.pathname.replace(/\/+$/, "") || "/";
   let match;
   const route = routes.find((r) => (match = path.match(r.path)));
@@ -115,6 +119,11 @@ async function render() {
     view.innerHTML = html`<main id="main" class="container app-main"><div class="banner banner-danger">${icon("circle-alert")}<div><b>This page failed to load.</b>${err.message}</div><button class="btn btn-sm btn-ink" onclick="location.reload()">Reload</button></div></main>`.v;
   }
   wireChrome();
+  if (hydrating) {
+    // Content already on screen stays visible; the rest still reveals on scroll.
+    app.querySelectorAll("[data-reveal]").forEach((el) => el.getBoundingClientRect().top < innerHeight && el.classList.add("in"));
+    requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove("hydrating")));
+  }
   observeReveals(app);
   focusHeading();
   pixel("PageView");

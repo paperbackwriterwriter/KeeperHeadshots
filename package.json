@@ -1,7 +1,7 @@
 {
   "name": "keeperheadshots",
   "version": "1.0.0",
-  "description": "Keeper Headshots — professional AI headshots from selfies",
+  "description": "Keeper Headshots \u2014 professional AI headshots from selfies",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,7 +9,8 @@
     "seed": "node scripts/seed.js",
     "mock-ai": "node scripts/dev/mock-ai.js",
     "screenshots": "node scripts/dev/screenshots.js shots",
-    "icons": "node scripts/build-icons.js"
+    "icons": "node scripts/build-icons.js",
+    "prerender": "node scripts/prerender.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",

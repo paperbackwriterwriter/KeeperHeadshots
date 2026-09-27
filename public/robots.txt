@@ -3,5 +3,6 @@ Allow: /
 Disallow: /app
 Disallow: /api/
 Disallow: /media/
+Disallow: /verify
 
 Sitemap: https://keeperheadshots.com/sitemap.xml
