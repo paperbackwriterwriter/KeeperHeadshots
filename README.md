@@ -102,6 +102,7 @@ The brand is about replacing a photo studio, so the UI borrows a studio's own ar
 - The money-back guarantee's terms live at `/refunds` (`public/js/views/refunds.js`). Refunds are issued in the Stripe dashboard; the next dashboard visit by that customer removes the refunded package's credits automatically (`lib/billing.js`).
 - `hello@keeperheadshots.com` is live (ImprovMX forwarding; Gmail "Send mail as").
 - Privacy Policy (`/privacy`) and Terms (`/terms`) live in `public/js/views/legal.js`. Update them whenever data handling changes (new provider, new tracking, retention). They are plain-English drafts; have a lawyer review them.
+- Customers can delete their account at `/app/account` (`POST /api/account/delete`, password required). It removes the user, every shoot and all media; only a hashed-email record of free-shoot usage (`users/deleted/`) and payment records (`payments/`) remain, as the privacy policy states.
 - Meta tracking honours Global Privacy Control: no Pixel when `navigator.globalPrivacyControl` is set, and no Conversions API events for requests with `Sec-GPC: 1` (purchases carry the flag through Stripe checkout metadata).
 
 ## Project layout

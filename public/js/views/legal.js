@@ -29,7 +29,7 @@ export function renderPrivacy({ root }) {
     title: "Your privacy",
     lede: "What we collect, why we collect it, who helps us run the service, and the choices you have.",
     callout:
-      "We use your photos only to make your headshots. We don't sell them, we don't use them to train AI, and we don't use them in our marketing. You can delete a shoot at any time, and we'll delete your whole account if you ask.",
+      "We use your photos only to make your headshots. We don't sell them, we don't use them to train AI, and we don't use them in our marketing. You can delete a shoot, or your whole account, at any time.",
     body: html`
       <p>This policy covers keeperheadshots.com and the Keeper Headshots studio ("Keeper Headshots", "we", "us"). Keeper Headshots is based in Iowa, USA. If you have a question about your data, email ${mail}.</p>
 
@@ -87,7 +87,8 @@ export function renderPrivacy({ root }) {
       <h2 class="h-3">How long we keep it</h2>
       <ul>
         <li><b>Photos and headshots:</b> until you delete the shoot, or until your account is deleted. Deleting a shoot removes its selfies and headshots from our storage straight away.</li>
-        <li><b>Account details:</b> while your account is open. When you ask us to delete your account, we delete it and all your shoots within 30 days.</li>
+        <li><b>Account details:</b> while your account is open. You can delete your account at any time on your <a class="link" href="/app/account" data-link>Account page</a>. That removes your account and all your shoots, selfies and headshots straight away. If you email us instead, we'll do it within 30 days.</li>
+        <li><b>Free-shoot record:</b> if you used your free shoot, we keep a scrambled (hashed) copy of your email address after your account is deleted, with a note that the free shoot was used. That stops the free shoot being claimed twice. It doesn't include your name, photos or anything else.</li>
         <li><b>Purchase records:</b> as long as tax and accounting rules require, usually up to 7 years.</li>
         <li><b>Messages:</b> as long as we need them to help you and keep a record of the conversation.</li>
       </ul>
@@ -100,7 +101,7 @@ export function renderPrivacy({ root }) {
         <li>delete it, including your whole account;</li>
         <li>stop using it for advertising.</li>
       </ul>
-      <p>You can download your headshots and delete shoots yourself in the studio. For anything else, email ${mail} from the address on your account, so we know the request is really from you. We'll reply within 30 days. If we can't do what you asked, we'll explain why, and you can reply to ask us to reconsider. We'll never treat you differently for using these rights.</p>
+      <p>You can download your headshots, delete shoots and delete your account yourself in the studio. For anything else, email ${mail} from the address on your account, so we know the request is really from you. We'll reply within 30 days. If we can't do what you asked, we'll explain why, and you can reply to ask us to reconsider. We'll never treat you differently for using these rights.</p>
 
       <h2 class="h-3">Security</h2>
       <p>The site uses encrypted connections (HTTPS) everywhere. Photos are kept in private storage that only your account can reach, passwords are hashed, and sign-in cookies are signed so they can't be forged. No system is perfectly secure, but we work to protect your information and will tell you if a breach affects you.</p>
@@ -184,7 +185,7 @@ export function renderTerms({ root }) {
       <p>If someone makes a claim against us because of photos you uploaded or how you used the service in breach of these terms, you agree to cover our reasonable costs of dealing with it.</p>
 
       <h2 class="h-3">13. Ending your use</h2>
-      <p>You can stop using Keeper Headshots at any time, and ask us to delete your account at ${mail}. We may suspend or close your account if you break these terms, or stop offering the service with reasonable notice. If we stop the service entirely, we'll refund shoots you've paid for and haven't used. Sections 5, 9, 10, 11, 12 and 15 continue to apply after your account closes.</p>
+      <p>You can stop using Keeper Headshots at any time and delete your account on your <a class="link" href="/app/account" data-link>Account page</a>, or ask us at ${mail}. We may suspend or close your account if you break these terms, or stop offering the service with reasonable notice. If we stop the service entirely, we'll refund shoots you've paid for and haven't used. Sections 5, 9, 10, 11, 12 and 15 continue to apply after your account closes.</p>
 
       <h2 class="h-3">14. Changes</h2>
       <p>We may update the service and these terms. If we make an important change to the terms, we'll update the date at the top and email you before it takes effect. If you keep using the service after that, the new terms apply.</p>

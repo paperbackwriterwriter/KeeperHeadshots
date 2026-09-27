@@ -7,6 +7,7 @@ import { renderBuy } from "./views/buy.js";
 import { renderContact } from "./views/contact.js";
 import { renderRefunds } from "./views/refunds.js";
 import { renderPrivacy, renderTerms } from "./views/legal.js";
+import { renderAccount } from "./views/account.js";
 import { initPixel, pixel } from "./pixel.js";
 
 const app = document.getElementById("app");
@@ -21,6 +22,7 @@ const routes = [
   { path: /^\/signin$/, view: (ctx) => renderAuth(ctx, "signin"), chrome: "none", guestOnly: true, title: "Sign in · Keeper Headshots" },
   { path: /^\/signup$/, view: (ctx) => renderAuth(ctx, "signup"), chrome: "none", guestOnly: true, title: "Create your account · Keeper Headshots" },
   { path: /^\/app$/, view: renderDashboard, chrome: "app", auth: true, title: "Your shoots · Keeper Headshots" },
+  { path: /^\/app\/account$/, view: renderAccount, chrome: "app", auth: true, title: "Your account · Keeper Headshots" },
   { path: /^\/app\/buy\/([\w-]+)$/, view: (ctx, id) => renderBuy(ctx, id), chrome: "app", auth: true, title: "Checkout · Keeper Headshots" },
   { path: /^\/app\/new$/, view: (ctx) => renderStudio(ctx, null), chrome: "app", auth: true, title: "New shoot · Keeper Headshots" },
   { path: /^\/app\/shoot\/([\w-]+)$/, view: (ctx, id) => renderStudio(ctx, id), chrome: "app", auth: true, title: "Shoot · Keeper Headshots" },
@@ -64,10 +66,10 @@ function appNav() {
     <div class="container nav-inner">
       <a class="logo" href="/app" data-link aria-label="Keeper Headshots — your shoots">${logoMark()}${wordmark()}</a>
       <nav class="nav-links" aria-label="App">
-        <a href="/app" data-link>Shoots</a><a href="/app/new" data-link>New shoot</a><a href="/#pricing">Pricing</a><a href="/contact" data-link>Contact</a>
+        <a href="/app" data-link>Shoots</a><a href="/app/new" data-link>New shoot</a><a href="/#pricing">Pricing</a><a href="/contact" data-link>Contact</a><a href="/app/account" data-link>Account</a>
       </nav>
       <div class="nav-actions">
-        <span class="user-chip hide-m" title="${u.email}"><span class="avatar" aria-hidden="true">${initials(u.name)}</span>${u.name.split(" ")[0]}</span>
+        <a class="user-chip" href="/app/account" data-link title="Your account (${u.email})" aria-label="Your account"><span class="avatar" aria-hidden="true">${initials(u.name)}</span><span class="hide-m">${u.name.split(" ")[0]}</span></a>
         <button class="btn btn-ghost btn-sm" id="signOut" aria-label="Sign out">${icon("log-out")}<span class="hide-m">Sign out</span></button>
       </div>
     </div>

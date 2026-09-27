@@ -305,6 +305,24 @@ app.delete("/api/shoots/:id", requireUser, async (req, res) => {
   res.json({ ok: true });
 });
 
+/* ------------------------------ Account ----------------------------- */
+
+app.post("/api/account/delete", requireUser, async (req, res) => {
+  if (req.user.demo) return res.status(403).json({ error: DEMO_READ_ONLY, code: "demo_read_only" });
+  const password = String(req.body?.password || "");
+  if (!password || !verifyPassword(password, req.user.password)) {
+    return res.status(401).json({ error: "That password isn't right.", fields: { password: "That password isn't right." } });
+  }
+  const list = await shoots.forUser(req.user.id);
+  if (list.some((s) => LIVE.includes(s.status))) {
+    return res.status(409).json({ error: "One of your shoots is still developing. Wait for it to finish, then delete your account." });
+  }
+  await users.remove(req.user);
+  clearSession(res);
+  console.log("[account] deleted", req.user.id);
+  res.json({ ok: true });
+});
+
 /* ------------------------------ Billing ----------------------------- */
 
 function requireBilling(req, res) {

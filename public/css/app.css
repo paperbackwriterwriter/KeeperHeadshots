@@ -249,7 +249,7 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
   .nav-sheet .btn { margin-top: var(--s-4); }
 }
 
-.user-chip { display: inline-flex; align-items: center; gap: 10px; padding: 4px 6px 4px 4px; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--surface); font-size: var(--fs-sm); font-weight: 600; }
+.user-chip { text-decoration: none; color: var(--text); display: inline-flex; align-items: center; gap: 10px; padding: 4px 6px 4px 4px; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--surface); font-size: var(--fs-sm); font-weight: 600; }
 .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--ink-950); color: var(--paper-100); display: grid; place-items: center; font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.02em; }
 
 /* ---------- 6. Reveal motion ---------- */
@@ -870,6 +870,28 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
 .policy-callout > svg { width: 24px; height: 24px; flex: none; color: var(--accent-text); margin-top: 2px; }
 .policy-callout div { display: grid; gap: 4px; }
 .policy-callout span { color: var(--text-muted); }
+
+/* Account page */
+.account-page { max-width: 760px; }
+.account-card { display: flex; gap: var(--s-5); align-items: flex-start; }
+.avatar-lg { width: 56px; height: 56px; font-size: var(--fs-md); flex: none; }
+.account-facts { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4) var(--s-5); flex: 1; min-width: 0; }
+.account-facts dt { font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-subtle); }
+.account-facts dd { margin: 4px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.danger-zone { margin-top: var(--s-8); padding-top: var(--s-6); border-top: 1px solid var(--border); }
+.danger-zone h2 { margin: 0 0 var(--s-3); }
+.danger-zone > p { color: var(--text-muted); max-width: 60ch; margin: 0 0 var(--s-5); }
+.btn-danger { --btn-bg: var(--danger); --btn-fg: #fff; }
+.btn-danger:hover:not(:disabled) { --btn-bg: #951f15; }
+.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+.delete-form { display: grid; gap: var(--s-4); max-width: 440px; padding: var(--s-5); border: 1px solid #f0bbb4; border-radius: var(--r-lg); background: var(--danger-soft); }
+.delete-form .check { display: flex; gap: 10px; align-items: flex-start; font-size: var(--fs-sm); color: #7d1a11; cursor: pointer; }
+.delete-form .check input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--danger); flex: none; }
+.delete-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+@media (max-width: 560px) {
+  .account-card { flex-direction: column; }
+  .account-facts { grid-template-columns: 1fr; }
+}
 
 /* ---------- Contact ---------- */
 .contact-page { padding-top: var(--s-8); }
