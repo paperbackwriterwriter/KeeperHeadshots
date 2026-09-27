@@ -1031,6 +1031,7 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
 .md-accepting { display: inline-flex; align-items: center; gap: 6px; font-style: normal; font-size: 12px; font-weight: 600; color: #2f6b4f; margin: 2px 0 4px; }
 .md-accepting svg { width: 14px; height: 14px; }
 .inverse .re-look figcaption span { color: var(--text-inverse-muted); }
+.lw-practice { color: var(--accent-text); }
 
 /* Email confirmation page */
 .verify-page { display: grid; place-items: center; min-height: 60vh; }

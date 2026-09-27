@@ -59,3 +59,13 @@ export const MEDICAL_FAQ = [
   ["Can our whole practice match?", "Yes. Choose the same backdrop and outfit for every clinician and your website's provider pages look consistent. The Executive package is 12 shoots for $49, about $4 a person, and unused shoots are there for new providers when they join."],
   ["How quickly will I get it?", "In minutes. Your photo check takes seconds and a shoot usually develops in a few minutes, so you can update your profile between patients."],
 ];
+
+// /lawyer-headshots
+export const LEGAL_FAQ = [
+  ["What should a lawyer wear for a headshot?", "A dark, well-fitted suit is the standard, with a tie if you'd wear one to court or a client meeting. A blazer and open-collar shirt suits a more modern or transactional practice. Choose Suit & Tie, Navy Suit or Charcoal Blazer as your outfit, and try up to four looks in one shoot."],
+  ["Which background works best for attorneys?", "Library, with softly blurred bookshelves, is the classic law-firm look. Studio Gray is formal and timeless, and Glass Office suits modern and corporate firms. Pick one backdrop for the whole firm so every attorney bio matches."],
+  ["Can I use an AI headshot in attorney advertising?", "Your headshot should be an accurate, current likeness of you, and every Keeper headshot is made from your own recent photos and checked for likeness. Lawyer advertising is regulated by each state bar, so check your state's advertising rules and your firm's policy if you're unsure."],
+  ["Where can I use my headshot?", "On your firm's attorney bio page, legal directories and review sites, LinkedIn, your Google Business Profile, CLE and speaking programs, articles and press releases. Download the 3:4 portrait for bios and print, the 1:1 square for round profile photos, or both."],
+  ["Can our whole firm match?", "Yes. Choose the same backdrop and outfit for every attorney and your website's people pages look consistent, including new associates and laterals who join later. The Executive package is 12 shoots for $49, about $4 a person."],
+  ["How quickly will I get it?", "In minutes. Your photo check takes seconds and a shoot usually develops in a few minutes, so there's no photographer to schedule around court dates."],
+];
