@@ -145,7 +145,7 @@ export function renderLanding({ root }) {
         <p class="lede" data-reveal style="--i:2">Corporate, creative or somewhere in between. Each backdrop is lit like a real set, and each outfit is tailored to fit.</p>
       </div>
       <div class="marquee" data-reveal style="--i:3" role="region" aria-label="Example looks" tabindex="0">
-        <div class="marquee-track">
+        <div class="marquee-track" style="--n:${STRIP.length}">
           ${[0, 1].map(
             (copy) => html`<ul class="marquee-group" ${copy ? raw('aria-hidden="true"') : ""}>
               ${STRIP.map((s) => {

@@ -370,30 +370,33 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .chip svg { width: 14px; height: 14px; }
 
 /* Style strip */
-/* An endless carousel: the list is rendered twice and the track slides left
-   by exactly one copy (each copy ends in one gap), so the loop has no seam. */
+/* An endless carousel: the list is rendered twice and every card slides left
+   by exactly one copy's width (--n cards, each followed by one gap), so the
+   loop has no seam. The cards move individually rather than the whole track:
+   the track is thousands of pixels wide, and iPhone Safari won't draw an
+   animated layer that large, which left the row blank. */
 /* The soft edges are overlays, not a CSS mask: Safari can skip painting a
    masked box whose content is animating, leaving the whole row blank. */
-.marquee { position: relative; overflow: hidden; padding: 4px 0 var(--s-5); }
+.marquee { --card: 240px; --gap: var(--s-4); position: relative; overflow: hidden; padding: 4px 0 var(--s-5); }
 .marquee::before, .marquee::after { content: ""; position: absolute; top: 0; bottom: 0; z-index: 1; width: max(3%, 16px); pointer-events: none; }
 .marquee::before { left: 0; background: linear-gradient(90deg, var(--bg), transparent); }
 .marquee::after { right: 0; background: linear-gradient(270deg, var(--bg), transparent); }
 .marquee:focus-visible { outline: none; box-shadow: var(--ring); }
-.marquee-track { display: flex; width: max-content; animation: marquee 75s linear infinite; }
-.marquee-group { display: flex; gap: var(--s-4); padding: 0 var(--s-4) 0 0; margin: 0; list-style: none; }
-.marquee-group > li { flex: 0 0 240px; display: flex; }
+.marquee-track { --loop: calc(var(--n, 11) * (var(--card) + var(--gap))); display: flex; width: max-content; }
+.marquee-group { display: flex; gap: var(--gap); padding: 0 var(--gap) 0 0; margin: 0; list-style: none; }
+.marquee-group > li { flex: 0 0 var(--card); display: flex; animation: marquee 75s linear infinite; }
 /* Equal-height cards even when a long caption wraps on a narrow card. */
 .strip-card { margin: 0; flex: 1; display: flex; flex-direction: column; }
 .strip-card .print-cap { flex: 1; align-items: flex-start; }
 .strip-card .print-cap span { text-align: right; }
 .strip-card img { height: auto; }
-@keyframes marquee { to { transform: translateX(-50%); } }
-@media (max-width: 640px) { .marquee-group > li { flex-basis: 200px; } .marquee-track { animation-duration: 60s; } }
+@keyframes marquee { to { transform: translateX(calc(-1 * var(--loop))); } }
+@media (max-width: 640px) { .marquee { --card: 200px; } .marquee-group > li { animation-duration: 60s; } }
 /* Reduced motion: a still row you can scroll yourself. */
 @media (prefers-reduced-motion: reduce) {
   .marquee { overflow-x: auto; padding-inline: var(--gutter); scrollbar-width: thin; }
   .marquee::before, .marquee::after { display: none; }
-  .marquee-track { animation: none; }
+  .marquee-group > li { animation: none; }
   .marquee-group[aria-hidden="true"] { display: none; }
 }
 .print { position: relative; background: var(--photo-paper); padding: 8px 8px 0; border-radius: var(--r-xs); box-shadow: var(--shadow-print); }
