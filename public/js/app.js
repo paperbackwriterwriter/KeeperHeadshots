@@ -10,6 +10,7 @@ import { renderPrivacy, renderTerms } from "./views/legal.js";
 import { renderAccount } from "./views/account.js";
 import { renderVerify } from "./views/verify.js";
 import { renderLinkedIn } from "./views/linkedin.js";
+import { renderTeam } from "./views/team.js";
 import { initPixel, pixel } from "./pixel.js";
 
 const app = document.getElementById("app");
@@ -18,6 +19,7 @@ let cleanup = null;
 const routes = [
   { path: /^\/$/, view: renderLanding, chrome: "marketing", title: "Professional AI Headshots from Selfies | Keeper Headshots" },
   { path: /^\/linkedin-headshots$/, view: renderLinkedIn, chrome: "marketing", title: "LinkedIn Headshots from Selfies, Ready to Upload | Keeper Headshots" },
+  { path: /^\/team-headshots$/, view: renderTeam, chrome: "marketing", title: "Team Headshots for Companies, Remote Teams Included | Keeper Headshots" },
   { path: /^\/refunds$/, view: renderRefunds, chrome: "marketing", title: "Money-back guarantee · Keeper Headshots" },
   { path: /^\/privacy$/, view: renderPrivacy, chrome: "marketing", title: "Privacy policy · Keeper Headshots" },
   { path: /^\/terms$/, view: renderTerms, chrome: "marketing", title: "Terms of service · Keeper Headshots" },
@@ -45,7 +47,7 @@ function marketingNav() {
     <div class="container nav-inner">
       <a class="logo" href="/" data-link aria-label="Keeper Headshots home">${logoMark()}${wordmark()}</a>
       <nav class="nav-links" aria-label="Primary">
-        <a href="/#how">How it works</a><a href="/#styles">Styles</a><a href="/#pricing">Pricing</a><a href="/#teams">Teams</a><a href="/#faq">FAQ</a>
+        <a href="/#how">How it works</a><a href="/#styles">Styles</a><a href="/#pricing">Pricing</a><a href="/team-headshots" data-link>Teams</a><a href="/#faq">FAQ</a>
       </nav>
       <div class="nav-actions">
         ${signedIn
@@ -56,7 +58,7 @@ function marketingNav() {
       </div>
     </div>
     <div class="nav-sheet" id="navSheet">
-      <a href="/#how">How it works</a><a href="/#styles">Styles</a><a href="/#pricing">Pricing</a><a href="/#teams">Teams</a><a href="/#faq">FAQ</a><a href="/contact" data-link>Contact</a>
+      <a href="/#how">How it works</a><a href="/#styles">Styles</a><a href="/#pricing">Pricing</a><a href="/team-headshots" data-link>Teams</a><a href="/#faq">FAQ</a><a href="/contact" data-link>Contact</a>
       ${signedIn ? html`<a href="/app" data-link>Your shoots</a>` : html`<a href="/signin" data-link>Sign in</a>`}
       <a class="btn btn-flash btn-block" href="${signedIn ? "/app/new" : "/signup"}" data-link>Get your headshots ${icon("arrow-right")}</a>
     </div>

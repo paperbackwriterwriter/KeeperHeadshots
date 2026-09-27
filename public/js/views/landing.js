@@ -222,7 +222,7 @@ export function renderLanding({ root }) {
             <span class="t-ic">${icon("users")}</span>
             <div><b class="h-4" style="display:block">Headshots for your whole team</b><span class="muted small">One shoot per person, with the same backdrops and wardrobe for everyone. Executive covers 12 people. Larger team? Contact us about volume pricing.</span></div>
           </div>
-          <a class="btn btn-ink" href="/contact?topic=team" data-link>Contact us ${icon("arrow-right")}</a>
+          <a class="btn btn-ink" href="/team-headshots" data-link>Team headshots ${icon("arrow-right")}</a>
         </div>
       </div>
     </section>
@@ -368,7 +368,7 @@ export function footer() {
           <a class="logo" href="/" data-link style="color:var(--text)">${logoMark()}${wordmark()}</a>
           <p style="margin-top:12px;max-width:34ch">Professional headshots from the photos you already have. Checked, developed and graded by AI.</p>
         </div>
-        <div><h4>Product</h4><ul><li><a href="/#how">How it works</a></li><li><a href="/linkedin-headshots" data-link>LinkedIn headshots</a></li><li><a href="/#styles">Styles</a></li><li><a href="/#pricing">Pricing</a></li><li><a href="/#teams">Teams</a></li></ul></div>
+        <div><h4>Product</h4><ul><li><a href="/#how">How it works</a></li><li><a href="/linkedin-headshots" data-link>LinkedIn headshots</a></li><li><a href="/#styles">Styles</a></li><li><a href="/#pricing">Pricing</a></li><li><a href="/team-headshots" data-link>Team headshots</a></li></ul></div>
         <div><h4>Account</h4><ul><li><a href="/signin" data-link>Sign in</a></li><li><a href="/signup" data-link>Create account</a></li><li><a href="/app" data-link>Your shoots</a></li></ul></div>
         <div><h4>Company</h4><ul><li><a href="/#faq">FAQ</a></li><li><a href="/contact" data-link>Contact us</a></li><li><a href="/refunds" data-link>Money-back guarantee</a></li><li><a href="/privacy" data-link>Privacy policy</a></li><li><a href="/terms" data-link>Terms of service</a></li></ul></div>
       </div>
