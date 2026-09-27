@@ -23,6 +23,8 @@ const lookName = (b, o) => {
 const scoreColor = (n) => (n >= 80 ? "#6fdca8" : n >= 60 ? "#f5b94a" : "#ff8a73");
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const gradeLabel = (g) => ({ keeper: "Keeper", solid: "Solid", retake: "Retake" })[g] || g;
+// Changes whenever a frame moves stage, so the contact sheet repaints it.
+const frameKey = (t) => [t.status, t.stage || "", t.attempt || ""].join("|");
 const meterColor = (v) => (v >= 8 ? "var(--success)" : v >= 6 ? "var(--warning)" : "var(--danger)");
 
 export async function renderStudio(ctx, id) {
@@ -448,10 +450,14 @@ export async function renderStudio(ctx, id) {
 
   function frameHTML(t, i) {
     const label = html`<span>${String(i + 1).padStart(2, "0")}</span><span>${lookFor(t.backdrop, t.outfit)?.backdrop.name}</span>`;
-    if (t.status === "done") return html`<div class="frame done" data-id="${t.id}" data-status="done"><img src="${media(t.file)}" alt="Headshot ${i + 1}: ${lookName(t.backdrop, t.outfit)}" /><div class="fcap">${label}</div></div>`;
-    if (t.status === "error") return html`<div class="frame error" data-id="${t.id}" data-status="error" title="${t.error}"><div>${icon("circle-alert")}<b>Frame ${i + 1} failed</b><div style="opacity:.8;margin-top:4px">${String(t.error || "").slice(0, 90)}</div></div></div>`;
-    return html`<div class="frame ${t.status}" data-id="${t.id}" data-status="${t.status}" aria-label="Frame ${i + 1} ${t.status === "rendering" ? "developing" : "queued"}">${silhouette()}
-      <span class="frame-state">${t.status === "rendering" ? html`<span class="badge badge-live">Developing</span>` : html`<span class="badge" style="background:rgba(245,241,234,.1);color:#a9b1bd">Queued</span>`}</span><div class="fcap">${label}</div></div>`;
+    if (t.status === "done") return html`<div class="frame done" data-id="${t.id}" data-status="${frameKey(t)}"><img src="${media(t.file)}" alt="Headshot ${i + 1}: ${lookName(t.backdrop, t.outfit)}" /><div class="fcap">${label}</div></div>`;
+    if (t.status === "error") {
+      const held = !!t.qa;
+      return html`<div class="frame error" data-id="${t.id}" data-status="${frameKey(t)}" title="${t.error}"><div>${icon(held ? "shield-check" : "circle-alert")}<b>Frame ${i + 1} ${held ? "held back" : "failed"}</b><div style="opacity:.8;margin-top:4px">${held ? "It didn't pass our quality check. Retry it for free." : String(t.error || "").slice(0, 90)}</div></div></div>`;
+    }
+    const stage = t.status !== "rendering" ? "Queued" : t.stage === "qa" ? "Quality check" : t.attempt > 1 ? `Retake ${t.attempt}` : "Developing";
+    return html`<div class="frame ${t.status}" data-id="${t.id}" data-status="${frameKey(t)}" aria-label="Frame ${i + 1}: ${stage.toLowerCase()}">${silhouette()}
+      <span class="frame-state">${t.status === "rendering" ? html`<span class="badge badge-live">${stage}</span>` : html`<span class="badge" style="background:rgba(245,241,234,.1);color:#a9b1bd">Queued</span>`}</span><div class="fcap">${label}</div></div>`;
   }
 
   function developCopy(s) {
@@ -460,7 +466,7 @@ export async function renderStudio(ctx, id) {
     const total = s.shots.length;
     if (s.status === "reviewing") return { title: "Your retoucher is grading the set", sub: `All ${plural(done, "headshot")} developed. Now scoring likeness, polish and lighting, and picking your best shot…`, pct: 96, done, total, failed };
     if (s.status === "error") return { title: "The shoot hit a snag", sub: s.error || "Some frames couldn't be developed.", pct: (done / total) * 100, done, total, failed };
-    return { title: done ? `${done} of ${total} developed` : "Developing your headshots", sub: "Each frame is rendered from your reference photos. Keep this page open while they develop; if you leave, the shoot picks up again when you come back.", pct: Math.max(4, ((done + failed) / total) * 92), done, total, failed };
+    return { title: done ? `${done} of ${total} developed` : "Developing your headshots", sub: "Each frame is rendered from your reference photos, then checked for likeness and polish before you see it. Anything that falls short is retaken automatically. Keep this page open while they develop; if you leave, the shoot picks up again when you come back.", pct: Math.max(4, ((done + failed) / total) * 92), done, total, failed };
   }
 
   function paintDevelop(s) {
@@ -513,7 +519,7 @@ export async function renderStudio(ctx, id) {
   function patchDevelop(s) {
     s.shots.forEach((t, i) => {
       const el = $(`#contact [data-id="${t.id}"]`);
-      if (el && el.dataset.status !== t.status) el.outerHTML = frameHTML(t, i).v;
+      if (el && el.dataset.status !== frameKey(t)) el.outerHTML = frameHTML(t, i).v;
     });
     const c = developCopy(s);
     $("#devTitle").textContent = c.title;

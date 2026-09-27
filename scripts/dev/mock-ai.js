@@ -62,6 +62,17 @@ function reviewResult(nShots) {
   };
 }
 
+// Quality gate: fails every third check (or every check with MOCK_QA_FAIL=all)
+// so the retake path gets exercised.
+let qaCalls = 0;
+function qaResult() {
+  qaCalls++;
+  const fail = process.env.MOCK_QA_FAIL === "all" || qaCalls % 3 === 1;
+  return fail
+    ? { likeness: 6, likeness_notes: "The jaw reads narrower than in the references.", professional: 7, issues: [{ kind: "likeness", severity: "blocking", detail: "Jaw narrower than in the references" }], pass: false, retake_direction: "Keep the jaw as wide as in the references." }
+    : { likeness: 9, likeness_notes: "Face shape, eyes and hairline match the references.", professional: 9, issues: [], pass: true, retake_direction: "" };
+}
+
 async function anthropic(req, res, body) {
   const system = typeof body.system === "string" ? body.system : JSON.stringify(body.system);
   const content = body.messages?.[0]?.content || [];
@@ -70,6 +81,7 @@ async function anthropic(req, res, body) {
   await sleep(DELAY);
   let out;
   if (system.includes("photo-intake")) out = checkResult(images);
+  else if (system.includes("final quality gate")) out = qaResult();
   else {
     const frames = content.filter((c) => c.type === "text" && /^Frame \d+/.test(c.text)).map((c) => Number(/^Frame (\d+)/.exec(c.text)[1]));
     out = reviewResult(frames.length);

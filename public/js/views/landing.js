@@ -123,7 +123,7 @@ export function renderLanding({ root }) {
             <span class="step-no">03</span>
             <div>
               <h3 class="display h-3">Get graded proofs</h3>
-              <p>Watch every frame develop live. Then our AI retoucher grades each headshot for likeness, polish and lighting, circles your best shot, and tells you where each one works best.</p>
+              <p>Watch every frame develop live. Each one is checked for likeness and polish before you see it, and anything that falls short is retaken automatically. Then our AI retoucher grades the set, circles your best shot, and tells you where each one works best.</p>
               <div class="step-meta"><span class="chip">${icon("badge-check")} Best-pick verdict</span><span class="chip">${icon("download")} Full-res downloads</span></div>
             </div>
           </li>

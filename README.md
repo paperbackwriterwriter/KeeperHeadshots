@@ -6,12 +6,13 @@ Upload a few selfies and get professional AI headshots back — checked, develop
 
 ## The core feature is real
 
-A shoot runs through three AI steps. None of them use hardcoded answers.
+A shoot runs through four AI steps. None of them use hardcoded answers.
 
 | Step | Model | What it does |
 | --- | --- | --- |
 | **Photo check** | Claude (`claude-opus-5`, vision + structured output) | Scores each selfie for lighting, sharpness, face visibility and expression, flags issues (sunglasses, filters, blur), decides which photos to keep as references, and returns an overall verdict: *ready*, *usable* or *retake*. |
 | **Develop** | Gemini image model (`gemini-3-pro-image`) | Renders each look (backdrop × outfit × pose take) from your kept reference photos, with a prompt built to preserve identity. Frames stream into the UI as they finish. |
+| **Quality gate** | Claude | Checks every rendered frame against the reference selfies before it is shown: likeness feature by feature, plus professional finish (anatomy, hands, clothing, background, equipment, text, crop). It passes only at likeness ≥ 8 and polish ≥ 8 with no blocking issues (enforced in code). A failing frame is re-rendered with the gate's specific directions, up to `QA_ATTEMPTS` (default 3) within a 240 s budget; a frame that never passes is held back as a free retry. |
 | **Retoucher review** | Claude | Compares every headshot with your originals, grades likeness, polish (AI artifacts) and lighting, labels each one *keeper*, *solid* or *retake*, suggests where to use it (LinkedIn, speaker bio…) and circles one **best pick**. |
 
 Claude calls use the server-side refusal fallback (`fallbacks: "default"`), and the app handles refusals, rate limits, bad keys, partial failures (retry just the failed frames), server restarts mid-shoot (the shoot can be resumed) and a review that fails after rendering (retry grading only).
