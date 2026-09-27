@@ -472,15 +472,19 @@ app.get("/media/:sid/:name", requireUser, async (req, res) => {
   const base = name.replace(/\.\w+$/, "");
   if (req.query.square && !name.endsWith(".svg")) {
     // 1:1 square for LinkedIn / Microsoft Teams profile photos (see squareCrop).
-    let sq = await readMedia(`${sid}/${base}-sq.jpg`);
+    // A widened square made by the pipeline (lib/pipeline.js widenSquare) wins;
+    // otherwise a face-centered crop of the portrait, cached next to it.
+    const shot = (await shoots.get(sid))?.shots.find((s) => s.file === `${sid}/${name}`);
+    let sq = shot?.square ? await readMedia(shot.square) : null;
+    if (!sq) sq = await readMedia(`${sid}/${base}-sq.jpg`);
     if (!sq) {
       const src = await readMedia(`${sid}/${name}`);
       if (!src) return res.status(404).end();
-      const shot = (await shoots.get(sid))?.shots.find((s) => s.file === `${sid}/${name}`);
       sq = await squareCrop(src, shot?.qa?.head || null);
       await writeMedia(`${sid}/${base}-sq.jpg`, sq);
     }
-    res.set("Cache-Control", "private, max-age=31536000, immutable").type("image/jpeg");
+    // Revalidate: a widened square can replace the crop shortly after a frame finishes.
+    res.set("Cache-Control", "private, no-cache").type("image/jpeg");
     if (req.query.download) res.attachment(`headshot-${base}-square.jpg`);
     return res.send(sq);
   }

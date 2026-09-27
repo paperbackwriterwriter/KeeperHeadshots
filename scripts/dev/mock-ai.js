@@ -67,14 +67,15 @@ function reviewResult(nShots) {
 }
 
 // Quality gate: fails every third check (or every check with MOCK_QA_FAIL=all)
-// so the retake path gets exercised.
+// so the retake path gets exercised. MOCK_QA_TIGHT=1 reports tight headroom on
+// some passing frames, which exercises the widened-square path.
 let qaCalls = 0;
 function qaResult() {
   qaCalls++;
   const fail = process.env.MOCK_QA_FAIL === "all" || qaCalls % 3 === 1;
   return fail
     ? { likeness: 6, likeness_notes: "The jaw reads narrower than in the references.", professional: 7, issues: [{ kind: "likeness", severity: "blocking", detail: "Jaw narrower than in the references" }], head_box: { top: 0.02, bottom: 0.5, left: 0.3, right: 0.7 }, pass: false, retake_direction: "Keep the jaw as wide as in the references." }
-    : { likeness: 9, likeness_notes: "Face shape, eyes and hairline match the references.", professional: 9, issues: [], head_box: { top: 0.14, bottom: 0.52, left: 0.33, right: 0.67 }, pass: true, retake_direction: "" };
+    : { likeness: 9, likeness_notes: "Face shape, eyes and hairline match the references.", professional: 9, issues: [], head_box: process.env.MOCK_QA_TIGHT && qaCalls % 2 === 0 ? { top: 0.02, bottom: 0.45, left: 0.3, right: 0.7 } : { top: 0.14, bottom: 0.52, left: 0.33, right: 0.67 }, pass: true, retake_direction: "" };
 }
 
 async function anthropic(req, res, body) {
