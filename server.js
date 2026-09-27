@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { users, shoots, id, readMedia, writeMedia, deleteMedia } from "./lib/store.js";
 import { backend } from "./lib/storage.js";
 import { hashPassword, verifyPassword, setSession, clearSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailVerified } from "./lib/auth.js";
-import { mailEnabled, sendMail, verificationEmail, SMTP_USER } from "./lib/mail.js";
+import { mailEnabled, sendMail, verificationEmail, MAIL_FROM } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import { pageFor, isCanonicalHost } from "./lib/seo.js";
 import { aiStatus, AIError } from "./lib/ai.js";
@@ -54,11 +54,11 @@ const LIVE = ["checking", "generating", "reviewing"];
 async function sendVerification(user, req) {
   const link = `${req.protocol}://${req.get("host")}/verify?token=${emailToken(user)}`;
   if (!mailEnabled()) {
-    console.warn("[verify] SMTP is not configured; confirmation link for", user.email, link);
+    console.warn("[verify] Email is not configured; confirmation link for", user.email, link);
     return false;
   }
   const { subject, text, html } = verificationEmail({ name: user.name, link });
-  await sendMail({ from: { name: "Keeper Headshots", address: SMTP_USER }, to: { name: user.name, address: user.email }, subject, text, html });
+  await sendMail({ from: { name: "Keeper Headshots", address: MAIL_FROM }, to: { name: user.name, address: user.email }, subject, text, html });
   return true;
 }
 

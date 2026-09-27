@@ -78,7 +78,7 @@ To (re)generate one, set a long random `ADMIN_TOKEN` in the environment, redeplo
 
 ### Contact form
 
-`/contact` posts to `/api/contact` (`lib/contact.js`). Each message is saved to storage under `contact/`, then emailed to `CONTACT_TO` (default `hello@keeperheadshots.com`) through ImprovMX SMTP, with Reply-To set to the sender so you can answer straight from Gmail. It needs `SMTP_PASS`; without it the form says it's offline and points people to the email address. A hidden honeypot field and a 5-per-hour limit per visitor keep spam down.
+`/contact` posts to `/api/contact` (`lib/contact.js`). Each message is saved to storage under `contact/`, then emailed to `CONTACT_TO` (default `hello@keeperheadshots.com`), with Reply-To set to the sender so you can answer straight from Gmail. Outgoing mail (`lib/mail.js`) goes through Resend's API when `RESEND_API_KEY` is set (the domain must be verified in Resend; from address `MAIL_FROM`, default `hello@keeperheadshots.com`), otherwise through ImprovMX SMTP with `SMTP_PASS`. Incoming mail to hello@ is still received and forwarded by ImprovMX. Without either key the form says it's offline and points people to the email address. A hidden honeypot field and a 5-per-hour limit per visitor keep spam down.
 
 ### Flow
 
@@ -111,7 +111,7 @@ The brand is about replacing a photo studio, so the UI borrows a studio's own ar
 - `hello@keeperheadshots.com` is live (ImprovMX forwarding; Gmail "Send mail as").
 - Privacy Policy (`/privacy`) and Terms (`/terms`) live in `public/js/views/legal.js`. Update them whenever data handling changes (new provider, new tracking, retention). They are plain-English drafts; have a lawyer review them.
 - Sign-up is protected by Cloudflare Turnstile when `TURNSTILE_SITE_KEY` (public) and `TURNSTILE_SECRET_KEY` (sensitive) are both set (`lib/turnstile.js`, `public/js/turnstile.js`). The widget is invisible unless Cloudflare wants a click. The server checks the token before anything else, including whether the email already exists. If Cloudflare is unreachable, sign-up is allowed and email confirmation still guards the free shoot.
-- New accounts must confirm their email before the free shoot (and free photo checks) unlock: sign-up emails a signed link (`/verify?token=…`, valid 3 days) through the same SMTP as the contact form (`lib/mail.js`). Resends are limited to 1/minute and 5/day. Meta's `CompleteRegistration` fires on confirmation, not sign-up. Accounts created before this change count as confirmed. Without `SMTP_PASS` the link is logged instead of sent.
+- New accounts must confirm their email before the free shoot (and free photo checks) unlock: sign-up emails a signed link (`/verify?token=…`, valid 3 days) through the same provider as the contact form (`lib/mail.js`). Resends are limited to 1/minute and 5/day. Meta's `CompleteRegistration` fires on confirmation, not sign-up. Accounts created before this change count as confirmed. Without an email provider the link is logged instead of sent.
 - Customers can delete their account at `/app/account` (`POST /api/account/delete`, password required). It removes the user, every shoot and all media; only a hashed-email record of free-shoot usage (`users/deleted/`) and payment records (`payments/`) remain, as the privacy policy states.
 - Meta tracking honours Global Privacy Control: no Pixel when `navigator.globalPrivacyControl` is set, and no Conversions API events for requests with `Sec-GPC: 1` (purchases carry the flag through Stripe checkout metadata).
 
@@ -137,6 +137,6 @@ scripts/dev/*             QA only: local API test double, API e2e, screenshot ru
 npm run mock-ai &
 ANTHROPIC_API_KEY=test GEMINI_API_KEY=test \
 ANTHROPIC_BASE_URL=http://localhost:4010 GEMINI_BASE_URL=http://localhost:4010 PORT=3100 npm start &
-node scripts/dev/api-e2e.js
+node scripts/dev/api-e2e.js   # add RESEND_API_KEY=test RESEND_BASE_URL=http://localhost:4010 to the server to test the Resend path
 node scripts/dev/screenshots.js shots   # phone (390px) + desktop (1440px) click-through
 ```

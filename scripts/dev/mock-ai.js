@@ -10,7 +10,9 @@
 // Set MOCK_FAIL_EVERY=3 to make every third image render fail (error states).
 //
 // Also a tiny SMTP sink on :2525 (SMTP_HOST=localhost SMTP_PORT=2525
-// SMTP_PASS=x) that keeps every message; GET /mock-mail lists them.
+// SMTP_PASS=x) that keeps every message, and a Resend API stand-in
+// (RESEND_API_KEY=test RESEND_BASE_URL=http://localhost:4010) that keeps them
+// in the same list; GET /mock-mail lists them.
 
 import http from "node:http";
 import net from "node:net";
@@ -186,6 +188,17 @@ http
       const ok = t.response && t.response !== "fail-token";
       console.log(`[mock] turnstile ${ok ? "pass" : "fail"}`);
       return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify(ok ? { success: true, action: "signup", hostname: "localhost" } : { success: false, "error-codes": ["invalid-input-response"] }));
+    }
+    if (req.url === "/emails" && req.method === "POST") {
+      const m = JSON.parse(raw || "{}");
+      if (!/^Bearer \S+/.test(req.headers.authorization || "")) return res.writeHead(401, { "content-type": "application/json" }), res.end(JSON.stringify({ statusCode: 401, name: "missing_api_key", message: "Missing API key" }));
+      if (!m.from || !m.to?.length || !m.subject) return res.writeHead(422, { "content-type": "application/json" }), res.end(JSON.stringify({ statusCode: 422, name: "validation_error", message: "Missing from, to or subject" }));
+      const id = `mock_${Date.now().toString(36)}`;
+      const to = m.to.map((a) => /<([^>]+)>/.exec(a)?.[1] || a);
+      const links = [...new Set(`${m.text || ""} ${m.html || ""}`.match(/https?:\/\/[^\s"<>]+/g) || [])].map((l) => l.replace(/&amp;/g, "&"));
+      mail.push({ from: m.from, to, replyTo: m.reply_to, subject: m.subject, links, via: "resend", id });
+      console.log(`[mock] resend to=${to.join(",")} subject="${m.subject}"`);
+      return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify({ id }));
     }
     if (req.url === "/mock-mail") return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify(mail));
     const body = raw ? JSON.parse(raw) : {};
