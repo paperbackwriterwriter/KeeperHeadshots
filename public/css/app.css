@@ -1157,6 +1157,28 @@ select.input { appearance: none; padding-right: 44px; cursor: pointer; backgroun
   .scan::after { display: none; }
 }
 
+/* Checkout (/app/buy): order summary beside Stripe's embedded payment form.
+   Stripe draws its own light form, so its card stays white in both themes. */
+.checkout { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: clamp(24px, 5vw, 64px); align-items: start; max-width: 1040px; margin: 0 auto; }
+.checkout-summary { position: sticky; top: 104px; display: grid; gap: var(--s-4); }
+.checkout-summary h1 { margin: 0; }
+.checkout-price { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.checkout-price strong { font-family: var(--font-display); font-size: var(--fs-2xl); font-weight: 500; line-height: 1; }
+.checkout-price span { color: var(--text-muted); font-size: var(--fs-sm); }
+.checkout-features { list-style: none; display: grid; gap: 8px; padding: var(--s-4) 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.checkout-features li { display: flex; gap: 10px; align-items: flex-start; }
+.checkout-features svg { color: var(--accent-text); margin-top: 3px; }
+.checkout-note { display: flex; gap: 10px; align-items: flex-start; font-size: var(--fs-sm); color: var(--text-muted); }
+.checkout-note svg { color: var(--accent-text); margin-top: 2px; }
+.checkout-frame { min-height: 520px; background: #ffffff; border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-2); overflow: hidden; padding: 8px 0; }
+.checkout-loading { min-height: 500px; display: grid; place-items: center; align-content: center; gap: 12px; color: var(--text-muted); font-size: var(--fs-sm); }
+.checkout-loading .spinner { width: 28px; height: 28px; }
+.checkout-fine { margin-top: var(--s-3); text-align: center; }
+@media (max-width: 860px) {
+  .checkout { grid-template-columns: 1fr; }
+  .checkout-summary { position: static; }
+}
+
 /* ---------- Dark theme (follows the device setting) ----------
    Same brand, night edition: deep navy-charcoal ground, ivory text, brighter
    brass and oxblood so accents keep their contrast. Panels that are dark in

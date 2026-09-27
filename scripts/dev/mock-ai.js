@@ -146,7 +146,9 @@ function stripe(req, res, raw) {
       id, object: "checkout.session", customer: form.customer, client_reference_id: form.client_reference_id, payment_status: "unpaid",
       amount_total: Number(form["line_items[0][price_data][unit_amount]"]), currency: "usd",
       metadata: { userId: form["metadata[userId]"], packageId: form["metadata[packageId]"], shoots: form["metadata[shoots]"], ...(form["metadata[gpc]"] ? { gpc: form["metadata[gpc]"] } : {}) },
-      success_url: form.success_url, cancel_url: form.cancel_url, url: `http://localhost:${PORT}/mock-pay/${id}`,
+      success_url: form.success_url || form.return_url, cancel_url: form.cancel_url, ui_mode: form.ui_mode || "hosted_page",
+      // Embedded sessions have a client secret instead of a hosted-page URL.
+      ...(form.ui_mode === "embedded_page" ? { url: null, client_secret: `${id}_secret_mock`, return_url: form.return_url } : { url: `http://localhost:${PORT}/mock-pay/${id}` }),
     };
     stripeSessions.set(id, s);
     console.log(`[mock] stripe session ${id} ${s.metadata.packageId} $${s.amount_total / 100}`);

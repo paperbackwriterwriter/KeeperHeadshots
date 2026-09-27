@@ -73,7 +73,7 @@ export async function api(path, { method = "GET", body, signal } = {}) {
   return data;
 }
 
-export const state = { user: null, ai: { vision: false, imaging: false }, meta: {}, turnstile: {} };
+export const state = { user: null, ai: { vision: false, imaging: false }, meta: {}, turnstile: {}, stripe: {} };
 
 export async function loadSession() {
   const data = await api("/api/me");
@@ -81,6 +81,7 @@ export async function loadSession() {
   state.ai = data.ai;
   state.meta = data.meta || {};
   state.turnstile = data.turnstile || {};
+  state.stripe = data.stripe || {};
   return data;
 }
 

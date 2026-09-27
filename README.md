@@ -70,6 +70,8 @@ A paid shoot allows 4 looks (8 headshots). Purchases add credits to the account,
 - on later dashboard visits, which catches a closed tab;
 - optionally, a Stripe webhook: point it at `/api/billing/webhook` for `checkout.session.completed`, and set `STRIPE_WEBHOOK_SECRET`.
 
+**Embedded checkout.** Set `STRIPE_PUBLISHABLE_KEY` (`pk_live_…`, public by design) and `/app/buy/<package>` shows Stripe's payment form on our own page (Embedded Checkout, `ui_mode: "embedded_page"`, Stripe.js from `js.stripe.com/dahlia`). Without it, or if Stripe.js can't load, checkout falls back to Stripe's hosted page. Both return to `/app?checkout=success`, which confirms and grants the shoots (as does the webhook). For Apple Pay, register the domain in Stripe → Settings → Payment method domains.
+
 ### Example headshots
 
 The photos on the landing page, sign-in screen and empty dashboard are rendered by the same image model and briefs as customer shoots (`lib/examples.js`). The people are fictional. The hero and retoucher sets start from a generated casual selfie that is then used as the reference photo, exactly like a customer's selfie. Images live in storage under `examples/` and are served from `/examples/<id>.jpg`, or resized as WebP from `/examples/<id>.webp?w=360|600|900` (what the pages use).

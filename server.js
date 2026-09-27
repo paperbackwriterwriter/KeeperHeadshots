@@ -19,7 +19,7 @@ import { gpc, metaPixelId, track as trackMeta } from "./lib/meta.js";
 import { contactEnabled, validate as validateContact, rateLimited, submit as submitContact } from "./lib/contact.js";
 import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExample, generateSquare as generateExampleSquare, generateSet as generateExampleSet, exampleImage, sheet as exampleSheet } from "./lib/examples.js";
 import crypto from "node:crypto";
-import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook } from "./lib/billing.js";
+import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook, stripePublishableKey } from "./lib/billing.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -245,7 +245,7 @@ app.post("/api/auth/signout-all", requireUser, async (req, res) => {
 app.get("/api/me", async (req, res) => {
   const user = await currentUser(req);
   const { vision, imaging } = aiStatus();
-  res.json({ user: user ? publicUser(user) : null, ai: { vision, imaging }, meta: { pixelId: metaPixelId() }, turnstile: { siteKey: turnstileSiteKey() } });
+  res.json({ user: user ? publicUser(user) : null, ai: { vision, imaging }, meta: { pixelId: metaPixelId() }, turnstile: { siteKey: turnstileSiteKey() }, stripe: { publishableKey: stripePublishableKey() } });
 });
 
 /* ------------------------------ Shoots ------------------------------ */
@@ -585,10 +585,11 @@ function requireBilling(req, res) {
 app.post("/api/billing/checkout", requireUser, async (req, res) => {
   if (!requireBilling(req, res)) return;
   const origin = appOrigin(req);
-  const checkout = await createCheckout(req.user, String(req.body?.packageId || ""), origin, { gpc: gpc(req) });
+  const embedded = req.body?.embedded === true && !!stripePublishableKey();
+  const checkout = await createCheckout(req.user, String(req.body?.packageId || ""), origin, { gpc: gpc(req), embedded });
   const eventId = `checkout_${checkout.id}`;
   trackMeta("InitiateCheckout", { eventId, user: req.user, req, value: checkout.value });
-  res.json({ url: checkout.url, eventId, value: checkout.value });
+  res.json(embedded ? { clientSecret: checkout.clientSecret, eventId, value: checkout.value } : { url: checkout.url, eventId, value: checkout.value });
 });
 
 app.post("/api/billing/confirm", requireUser, async (req, res) => {
@@ -742,16 +743,16 @@ app.use("/media", (req, res) => res.status(404).end());
 // title, description, canonical URL and robots rule (plus prerendered content
 // for public pages), and unknown paths a real 404 status.
 // Content Security Policy for pages. Scripts come from our origin plus
-// Turnstile (sign-up, contact) and the Meta pixel; styles allow inline for
+// Turnstile (sign-up, contact), the Meta pixel and Stripe.js (embedded checkout); styles allow inline for
 // the style="" attributes the views use.
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' https://challenges.cloudflare.com https://connect.facebook.net",
+  "script-src 'self' https://challenges.cloudflare.com https://connect.facebook.net https://js.stripe.com https://*.js.stripe.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: blob: https://www.facebook.com",
-  "connect-src 'self' https://www.facebook.com https://connect.facebook.net",
-  "frame-src https://challenges.cloudflare.com",
+  "img-src 'self' data: blob: https://www.facebook.com https://*.stripe.com",
+  "connect-src 'self' https://www.facebook.com https://connect.facebook.net https://api.stripe.com https://*.stripe.com",
+  "frame-src https://challenges.cloudflare.com https://js.stripe.com https://*.js.stripe.com https://checkout.stripe.com https://hooks.stripe.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
