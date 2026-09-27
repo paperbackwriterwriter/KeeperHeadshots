@@ -93,7 +93,12 @@ function appNav() {
       <div class="nav-actions">
         <a class="user-chip" href="/app/account" data-link title="Your account (${u.email})" aria-label="Your account"><span class="avatar" aria-hidden="true">${initials(u.name)}</span><span class="hide-m">${u.name.split(" ")[0]}</span></a>
         <button class="btn btn-ghost btn-sm" id="signOut" aria-label="Sign out">${icon("log-out")}<span class="hide-m">Sign out</span></button>
+        <button class="btn btn-ghost btn-icon nav-toggle" id="navToggle" aria-expanded="false" aria-controls="navSheet" aria-label="Open menu">${icon("menu")}</button>
       </div>
+    </div>
+    <div class="nav-sheet" id="navSheet">
+      <a href="/app" data-link>Your shoots</a><a href="/#pricing">Pricing</a><a href="/contact" data-link>Contact</a><a href="/app/account" data-link>Account</a>
+      <a class="btn btn-flash btn-block" href="/app/new" data-link>${icon("plus")} New shoot</a>
     </div>
   </header>`;
 }
@@ -137,8 +142,12 @@ async function render() {
     focusHeading();
     return;
   }
-  if (route.auth && !state.user) return navigate(`/signin?next=${encodeURIComponent(path)}`, { replace: true });
-  if (route.guestOnly && state.user) return navigate("/app", { replace: true });
+  // Sign-in comes back to the same page, query included (e.g. /app/buy/pro?x).
+  if (route.auth && !state.user) return navigate(`/signin?next=${encodeURIComponent(path + location.search)}`, { replace: true });
+  if (route.guestOnly && state.user) {
+    const next = new URLSearchParams(location.search).get("next");
+    return navigate(next && next.startsWith("/app") ? next : "/app", { replace: true });
+  }
 
   document.title = route.title;
   const chrome = route.chrome === "marketing" ? marketingNav() : route.chrome === "app" ? appNav() : html``;
@@ -225,7 +234,8 @@ document.addEventListener("click", async (e) => {
     if (res.status === "already") {
       state.user = res.user;
       toast("Your email is already confirmed. Your free shoot is ready.", "success");
-      return render();
+      // On the verify page itself, re-running it would show "couldn't confirm".
+      return location.pathname === "/verify" ? navigate("/app") : render();
     }
     toast(`Sent. Check ${res.email} for a link from hello@keeperheadshots.com.`, "success", 7000);
     btn.textContent = "Email sent";
@@ -262,15 +272,20 @@ document.addEventListener("click", (e) => {
   goToHash(a.getAttribute("href"));
 });
 document.addEventListener("click", (e) => e.target.closest("[data-reload]") && location.reload());
+// Coming back from Stripe's hosted checkout with the Back button can restore
+// this page from the browser's cache, still showing "Taking you to Stripe…".
+window.addEventListener("pageshow", (e) => {
+  if (e.persisted && location.pathname.startsWith("/app/buy/")) render();
+});
 // Back/forward between sections of the same page only scrolls.
 window.addEventListener("popstate", () => {
   if (location.pathname + location.search === lastRoute) return goToHash(location.hash);
   render();
 });
 
-// Vercel Web Analytics: cookieless visit counts. Production domain only, and
-// loaded after the first render so one-time tokens (e.g. /verify?token=) have
-// already been removed from the URL. It follows in-app navigation itself.
+// Vercel Web Analytics: cookieless visit counts. Production domain only. One-
+// time tokens are already out of the URL by now (see below). It follows
+// in-app navigation itself.
 function loadAnalytics() {
   if (location.hostname !== "keeperheadshots.com" || window.va) return;
   window.va = (...args) => (window.vaq = window.vaq || []).push(args);
@@ -278,6 +293,17 @@ function loadAnalytics() {
   s.defer = true;
   s.src = "/_vercel/insights/script.js";
   document.head.append(s);
+}
+
+// One-time tokens in email links (/verify?token=, /reset?token=) leave the
+// address bar before any other script (Pixel, analytics) can read the URL.
+// The views take the token from state.linkToken instead.
+{
+  const token = new URLSearchParams(location.search).get("token");
+  if (token && ["/verify", "/reset"].includes(location.pathname)) {
+    state.linkToken = token;
+    history.replaceState({}, "", location.pathname);
+  }
 }
 
 loadSession()

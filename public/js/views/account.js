@@ -68,8 +68,8 @@ export function renderAccount({ root, navigate }) {
       <form id="deleteForm" class="delete-form" hidden novalidate>
         <div class="field">
           <label for="delPassword">Enter your password to confirm</label>
-          <input class="input" id="delPassword" name="password" type="password" autocomplete="current-password" required />
-          <span class="field-error" id="err-delPassword" hidden></span>
+          <input class="input" id="delPassword" name="password" type="password" autocomplete="current-password" aria-describedby="err-delPassword" required />
+          <span class="field-error" id="err-delPassword" role="alert" hidden></span>
         </div>
         <label class="check"><input type="checkbox" id="delConfirm" /> <span>I understand my shoots and headshots will be deleted for good.</span></label>
         <div class="delete-actions">

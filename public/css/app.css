@@ -176,6 +176,10 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 .container { width: 100%; max-width: var(--maxw); margin-inline: auto; padding-inline: var(--gutter); }
+/* Landscape phones with a notch: keep content clear of it. */
+@supports (padding: max(0px)) {
+  .container { padding-left: max(var(--gutter), env(safe-area-inset-left)); padding-right: max(var(--gutter), env(safe-area-inset-right)); }
+}
 .tabular { font-variant-numeric: tabular-nums lining-nums; }
 
 /* ---------- 3. Typography ---------- */
@@ -268,7 +272,7 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 @media (max-width: 900px) {
   .nav-links, .nav-actions .hide-m { display: none; }
   .nav-toggle { display: inline-flex; }
-  .nav-sheet { display: block; position: fixed; inset: 72px 0 auto 0; background: var(--bg); border-bottom: 1px solid var(--border); padding: var(--s-4) var(--gutter) var(--s-5); transform: translateY(-8px); opacity: 0; visibility: hidden; transition: all var(--dur-2) var(--ease-out); box-shadow: var(--shadow-2); }
+  .nav-sheet { display: block; position: fixed; inset: 72px 0 auto 0; max-height: calc(100dvh - 72px); overflow-y: auto; overscroll-behavior: contain; background: var(--bg); border-bottom: 1px solid var(--border); padding: var(--s-4) var(--gutter) var(--s-5); transform: translateY(-8px); opacity: 0; visibility: hidden; transition: all var(--dur-2) var(--ease-out); box-shadow: var(--shadow-2); }
   .nav-sheet.open { transform: none; opacity: 1; visibility: visible; }
   .nav-sheet a:not(.btn) { display: flex; align-items: center; min-height: 48px; text-decoration: none; font-weight: 600; font-size: var(--fs-md); border-bottom: 1px solid var(--border); }
   .nav-sheet .btn { margin-top: var(--s-4); }
@@ -327,7 +331,7 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .hero-visual { min-width: 0; }
 .sheet-controls { max-width: 540px; margin: 6px 0 0 auto; display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
 .sheet-dots { display: flex; gap: 2px; }
-.sheet-dot { width: 22px; height: 28px; border: 0; padding: 0; background: none; cursor: pointer; display: grid; place-items: center; }
+.sheet-dot { width: 24px; height: 28px; border: 0; padding: 0; background: none; cursor: pointer; display: grid; place-items: center; }
 .sheet-dot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); transition: background var(--dur-2), transform var(--dur-2); }
 .sheet-dot[aria-pressed="true"]::before { background: var(--brass-500); transform: scale(1.35); }
 .sheet-dot:hover::before { background: var(--ink-400); }
@@ -549,7 +553,7 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .badge { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: var(--r-pill); font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; font-family: var(--font-mono); background: rgba(251, 249, 245, 0.92); color: var(--ink-950); backdrop-filter: blur(6px); }
 .badge svg { width: 12px; height: 12px; }
 .badge-success { background: var(--success-soft); color: var(--success); }
-.badge-warn { background: var(--warning-soft); color: var(--warning); }
+.badge-warn { background: var(--warning-soft); color: #8a4e00; }
 .badge-danger { background: var(--danger-soft); color: var(--danger); }
 .badge-live { background: var(--flash-500); color: #fff; }
 .badge-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #fff; animation: pulse 1.4s var(--ease-in-out) infinite; }
@@ -886,7 +890,8 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
   .contact { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 900px) {
-  .hero-grid, .steps, .showcase, .faq, .section-head, .quotes, .studio-grid, .proof-hero, .auth, .cta-band { grid-template-columns: 1fr; }
+  /* minmax(0, 1fr): a long heading or button can't widen the column past the screen. */
+  .hero-grid, .steps, .showcase, .faq, .section-head, .quotes, .studio-grid, .proof-hero, .auth, .cta-band { grid-template-columns: minmax(0, 1fr); }
   .section-head .lede { justify-self: start; }
   .steps-sticky { position: static; }
   .sheet { margin: var(--s-4) auto 0; max-width: 480px; }
@@ -1287,4 +1292,14 @@ select.input { appearance: none; padding-right: 44px; cursor: pointer; backgroun
   .banner-warn { border-color: #5a4424; color: #f0c98a; }
   .banner-danger { border-color: #5e2b26; color: #f5b1a8; }
   .issue { color: #f0c98a; }
+  .badge-warn { color: var(--warning); }
+  /* White on the light dark-mode red is too faint; a deeper red keeps 4.5:1+. */
+  .btn-danger { --btn-bg: #b3261e; }
+  .btn-danger:hover:not(:disabled) { --btn-bg: #c62f25; }
+}
+
+/* Small phones: long button labels and headings wrap instead of being cut off. */
+@media (max-width: 480px) {
+  .btn { white-space: normal; text-align: center; max-width: 100%; }
+  .display { overflow-wrap: break-word; }
 }

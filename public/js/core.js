@@ -116,17 +116,29 @@ export async function loadSession() {
   return data;
 }
 
+// Errors stay longer (at least 8 s) and every message can be dismissed; the
+// timer pauses while the pointer or keyboard focus is on the message.
 export function toast(message, kind = "info", ms = 4200) {
   const host = document.getElementById("toasts");
   const el = document.createElement("div");
   el.className = `toast ${kind}`;
   const ic = kind === "error" ? "circle-alert" : kind === "success" ? "check-circle-2" : "info";
-  el.innerHTML = `${icon(ic).v}<div>${esc(message)}</div>`;
+  el.innerHTML = `${icon(ic).v}<div>${esc(message)}</div><button class="toast-close" type="button" aria-label="Dismiss">${icon("x").v}</button>`;
   host.appendChild(el);
-  setTimeout(() => {
+  const close = () => {
+    if (el.classList.contains("out")) return;
     el.classList.add("out");
     el.addEventListener("animationend", () => el.remove(), { once: true });
-  }, ms);
+    setTimeout(() => el.remove(), 600); // reduced motion: no animationend
+  };
+  el.querySelector(".toast-close").addEventListener("click", close);
+  let timer = setTimeout(close, kind === "error" ? Math.max(ms, 8000) : ms);
+  const pause = () => clearTimeout(timer);
+  const resume = () => (timer = setTimeout(close, 3000));
+  el.addEventListener("mouseenter", pause);
+  el.addEventListener("mouseleave", resume);
+  el.addEventListener("focusin", pause);
+  el.addEventListener("focusout", resume);
 }
 
 export const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;

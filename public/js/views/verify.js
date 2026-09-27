@@ -3,7 +3,8 @@ import { pixel, pageUrl } from "../pixel.js";
 
 // Landing page for the link in the "Confirm your email" message.
 export async function renderVerify({ root }) {
-  const token = new URLSearchParams(location.search).get("token") || "";
+  const token = state.linkToken || new URLSearchParams(location.search).get("token") || "";
+  state.linkToken = null;
   // Keep the token out of the address bar and browser history.
   history.replaceState({}, "", "/verify");
 

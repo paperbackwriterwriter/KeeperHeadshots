@@ -1,4 +1,4 @@
-import { html, icon, api, state, media, relTime, toast, example } from "../core.js";
+import { html, icon, api, state, media, relTime, toast, example, spinner } from "../core.js";
 import { pixel } from "../pixel.js";
 
 const STATUS = {
@@ -40,7 +40,7 @@ function greeting() {
 }
 
 // Returning from Stripe Checkout: confirm the payment and add the shoots.
-async function handleCheckoutReturn(navigate) {
+async function handleCheckoutReturn(navigate, root) {
   const q = new URLSearchParams(location.search);
   const outcome = q.get("checkout");
   if (!outcome) return false;
@@ -49,6 +49,8 @@ async function handleCheckoutReturn(navigate) {
     toast("Checkout cancelled. You haven't been charged.", "info");
     return false;
   }
+  // Something on screen while the payment is confirmed (a second or two).
+  root.innerHTML = html`<main id="main" class="container app-main"><div class="empty" aria-busy="true"><div style="display:flex;justify-content:center">${spinner()}</div><h1 class="display h-2">Confirming your payment…</h1></div></main>`.v;
   try {
     const res = await api("/api/billing/confirm", { method: "POST", body: { sessionId: q.get("session_id") } });
     state.user = res.user;
@@ -65,14 +67,15 @@ async function handleCheckoutReturn(navigate) {
 }
 
 export async function renderDashboard({ root, navigate }) {
-  if (!(await handleCheckoutReturn(navigate))) {
+  if (!(await handleCheckoutReturn(navigate, root))) {
     // Pick up any purchase whose return trip didn't finish (e.g. closed tab).
     api("/api/billing/sync", { method: "POST" })
       .then((res) => {
         if (res.added || res.removed) {
           state.user = res.user;
           if (res.added) toast(`${res.added} purchased shoots added to your account.`, "success", 7000);
-          navigate("/app", { replace: true });
+          // Refresh the dashboard only if the person is still on it.
+          if (location.pathname === "/app") navigate("/app", { replace: true });
         }
       })
       .catch(() => {});

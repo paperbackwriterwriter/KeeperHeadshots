@@ -16,6 +16,7 @@ const TOPICS = [
 const mailto = (subject) => `mailto:${CONTACT_EMAIL}${subject ? `?subject=${encodeURIComponent(subject)}` : ""}`;
 
 export function renderContact({ root }) {
+  let next = null; // clean-up of a replacement form ("Send another")
   const q = new URLSearchParams(location.search);
   const topic = TOPICS.some(([id]) => id === q.get("topic")) ? q.get("topic") : "general";
   const u = state.user && !state.user.demo ? state.user : null;
@@ -121,7 +122,13 @@ export function renderContact({ root }) {
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px"><a class="btn btn-ink" href="/" data-link>Back to home</a><button class="btn btn-ghost" id="another" type="button">Send another</button></div></div>
     </div>`.v;
     $("#sent").focus();
-    $("#another").addEventListener("click", () => renderContact({ root }));
+    // A fresh form replaces this one: remove this form's bot-check widget, and
+    // hand the router the new form's clean-up.
+    $("#another").addEventListener("click", () => {
+      human?.remove();
+      next = renderContact({ root });
+      root.querySelector("input:not([type=hidden]), textarea")?.focus();
+    });
   };
 
   form.addEventListener("submit", async (e) => {
@@ -151,5 +158,5 @@ export function renderContact({ root }) {
       $(`#err-${e.target.id}`).hidden = true;
     }
   });
-  return () => human?.remove();
+  return () => (next ? next() : human?.remove());
 }

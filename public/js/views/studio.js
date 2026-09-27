@@ -67,6 +67,16 @@ export async function renderStudio(ctx, id) {
         root.innerHTML = html`<main id="main" class="container app-main"><div class="empty"><p class="eyebrow">Not found</p><h1 class="display h-2">We couldn't find that shoot.</h1><p class="lede">It may have been deleted.</p><a class="btn btn-ink" href="/app" data-link>Back to your shoots</a></div></main>`.v;
         return;
       }
+      // The first load failed (offline, server error): say so, with a retry,
+      // rather than leaving the loading skeleton up.
+      if (!shoot) {
+        root.innerHTML = html`<main id="main" class="container app-main"><div class="empty"><p class="eyebrow">Couldn't load</p><h1 class="display h-2">We couldn't load this shoot.</h1><p class="lede">${err.message}</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><button class="btn btn-ink" type="button" id="retryLoad">${icon("refresh-cw")} Try again</button><a class="btn btn-ghost" href="/app" data-link>Back to your shoots</a></div></div></main>`.v;
+        $("#retryLoad")?.addEventListener("click", () => {
+          root.innerHTML = html`<main id="main" class="container app-main"><div class="loading-page" aria-busy="true"><div class="skel" style="height:320px;border-radius:18px"></div></div></main>`.v;
+          refresh();
+        });
+        return;
+      }
       // Keep polling through a hiccup, but show the message once (not every
       // poll) and back off until a poll succeeds again.
       if (!pollErrors++) toast(err.message, "error");
@@ -717,7 +727,7 @@ export async function renderStudio(ctx, id) {
               <div class="print">
                 <button class="open" data-open="${t.id}" aria-label="Open frame ${t.n} full size"><img src="${media(t.file)}" alt="Headshot ${t.n}: ${lookName(t.backdrop, t.outfit)}" loading="lazy" /></button>
                 ${g ? html`<span class="score-pill g-${g.grade} score-badge" title="${gradeLabel(g.grade)}" role="img" aria-label="${gradeLabel(g.grade)}, ${g.overall} out of 100"><i></i>${g.overall}</span>` : ""}
-                <div class="print-cap"><b>${String(t.n).padStart(2, "0")} · ${lookFor(t.backdrop, t.outfit).backdrop.name}</b><span>${g ? g.best_for : lookFor(t.backdrop, t.outfit).outfit.name}</span></div>
+                <div class="print-cap"><b>${String(t.n).padStart(2, "0")} · ${lookFor(t.backdrop, t.outfit)?.backdrop.name || "Headshot"}</b><span>${g ? g.best_for : lookFor(t.backdrop, t.outfit)?.outfit.name || ""}</span></div>
                 ${g ? html`<p class="proof-note">${g.note}</p>` : ""}
                 <div class="proof-actions">${s.sample ? "" : t.id === best?.id
                   ? html`<span class="pick-label">${icon("crown")} ${isMine ? "Your pick" : "Best pick"}</span>`
