@@ -2,9 +2,12 @@ import { $, $$, html, icon, raw, greaseCircle, state, logoMark, wordmark, exampl
 import { BACKDROPS, OUTFITS, PACKAGES } from "../shared/catalog.js";
 import { FAQ } from "../shared/faq.js";
 
-// People the hero rotates through: a selfie plus nine headshots each.
+// People the hero rotates through: a selfie plus nine headshots each, the
+// best pick's score, and which frame (0-8) is circled as the best pick. Frames
+// 6 and 7 sit under the selfie polaroid and 2 under the "Best pick" tag, so
+// the pick moves around the others.
 const HERO_SETS = [
-  ["hero", 96], ["p1", 95], ["p2", 94], ["p3", 97], ["p4", 95], ["p5", 96], ["p6", 94], ["p7", 95], ["p8", 97],
+  ["hero", 96, 1], ["p1", 95, 5], ["p2", 94, 0], ["p3", 97, 8], ["p4", 95, 3], ["p5", 96, 4], ["p6", 94, 1], ["p7", 95, 5], ["p8", 97, 0],
 ];
 const CYCLE_MS = 8000;
 
@@ -42,7 +45,7 @@ export function renderLanding({ root }) {
             <a class="btn btn-ghost btn-lg" href="/#how">See how it works</a>
           </div>
           <div class="hero-proof" data-reveal style="--i:4">
-            <div class="proof-item"><strong class="tabular">&lt; 1 hr</strong><span>typical turnaround</span></div>
+            <div class="proof-item"><strong class="tabular">&lt; 15 min</strong><span>typical turnaround</span></div>
             <div class="proof-item"><strong class="tabular">From $29</strong><span>one-time, no subscription</span></div>
             <div class="proof-item"><strong class="tabular">100%</strong><span>money-back guarantee</span></div>
           </div>
@@ -52,10 +55,10 @@ export function renderLanding({ root }) {
         <div class="sheet" id="heroSheet" data-reveal style="--i:2">
           <div class="sheet-board" role="img" aria-label="Example: one casual selfie becomes a contact sheet of nine professional headshots of the same person">
             ${HERO_FRAMES.map(
-              ([b, o], i) => html`<div class="sheet-frame ${i === 4 ? "keeper" : ""}" style="--d:${i}">
+              ([b, o], i) => html`<div class="sheet-frame ${i === HERO_SETS[0][2] ? "keeper" : ""}" style="--d:${i}">
                 <img src="${example(`hero-${i + 1}`)}" alt="" loading="${i < 6 ? "eager" : "lazy"}" />
                 <span class="fno">${String(i + 1).padStart(2, "0")}A</span>
-                ${i === 4 ? greaseCircle() : ""}
+                ${i === HERO_SETS[0][2] ? greaseCircle() : ""}
               </div>`,
             )}
           </div>
@@ -80,7 +83,7 @@ export function renderLanding({ root }) {
           ${[
             ["3", "AI passes on every shoot"],
             ["4", "Looks per paid shoot"],
-            ["< 1 hr", "Typical turnaround"],
+            ["< 15 min", "Typical turnaround"],
             ["$29", "vs. $200+ at a studio"],
           ].map(([n, l], i) => html`<div class="stat" data-reveal style="--i:${i}"><div class="num">${n}</div><div class="lbl">${l}</div></div>`)}
         </div>
@@ -165,7 +168,7 @@ export function renderLanding({ root }) {
           </dl>
           <dl class="compare-col">
             <h3 class="h-4">Keeper Headshots</h3>
-            ${[["Cost", "From $29"], ["Turnaround", "Under 1 hour"], ["Backdrops & outfits", "Up to 4 looks per shoot"], ["Number of photos", "Up to 8 per shoot"], ["Help choosing", "Every frame graded"]].map(
+            ${[["Cost", "From $29"], ["Turnaround", "Under 15 minutes"], ["Backdrops & outfits", "Up to 4 looks per shoot"], ["Number of photos", "Up to 8 per shoot"], ["Help choosing", "Every frame graded"]].map(
               ([k, v]) => html`<div class="compare-row"><dt>${k}</dt><dd class="hi">${v}</dd></div>`,
             )}
           </dl>
@@ -297,8 +300,15 @@ function heroCycle() {
     selfie.src = sel;
     imgs.forEach((im, j) => (im.src = frames[j]));
     $("#heroScore").textContent = HERO_SETS[i][1];
+    // Move the best-pick circle to this person's pick; a fresh copy replays
+    // the pencil loop.
     const circle = $(".sheet-circle", sheet);
-    if (circle && !reduce) circle.replaceWith(circle.cloneNode(true)); // replays the pencil loop
+    if (circle) {
+      const frame = imgs[HERO_SETS[i][2]].parentElement;
+      $$(".sheet-frame", sheet).forEach((f) => f.classList.toggle("keeper", f === frame));
+      frame.append(reduce ? circle : circle.cloneNode(true));
+      if (!reduce) circle.remove();
+    }
     sheet.classList.remove("swapping");
     dots.forEach((d, j) => d.setAttribute("aria-pressed", String(j === i)));
     current = i;
