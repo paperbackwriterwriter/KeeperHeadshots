@@ -8,8 +8,12 @@
 //   ANTHROPIC_BASE_URL=http://localhost:4010 GEMINI_BASE_URL=http://localhost:4010 npm start
 //
 // Set MOCK_FAIL_EVERY=3 to make every third image render fail (error states).
+//
+// Also a tiny SMTP sink on :2525 (SMTP_HOST=localhost SMTP_PORT=2525
+// SMTP_PASS=x) that keeps every message; GET /mock-mail lists them.
 
 import http from "node:http";
+import net from "node:net";
 import sharp from "sharp";
 import { portraitSVG } from "../../public/js/shared/portrait.js";
 import { BACKDROPS, OUTFITS } from "../../public/js/shared/catalog.js";
@@ -176,6 +180,7 @@ http
     const raw = await readBody(req);
     if (req.url.startsWith("/v1/customers") || req.url.startsWith("/v1/checkout") || req.url.startsWith("/mock-pay") || req.url.startsWith("/mock-refund")) return stripe(req, res, raw);
     if (/^\/v\d+\.\d+\/\d+\/events/.test(req.url)) return meta(req, res, raw);
+    if (req.url === "/mock-mail") return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify(mail));
     const body = raw ? JSON.parse(raw) : {};
     try {
       if (req.url.startsWith("/v1/messages")) return await anthropic(req, res, body);
@@ -187,3 +192,48 @@ http
     }
   })
   .listen(PORT, () => console.log(`[mock] AI test double on http://localhost:${PORT}`));
+
+// SMTP sink: accepts any login and stores each message (decoded enough to read
+// links out of quoted-printable bodies).
+const mail = [];
+const qp = (s) => s.replace(/=\r?\n/g, "").replace(/=([0-9A-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+net
+  .createServer((sock) => {
+    let buf = "", data = false, msg = { to: [] };
+    const say = (l) => sock.write(l + "\r\n");
+    say("220 mock-smtp ready");
+    sock.on("data", (chunk) => {
+      buf += chunk.toString("utf8");
+      let i;
+      while ((i = buf.indexOf("\r\n")) >= 0) {
+        if (data) {
+          const end = buf.indexOf("\r\n.\r\n");
+          if (end < 0) return;
+          const rawMsg = buf.slice(0, end).replace(/\r\n\.\./g, "\r\n.");
+          buf = buf.slice(end + 5);
+          data = false;
+          const decoded = qp(rawMsg);
+          const subject = /^Subject: (.*)$/m.exec(rawMsg)?.[1] || "";
+          const links = [...new Set(decoded.match(/https?:\/\/[^\s"<>]+/g) || [])];
+          mail.push({ ...msg, subject, links, raw: rawMsg });
+          console.log(`[mock] mail to=${msg.to.join(",")} subject="${subject}"`);
+          msg = { to: [] };
+          say("250 queued");
+          continue;
+        }
+        const line = buf.slice(0, i);
+        buf = buf.slice(i + 2);
+        const cmd = line.slice(0, 4).toUpperCase();
+        if (cmd === "EHLO") say("250-mock-smtp"), say("250 AUTH PLAIN");
+        else if (cmd === "HELO") say("250 mock-smtp");
+        else if (cmd === "AUTH") say("235 ok");
+        else if (cmd === "MAIL") (msg.from = /<(.*)>/.exec(line)?.[1]), say("250 ok");
+        else if (cmd === "RCPT") msg.to.push(/<(.*)>/.exec(line)?.[1]), say("250 ok");
+        else if (cmd === "DATA") (data = true), say("354 go ahead");
+        else if (cmd === "QUIT") say("221 bye"), sock.end();
+        else say("250 ok");
+      }
+    });
+    sock.on("error", () => {});
+  })
+  .listen(Number(process.env.MOCK_SMTP_PORT || 2525), () => console.log("[mock] SMTP sink on :2525"));

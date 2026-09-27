@@ -23,6 +23,8 @@ export function planBanner() {
   if (!plan) return "";
   if (plan.tier === "demo")
     return html`<div class="banner banner-info">${icon("info")}<div><b>You're exploring the demo account.</b>It's read-only, so you can browse the sample shoots. Create a free account to try it with your own photos; your first shoot is free.</div><a class="btn btn-sm btn-flash" href="/signup" data-link id="demoSignup">Create free account</a></div>`;
+  if (plan.needsEmail)
+    return html`<div class="banner banner-warn">${icon("mail")}<div><b>Confirm your email to unlock your free shoot.</b>We sent a link to ${state.user.email}. Can't find it? Check your spam folder.</div><button class="btn btn-sm btn-flash" type="button" data-resend-verify>Resend email</button></div>`;
   if (plan.tier === "trial")
     return html`<div class="banner banner-info">${icon("sparkles")}<div><b>Your first shoot is free.</b>Up to 2 looks, which makes 4 headshots, each checked and graded by AI.</div></div>`;
   if (plan.tier === "none")

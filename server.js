@@ -6,12 +6,13 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { users, shoots, id, readMedia, deleteMedia } from "./lib/store.js";
 import { backend } from "./lib/storage.js";
-import { hashPassword, verifyPassword, setSession, clearSession, currentUser, requireUser, publicUser } from "./lib/auth.js";
+import { hashPassword, verifyPassword, setSession, clearSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailVerified } from "./lib/auth.js";
+import { mailEnabled, sendMail, verificationEmail, SMTP_USER } from "./lib/mail.js";
 import { aiStatus, AIError } from "./lib/ai.js";
 import { ingestSelfie, runCheck, advance, startGeneration, retryFailed, startReview } from "./lib/pipeline.js";
 import { lookFor, MAX_LOOKS, MAX_SELFIES } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
-import { planFor, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT } from "./lib/plan.js";
+import { planFor, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, EMAIL_UNCONFIRMED } from "./lib/plan.js";
 import { gpc, metaPixelId, track as trackMeta } from "./lib/meta.js";
 import { contactEnabled, validate as validateContact, rateLimited, submit as submitContact } from "./lib/contact.js";
 import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExample, generateSet as generateExampleSet, exampleImage, sheet as exampleSheet } from "./lib/examples.js";
@@ -47,6 +48,19 @@ const LIVE = ["checking", "generating", "reviewing"];
 
 /* ------------------------------- Auth ------------------------------- */
 
+// Email confirmation: the free shoot unlocks once the person clicks the link
+// we email them, which stops throwaway sign-ups from claiming free shoots.
+async function sendVerification(user, req) {
+  const link = `${req.protocol}://${req.get("host")}/verify?token=${emailToken(user)}`;
+  if (!mailEnabled()) {
+    console.warn("[verify] SMTP is not configured; confirmation link for", user.email, link);
+    return false;
+  }
+  const { subject, text, html } = verificationEmail({ name: user.name, link });
+  await sendMail({ from: { name: "Keeper Headshots", address: SMTP_USER }, to: { name: user.name, address: user.email }, subject, text, html });
+  return true;
+}
+
 app.post("/api/auth/signup", async (req, res) => {
   const { name, email, password } = req.body || {};
   const errors = {};
@@ -61,10 +75,16 @@ app.post("/api/auth/signup", async (req, res) => {
     email: String(email).toLowerCase().trim(),
     password: hashPassword(String(password)),
     createdAt: new Date().toISOString(),
+    emailVerified: false,
+    verifySends: [Date.now()],
   });
   setSession(res, user.id);
-  trackMeta("CompleteRegistration", { eventId: `reg_${user.id}`, user, req });
-  res.status(201).json({ user: publicUser(user) });
+  // Meta's CompleteRegistration fires when the email is confirmed (below).
+  const verificationSent = await sendVerification(user, req).catch((err) => {
+    console.error("[verify] send failed", user.id, err.message);
+    return false;
+  });
+  res.status(201).json({ user: publicUser(user), verificationSent });
 });
 
 app.post("/api/auth/signin", async (req, res) => {
@@ -76,6 +96,40 @@ app.post("/api/auth/signin", async (req, res) => {
   }
   setSession(res, user.id);
   res.json({ user: publicUser(user) });
+});
+
+app.post("/api/auth/verify", async (req, res) => {
+  const { user, error } = await checkEmailToken(req.body?.token);
+  if (error === "invalid") return res.status(400).json({ error: "This confirmation link isn't valid. Make sure you copied the whole link, or ask for a new one.", code: "invalid" });
+  const me = await currentUser(req);
+  if (emailVerified(user)) return res.json({ status: "already", user: me ? publicUser(me) : null });
+  if (error === "expired") return res.status(410).json({ error: "This confirmation link has expired. Ask for a new one below.", code: "expired", signedIn: me?.id === user.id });
+  const updated = await users.update(user.id, (u) => {
+    u.emailVerified = true;
+    u.emailVerifiedAt = new Date().toISOString();
+  });
+  // Opening the link on another device signs you in there too (only on the
+  // first, confirming click; the link can't be reused to sign in later).
+  if (me?.id !== user.id) setSession(res, user.id);
+  const eventId = `reg_${user.id}`;
+  trackMeta("CompleteRegistration", { eventId, user: updated, req });
+  res.json({ status: "verified", user: publicUser(updated), eventId });
+});
+
+app.post("/api/auth/verify/resend", requireUser, async (req, res) => {
+  if (emailVerified(req.user)) return res.json({ status: "already", user: publicUser(req.user) });
+  const now = Date.now();
+  const sends = (req.user.verifySends || []).filter((t) => now - t < 24 * 60 * 60 * 1000);
+  if (sends.length && now - sends[sends.length - 1] < 60 * 1000) return res.status(429).json({ error: "We just sent one. Give it a minute, and check your spam folder too." });
+  if (sends.length >= 5) return res.status(429).json({ error: "We've sent several emails today. Check your spam folder, or contact us and we'll help." });
+  try {
+    if (!(await sendVerification(req.user, req))) return res.status(503).json({ error: "Email isn't set up on this site yet. Please contact us." });
+  } catch (err) {
+    console.error("[verify] resend failed", req.user.id, err.message);
+    return res.status(502).json({ error: "We couldn't send the email just now. Please try again in a few minutes." });
+  }
+  await users.update(req.user.id, (u) => (u.verifySends = [...sends, now]));
+  res.json({ status: "sent", email: req.user.email });
 });
 
 app.post("/api/auth/signout", (req, res) => {
@@ -129,6 +183,7 @@ app.get("/api/shoots/:id", requireUser, async (req, res) => {
 app.post("/api/shoots", requireUser, async (req, res) => {
   const plan = planFor(req.user);
   if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
+  if (plan.needsEmail) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
   if (!plan.canDevelop) throw new PlanError(NO_SHOOTS_LEFT);
   const count = (await shoots.forUser(req.user.id)).length + 1;
   const now = new Date().toISOString();
@@ -208,6 +263,7 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   if (!canEditPhotos(meta)) return res.status(409).json({ error: "This shoot has already been developed. Start a new shoot to check new photos." });
   const plan = planFor(req.user);
   if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
+  if (plan.needsEmail) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
   if (plan.checksLeft === 0) throw new PlanError(`Free accounts include ${FREE.checks} photo checks, and you've used them. Buy a package to keep going.`);
   await runCheck(meta.id);
   // Only a completed check counts toward the free allowance.
@@ -233,7 +289,9 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
   const plan = planFor(req.user);
   if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
   if (plan.tier !== "owner") {
-    if (plan.freeShootAvailable && unique.length <= FREE.looks) {
+    if (plan.needsEmail && !plan.credits) {
+      throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
+    } else if (plan.freeShootAvailable && !plan.needsEmail && unique.length <= FREE.looks) {
       await users.update(req.user.id, (u) => (u.usage = { ...u.usage, freeShootUsed: meta.id }));
       meta.paidWith = "free";
     } else if (plan.credits > 0) {

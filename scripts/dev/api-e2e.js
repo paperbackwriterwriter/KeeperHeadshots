@@ -13,7 +13,14 @@ const f = async (p, o = {}) => {
   if (!r.ok) console.log("ERR", p, r.status, j);
   return j;
 };
-await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Test User", email: process.env.E || `t${Date.now()}@x.com`, password: "password123" }) });
+const email = process.env.E || `t${Date.now()}@x.com`;
+await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Test User", email, password: "password123" }) });
+// Confirm the email with the link caught by mock-ai's SMTP sink (run the
+// server with SMTP_HOST=localhost SMTP_PORT=2525 SMTP_PASS=x).
+const mail = await fetch(`${process.env.MOCK || "http://localhost:4010"}/mock-mail`).then((r) => r.json()).catch(() => []);
+const link = mail.filter((m) => m.to.includes(email)).flatMap((m) => m.links).find((l) => l.includes("/verify?token="));
+if (link) console.log("verify", (await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: new URL(link).searchParams.get("token") }) })).status);
+else console.log("No confirmation email caught; the free shoot stays locked unless the account is in OWNER_EMAILS.");
 const photos = [];
 for (let i = 0; i < 3; i++) {
   const b = await sharp(Buffer.from(portraitSVG("sf" + i, { outfit: "white-shirt" }))).resize(900, 1125).jpeg().toBuffer();

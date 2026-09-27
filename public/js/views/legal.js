@@ -45,7 +45,7 @@ export function renderPrivacy({ root }) {
       <h2 class="h-3">How we use it</h2>
       <ul>
         <li>To run the studio: check your photos, create your headshots, run our quality check on every headshot, and show you the results.</li>
-        <li>To manage your account and purchases, including refunds.</li>
+        <li>To manage your account and purchases, including refunds, and to send account emails such as the link that confirms your email address.</li>
         <li>To answer your messages and help with your shoots.</li>
         <li>To keep the service secure and prevent fraud and abuse, including misuse of the free shoot.</li>
         <li>To measure how well our ads work (see "Advertising and cookies" below).</li>

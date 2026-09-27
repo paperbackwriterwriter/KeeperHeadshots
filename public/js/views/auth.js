@@ -1,5 +1,4 @@
 import { $, $$, html, icon, logoMark, wordmark, api, state, toast, busy, example } from "../core.js";
-import { pixel } from "../pixel.js";
 
 const DEMO = { email: "demo@keeperheadshots.com", password: "studio-demo" };
 
@@ -101,8 +100,10 @@ export function renderAuth({ root, navigate }, mode) {
     try {
       const res = await api(`/api/auth/${isUp ? "signup" : "signin"}`, { method: "POST", body: data });
       state.user = res.user;
-      if (isUp) pixel("CompleteRegistration", {}, `reg_${res.user.id}`);
-      toast(isUp ? `Welcome, ${res.user.name.split(" ")[0]}. Let's make some headshots.` : `Welcome back, ${res.user.name.split(" ")[0]}.`, "success");
+      const first = res.user.name.split(" ")[0];
+      if (!isUp) toast(`Welcome back, ${first}.`, "success");
+      else if (res.user.plan?.needsEmail) toast(`Welcome, ${first}. Check your inbox: click the link we sent to ${res.user.email} to unlock your free shoot.`, "success", 9000);
+      else toast(`Welcome, ${first}. Let's make some headshots.`, "success");
       navigate(dest);
     } catch (err) {
       restore();

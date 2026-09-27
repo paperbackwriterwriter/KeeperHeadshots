@@ -1,4 +1,4 @@
-import { $, html, icon, logoMark, wordmark, state, loadSession, api, toast, initials, observeReveals } from "./core.js";
+import { $, html, icon, logoMark, wordmark, state, loadSession, api, toast, busy, initials, observeReveals } from "./core.js";
 import { renderLanding } from "./views/landing.js";
 import { renderAuth } from "./views/auth.js";
 import { renderDashboard } from "./views/dashboard.js";
@@ -8,6 +8,7 @@ import { renderContact } from "./views/contact.js";
 import { renderRefunds } from "./views/refunds.js";
 import { renderPrivacy, renderTerms } from "./views/legal.js";
 import { renderAccount } from "./views/account.js";
+import { renderVerify } from "./views/verify.js";
 import { initPixel, pixel } from "./pixel.js";
 
 const app = document.getElementById("app");
@@ -18,6 +19,7 @@ const routes = [
   { path: /^\/refunds$/, view: renderRefunds, chrome: "marketing", title: "Money-back guarantee · Keeper Headshots" },
   { path: /^\/privacy$/, view: renderPrivacy, chrome: "marketing", title: "Privacy policy · Keeper Headshots" },
   { path: /^\/terms$/, view: renderTerms, chrome: "marketing", title: "Terms of service · Keeper Headshots" },
+  { path: /^\/verify$/, view: renderVerify, chrome: "marketing", title: "Confirm your email · Keeper Headshots" },
   { path: /^\/contact$/, view: renderContact, chrome: "marketing", title: "Contact us · Keeper Headshots" },
   { path: /^\/signin$/, view: (ctx) => renderAuth(ctx, "signin"), chrome: "none", guestOnly: true, title: "Sign in · Keeper Headshots" },
   { path: /^\/signup$/, view: (ctx) => renderAuth(ctx, "signup"), chrome: "none", guestOnly: true, title: "Create your account · Keeper Headshots" },
@@ -147,6 +149,27 @@ function wireChrome() {
     navigate("/");
   });
 }
+
+// "Resend email" buttons (dashboard banner, verify page) for email confirmation.
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-resend-verify]");
+  if (!btn || btn.disabled) return;
+  const restore = busy(btn, "Sending…");
+  try {
+    const res = await api("/api/auth/verify/resend", { method: "POST" });
+    if (res.status === "already") {
+      state.user = res.user;
+      toast("Your email is already confirmed. Your free shoot is ready.", "success");
+      return render();
+    }
+    toast(`Sent. Check ${res.email} for a link from hello@keeperheadshots.com.`, "success", 7000);
+    btn.textContent = "Email sent";
+  } catch (err) {
+    restore();
+    if (err.status === 401) return navigate(`/signin?next=${encodeURIComponent("/app")}`);
+    toast(err.message, "error", 7000);
+  }
+});
 
 // Intercept in-app links.
 document.addEventListener("click", (e) => {

@@ -871,6 +871,16 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
 .policy-callout div { display: grid; gap: 4px; }
 .policy-callout span { color: var(--text-muted); }
 
+/* Email confirmation page */
+.verify-page { display: grid; place-items: center; min-height: 60vh; }
+.verify-card { max-width: 560px; text-align: center; display: grid; justify-items: center; gap: var(--s-4); }
+.verify-card .lede { margin: 0; }
+.verify-icon { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border); color: var(--ink-950); }
+.verify-icon svg { width: 28px; height: 28px; }
+.verify-icon-ok { background: var(--ink-950); color: #d2a85c; border-color: var(--ink-950); }
+.verify-icon-warn { background: var(--danger-soft); color: var(--danger); border-color: #f0bbb4; }
+.verify-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: var(--s-3); }
+
 /* Account page */
 .account-page { max-width: 760px; }
 .account-card { display: flex; gap: var(--s-5); align-items: flex-start; }
