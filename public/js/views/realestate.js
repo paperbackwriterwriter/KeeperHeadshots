@@ -29,7 +29,7 @@ function agentKit(id) {
     <p class="re-kit-cap re-kit-cap-card"><b>Portrait 3:4</b><span>Business cards, signs, flyers</span></p>
     <div class="re-profile">
       <div class="li-circle"><img src="${example(`${id}-sq`)}" alt="" /></div>
-      <div class="re-profile-lines"><b>Your Name</b><span>★★★★★ · Listing agent</span><i></i></div>
+      <div class="re-profile-lines"><b>Your Name</b><span>Listing agent · Your city</span><i></i></div>
     </div>
     <p class="re-kit-cap"><b>Square 1:1</b><span>Listing sites &amp; social profiles</span></p>
   </div>`;

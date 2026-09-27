@@ -31,7 +31,7 @@ function attorneyKit(id) {
     <p class="re-kit-cap re-kit-cap-card"><b>Portrait 3:4</b><span>Firm bio pages &amp; print</span></p>
     <div class="re-profile">
       <div class="li-circle"><img src="${example(`${id}-sq`)}" alt="" /></div>
-      <div class="re-profile-lines"><b>Your Name, Esq.</b><span>★★★★★ · Client reviews</span><i></i></div>
+      <div class="re-profile-lines"><b>Your Name, Esq.</b><span>Attorney profile · Litigation</span><i></i></div>
     </div>
     <p class="re-kit-cap"><b>Square 1:1</b><span>Directories &amp; LinkedIn</span></p>
   </div>`;

@@ -95,7 +95,7 @@ export async function renderDashboard({ root, navigate }) {
   try {
     data = await api("/api/shoots");
   } catch (err) {
-    grid.outerHTML = html`<div class="banner banner-danger">${icon("circle-alert")}<div><b>We couldn't load your shoots.</b>${err.message}</div><button class="btn btn-sm btn-ink" onclick="location.reload()">Try again</button></div>`.v;
+    grid.outerHTML = html`<div class="banner banner-danger">${icon("circle-alert")}<div><b>We couldn't load your shoots.</b>${err.message}</div><button class="btn btn-sm btn-ink" type="button" data-reload>Try again</button></div>`.v;
     return;
   }
   grid.removeAttribute("aria-busy");

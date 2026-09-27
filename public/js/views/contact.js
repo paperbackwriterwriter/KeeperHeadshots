@@ -1,5 +1,6 @@
 import { $, $$, html, icon, api, state, busy } from "../core.js";
 import { footer } from "./landing.js";
+import { mountTurnstile } from "../turnstile.js";
 
 export const CONTACT_EMAIL = "hello@keeperheadshots.com";
 
@@ -44,6 +45,7 @@ export function renderContact({ root }) {
               <span class="field-error" id="err-message" hidden></span>
             </div>
             <div class="hp" aria-hidden="true"><label for="company">Company website</label><input id="company" name="company" tabindex="-1" autocomplete="off" /></div>
+            <div class="turnstile-slot" id="botCheck"></div>
             <div class="contact-submit">
               <button class="btn btn-flash btn-lg" type="submit" id="submit">Send message ${icon("send")}</button>
               <p class="field-hint">Or email <a class="link" href="${mailto()}">${CONTACT_EMAIL}</a></p>
@@ -76,6 +78,8 @@ export function renderContact({ root }) {
 
   const form = $("#contactForm");
   const alertBox = $("#formAlert");
+  // Bot check (Cloudflare Turnstile), when configured.
+  const human = mountTurnstile($("#botCheck"), { action: "contact" });
 
   // The team card links to this same page; just switch the topic.
   $("#teamLink").addEventListener("click", (e) => {
@@ -129,10 +133,12 @@ export function renderContact({ root }) {
     if (Object.keys(fields).length) return $(`#${Object.keys(fields)[0]}`).focus();
     const restore = busy($("#submit"), "Sending…");
     try {
-      await api("/api/contact", { method: "POST", body: data });
+      const body = human ? { ...data, turnstileToken: await human.token() } : data;
+      await api("/api/contact", { method: "POST", body });
       showSent(data.email.trim());
     } catch (err) {
       restore();
+      human?.reset(); // tokens are single-use
       if (err.data?.fields) setErrors(err.data.fields);
       const body = encodeURIComponent(data.message || "");
       alertBox.innerHTML = `${icon("circle-alert").v}<span>${err.message.replace(/</g, "&lt;")} You can also <a class="link" href="${mailto("Website message")}&body=${body}">email us directly</a>.</span>`;
@@ -145,4 +151,5 @@ export function renderContact({ root }) {
       $(`#err-${e.target.id}`).hidden = true;
     }
   });
+  return () => human?.remove();
 }

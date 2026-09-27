@@ -47,23 +47,23 @@ export function renderLanding({ root }) {
           <div class="hero-proof" data-reveal style="--i:4">
             <div class="proof-item"><strong class="tabular">&lt; 15 min</strong><span>typical turnaround</span></div>
             <div class="proof-item"><strong class="tabular">From $29</strong><span>one-time, no subscription</span></div>
-            <div class="proof-item"><strong class="tabular">100%</strong><span>money-back guarantee</span></div>
+            <div class="proof-item"><strong class="tabular">Refund</strong><span>if none are usable</span></div>
           </div>
         </div>
 
         <div class="hero-visual">
         <div class="sheet" id="heroSheet" data-reveal style="--i:2">
-          <div class="sheet-board" role="img" aria-label="Example: one casual selfie becomes a contact sheet of nine professional headshots of the same person">
+          <div class="sheet-board" role="img" aria-label="Example: one casual selfie becomes a contact sheet of professional headshots of the same person">
             ${HERO_FRAMES.map(
               ([b, o], i) => html`<div class="sheet-frame ${i === HERO_SETS[0][2] ? "keeper" : ""}" style="--d:${i}">
-                <img src="${example(`hero-${i + 1}`)}" alt="" loading="${i < 6 ? "eager" : "lazy"}" />
+                <img src="${example(`hero-${i + 1}`, 360)}" alt="" loading="${i < 6 ? "eager" : "lazy"}" />
                 <span class="fno">${String(i + 1).padStart(2, "0")}A</span>
                 ${i === HERO_SETS[0][2] ? greaseCircle() : ""}
               </div>`,
             )}
           </div>
           <figure class="polaroid">
-            <img src="${example("hero-selfie")}" alt="" />
+            <img src="${example("hero-selfie", 360)}" alt="" />
             <figcaption><span>BEFORE</span><span>SELFIE</span></figcaption>
           </figure>
           <span class="tag-keeper">${icon("badge-check")} Best pick <span class="score" id="heroScore">96</span></span>
@@ -112,7 +112,7 @@ export function renderLanding({ root }) {
             <span class="step-no">02</span>
             <div>
               <h3 class="display h-3">Choose your looks</h3>
-              <p>Pair studio backdrops with wardrobe — from seamless studio grey and a navy suit to golden-hour rooftops and a camel knit. Mix up to four looks per shoot.</p>
+              <p>Pair studio backdrops with wardrobe — from seamless studio gray and a navy suit to golden-hour rooftops and a camel knit. Mix up to four looks per shoot.</p>
               <div class="step-meta"><span class="chip">${icon("layers")} ${BACKDROPS.length} backdrops</span><span class="chip">${icon("briefcase")} ${OUTFITS.length} outfits</span></div>
             </div>
           </li>
@@ -160,18 +160,22 @@ export function renderLanding({ root }) {
           <p class="lede" data-reveal style="--i:2">A traditional headshot session costs a few hundred dollars and half a day. Ours costs less than lunch for two.</p>
         </div>
         <div class="compare" data-reveal>
-          <dl class="compare-col">
+          <div class="compare-col">
             <h3 class="h-4">Traditional photographer</h3>
+            <dl class="compare-list">
             ${[["Average cost", "$200 – $400"], ["Time to book & shoot", "1 – 3 weeks"], ["Backdrops & outfits", "1 – 2 looks"], ["Number of photos", "3 – 10 edited"], ["Help choosing", "You decide alone"]].map(
               ([k, v]) => html`<div class="compare-row"><dt>${k}</dt><dd>${v}</dd></div>`,
             )}
-          </dl>
-          <dl class="compare-col">
+            </dl>
+          </div>
+          <div class="compare-col">
             <h3 class="h-4">Keeper Headshots</h3>
+            <dl class="compare-list">
             ${[["Cost", "From $29"], ["Turnaround", "Under 15 minutes"], ["Backdrops & outfits", "Up to 4 looks per shoot"], ["Number of photos", "Up to 8 per shoot"], ["Help choosing", "Every frame graded"]].map(
               ([k, v]) => html`<div class="compare-row"><dt>${k}</dt><dd class="hi">${v}</dd></div>`,
             )}
-          </dl>
+            </dl>
+          </div>
         </div>
       </div>
     </section>
@@ -203,7 +207,7 @@ export function renderLanding({ root }) {
             <p class="eyebrow" data-reveal>Pricing</p>
             <h2 class="display h-1" data-reveal style="--i:1;margin-top:16px">One payment. <em>No</em> subscription.</h2>
           </div>
-          <p class="lede" data-reveal style="--i:2">Pick a package, keep every photo forever. Covered by our 100% money-back guarantee.</p>
+          <p class="lede" data-reveal style="--i:2">Pick a package, keep every photo forever. Covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>.</p>
         </div>
         <div class="pricing">
           ${PACKAGES.map(
@@ -219,7 +223,7 @@ export function renderLanding({ root }) {
             </article>`,
           )}
         </div>
-        <p class="guarantee">${icon("shield-check")} 100% money-back guarantee: if none of your headshots are usable, we'll refund you in full. <a class="link" href="/refunds" data-link>See the terms</a></p>
+        <p class="guarantee">${icon("shield-check")} Money-back guarantee: if none of the headshots from your first paid shoot are usable, we'll refund the package in full. <a class="link" href="/refunds" data-link>See the terms</a></p>
         <div class="teams" id="teams" data-reveal>
           <div style="display:flex;gap:16px;align-items:center">
             <span class="t-ic">${icon("users")}</span>
@@ -277,7 +281,7 @@ function heroCycle() {
   let hovering = false;
   let busy = false;
   let timer = null;
-  const urls = (i) => [example(`${HERO_SETS[i][0]}-selfie`), ...Array.from({ length: 9 }, (_, j) => example(`${HERO_SETS[i][0]}-${j + 1}`))];
+  const urls = (i) => [example(`${HERO_SETS[i][0]}-selfie`, 360), ...Array.from({ length: 9 }, (_, j) => example(`${HERO_SETS[i][0]}-${j + 1}`, 360))];
   const preload = (i) =>
     Promise.all(urls(i).map((u) => { const im = new Image(); im.src = u; return im.decode(); }));
 
@@ -346,7 +350,7 @@ function reviewPreview() {
   return html`<div class="panel" style="background:var(--paper-100);color:var(--ink-950);padding:20px;border-radius:24px;box-shadow:var(--shadow-3)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px">
       <span class="eyebrow"><span class="dot"></span>Retoucher's verdict</span>
-      <span class="badge badge-success">${icon("check")} 3 keepers</span>
+      <span class="badge badge-success">${icon("check")} 2 keepers</span>
     </div>
     <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:16px;align-items:start">
       <div class="print" style="position:relative;padding:8px 8px 0">
@@ -378,9 +382,9 @@ export function footer() {
           <a class="logo" href="/" data-link style="color:var(--text)">${logoMark()}${wordmark()}</a>
           <p style="margin-top:12px;max-width:34ch">Professional headshots from the photos you already have. Checked, developed and graded by AI.</p>
         </div>
-        <div><h4>Product</h4><ul><li><a href="/#how">How it works</a></li><li><a href="/linkedin-headshots" data-link>LinkedIn headshots</a></li><li><a href="/#styles">Styles</a></li><li><a href="/#pricing">Pricing</a></li><li><a href="/team-headshots" data-link>Team headshots</a></li><li><a href="/real-estate-headshots" data-link>Real estate headshots</a></li><li><a href="/resume-headshots" data-link>Résumé headshots</a></li><li><a href="/doctor-headshots" data-link>Doctor headshots</a></li><li><a href="/lawyer-headshots" data-link>Lawyer headshots</a></li></ul></div>
-        <div><h4>Account</h4><ul><li><a href="/signin" data-link>Sign in</a></li><li><a href="/signup" data-link>Create account</a></li><li><a href="/app" data-link>Your shoots</a></li></ul></div>
-        <div><h4>Company</h4><ul><li><a href="/#faq">FAQ</a></li><li><a href="/contact" data-link>Contact us</a></li><li><a href="/refunds" data-link>Money-back guarantee</a></li><li><a href="/privacy" data-link>Privacy policy</a></li><li><a href="/terms" data-link>Terms of service</a></li></ul></div>
+        <div><h2 class="footer-h">Product</h2><ul><li><a href="/#how">How it works</a></li><li><a href="/linkedin-headshots" data-link>LinkedIn headshots</a></li><li><a href="/#styles">Styles</a></li><li><a href="/#pricing">Pricing</a></li><li><a href="/team-headshots" data-link>Team headshots</a></li><li><a href="/real-estate-headshots" data-link>Real estate headshots</a></li><li><a href="/resume-headshots" data-link>Résumé headshots</a></li><li><a href="/doctor-headshots" data-link>Doctor headshots</a></li><li><a href="/lawyer-headshots" data-link>Lawyer headshots</a></li></ul></div>
+        <div><h2 class="footer-h">Account</h2><ul><li><a href="/signin" data-link>Sign in</a></li><li><a href="/signup" data-link>Create account</a></li><li><a href="/app" data-link>Your shoots</a></li></ul></div>
+        <div><h2 class="footer-h">Company</h2><ul><li><a href="/#faq">FAQ</a></li><li><a href="/contact" data-link>Contact us</a></li><li><a href="/refunds" data-link>Money-back guarantee</a></li><li><a href="/privacy" data-link>Privacy policy</a></li><li><a href="/terms" data-link>Terms of service</a></li></ul></div>
       </div>
       <div class="footer-base"><span>© ${new Date().getFullYear()} Keeper Headshots</span><span>Your photos are never used to train AI models.</span></div>
     </div>

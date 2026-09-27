@@ -4,8 +4,8 @@ import sharp from "sharp";
 import cookieParser from "cookie-parser";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { users, shoots, id, readMedia, writeMedia, deleteMedia } from "./lib/store.js";
-import { backend } from "./lib/storage.js";
+import { users, shoots, id, readMedia, writeMedia, deleteMedia, freeClaimKey } from "./lib/store.js";
+import { backend, createJSON, getJSON, del } from "./lib/storage.js";
 import { hashPassword, verifyPassword, setSession, clearSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailVerified } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, MAIL_FROM } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
@@ -45,16 +45,26 @@ app.post("/api/billing/webhook", express.raw({ type: "application/json" }), asyn
 app.use(express.json({ limit: "4mb" }));
 
 const isEmail = (s) => typeof s === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+// Links we email or hand to Stripe use a fixed origin in production, never the
+// request's Host header (which a client controls).
+const appOrigin = (req) => process.env.APP_ORIGIN || (process.env.VERCEL_ENV === "production" ? "https://keeperheadshots.com" : `${req.protocol}://${req.get("host")}`);
+
+const SIGNIN_WINDOW_MS = 15 * 60 * 1000;
+const SIGNIN_MAX_FAILS = 10;
+const DUMMY_HASH = hashPassword("not-a-real-password");
+
 const LIVE = ["checking", "generating", "reviewing"];
+const MAX_RESUMES = 3;
 
 /* ------------------------------- Auth ------------------------------- */
 
 // Email confirmation: the free shoot unlocks once the person clicks the link
 // we email them, which stops throwaway sign-ups from claiming free shoots.
 async function sendVerification(user, req) {
-  const link = `${req.protocol}://${req.get("host")}/verify?token=${emailToken(user)}`;
+  const link = `${appOrigin(req)}/verify?token=${emailToken(user)}`;
   if (!mailEnabled()) {
-    console.warn("[verify] Email is not configured; confirmation link for", user.email, link);
+    // Only print the link itself in local development; in production it's a sign-in link.
+    console.warn("[verify] Email is not configured; no confirmation email sent for", user.id, process.env.VERCEL ? "" : link);
     return false;
   }
   const { subject, text, html } = verificationEmail({ name: user.name, link });
@@ -66,6 +76,7 @@ app.post("/api/auth/signup", async (req, res) => {
   const { name, email, password } = req.body || {};
   const errors = {};
   if (!name || String(name).trim().length < 2) errors.name = "Tell us what to call you.";
+  else if (String(name).trim().length > 80 || /https?:|www\.|[<>\u0000-\u001f]/i.test(String(name))) errors.name = "Use just your name (up to 80 characters, no links).";
   if (!isEmail(email)) errors.email = "Enter a valid email address.";
   if (!password || String(password).length < 8) errors.password = "Use at least 8 characters.";
   if (Object.keys(errors).length) return res.status(400).json({ error: "Please fix the highlighted fields.", fields: errors });
@@ -95,9 +106,20 @@ app.post("/api/auth/signin", async (req, res) => {
   const { email, password } = req.body || {};
   if (isEmail(email) && email.toLowerCase().trim() === DEMO.email) await seed();
   const user = isEmail(email) ? await users.byEmail(email) : null;
-  if (!user || !password || !verifyPassword(String(password), user.password)) {
+  // Slow down password guessing: after 10 wrong passwords in 15 minutes the
+  // account refuses sign-ins for the rest of that window (stored on the user,
+  // so it holds across serverless instances).
+  const now = Date.now();
+  const recent = (user?.signinFails || []).filter((t) => now - t < SIGNIN_WINDOW_MS);
+  if (recent.length >= SIGNIN_MAX_FAILS) return res.status(429).json({ error: "Too many attempts. Wait 15 minutes, then try again, or contact us for help." });
+  // Always run the (async) password hash, even for unknown emails, so timing
+  // doesn't reveal which addresses have accounts.
+  const ok = await verifyPassword(String(password || ""), user?.password || DUMMY_HASH);
+  if (!user || !password || !ok) {
+    if (user) await users.update(user.id, (u) => (u.signinFails = [...(u.signinFails || []).filter((t) => now - t < SIGNIN_WINDOW_MS), now])).catch(() => {});
     return res.status(401).json({ error: "That email and password don't match an account." });
   }
+  if (recent.length) await users.update(user.id, (u) => (u.signinFails = [])).catch(() => {});
   setSession(res, user.id);
   res.json({ user: publicUser(user) });
 });
@@ -150,6 +172,10 @@ app.get("/api/me", async (req, res) => {
 /* ------------------------------ Shoots ------------------------------ */
 
 async function ownShoot(req, res, { full = true } = {}) {
+  if (!/^sht_[\w-]{6,40}$/.test(String(req.params.id))) {
+    res.status(404).json({ error: "We couldn't find that shoot." });
+    return null;
+  }
   const shoot = full ? await shoots.get(req.params.id) : await shoots.getMeta(req.params.id);
   if (!shoot || shoot.userId !== req.user.id) {
     res.status(404).json({ error: "We couldn't find that shoot." });
@@ -268,10 +294,23 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   const plan = planFor(req.user);
   if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
   if (plan.needsEmail) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
-  if (plan.checksLeft === 0) throw new PlanError(`Free accounts include ${FREE.checks} photo checks, and you've used them. Buy a package to keep going.`);
-  await runCheck(meta.id);
-  // Only a completed check counts toward the free allowance.
-  if (plan.checksLeft != null) await users.update(req.user.id, (u) => (u.usage = { ...u.usage, checks: (u.usage?.checks || 0) + 1 }));
+  const limitMsg = `Free accounts include ${FREE.checks} photo checks, and you've used them. Buy a package to keep going.`;
+  if (plan.checksLeft === 0) throw new PlanError(limitMsg);
+  // Reserve the check before the (paid) AI call so parallel requests can't
+  // exceed the free allowance; give it back if the check fails.
+  const counted = plan.checksLeft != null;
+  if (counted) {
+    await users.update(req.user.id, (u) => {
+      if (planFor(u).checksLeft === 0) throw new PlanError(limitMsg);
+      u.usage = { ...u.usage, checks: (u.usage?.checks || 0) + 1 };
+    });
+  }
+  try {
+    await runCheck(meta.id);
+  } catch (err) {
+    if (counted) await users.update(req.user.id, (u) => (u.usage = { ...u.usage, checks: Math.max(0, (u.usage?.checks || 0) - 1) })).catch(() => {});
+    throw err;
+  }
   res.json({ shoot: await shoots.get(meta.id) });
 });
 
@@ -284,37 +323,68 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
   if (LIVE.includes(meta.status)) return res.status(409).json({ error: "This shoot is already in progress." });
   // A shoot is developed once; retries of failed frames go through /resume.
   if (meta.status !== "checked" || (meta.shots || []).length) return res.status(409).json({ error: "This shoot has already been developed. Start a new shoot for new looks." });
-  const looks = (req.body?.looks || []).map((l) => lookFor(l.backdrop, l.outfit)).filter(Boolean);
+  const looks = (Array.isArray(req.body?.looks) ? req.body.looks : []).map((l) => (l && typeof l === "object" ? lookFor(String(l.backdrop), String(l.outfit)) : null)).filter(Boolean);
   const unique = [...new Map(looks.map((l) => [l.id, l])).values()];
   if (!unique.length) return res.status(400).json({ error: "Pick at least one look." });
   if (unique.length > MAX_LOOKS) return res.status(400).json({ error: `Pick up to ${MAX_LOOKS} looks.` });
   // Pay for the shoot: owner free; the free trial covers up to FREE.looks
-  // looks; otherwise it uses one credit.
+  // looks; otherwise it uses one credit. The shoot is claimed first (write-once)
+  // so two clicks can't charge twice, and the charge is re-checked inside an
+  // atomic update of the user record so two shoots can't share one credit.
   const plan = planFor(req.user);
   if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
-  if (plan.tier !== "owner") {
-    if (plan.needsEmail && !plan.credits) {
-      throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
-    } else if (plan.freeShootAvailable && !plan.needsEmail && unique.length <= FREE.looks) {
-      await users.update(req.user.id, (u) => (u.usage = { ...u.usage, freeShootUsed: meta.id }));
-      meta.paidWith = "free";
-    } else if (plan.credits > 0) {
-      await users.update(req.user.id, (u) => (u.credits = Math.max(0, (u.credits || 0) - 1)));
-      meta.paidWith = "credit";
-    } else if (plan.freeShootAvailable) {
-      throw new PlanError(`Your free shoot includes up to ${FREE.looks} looks. Remove ${unique.length - FREE.looks} to continue.`, "too_many_looks", 400);
-    } else {
-      throw new PlanError(NO_SHOOTS_LEFT);
-    }
+  const claimKey = `claims/develop/${meta.id}.json`;
+  if (!(await createJSON(claimKey, { userId: req.user.id, at: new Date().toISOString() }))) {
+    return res.status(409).json({ error: "This shoot is already in progress." });
   }
-  res.status(202).json({ shoot: await startGeneration(meta, unique) });
+  let charged = null;
+  try {
+    if (plan.tier !== "owner") {
+      if (plan.needsEmail && !plan.credits) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
+      // One free shoot per mailbox, however the address is written.
+      const wantsFree = plan.freeShootAvailable && !plan.needsEmail && unique.length <= FREE.looks;
+      let freeOk = false;
+      if (wantsFree) {
+        const key = freeClaimKey(req.user.email);
+        freeOk = (await createJSON(key, { userId: req.user.id, shootId: meta.id, at: new Date().toISOString() })) || (await getJSON(key))?.userId === req.user.id;
+      }
+      await users.update(req.user.id, (u) => {
+        const p = planFor(u);
+        if (freeOk && p.freeShootAvailable) {
+          u.usage = { ...u.usage, freeShootUsed: meta.id };
+          charged = "free";
+        } else if (p.credits > 0) {
+          u.credits = p.credits - 1;
+          charged = "credit";
+        } else if (wantsFree && !freeOk) {
+          throw new PlanError("The free shoot has already been used for this email address. Buy a package to keep going.", "free_used");
+        } else if (p.freeShootAvailable && unique.length > FREE.looks) {
+          throw new PlanError(`Your free shoot includes up to ${FREE.looks} looks. Remove ${unique.length - FREE.looks} to continue.`, "too_many_looks", 400);
+        } else {
+          throw new PlanError(NO_SHOOTS_LEFT);
+        }
+      });
+      meta.paidWith = charged;
+    }
+    res.status(202).json({ shoot: await startGeneration(meta, unique) });
+  } catch (err) {
+    // Nothing was developed: give back whatever was charged and release the claim.
+    if (charged === "credit") await users.update(req.user.id, (u) => (u.credits = (u.credits || 0) + 1)).catch((e) => console.error("[generate] refund credit", e.message));
+    if (charged === "free") await users.update(req.user.id, (u) => (u.usage = { ...u.usage, freeShootUsed: null })).catch((e) => console.error("[generate] refund free", e.message));
+    await del(claimKey).catch(() => {});
+    throw err;
+  }
 });
 
 app.post("/api/shoots/:id/resume", requireUser, async (req, res) => {
   if (req.user.demo) throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
   const shoot = await ownShoot(req, res);
   if (!shoot || !requireAI("imaging", res)) return;
+  if (LIVE.includes(shoot.status)) return res.status(409).json({ error: "This shoot is still in progress." });
   if (!shoot.shots.some((s) => s.status === "error")) return res.status(400).json({ error: "Nothing to resume." });
+  // Retries are free, but capped so a shoot that keeps failing can't loop forever.
+  if ((shoot.resumes || 0) >= MAX_RESUMES) return res.status(429).json({ error: "These frames still didn't develop after several tries. Contact us and we'll sort it out.", code: "resume_limit" });
+  await shoots.updateMeta(shoot.id, (m) => void (m.resumes = (m.resumes || 0) + 1));
   res.status(202).json({ shoot: await retryFailed(shoot.id) });
 });
 
@@ -326,9 +396,13 @@ app.post("/api/shoots/:id/review", requireUser, async (req, res) => {
   const plan = planFor(req.user);
   if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
   if (plan.tier !== "owner" && (shoot.regrades || 0) >= FREE.regradesPerShoot) throw new PlanError(`You can re-grade a shoot up to ${FREE.regradesPerShoot} times.`, "regrade_limit", 429);
-  const meta = await shoots.getMeta(shoot.id);
-  meta.regrades = (meta.regrades || 0) + 1;
-  await shoots.saveMeta(meta);
+  let over = false;
+  await shoots.updateMeta(shoot.id, (m) => {
+    over = plan.tier !== "owner" && (m.regrades || 0) >= FREE.regradesPerShoot;
+    if (over) return false;
+    m.regrades = (m.regrades || 0) + 1;
+  });
+  if (over) throw new PlanError(`You can re-grade a shoot up to ${FREE.regradesPerShoot} times.`, "regrade_limit", 429);
   res.status(202).json({ shoot: await startReview(shoot.id) });
 });
 
@@ -337,25 +411,31 @@ app.patch("/api/shoots/:id", requireUser, async (req, res) => {
   const shoot = await ownShoot(req, res);
   if (!shoot) return;
   if (shoot.sample) return res.status(400).json({ error: "Sample shoots are read-only." });
-  const meta = await shoots.getMeta(shoot.id);
-  if ("name" in (req.body || {})) {
-    const name = String(req.body.name || "").trim().slice(0, 60);
+  const body = req.body || {};
+  let name;
+  if ("name" in body) {
+    name = String(body.name || "").trim().slice(0, 60);
     if (!name) return res.status(400).json({ error: "Give the shoot a name." });
-    meta.name = name;
   }
-  if ("pickedShotId" in (req.body || {})) {
-    const pickId = req.body.pickedShotId;
-    const pick = pickId ? shoot.shots.find((s) => s.id === pickId && s.status === "done") : null;
+  let pick;
+  if ("pickedShotId" in body) {
+    const pickId = body.pickedShotId;
+    pick = pickId ? shoot.shots.find((s) => s.id === pickId && s.status === "done") : null;
     if (pickId && !pick) return res.status(400).json({ error: "That headshot isn't available to pick." });
-    meta.pickedShotId = pick ? pick.id : null;
-    const featured = pick || shoot.shots.find((s) => s.id === meta.review?.bestShotId);
-    if (featured) {
-      meta.cover = featured.file;
-      meta.bestScore = meta.review?.shots?.[featured.id]?.overall ?? null;
-    }
   }
-  await shoots.saveMeta(meta);
-  res.json({ shoot: await shoots.get(meta.id) });
+  // Atomic, so a grading result landing at the same moment isn't lost.
+  await shoots.updateMeta(shoot.id, (meta) => {
+    if (name !== undefined) meta.name = name;
+    if (pick !== undefined) {
+      meta.pickedShotId = pick ? pick.id : null;
+      const featured = pick || shoot.shots.find((s) => s.id === meta.review?.bestShotId);
+      if (featured) {
+        meta.cover = featured.file;
+        meta.bestScore = meta.review?.shots?.[featured.id]?.overall ?? null;
+      }
+    }
+  });
+  res.json({ shoot: await shoots.get(shoot.id) });
 });
 
 app.delete("/api/shoots/:id", requireUser, async (req, res) => {
@@ -372,7 +452,7 @@ app.delete("/api/shoots/:id", requireUser, async (req, res) => {
 app.post("/api/account/delete", requireUser, async (req, res) => {
   if (req.user.demo) return res.status(403).json({ error: DEMO_READ_ONLY, code: "demo_read_only" });
   const password = String(req.body?.password || "");
-  if (!password || !verifyPassword(password, req.user.password)) {
+  if (!password || !(await verifyPassword(password, req.user.password))) {
     return res.status(401).json({ error: "That password isn't right.", fields: { password: "That password isn't right." } });
   }
   const list = await shoots.forUser(req.user.id);
@@ -411,7 +491,7 @@ function requireBilling(req, res) {
 
 app.post("/api/billing/checkout", requireUser, async (req, res) => {
   if (!requireBilling(req, res)) return;
-  const origin = `${req.protocol}://${req.get("host")}`;
+  const origin = appOrigin(req);
   const checkout = await createCheckout(req.user, String(req.body?.packageId || ""), origin, { gpc: gpc(req) });
   const eventId = `checkout_${checkout.id}`;
   trackMeta("InitiateCheckout", { eventId, user: req.user, req, value: checkout.value });
@@ -438,6 +518,8 @@ app.post("/api/contact", async (req, res) => {
   const { msg, fields } = validateContact(req.body);
   if (Object.keys(fields).length) return res.status(400).json({ error: "Please fix the highlighted fields.", fields });
   if (rateLimited(req.ip || "unknown")) return res.status(429).json({ error: "You've sent several messages already. Please try again later." });
+  const human = await checkHuman(req.body?.turnstileToken, { ip: req.ip, action: "contact" });
+  if (!human.ok) return res.status(400).json({ error: "We couldn't confirm you're a person. Please complete the security check and try again.", code: "bot_check" });
   if (!contactEnabled()) return res.status(503).json({ error: "Our contact form is offline right now.", code: "contact_not_configured" });
   try {
     await submitContact(msg, { user: await currentUser(req).catch(() => null), ip: req.ip });
@@ -476,11 +558,12 @@ async function squareCrop(buf, head) {
 
 app.get("/media/:sid/:name", requireUser, async (req, res) => {
   const { sid, name } = req.params;
-  if (!/^[\w-]+$/.test(sid) || !/^[\w-]+\.(jpg|png|svg)$/.test(name)) return res.status(404).end();
+  if (!/^[\w-]+$/.test(sid) || !/^[\w-]+\.(jpg|png)$/.test(name)) return res.status(404).end();
+  if (req.query.square && /-sq\.jpg$/.test(name)) return res.status(404).end();
   const meta = await shoots.getMeta(sid);
   if (!meta || meta.userId !== req.user.id) return res.status(404).end();
   const base = name.replace(/\.\w+$/, "");
-  if (req.query.square && !name.endsWith(".svg")) {
+  if (req.query.square) {
     // 1:1 square for LinkedIn / Microsoft Teams profile photos (see squareCrop).
     // A widened square made by the pipeline (lib/pipeline.js widenSquare) wins;
     // otherwise a face-centered crop of the portrait, cached next to it.
@@ -500,7 +583,7 @@ app.get("/media/:sid/:name", requireUser, async (req, res) => {
   }
   const buf = await readMedia(`${sid}/${name}`);
   if (!buf) return res.status(404).end();
-  const type = name.endsWith(".svg") ? "image/svg+xml" : name.endsWith(".png") ? "image/png" : "image/jpeg";
+  const type = name.endsWith(".png") ? "image/png" : "image/jpeg";
   res.set("Cache-Control", "private, max-age=31536000, immutable").type(type);
   if (req.query.download) res.attachment(`headshot-${base}.${name.split(".").pop()}`);
   res.send(buf);
@@ -509,17 +592,26 @@ app.get("/media/:sid/:name", requireUser, async (req, res) => {
 /* ----------------------------- Examples ----------------------------- */
 
 // Marketing example headshots (see lib/examples.js).
-app.get("/examples/:id.jpg", async (req, res) => {
-  const buf = /^[a-z0-9-]+$/.test(req.params.id) ? await exampleImage(req.params.id) : null;
+// /examples/<id>.jpg is the original; /examples/<id>.webp?w=360|600|900 is a
+// resized WebP for the pages. Either way the CDN caches the response.
+const EXAMPLE_WIDTHS = [360, 600, 900];
+app.get(/^\/examples\/([a-z0-9-]+)\.(jpg|webp)$/, async (req, res) => {
+  const [id, ext] = [req.params[0], req.params[1]];
+  const buf = await exampleImage(id);
   if (!buf) return res.status(404).end();
-  res.set("Cache-Control", "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=86400").type("image/jpeg").send(buf);
+  res.set("Cache-Control", "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=86400");
+  if (ext === "jpg") return res.type("image/jpeg").send(buf);
+  const w = EXAMPLE_WIDTHS.includes(Number(req.query.w)) ? Number(req.query.w) : 600;
+  const out = await sharp(buf).resize({ width: w, withoutEnlargement: true }).webp({ quality: 78, effort: 4 }).toBuffer();
+  res.type("image/webp").send(out);
 });
 
 // Owner-only generator, enabled only while ADMIN_TOKEN is set.
 function adminOnly(req, res, next) {
   const want = process.env.ADMIN_TOKEN || "";
   const got = String(req.query.token || req.get("x-admin-token") || "");
-  const ok = want.length >= 24 && got.length === want.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want));
+  const digest = (v) => crypto.createHash("sha256").update(v).digest();
+  const ok = want.length >= 24 && crypto.timingSafeEqual(digest(got), digest(want));
   if (!ok) return res.status(404).json({ error: "Not found" });
   next();
 }
@@ -556,8 +648,28 @@ app.use("/media", (req, res) => res.status(404).end());
 // Every other GET is the single-page app. lib/seo.js gives each path its own
 // title, description, canonical URL and robots rule (plus prerendered content
 // for public pages), and unknown paths a real 404 status.
+// Content Security Policy for pages. Scripts come from our origin plus
+// Turnstile (sign-up, contact) and the Meta pixel; styles allow inline for
+// the style="" attributes the views use.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' https://challenges.cloudflare.com https://connect.facebook.net",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https://www.facebook.com",
+  "connect-src 'self' https://www.facebook.com https://connect.facebook.net",
+  "frame-src https://challenges.cloudflare.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+
 app.get(/.*/, (req, res) => {
-  const clean = req.path.length > 1 ? req.path.replace(/\/+$/, "") : "/";
+  res.set("Content-Security-Policy", CSP);
+  // "//evil.com/" or "/\\evil.com" must never become a redirect to another site.
+  if (/^\/[\/\\]/.test(req.path) || req.path.includes("\\")) return res.status(404).type("html").send(pageFor("/__not_found__").html);
+  const clean = req.path.length > 1 ? "/" + req.path.replace(/\/+$/, "").replace(/^\/+/, "") : "/";
   if (clean !== req.path) return res.redirect(301, clean + req.url.slice(req.path.length));
   const { status, html } = pageFor(clean);
   if (!isCanonicalHost(req.get("host"))) res.set("X-Robots-Tag", "noindex");

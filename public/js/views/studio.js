@@ -75,6 +75,9 @@ export async function renderStudio(ctx, id) {
       patchDevelop(s);
       return;
     }
+    // While the check runs, nothing on screen changes; don't rebuild it every poll
+    // (that would replay animations and re-announce the status to screen readers).
+    if (prev?.status === "checking" && s.status === "checking") return;
     if (s.status === "draft" || s.status === "checking") return paintCheck(s);
     if (s.status === "checked") return view === "looks" ? paintLooks(s) : paintCheck(s);
     if (s.status === "generating" || s.status === "reviewing") return paintDevelop(s);
@@ -763,7 +766,10 @@ export async function renderStudio(ctx, id) {
     };
     const step = (d) => {
       current = (current + d + ordered.length) % ordered.length;
+      // Redrawing replaces the buttons; keep keyboard focus on the one that was used.
+      const focused = document.activeElement?.id;
       drawLb();
+      if (focused) lb.querySelector(`#${focused}`)?.focus();
     };
     lb.addEventListener("keydown", (e) => {
       if (e.key === "ArrowRight") step(1);
@@ -793,10 +799,7 @@ export async function renderStudio(ctx, id) {
       const b = e.target.closest("[data-pick]");
       if (b) setPick(b.dataset.pick, b);
     });
-    lb.addEventListener("click", (e) => {
-      const b = e.target.closest("[data-pick]");
-      if (b) setPick(b.dataset.pick, b);
-    });
+    // (The lightbox sits inside #main, so the listener above covers its pick button too.)
     $("#resetPick")?.addEventListener("click", (e) => setPick(null, e.currentTarget));
 
     $$("#regrade, #regradeAll").forEach((el) => el.addEventListener("click", async (e) => {

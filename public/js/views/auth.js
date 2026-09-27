@@ -9,7 +9,7 @@ export function renderAuth({ root, navigate }, mode) {
   const next = new URLSearchParams(location.search).get("next");
   const dest = next && next.startsWith("/app") ? next : isUp ? "/app/new" : "/app";
 
-  const mosaic = ["strip-1", "hero-2", "strip-2", "rv-2", "strip-3", "hero-4", "strip-4", "rv-3", "hero-7", "strip-5", "hero-1", "strip-6", "rv-1", "strip-7", "hero-6", "hero-9"].map(example);
+  const mosaic = ["strip-1", "hero-2", "strip-2", "rv-2", "strip-3", "hero-4", "strip-4", "rv-3", "hero-7", "strip-5", "hero-1", "strip-6", "rv-1", "strip-7", "hero-6", "hero-9"].map((id) => example(id, 360));
 
   root.innerHTML = html`
   <main id="main" class="auth">
@@ -47,7 +47,7 @@ export function renderAuth({ root, navigate }, mode) {
       </div>
     </div>
     <aside class="auth-side" aria-hidden="true">
-      <div class="auth-mosaic">${mosaic.map((src) => html`<img src="${src}" alt="" />`)}</div>
+      <div class="auth-mosaic">${mosaic.map((src, i) => html`<img src="${src}" alt="" loading="${i < 6 ? "eager" : "lazy"}" decoding="async" />`)}</div>
       <p class="display h-2" style="margin:0 0 12px;max-width:18ch">Headshots worth keeping.</p>
       <p style="color:#a9b1bd;max-width:44ch">Every headshot is checked against your own photos for likeness and polish before you see it.</p>
     </aside>

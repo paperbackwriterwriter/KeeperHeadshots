@@ -72,7 +72,7 @@ A paid shoot allows 4 looks (8 headshots). Purchases add credits to the account,
 
 ### Example headshots
 
-The photos on the landing page, sign-in screen and empty dashboard are rendered by the same image model and briefs as customer shoots (`lib/examples.js`). The people are fictional. The hero and retoucher sets start from a generated casual selfie that is then used as the reference photo, exactly like a customer's selfie. Images live in storage under `examples/` and are served from `/examples/<id>.jpg`.
+The photos on the landing page, sign-in screen and empty dashboard are rendered by the same image model and briefs as customer shoots (`lib/examples.js`). The people are fictional. The hero and retoucher sets start from a generated casual selfie that is then used as the reference photo, exactly like a customer's selfie. Images live in storage under `examples/` and are served from `/examples/<id>.jpg`, or resized as WebP from `/examples/<id>.webp?w=360|600|900` (what the pages use).
 
 To (re)generate one, set a long random `ADMIN_TOKEN` in the environment, redeploy, then open `/api/admin/examples/<id>?token=…` (selfies first, since the other frames use them). `/api/admin/examples-sheet` returns a preview grid. Remove `ADMIN_TOKEN` afterwards and the admin routes disappear. After replacing an image, bump `v` in `example()` in `public/js/core.js` so browsers and the CDN fetch the new one.
 
@@ -139,4 +139,6 @@ ANTHROPIC_API_KEY=test GEMINI_API_KEY=test \
 ANTHROPIC_BASE_URL=http://localhost:4010 GEMINI_BASE_URL=http://localhost:4010 PORT=3100 npm start &
 node scripts/dev/api-e2e.js   # add RESEND_API_KEY=test RESEND_BASE_URL=http://localhost:4010 to the server to test the Resend path
 node scripts/dev/screenshots.js shots   # phone (390px) + desktop (1440px) click-through
+node scripts/dev/race-tests.js   # double-spend, lockout, open-redirect and other regression checks
+node scripts/dev/csp-sweep.mjs   # every public page at 1280px and 390px: console/CSP errors, broken images, overflow
 ```

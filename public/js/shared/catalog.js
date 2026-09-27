@@ -5,7 +5,7 @@ export const BACKDROPS = [
   {
     id: "studio-gray",
     name: "Studio Gray",
-    blurb: "Seamless grey paper, soft key light",
+    blurb: "Seamless gray paper, soft key light",
     prompt:
       "a seamless mid-grey paper backdrop with a soft, graduated glow behind the head that falls off smoothly to deep charcoal at the edges",
     light:

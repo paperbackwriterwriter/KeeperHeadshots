@@ -51,7 +51,7 @@ export function renderAccount({ root, navigate }) {
         : html`
       <p>This permanently deletes your account, every shoot, and all of your selfies and headshots. It can't be undone, so download any headshots you want to keep first.</p>
       ${credits > 0
-        ? html`<div class="banner banner-danger" style="margin:16px 0">${icon("circle-alert")}<div><b>You have ${credits} unused ${credits === 1 ? "shoot" : "shoots"}.</b>They'll be lost when you delete your account. If you bought them in the last 30 days and want your money back, <a class="link" href="/refunds" data-link>ask for a refund</a> first.</div></div>`
+        ? html`<div class="banner banner-danger" style="margin:16px 0">${icon("circle-alert")}<div><b>You have ${credits} unused ${credits === 1 ? "shoot" : "shoots"}.</b>They'll be lost when you delete your account. If you bought them in the last 30 days, <a class="link" href="/refunds" data-link>check whether you qualify for a refund</a> first.</div></div>`
         : ""}
       <button class="btn btn-danger" id="startDelete" type="button">${icon("trash-2")} Delete my account</button>
       <form id="deleteForm" class="delete-form" hidden novalidate>

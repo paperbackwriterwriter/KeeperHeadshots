@@ -1,20 +1,24 @@
-import { $, html, icon, logoMark, wordmark, state, loadSession, api, toast, busy, initials, observeReveals } from "./core.js";
-import { renderLanding } from "./views/landing.js";
-import { renderAuth } from "./views/auth.js";
-import { renderDashboard } from "./views/dashboard.js";
-import { renderStudio } from "./views/studio.js";
-import { renderBuy } from "./views/buy.js";
-import { renderContact } from "./views/contact.js";
-import { renderRefunds } from "./views/refunds.js";
-import { renderPrivacy, renderTerms } from "./views/legal.js";
-import { renderAccount } from "./views/account.js";
-import { renderVerify } from "./views/verify.js";
-import { renderLinkedIn } from "./views/linkedin.js";
-import { renderTeam } from "./views/team.js";
-import { renderRealEstate } from "./views/realestate.js";
-import { renderResume } from "./views/resume.js";
-import { renderMedical } from "./views/medical.js";
-import { renderLegal } from "./views/legal-headshots.js";
+import { $, html, icon, logoMark, wordmark, state, loadSession, api, toast, busy, initials, observeReveals, reduceMotion } from "./core.js";
+// Page code loads on demand, so each page downloads only its own view. (The
+// server adds a modulepreload hint for the first page's view; lib/seo.js.)
+const lazy = (load, name) => async (...args) => (await load())[name](...args);
+const renderLanding = lazy(() => import("./views/landing.js"), "renderLanding");
+const renderAuth = lazy(() => import("./views/auth.js"), "renderAuth");
+const renderDashboard = lazy(() => import("./views/dashboard.js"), "renderDashboard");
+const renderStudio = lazy(() => import("./views/studio.js"), "renderStudio");
+const renderBuy = lazy(() => import("./views/buy.js"), "renderBuy");
+const renderContact = lazy(() => import("./views/contact.js"), "renderContact");
+const renderRefunds = lazy(() => import("./views/refunds.js"), "renderRefunds");
+const renderPrivacy = lazy(() => import("./views/legal.js"), "renderPrivacy");
+const renderTerms = lazy(() => import("./views/legal.js"), "renderTerms");
+const renderAccount = lazy(() => import("./views/account.js"), "renderAccount");
+const renderVerify = lazy(() => import("./views/verify.js"), "renderVerify");
+const renderLinkedIn = lazy(() => import("./views/linkedin.js"), "renderLinkedIn");
+const renderTeam = lazy(() => import("./views/team.js"), "renderTeam");
+const renderRealEstate = lazy(() => import("./views/realestate.js"), "renderRealEstate");
+const renderResume = lazy(() => import("./views/resume.js"), "renderResume");
+const renderMedical = lazy(() => import("./views/medical.js"), "renderMedical");
+const renderLegal = lazy(() => import("./views/legal-headshots.js"), "renderLegal");
 import { initPixel, pixel } from "./pixel.js";
 
 const app = document.getElementById("app");
@@ -22,12 +26,12 @@ let cleanup = null;
 
 const routes = [
   { path: /^\/$/, view: renderLanding, chrome: "marketing", title: "Professional AI Headshots from Selfies | Keeper Headshots" },
-  { path: /^\/linkedin-headshots$/, view: renderLinkedIn, chrome: "marketing", title: "LinkedIn Headshots from Selfies, Ready to Upload | Keeper Headshots" },
-  { path: /^\/team-headshots$/, view: renderTeam, chrome: "marketing", title: "Team Headshots for Companies, Remote Teams Included | Keeper Headshots" },
-  { path: /^\/real-estate-headshots$/, view: renderRealEstate, chrome: "marketing", title: "Real Estate Headshots for Agents, Print & Profile Ready | Keeper Headshots" },
-  { path: /^\/resume-headshots$/, view: renderResume, chrome: "marketing", title: "Résumé & CV Headshots from Selfies, Ready in Minutes | Keeper Headshots" },
-  { path: /^\/doctor-headshots$/, view: renderMedical, chrome: "marketing", title: "Doctor & Medical Headshots from Selfies, White Coat or Scrubs | Keeper Headshots" },
-  { path: /^\/lawyer-headshots$/, view: renderLegal, chrome: "marketing", title: "Lawyer & Attorney Headshots from Selfies, Suit and Tie Ready | Keeper Headshots" },
+  { path: /^\/linkedin-headshots$/, view: renderLinkedIn, chrome: "marketing", title: "LinkedIn Headshots from Selfies | Keeper Headshots" },
+  { path: /^\/team-headshots$/, view: renderTeam, chrome: "marketing", title: "Team Headshots for Companies | Keeper Headshots" },
+  { path: /^\/real-estate-headshots$/, view: renderRealEstate, chrome: "marketing", title: "Real Estate Agent Headshots | Keeper Headshots" },
+  { path: /^\/resume-headshots$/, view: renderResume, chrome: "marketing", title: "Résumé & CV Headshots from Selfies | Keeper Headshots" },
+  { path: /^\/doctor-headshots$/, view: renderMedical, chrome: "marketing", title: "Doctor & Medical Headshots | Keeper Headshots" },
+  { path: /^\/lawyer-headshots$/, view: renderLegal, chrome: "marketing", title: "Lawyer & Attorney Headshots | Keeper Headshots" },
   { path: /^\/refunds$/, view: renderRefunds, chrome: "marketing", title: "Money-back guarantee · Keeper Headshots" },
   { path: /^\/privacy$/, view: renderPrivacy, chrome: "marketing", title: "Privacy policy · Keeper Headshots" },
   { path: /^\/terms$/, view: renderTerms, chrome: "marketing", title: "Terms of service · Keeper Headshots" },
@@ -95,13 +99,23 @@ let firstRender = true;
 // readers announce it (the first load is announced by the browser itself).
 function focusHeading() {
   if (firstRender) return void (firstRender = false);
+  // Leave focus alone when the view already placed it (e.g. a form's first
+  // field) or the URL points at a section further down the page.
+  if (location.hash || (document.activeElement && document.activeElement !== document.body)) return;
   const h = app.querySelector("main h1");
   if (!h) return;
   h.setAttribute("tabindex", "-1");
   h.focus({ preventScroll: true });
 }
 
+// Each render gets a number; an older render that finishes late (it was
+// awaiting data when the person navigated on) discards itself.
+let renderSeq = 0;
+let lastRoute = null;
+
 async function render() {
+  const seq = ++renderSeq;
+  lastRoute = location.pathname + location.search;
   cleanup?.();
   cleanup = null;
   // On the first load, public pages arrive with prerendered content (lib/seo.js).
@@ -114,6 +128,9 @@ async function render() {
   if (!route) {
     document.title = "Not found · Keeper Headshots";
     app.innerHTML = html`${marketingNav()}<main id="main" class="container app-main view-enter"><div class="empty"><p class="eyebrow">Error 404</p><h1 class="display h-1">This frame didn't develop.</h1><p class="lede">The page you're looking for doesn't exist or has moved.</p><a class="btn btn-ink" href="/" data-link>Back to the studio ${icon("arrow-right")}</a></div></main>`.v;
+    if (hydrating) document.documentElement.classList.remove("hydrating");
+    wireChrome();
+    focusHeading();
     return;
   }
   if (route.auth && !state.user) return navigate(`/signin?next=${encodeURIComponent(path)}`, { replace: true });
@@ -124,12 +141,16 @@ async function render() {
   app.innerHTML = html`${chrome}<div id="view"></div>`.v;
   const view = $("#view");
   const ctx = { root: view, navigate, setTitle: (t) => (document.title = `${t} · Keeper Headshots`) };
+  let viewCleanup = null;
   try {
-    cleanup = (await route.view(ctx, ...(match?.slice(1) || []))) || null;
+    viewCleanup = (await route.view(ctx, ...(match?.slice(1) || []))) || null;
   } catch (err) {
+    if (seq !== renderSeq) return;
     console.error(err);
-    view.innerHTML = html`<main id="main" class="container app-main"><div class="banner banner-danger">${icon("circle-alert")}<div><b>This page failed to load.</b>${err.message}</div><button class="btn btn-sm btn-ink" onclick="location.reload()">Reload</button></div></main>`.v;
+    view.innerHTML = html`<main id="main" class="container app-main"><div class="banner banner-danger">${icon("circle-alert")}<div><b>This page failed to load.</b>${err.message}</div><button class="btn btn-sm btn-ink" type="button" data-reload>Reload</button></div></main>`.v;
   }
+  if (seq !== renderSeq) return void viewCleanup?.();
+  cleanup = viewCleanup;
   wireChrome();
   if (hydrating) {
     // Content already on screen stays visible; the rest still reveals on scroll.
@@ -141,6 +162,15 @@ async function render() {
   pixel("PageView");
   if (location.hash) requestAnimationFrame(() => document.getElementById(location.hash.slice(1))?.scrollIntoView());
   else window.scrollTo({ top: 0, behavior: "instant" });
+}
+
+// Scroll to (and focus) an in-page section without re-rendering the page.
+function goToHash(hash) {
+  const target = hash && document.getElementById(decodeURIComponent(hash.slice(1)));
+  if (!target) return;
+  target.scrollIntoView({ behavior: reduceMotion() ? "auto" : "smooth" });
+  if (!target.matches("a, button, input, select, textarea, [tabindex]")) target.setAttribute("tabindex", "-1");
+  target.focus({ preventScroll: true });
 }
 
 function wireChrome() {
@@ -157,12 +187,22 @@ function wireChrome() {
   }
   const toggle = $("#navToggle");
   const sheet = $("#navSheet");
-  toggle?.addEventListener("click", () => {
-    const open = sheet.classList.toggle("open");
+  const setOpen = (open) => {
+    sheet.classList.toggle("open", open);
     toggle.setAttribute("aria-expanded", String(open));
     toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+  };
+  toggle?.addEventListener("click", () => {
+    const open = !sheet.classList.contains("open");
+    setOpen(open);
+    if (open) sheet.querySelector("a")?.focus();
   });
-  sheet?.addEventListener("click", (e) => e.target.closest("a") && sheet.classList.remove("open"));
+  sheet?.addEventListener("click", (e) => e.target.closest("a") && setOpen(false));
+  sheet?.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    setOpen(false);
+    toggle.focus();
+  });
   $("#signOut")?.addEventListener("click", async () => {
     await api("/api/auth/signout", { method: "POST" }).catch(() => {});
     state.user = null;
@@ -199,14 +239,28 @@ document.addEventListener("click", (e) => {
   const url = new URL(a.href, location.origin);
   if (url.origin !== location.origin || url.pathname.startsWith("/media/")) return;
   e.preventDefault();
-  if (url.pathname === location.pathname && url.hash) {
-    history.pushState({}, "", url.pathname + url.hash);
-    document.getElementById(url.hash.slice(1))?.scrollIntoView({ behavior: "smooth" });
+  if (url.pathname === location.pathname && url.search === location.search && url.hash) {
+    history.pushState({}, "", url.pathname + url.search + url.hash);
+    goToHash(url.hash);
     return;
   }
   navigate(url.pathname + url.search + url.hash);
 });
-window.addEventListener("popstate", render);
+// Plain "#section" links (skip link, in-page anchors) scroll without a re-render.
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("a[href^='#']");
+  if (!a || a.getAttribute("href").length < 2 || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+  if (!document.getElementById(decodeURIComponent(a.getAttribute("href").slice(1)))) return;
+  e.preventDefault();
+  history.pushState({}, "", location.pathname + location.search + a.getAttribute("href"));
+  goToHash(a.getAttribute("href"));
+});
+document.addEventListener("click", (e) => e.target.closest("[data-reload]") && location.reload());
+// Back/forward between sections of the same page only scrolls.
+window.addEventListener("popstate", () => {
+  if (location.pathname + location.search === lastRoute) return goToHash(location.hash);
+  render();
+});
 
 // Vercel Web Analytics: cookieless visit counts. Production domain only, and
 // loaded after the first render so one-time tokens (e.g. /verify?token=) have

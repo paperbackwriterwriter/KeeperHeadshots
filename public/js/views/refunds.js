@@ -2,7 +2,7 @@ import { html, icon } from "../core.js";
 import { footer } from "./landing.js";
 import { CONTACT_EMAIL } from "./contact.js";
 
-// The written terms behind the "100% money-back guarantee" shown on the site.
+// The written terms behind the "money-back guarantee" shown on the site.
 export const POLICY_UPDATED = "September 27, 2026";
 
 export function renderRefunds({ root }) {
@@ -16,7 +16,7 @@ export function renderRefunds({ root }) {
 
       <div class="policy-callout">
         ${icon("shield-check")}
-        <div><b>The short version</b><span>Not happy with your first paid shoot? Tell us within 30 days and we'll refund the whole package to your card. No forms, no hoops.</span></div>
+        <div><b>The short version</b><span>If none of the headshots from your first paid shoot are usable, tell us within 30 days and we'll refund the whole package to your card. No forms, no hoops.</span></div>
       </div>
 
       <h2 class="h-3">What's covered</h2>
@@ -31,7 +31,7 @@ export function renderRefunds({ root }) {
       <ol>
         <li>Within <b>30 days</b> of your purchase, <a class="link" href="/contact?topic=billing" data-link>contact us</a> (choose "Billing or refunds") or email <a class="link" href="mailto:${CONTACT_EMAIL}?subject=Refund%20request">${CONTACT_EMAIL}</a>.</li>
         <li>Include the email address you paid with and, if you can, the name of the shoot.</li>
-        <li>We reply within two business days. We may ask what went wrong so we can improve, but we won't make the refund depend on your answer.</li>
+        <li>We reply within one business day. We may ask what went wrong so we can improve, but we won't make the refund depend on your answer.</li>
       </ol>
 
       <h2 class="h-3">What happens next</h2>
