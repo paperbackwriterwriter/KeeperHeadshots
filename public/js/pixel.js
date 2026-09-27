@@ -20,6 +20,10 @@ export function initPixel() {
   window.fbq("init", id);
 }
 
+// The page an event happens on, sent with requests the server also reports to
+// Meta (Conversions API). Path only: query strings can hold one-time tokens.
+export const pageUrl = () => location.origin + location.pathname;
+
 export function pixel(name, params = {}, eventId) {
   if (!window.fbq) return;
   window.fbq("track", name, params, eventId ? { eventID: eventId } : undefined);

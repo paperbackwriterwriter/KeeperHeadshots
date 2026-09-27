@@ -1,5 +1,5 @@
 import { html, icon, api, state, spinner } from "../core.js";
-import { pixel } from "../pixel.js";
+import { pixel, pageUrl } from "../pixel.js";
 
 // Landing page for the link in the "Confirm your email" message.
 export async function renderVerify({ root }) {
@@ -12,7 +12,7 @@ export async function renderVerify({ root }) {
 
   let res;
   try {
-    res = await api("/api/auth/verify", { method: "POST", body: { token } });
+    res = await api("/api/auth/verify", { method: "POST", body: { token, pageUrl: pageUrl() } });
   } catch (err) {
     const expired = err.data?.code === "expired";
     const canResend = expired ? err.data?.signedIn || !!state.user : !!state.user && !state.user.emailVerified;

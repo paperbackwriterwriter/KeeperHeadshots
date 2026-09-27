@@ -1,5 +1,6 @@
 import { $, html, icon, api, state, toast, busy } from "../core.js";
 import { mountTurnstile } from "../turnstile.js";
+import { pageUrl } from "../pixel.js";
 
 // Password reset: /forgot-password asks for the email address and sends a
 // one-hour link; /reset?token=… (the link in that email) sets a new password.
@@ -144,7 +145,7 @@ export function renderReset({ root, navigate }) {
     const restore = busy($("#submit"), "Saving…");
     let res;
     try {
-      res = await api("/api/auth/password/reset", { method: "POST", body: { token, password: pw.value } });
+      res = await api("/api/auth/password/reset", { method: "POST", body: { token, password: pw.value, pageUrl: pageUrl() } });
     } catch (err) {
       restore();
       if (err.data?.fields?.password) return showFieldError(pw, err.data.fields.password);

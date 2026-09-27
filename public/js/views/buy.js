@@ -1,5 +1,5 @@
 import { $, html, icon, api, spinner, state } from "../core.js";
-import { pixel } from "../pixel.js";
+import { pixel, pageUrl } from "../pixel.js";
 import { PACKAGES } from "../shared/catalog.js";
 
 // /app/buy/:package — checkout. With a Stripe publishable key configured,
@@ -44,7 +44,7 @@ export function renderBuy({ root }, packageId) {
   const redirect = async () => {
     shell(html`<p class="eyebrow">${icon("lock")} Secure checkout</p><h1 class="display h-2">${pkg.name}: ${pkg.shoots} shoots for $${pkg.price}</h1><p class="lede">Taking you to Stripe to pay…</p><div style="display:flex;justify-content:center">${spinner()}</div>`);
     try {
-      const { url, eventId, value } = await api("/api/billing/checkout", { method: "POST", body: { packageId: pkg.id } });
+      const { url, eventId, value } = await api("/api/billing/checkout", { method: "POST", body: { packageId: pkg.id, pageUrl: pageUrl() } });
       if (disposed) return;
       pixel("InitiateCheckout", { value, currency: "USD", content_name: pkg.name }, eventId);
       // Give the Pixel a moment to send before leaving for Stripe (the server sends it too).
@@ -99,7 +99,7 @@ export function renderBuy({ root }, packageId) {
         const create = (stripe.createEmbeddedCheckoutPage || stripe.initEmbeddedCheckout).bind(stripe);
         checkout = await create({
           fetchClientSecret: async () => {
-            const { clientSecret, eventId, value } = await api("/api/billing/checkout", { method: "POST", body: { packageId: pkg.id, embedded: true } });
+            const { clientSecret, eventId, value } = await api("/api/billing/checkout", { method: "POST", body: { packageId: pkg.id, embedded: true, pageUrl: pageUrl() } });
             if (!clientSecret) throw new Error("Checkout isn't available right now.");
             pixel("InitiateCheckout", { value, currency: "USD", content_name: pkg.name }, eventId);
             return clientSecret;

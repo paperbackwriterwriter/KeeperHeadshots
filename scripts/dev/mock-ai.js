@@ -130,7 +130,7 @@ let stripeSeq = 0;
 const metaEvents = [];
 function meta(req, res, raw) {
   const body = JSON.parse(raw || "{}");
-  for (const e of body.data || []) metaEvents.push(e), console.log(`[mock] meta ${e.event_name} id=${e.event_id} value=${e.custom_data?.value ?? "-"} em=${e.user_data?.em ? "hashed" : "none"}`);
+  for (const e of body.data || []) metaEvents.push(e), console.log(`[mock] meta ${e.event_name} id=${e.event_id} value=${e.custom_data?.value ?? "-"} em=${e.user_data?.em ? "hashed" : "none"} url=${e.event_source_url}`);
   res.writeHead(200, { "content-type": "application/json" });
   res.end(JSON.stringify({ events_received: (body.data || []).length }));
 }
