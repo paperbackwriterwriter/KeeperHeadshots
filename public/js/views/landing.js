@@ -360,7 +360,7 @@ function reviewPreview() {
     { seed: "rv-3", backdrop: "city-terrace", outfit: "camel-knit", score: 79, g: "solid" },
     { seed: "rv-4", backdrop: "library", outfit: "black-turtleneck", score: 58, g: "retake" },
   ];
-  return html`<div class="panel" style="background:var(--paper-100);color:var(--ink-950);padding:20px;border-radius:24px;box-shadow:var(--shadow-3)">
+  return html`<div class="panel light-island" style="background:var(--paper-100);color:var(--ink-950);padding:20px;border-radius:24px;box-shadow:var(--shadow-3)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px">
       <span class="eyebrow"><span class="dot"></span>Retoucher's verdict</span>
       <span class="badge badge-success">${icon("check")} 2 keepers</span>
