@@ -38,7 +38,7 @@ export const logoMark = () =>
 // Example headshots rendered by the studio (lib/examples.js), as WebP at the
 // width they're shown (the server resizes once; the CDN caches it). Bump v to
 // refresh caches. Allowed widths: 360, 600, 900.
-export const example = (id, w = 600) => `/examples/${id}.webp?w=${w}&v=4`;
+export const example = (id, w = 600) => `/examples/${id}.webp?w=${w}&v=5`;
 
 export const wordmark = () => raw(`<span class="logo-word"><b>Keeper</b><span>HEADSHOTS</span></span>`);
 
