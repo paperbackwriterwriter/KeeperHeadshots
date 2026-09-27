@@ -13,6 +13,8 @@ import { lookFor, MAX_LOOKS, MAX_SELFIES } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
 import { planFor, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT } from "./lib/plan.js";
 import { contactEnabled, validate as validateContact, rateLimited, submit as submitContact } from "./lib/contact.js";
+import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExample, exampleImage } from "./lib/examples.js";
+import crypto from "node:crypto";
 import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook } from "./lib/billing.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -364,6 +366,31 @@ app.get("/media/:sid/:name", requireUser, async (req, res) => {
   res.set("Cache-Control", "private, max-age=31536000, immutable").type(type);
   if (req.query.download) res.attachment(`headshot-${name.replace(/\.\w+$/, "")}.${name.split(".").pop()}`);
   res.send(buf);
+});
+
+/* ----------------------------- Examples ----------------------------- */
+
+// Marketing example headshots (see lib/examples.js).
+app.get("/examples/:id.jpg", async (req, res) => {
+  const buf = /^[a-z0-9-]+$/.test(req.params.id) ? await exampleImage(req.params.id) : null;
+  if (!buf) return res.status(404).end();
+  res.set("Cache-Control", "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=86400").type("image/jpeg").send(buf);
+});
+
+// Owner-only generator, enabled only while ADMIN_TOKEN is set.
+function adminOnly(req, res, next) {
+  const want = process.env.ADMIN_TOKEN || "";
+  const got = String(req.query.token || req.get("x-admin-token") || "");
+  const ok = want.length >= 24 && got.length === want.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want));
+  if (!ok) return res.status(404).json({ error: "Not found" });
+  next();
+}
+app.get("/api/admin/examples", adminOnly, async (req, res) => res.json({ examples: await exampleStatus() }));
+app.get("/api/admin/examples/:id", adminOnly, async (req, res) => {
+  if (!EXAMPLE_JOBS[req.params.id]) return res.status(404).json({ error: "Unknown example." });
+  const started = Date.now();
+  const bytes = await generateExample(req.params.id);
+  res.json({ ok: true, id: req.params.id, bytes, ms: Date.now() - started });
 });
 
 /* ------------------------------- Static ----------------------------- */
