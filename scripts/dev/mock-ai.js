@@ -73,8 +73,8 @@ function qaResult() {
   qaCalls++;
   const fail = process.env.MOCK_QA_FAIL === "all" || qaCalls % 3 === 1;
   return fail
-    ? { likeness: 6, likeness_notes: "The jaw reads narrower than in the references.", professional: 7, issues: [{ kind: "likeness", severity: "blocking", detail: "Jaw narrower than in the references" }], pass: false, retake_direction: "Keep the jaw as wide as in the references." }
-    : { likeness: 9, likeness_notes: "Face shape, eyes and hairline match the references.", professional: 9, issues: [], pass: true, retake_direction: "" };
+    ? { likeness: 6, likeness_notes: "The jaw reads narrower than in the references.", professional: 7, issues: [{ kind: "likeness", severity: "blocking", detail: "Jaw narrower than in the references" }], head_box: { top: 0.02, bottom: 0.5, left: 0.3, right: 0.7 }, pass: false, retake_direction: "Keep the jaw as wide as in the references." }
+    : { likeness: 9, likeness_notes: "Face shape, eyes and hairline match the references.", professional: 9, issues: [], head_box: { top: 0.14, bottom: 0.52, left: 0.33, right: 0.67 }, pass: true, retake_direction: "" };
 }
 
 async function anthropic(req, res, body) {

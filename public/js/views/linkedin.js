@@ -65,7 +65,7 @@ export function renderLinkedIn({ root }) {
           <article class="li-card" data-reveal style="--i:0">
             <span class="li-ic">${icon("focus")}</span>
             <h3 class="h-4">A perfect 1:1 square for LinkedIn and Teams</h3>
-            <p>LinkedIn and Microsoft Teams show your photo as a circle cut from a square. We send a square that's already framed for it, with your head and shoulders sitting comfortably inside the circle. Upload it as it is.</p>
+            <p>LinkedIn and Microsoft Teams put a circular mask over your square photo, so its four corners are cut away completely. Your square is framed for that circle: face centered, with breathing room above your hair and around your shoulders so nothing gets awkwardly clipped. Upload it as it is.</p>
           </article>
           <article class="li-card" data-reveal style="--i:1">
             <span class="li-ic">${icon("download")}</span>
@@ -115,7 +115,7 @@ export function renderLinkedIn({ root }) {
             ["Friendly eye contact", "Look into the camera with a relaxed, natural expression."],
             ["A clean background", "A plain studio backdrop or a softly blurred office keeps attention on you."],
             ["The right outfit for your field", "One step above what you wear day to day, in solid, mid-tone colors."],
-            ["Sharp and square", "At least 400 × 400 pixels, cropped square so LinkedIn doesn't crop it for you."],
+            ["Centered, with breathing room", "LinkedIn masks your square photo with a circle, so the four corners disappear. Keep your face centered with space around your hair and shoulders, at 400 × 400 pixels or larger."],
           ].map(([t, d], i) => html`<li data-reveal style="--i:${i % 3}"><span class="li-no">${String(i + 1).padStart(2, "0")}</span><div><b>${t}</b><span>${d}</span></div></li>`)}
         </ol>
       </div>

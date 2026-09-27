@@ -440,16 +440,26 @@ app.post("/api/contact", async (req, res) => {
 
 /* ------------------------------- Media ------------------------------ */
 
-// Headshots are 3:4 head-and-shoulders portraits. The 1:1 square keeps the
-// full width and is anchored at the top, which keeps the whole head inside
-// the circle LinkedIn and Teams display (tested against the example set;
-// saliency-based cropping clipped foreheads). Never upscaled.
-async function squareCrop(buf) {
+// Headshots are 3:4 head-and-shoulders portraits; the square is shown by
+// LinkedIn and Teams as a circle, so its corners are lost. With the head
+// position from the quality check, the square centres the face (a touch above
+// the middle, as portrait photographers do) and keeps room above the hair.
+// Without it (older shoots) it falls back to full width from the top, which
+// kept the whole head inside the circle on the example set. Never upscaled.
+async function squareCrop(buf, head) {
   const img = sharp(buf);
-  const { width, height } = await img.metadata();
-  const side = Math.min(width, height);
+  const { width: W, height: H } = await img.metadata();
+  const side = Math.min(W, H);
+  const clamp = (v, max) => Math.round(Math.min(Math.max(v, 0), max));
+  let top = 0;
+  let left = (W - side) / 2;
+  if (head) {
+    const cy = ((head.top + head.bottom) / 2) * H;
+    top = Math.min(cy - side * 0.46, head.top * H - side * 0.1); // at least 10% headroom when the photo has it
+    left = ((head.left + head.right) / 2) * W - side / 2;
+  }
   return img
-    .extract({ left: Math.floor((width - side) / 2), top: 0, width: side, height: side })
+    .extract({ left: clamp(left, W - side), top: clamp(top, H - side), width: side, height: side })
     .jpeg({ quality: 92, mozjpeg: true })
     .toBuffer();
 }
@@ -462,12 +472,13 @@ app.get("/media/:sid/:name", requireUser, async (req, res) => {
   const base = name.replace(/\.\w+$/, "");
   if (req.query.square && !name.endsWith(".svg")) {
     // 1:1 square for LinkedIn / Microsoft Teams profile photos (see squareCrop).
-    let sq = await readMedia(`${sid}/${base}-square.jpg`);
+    let sq = await readMedia(`${sid}/${base}-sq.jpg`);
     if (!sq) {
       const src = await readMedia(`${sid}/${name}`);
       if (!src) return res.status(404).end();
-      sq = await squareCrop(src);
-      await writeMedia(`${sid}/${base}-square.jpg`, sq);
+      const shot = (await shoots.get(sid))?.shots.find((s) => s.file === `${sid}/${name}`);
+      sq = await squareCrop(src, shot?.qa?.head || null);
+      await writeMedia(`${sid}/${base}-sq.jpg`, sq);
     }
     res.set("Cache-Control", "private, max-age=31536000, immutable").type("image/jpeg");
     if (req.query.download) res.attachment(`headshot-${base}-square.jpg`);

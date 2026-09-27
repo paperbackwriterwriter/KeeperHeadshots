@@ -626,7 +626,7 @@ export async function renderStudio(ctx, id) {
             <button class="btn btn-ghost btn-lg" id="dlAll" aria-label="Download all ${plural(done.length, "headshot")}, as portraits and squares">${icon("download")} All ${done.length}</button>
             <a class="btn btn-ghost btn-lg" href="#upgrade">${icon("sparkles")} More options</a>
           </div>
-          <p class="small muted" style="margin-top:14px;max-width:60ch">Every headshot is ready to use as it is: a full-resolution 3:4 portrait, plus a 1:1 square framed for LinkedIn and Microsoft Teams profile photos. No cropping needed.</p>
+          <p class="small muted" style="margin-top:14px;max-width:60ch">Every headshot is ready to use as it is: a full-resolution 3:4 portrait, plus a 1:1 square for LinkedIn and Microsoft Teams, framed for their circular profile photos with your face centered and room around it. No cropping needed.</p>
         </div>
       </section>
 
