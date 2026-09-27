@@ -17,7 +17,7 @@ import { seed, DEMO } from "./scripts/seed.js";
 import { planFor, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, EMAIL_UNCONFIRMED } from "./lib/plan.js";
 import { gpc, metaPixelId, track as trackMeta } from "./lib/meta.js";
 import { contactEnabled, validate as validateContact, rateLimited, submit as submitContact } from "./lib/contact.js";
-import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExample, generateSet as generateExampleSet, exampleImage, sheet as exampleSheet } from "./lib/examples.js";
+import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExample, generateSquare as generateExampleSquare, generateSet as generateExampleSet, exampleImage, sheet as exampleSheet } from "./lib/examples.js";
 import crypto from "node:crypto";
 import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook } from "./lib/billing.js";
 
@@ -521,6 +521,12 @@ app.get("/api/admin/examples-sheet", adminOnly, async (req, res) => {
   const ids = String(req.query.ids || Object.keys(EXAMPLE_JOBS).join(",")).split(",");
   const jpg = await exampleSheet(ids, Math.min(900, Number(req.query.w) || 240), Math.max(1, Number(req.query.cols) || 4), req.query.labels !== "0");
   res.json({ jpeg: jpg ? jpg.toString("base64") : null });
+});
+app.get("/api/admin/examples/:id/square", adminOnly, async (req, res) => {
+  if (!EXAMPLE_JOBS[req.params.id]) return res.status(404).json({ error: "Unknown example." });
+  const started = Date.now();
+  const bytes = await generateExampleSquare(req.params.id);
+  res.json({ ok: true, id: `${req.params.id}-sq`, bytes, ms: Date.now() - started });
 });
 app.get("/api/admin/examples/:id", adminOnly, async (req, res) => {
   if (!EXAMPLE_JOBS[req.params.id]) return res.status(404).json({ error: "Unknown example." });
