@@ -68,10 +68,41 @@ export async function api(path, { method = "GET", body, signal } = {}) {
     if (err.name === "AbortError") throw err;
     throw new ApiError("You appear to be offline. Check your connection and try again.", 0);
   }
+  noteBuild(res.headers.get("x-app-build"));
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new ApiError(data.error || `Something went wrong (${res.status}).`, res.status, data);
   return data;
 }
+
+/* ---- New version check ----
+   The page records which browser-code version it loaded (<meta name="app-build">)
+   and every API response names the current one (lib/build.js). When they differ,
+   a deploy happened since this tab loaded: the next in-app link does a full
+   page load (app.js), and a notice offers a reload. Nothing reloads by itself,
+   so a half-filled form or an upload is never lost. */
+const LOADED_BUILD = document.querySelector('meta[name="app-build"]')?.content || null;
+let newBuild = false;
+let lastBuildCheck = Date.now();
+export const updateReady = () => newBuild;
+
+function noteBuild(build) {
+  lastBuildCheck = Date.now();
+  if (!LOADED_BUILD || !build || build === LOADED_BUILD || newBuild) return;
+  newBuild = true;
+  const el = document.createElement("div");
+  el.className = "toast update";
+  el.innerHTML = `${icon("refresh-cw").v}<div>A new version of Keeper Headshots is ready.</div><button class="btn btn-sm btn-paper" type="button" data-reload>Reload</button><button class="toast-close" type="button" aria-label="Dismiss">${icon("x").v}</button>`;
+  el.querySelector(".toast-close").addEventListener("click", () => el.remove());
+  document.getElementById("toasts")?.appendChild(el);
+}
+
+// A tab that sits idle makes no API calls, so check when it comes back into
+// view (at most every 10 minutes).
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" || newBuild || Date.now() - lastBuildCheck < 10 * 60 * 1000) return;
+  lastBuildCheck = Date.now();
+  fetch("/api/version", { credentials: "same-origin" }).then((r) => noteBuild(r.headers.get("x-app-build"))).catch(() => {});
+});
 
 export const state = { user: null, ai: { vision: false, imaging: false }, meta: {}, turnstile: {}, stripe: {} };
 

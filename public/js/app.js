@@ -1,4 +1,4 @@
-import { $, html, icon, logoMark, wordmark, state, loadSession, api, toast, busy, initials, observeReveals, reduceMotion } from "./core.js";
+import { $, html, icon, logoMark, wordmark, state, loadSession, api, toast, busy, initials, observeReveals, reduceMotion, updateReady } from "./core.js";
 // Page code loads on demand, so each page downloads only its own view. (The
 // server adds a modulepreload hint for the first page's view; lib/seo.js.)
 const lazy = (load, name) => async (...args) => (await load())[name](...args);
@@ -242,6 +242,8 @@ document.addEventListener("click", (e) => {
   if (!a || a.target || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0 || a.hasAttribute("download")) return;
   const url = new URL(a.href, location.origin);
   if (url.origin !== location.origin || url.pathname.startsWith("/media/")) return;
+  // A newer version was deployed since this tab loaded: load the page fresh.
+  if (updateReady()) return;
   e.preventDefault();
   if (url.pathname === location.pathname && url.search === location.search && url.hash) {
     history.pushState({}, "", url.pathname + url.search + url.hash);

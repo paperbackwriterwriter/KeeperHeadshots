@@ -17,6 +17,7 @@ import { seed, DEMO } from "./scripts/seed.js";
 import { planFor, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, EMAIL_UNCONFIRMED } from "./lib/plan.js";
 import { gpc, metaPixelId, track as trackMeta } from "./lib/meta.js";
 import { runCleanup } from "./lib/cleanup.js";
+import { BUILD, BUILD_FILES } from "./lib/build.js";
 import { contactEnabled, validate as validateContact, rateLimited, submit as submitContact } from "./lib/contact.js";
 import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExample, generateSquare as generateExampleSquare, generateSet as generateExampleSet, exampleImage, sheet as exampleSheet } from "./lib/examples.js";
 import crypto from "node:crypto";
@@ -44,6 +45,15 @@ app.post("/api/billing/webhook", express.raw({ type: "application/json" }), asyn
 // Photos are uploaded one per request, which keeps every body well under
 // Vercel's 4.5 MB request limit.
 app.use(express.json({ limit: "4mb" }));
+
+// Every API response names the browser-code version, so tabs opened before a
+// deploy notice and offer a reload (lib/build.js, public/js/core.js).
+console.log(`[build] ${BUILD} (${BUILD_FILES} files)`);
+app.use("/api", (req, res, next) => {
+  res.set("X-App-Build", BUILD);
+  next();
+});
+app.get("/api/version", (req, res) => res.set("Cache-Control", "no-store").json({ build: BUILD }));
 
 const isEmail = (s) => typeof s === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
 // Links we email or hand to Stripe use a fixed origin in production, never the
