@@ -1,9 +1,6 @@
-import { html, icon, raw, greaseCircle, state, logoMark, wordmark } from "../core.js";
-import { portraitDataURL } from "../shared/portrait.js";
+import { html, icon, raw, greaseCircle, state, logoMark, wordmark, example } from "../core.js";
 import { BACKDROPS, OUTFITS, PACKAGES } from "../shared/catalog.js";
 
-const P = (seed, opts) => portraitDataURL(seed, opts);
-const HERO = { skin: 2, hair: "wavy", hairTone: 1 };
 const HERO_FRAMES = [
   ["studio-gray", "navy-suit"], ["glass-office", "charcoal-blazer"], ["city-terrace", "camel-knit"],
   ["library", "black-turtleneck"], ["studio-gray", "charcoal-blazer"], ["botanical", "oxford"],
@@ -11,13 +8,13 @@ const HERO_FRAMES = [
 ];
 
 const STRIP = [
-  { seed: "s1", backdrop: "studio-gray", outfit: "navy-suit", skin: 1, hair: "short" },
-  { seed: "s2", backdrop: "glass-office", outfit: "charcoal-blazer", skin: 4, hair: "curly" },
-  { seed: "s3", backdrop: "city-terrace", outfit: "camel-knit", skin: 0, hair: "long" },
-  { seed: "s4", backdrop: "library", outfit: "black-turtleneck", skin: 3, hair: "crop" },
-  { seed: "s5", backdrop: "studio-white", outfit: "white-shirt", skin: 2, hair: "bun" },
-  { seed: "s6", backdrop: "botanical", outfit: "oxford", skin: 5, hair: "side" },
-  { seed: "s7", backdrop: "studio-gray", outfit: "charcoal-blazer", skin: 3, hair: "wavy" },
+  { seed: "s1", backdrop: "studio-gray", outfit: "navy-suit" },
+  { seed: "s2", backdrop: "glass-office", outfit: "charcoal-blazer" },
+  { seed: "s3", backdrop: "city-terrace", outfit: "camel-knit" },
+  { seed: "s4", backdrop: "library", outfit: "black-turtleneck" },
+  { seed: "s5", backdrop: "studio-white", outfit: "white-shirt" },
+  { seed: "s6", backdrop: "botanical", outfit: "oxford" },
+  { seed: "s7", backdrop: "studio-gray", outfit: "charcoal-blazer" },
 ];
 
 const FAQ = [
@@ -51,18 +48,18 @@ export function renderLanding({ root }) {
           </div>
         </div>
 
-        <div class="sheet" data-reveal style="--i:2" aria-label="Example: one selfie becomes a contact sheet of professional headshots" role="img">
+        <div class="sheet" data-reveal style="--i:2" aria-label="Example: one casual selfie becomes a contact sheet of nine professional headshots of the same person" role="img">
           <div class="sheet-board">
             ${HERO_FRAMES.map(
               ([b, o], i) => html`<div class="sheet-frame ${i === 4 ? "keeper" : ""}">
-                <img src="${P("hero" + i, { ...HERO, backdrop: b, outfit: o })}" alt="" loading="${i < 6 ? "eager" : "lazy"}" />
+                <img src="${example(`hero-${i + 1}`)}" alt="" loading="${i < 6 ? "eager" : "lazy"}" />
                 <span class="fno">${String(i + 1).padStart(2, "0")}A</span>
                 ${i === 4 ? greaseCircle() : ""}
               </div>`,
             )}
           </div>
           <figure class="polaroid">
-            <img src="${P("hero-selfie", { ...HERO, backdrop: "botanical", outfit: "white-shirt" })}" alt="" />
+            <img src="${example("hero-selfie")}" alt="" />
             <figcaption><span>BEFORE</span><span>SELFIE</span></figcaption>
           </figure>
           <span class="tag-keeper">${icon("badge-check")} Best pick <span class="score">96</span></span>
@@ -136,11 +133,12 @@ export function renderLanding({ root }) {
           const b = BACKDROPS.find((x) => x.id === s.backdrop);
           const o = OUTFITS.find((x) => x.id === s.outfit);
           return html`<figure class="strip-card print" data-reveal style="--i:${i % 5};margin:0">
-            <img src="${P(s.seed, s)}" alt="Example headshot: ${b.name} backdrop, ${o.name}" loading="lazy" />
+            <img src="${example(`strip-${i + 1}`)}" alt="Example headshot: ${b.name} backdrop, ${o.name}" loading="lazy" />
             <figcaption class="print-cap"><b>${b.name}</b><span>${o.name}</span></figcaption>
           </figure>`;
         })}
       </div>
+      <p class="container small muted examples-note">${icon("info")} Every example on this page was made by the Keeper Headshots AI studio. The people shown are AI-generated models, not customers.</p>
     </section>
 
     <!-- Comparison -->
@@ -203,18 +201,18 @@ export function renderLanding({ root }) {
           <figure class="quote quote-lg" data-reveal style="margin:0">
             <span class="stars" role="img" aria-label="5 out of 5 stars">${[1, 2, 3, 4, 5].map(() => icon("star"))}</span>
             <blockquote>“I'd put off new headshots for three years. Uploaded four selfies on my lunch break and had my new LinkedIn photo before my next meeting.”</blockquote>
-            <figcaption class="quote-by"><img src="${P("q1", { skin: 1, hair: "side", backdrop: "studio-gray", outfit: "navy-suit" })}" alt="" /><div><b>Daniel R.</b><span>Product lead, fintech</span></div></figcaption>
+            <figcaption class="quote-by"><span class="initials" aria-hidden="true">DR</span><div><b>Daniel R.</b><span>Product lead, fintech</span></div></figcaption>
           </figure>
           <div class="quote-stack">
             <figure class="quote quote-sm" data-reveal style="--i:1;margin:0">
               <span class="stars" role="img" aria-label="5 out of 5 stars">${[1, 2, 3, 4, 5].map(() => icon("star"))}</span>
               <blockquote>“The photo check told me my selfies were too dark. Retook two by a window and the results were uncanny — in a good way.”</blockquote>
-              <figcaption class="quote-by"><img src="${P("q2", { skin: 3, hair: "long", backdrop: "botanical", outfit: "camel-knit" })}" alt="" /><div><b>Priya S.</b><span>Clinical nurse educator</span></div></figcaption>
+              <figcaption class="quote-by"><span class="initials" aria-hidden="true">PS</span><div><b>Priya S.</b><span>Clinical nurse educator</span></div></figcaption>
             </figure>
             <figure class="quote quote-sm" data-reveal style="--i:2;margin:0">
               <span class="stars" role="img" aria-label="5 out of 5 stars">${[1, 2, 3, 4, 5].map(() => icon("star"))}</span>
               <blockquote>“We did our whole 12-person team. Matching backdrops, zero scheduling. Our about page finally looks like one company.”</blockquote>
-              <figcaption class="quote-by"><img src="${P("q3", { skin: 5, hair: "crop", backdrop: "glass-office", outfit: "charcoal-blazer" })}" alt="" /><div><b>Marcus T.</b><span>Head of People, SaaS</span></div></figcaption>
+              <figcaption class="quote-by"><span class="initials" aria-hidden="true">MT</span><div><b>Marcus T.</b><span>Head of People, SaaS</span></div></figcaption>
             </figure>
           </div>
         </div>
@@ -288,12 +286,11 @@ export function renderLanding({ root }) {
 
 function reviewPreview() {
   const shots = [
-    { seed: "rv1", backdrop: "studio-gray", outfit: "navy-suit", score: 94, g: "keeper" },
-    { seed: "rv2", backdrop: "glass-office", outfit: "charcoal-blazer", score: 86, g: "keeper" },
-    { seed: "rv3", backdrop: "city-terrace", outfit: "camel-knit", score: 79, g: "solid" },
-    { seed: "rv4", backdrop: "library", outfit: "black-turtleneck", score: 58, g: "retake" },
+    { seed: "rv-1", backdrop: "studio-gray", outfit: "navy-suit", score: 94, g: "keeper" },
+    { seed: "rv-2", backdrop: "glass-office", outfit: "charcoal-blazer", score: 86, g: "keeper" },
+    { seed: "rv-3", backdrop: "city-terrace", outfit: "camel-knit", score: 79, g: "solid" },
+    { seed: "rv-4", backdrop: "library", outfit: "black-turtleneck", score: 58, g: "retake" },
   ];
-  const person = { skin: 3, hair: "long" };
   return html`<div class="panel" style="background:var(--paper-100);color:var(--ink-950);padding:20px;border-radius:24px;box-shadow:var(--shadow-3)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px">
       <span class="eyebrow"><span class="dot"></span>Retoucher's verdict</span>
@@ -301,7 +298,7 @@ function reviewPreview() {
     </div>
     <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:16px;align-items:start">
       <div class="print" style="position:relative;padding:8px 8px 0">
-        <img src="${P(shots[0].seed, { ...person, backdrop: shots[0].backdrop, outfit: shots[0].outfit })}" alt="Example best-pick headshot" loading="lazy" />
+        <img src="${example(shots[0].seed)}" alt="Example best-pick headshot" loading="lazy" />
         <div class="print-cap"><b>Best pick</b><span>94 / 100</span></div>
       </div>
       <div style="display:grid;gap:14px">
@@ -314,7 +311,7 @@ function reviewPreview() {
     </div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px">
       ${shots.slice(1).map(
-        (s) => html`<div style="position:relative"><img src="${P(s.seed, { ...person, backdrop: s.backdrop, outfit: s.outfit })}" alt="" loading="lazy" style="aspect-ratio:4/5;object-fit:cover;border-radius:4px;width:100%" />
+        (s) => html`<div style="position:relative"><img src="${example(s.seed)}" alt="" loading="lazy" style="aspect-ratio:4/5;object-fit:cover;border-radius:4px;width:100%" />
         <span class="score-pill g-${s.g}" style="position:absolute;left:6px;bottom:6px;height:24px;font-size:11px"><i></i>${s.score}</span></div>`,
       )}
     </div>

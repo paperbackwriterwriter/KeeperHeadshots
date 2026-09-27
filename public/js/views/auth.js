@@ -1,6 +1,4 @@
-import { $, $$, html, icon, logoMark, wordmark, api, state, toast, busy } from "../core.js";
-import { portraitDataURL } from "../shared/portrait.js";
-import { BACKDROPS, OUTFITS } from "../shared/catalog.js";
+import { $, $$, html, icon, logoMark, wordmark, api, state, toast, busy, example } from "../core.js";
 
 const DEMO = { email: "demo@keeperheadshots.com", password: "studio-demo" };
 
@@ -9,9 +7,7 @@ export function renderAuth({ root, navigate }, mode) {
   const next = new URLSearchParams(location.search).get("next");
   const dest = next && next.startsWith("/app") ? next : isUp ? "/app/new" : "/app";
 
-  const mosaic = Array.from({ length: 16 }, (_, i) =>
-    portraitDataURL("auth" + i, { backdrop: BACKDROPS[i % BACKDROPS.length].id, outfit: OUTFITS[(i * 5) % OUTFITS.length].id }),
-  );
+  const mosaic = ["strip-1", "hero-2", "strip-2", "rv-2", "strip-3", "hero-4", "strip-4", "rv-3", "hero-7", "strip-5", "hero-1", "strip-6", "rv-1", "strip-7", "hero-6", "hero-9"].map(example);
 
   root.innerHTML = html`
   <main id="main" class="auth">

@@ -69,6 +69,12 @@ A paid shoot allows 4 looks (8 headshots). Purchases add credits to the account,
 - on later dashboard visits, which catches a closed tab;
 - optionally, a Stripe webhook: point it at `/api/billing/webhook` for `checkout.session.completed`, and set `STRIPE_WEBHOOK_SECRET`.
 
+### Example headshots
+
+The photos on the landing page, sign-in screen and empty dashboard are rendered by the same image model and briefs as customer shoots (`lib/examples.js`). The people are fictional, and the page says so. The hero and retoucher sets start from a generated casual selfie that is then used as the reference photo, exactly like a customer's selfie. Images live in storage under `examples/` and are served from `/examples/<id>.jpg`.
+
+To (re)generate one, set a long random `ADMIN_TOKEN` in the environment, redeploy, then open `/api/admin/examples/<id>?token=…` (selfies first, since the other frames use them). `/api/admin/examples-sheet` returns a preview grid. Remove `ADMIN_TOKEN` afterwards and the admin routes disappear. After replacing an image, bump `v` in `example()` in `public/js/core.js` so browsers and the CDN fetch the new one.
+
 ### Contact form
 
 `/contact` posts to `/api/contact` (`lib/contact.js`). Each message is saved to storage under `contact/`, then emailed to `CONTACT_TO` (default `hello@keeperheadshots.com`) through ImprovMX SMTP, with Reply-To set to the sender so you can answer straight from Gmail. It needs `SMTP_PASS`; without it the form says it's offline and points people to the email address. A hidden honeypot field and a 5-per-hour limit per visitor keep spam down.

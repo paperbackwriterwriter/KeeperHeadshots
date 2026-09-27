@@ -35,6 +35,9 @@ export function icon(name, cls = "") {
 export const logoMark = () =>
   raw(`<svg class="logo-mark" viewBox="0 0 100 100" aria-hidden="true"><path d="M8 30V8h22M70 8h22v22M92 70v22H70M30 92H8V70" fill="none" stroke="#b8893b" stroke-width="7"/><text x="50" y="71" text-anchor="middle" font-family="Fraunces, Georgia, serif" font-size="62" font-weight="600" fill="currentColor">K</text></svg>`);
 
+// Example headshots rendered by the studio (lib/examples.js). Bump v to refresh caches.
+export const example = (id) => `/examples/${id}.jpg?v=1`;
+
 export const wordmark = () => raw(`<span class="logo-word"><b>Keeper</b><span>HEADSHOTS</span></span>`);
 
 // The brass grease-pencil loop photographers draw around the keeper frame.

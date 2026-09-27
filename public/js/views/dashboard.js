@@ -1,5 +1,4 @@
-import { html, icon, api, state, media, relTime, toast } from "../core.js";
-import { portraitDataURL } from "../shared/portrait.js";
+import { html, icon, api, state, media, relTime, toast, example } from "../core.js";
 
 const STATUS = {
   draft: ["badge", "Photo check pending"],
@@ -97,7 +96,7 @@ export async function renderDashboard({ root, navigate }) {
 
   if (!data.shoots.length) {
     grid.outerHTML = html`<div class="empty view-enter">
-      <div class="empty-art" aria-hidden="true">${["e1", "e2", "e3"].map((s, i) => html`<div class="print"><img src="${portraitDataURL(s, { backdrop: ["studio-gray", "glass-office", "city-terrace"][i] })}" alt="" /><div class="print-cap"><b>0${i + 1}</b></div></div>`)}</div>
+      <div class="empty-art" aria-hidden="true">${["strip-1", "hero-2", "strip-3"].map((s, i) => html`<div class="print"><img src="${example(s)}" alt="" /><div class="print-cap"><b>0${i + 1}</b></div></div>`)}</div>
       <h2 class="display h-2">Your first shoot starts with a selfie.</h2>
       <p class="lede">Upload a few everyday photos. We'll check them, develop your headshots, and grade every frame.</p>
       <a class="btn btn-flash btn-lg" href="/app/new" data-link>Start your first shoot ${icon("arrow-right")}</a>
