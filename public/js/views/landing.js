@@ -71,7 +71,7 @@ export function renderLanding({ root }) {
     </section>
 
     <!-- Stats -->
-    <section class="section-tight" aria-label="AI Headshot Guru at a glance">
+    <section class="section-tight" aria-label="Keeper Headshots at a glance">
       <div class="container">
         <div class="stats">
           ${[
@@ -161,7 +161,7 @@ export function renderLanding({ root }) {
             )}
           </dl>
           <dl class="compare-col">
-            <h3 class="h-4">AI Headshot Guru</h3>
+            <h3 class="h-4">Keeper Headshots</h3>
             ${[["Cost", "From $29"], ["Turnaround", "Under 1 hour"], ["Backdrops & outfits", "Up to 4 looks per shoot"], ["Number of photos", "8 per shoot"], ["Retakes", "Included"]].map(
               ([k, v]) => html`<div class="compare-row"><dt>${k}</dt><dd class="hi">${v}</dd></div>`,
             )}
@@ -251,7 +251,7 @@ export function renderLanding({ root }) {
             <span class="t-ic">${icon("users")}</span>
             <div><b class="h-4" style="display:block">Headshots for your whole team</b><span class="muted small">One shoot per person, with the same backdrops and wardrobe for everyone. Executive covers 12 people. Larger team? Email us for volume pricing.</span></div>
           </div>
-          <a class="btn btn-ink" href="mailto:hello@aiheadshotguru.com?subject=Team%20headshots">Email us ${icon("arrow-right")}</a>
+          <a class="btn btn-ink" href="mailto:hello@keeperheadshots.com?subject=Team%20headshots">Email us ${icon("arrow-right")}</a>
         </div>
       </div>
     </section>
@@ -262,7 +262,7 @@ export function renderLanding({ root }) {
         <div>
           <p class="eyebrow" data-reveal>FAQ</p>
           <h2 class="display h-1" data-reveal style="--i:1;margin-top:16px">Questions, answered.</h2>
-          <p class="lede" data-reveal style="--i:2;margin-top:20px">Still unsure? Write to us any time at <a class="link" href="mailto:hello@aiheadshotguru.com">hello@aiheadshotguru.com</a>.</p>
+          <p class="lede" data-reveal style="--i:2;margin-top:20px">Still unsure? Write to us any time at <a class="link" href="mailto:hello@keeperheadshots.com">hello@keeperheadshots.com</a>.</p>
         </div>
         <div class="faq-list">
           ${FAQ.map(([q, a], i) => html`<details data-reveal style="--i:${i % 3}" ${i === 0 ? raw("open") : ""}><summary>${q}${icon("chevron-down")}</summary><p>${a}</p></details>`)}
@@ -331,9 +331,9 @@ export function footer() {
         </div>
         <div><h4>Product</h4><ul><li><a href="/#how">How it works</a></li><li><a href="/#styles">Styles</a></li><li><a href="/#pricing">Pricing</a></li><li><a href="/#teams">Teams</a></li></ul></div>
         <div><h4>Account</h4><ul><li><a href="/signin" data-link>Sign in</a></li><li><a href="/signup" data-link>Create account</a></li><li><a href="/app" data-link>Your shoots</a></li></ul></div>
-        <div><h4>Company</h4><ul><li><a href="/#reviews">Reviews</a></li><li><a href="mailto:hello@aiheadshotguru.com">Contact</a></li><li><a href="/#pricing">Money-back guarantee</a></li></ul></div>
+        <div><h4>Company</h4><ul><li><a href="/#reviews">Reviews</a></li><li><a href="mailto:hello@keeperheadshots.com">Contact</a></li><li><a href="/#pricing">Money-back guarantee</a></li></ul></div>
       </div>
-      <div class="footer-base"><span>© ${new Date().getFullYear()} AI Headshot Guru</span><span>Your photos are never used to train AI models.</span></div>
+      <div class="footer-base"><span>© ${new Date().getFullYear()} Keeper Headshots</span><span>Your photos are never used to train AI models.</span></div>
     </div>
   </footer>`;
 }

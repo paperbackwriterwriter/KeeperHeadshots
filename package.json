@@ -1,7 +1,7 @@
 {
-  "name": "aiheadshotguru",
+  "name": "keeperheadshots",
   "version": "1.0.0",
-  "description": "AI Headshot Guru — professional AI headshots from selfies",
+  "description": "Keeper Headshots — professional AI headshots from selfies",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

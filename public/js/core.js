@@ -33,11 +33,11 @@ export function icon(name, cls = "") {
 }
 
 export const logoMark = () =>
-  raw(`<svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#0b1320"/><circle cx="16" cy="16" r="9" fill="none" stroke="#f5f1ea" stroke-width="2"/><path d="M16 7v5.5M24 20.5l-4.8-2.7M8 20.5l4.8-2.7" stroke="#f5f1ea" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="16" r="3.2" fill="#ff5b2e"/></svg>`);
+  raw(`<svg class="logo-mark" viewBox="0 0 100 100" aria-hidden="true"><path d="M8 30V8h22M70 8h22v22M92 70v22H70M30 92H8V70" fill="none" stroke="#b8893b" stroke-width="7"/><text x="50" y="71" text-anchor="middle" font-family="Fraunces, Georgia, serif" font-size="62" font-weight="600" fill="currentColor">K</text></svg>`);
 
-export const wordmark = () => raw(`<b>AI Headshot</b><span>Guru</span>`);
+export const wordmark = () => raw(`<span class="logo-word"><b>Keeper</b><span>HEADSHOTS</span></span>`);
 
-// The orange grease-pencil loop photographers draw around the keeper frame.
+// The brass grease-pencil loop photographers draw around the keeper frame.
 export const greaseCircle = () =>
   raw(`<svg class="sheet-circle" viewBox="0 0 200 240" preserveAspectRatio="none" aria-hidden="true"><path d="M104 14 C 40 10, 10 60, 14 124 C 18 192, 60 230, 108 226 C 164 222, 192 176, 188 112 C 184 50, 150 16, 96 20 C 80 22, 70 26, 62 32"/></svg>`);
 

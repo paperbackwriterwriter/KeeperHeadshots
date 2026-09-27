@@ -9,13 +9,13 @@ const app = document.getElementById("app");
 let cleanup = null;
 
 const routes = [
-  { path: /^\/$/, view: renderLanding, chrome: "marketing", title: "AI Headshot Guru — Professional headshots, without the photo shoot" },
-  { path: /^\/signin$/, view: (ctx) => renderAuth(ctx, "signin"), chrome: "none", guestOnly: true, title: "Sign in · AI Headshot Guru" },
-  { path: /^\/signup$/, view: (ctx) => renderAuth(ctx, "signup"), chrome: "none", guestOnly: true, title: "Create your account · AI Headshot Guru" },
-  { path: /^\/app$/, view: renderDashboard, chrome: "app", auth: true, title: "Your shoots · AI Headshot Guru" },
-  { path: /^\/app\/buy\/([\w-]+)$/, view: (ctx, id) => renderBuy(ctx, id), chrome: "app", auth: true, title: "Checkout · AI Headshot Guru" },
-  { path: /^\/app\/new$/, view: (ctx) => renderStudio(ctx, null), chrome: "app", auth: true, title: "New shoot · AI Headshot Guru" },
-  { path: /^\/app\/shoot\/([\w-]+)$/, view: (ctx, id) => renderStudio(ctx, id), chrome: "app", auth: true, title: "Shoot · AI Headshot Guru" },
+  { path: /^\/$/, view: renderLanding, chrome: "marketing", title: "Keeper Headshots — Professional headshots, without the photo shoot" },
+  { path: /^\/signin$/, view: (ctx) => renderAuth(ctx, "signin"), chrome: "none", guestOnly: true, title: "Sign in · Keeper Headshots" },
+  { path: /^\/signup$/, view: (ctx) => renderAuth(ctx, "signup"), chrome: "none", guestOnly: true, title: "Create your account · Keeper Headshots" },
+  { path: /^\/app$/, view: renderDashboard, chrome: "app", auth: true, title: "Your shoots · Keeper Headshots" },
+  { path: /^\/app\/buy\/([\w-]+)$/, view: (ctx, id) => renderBuy(ctx, id), chrome: "app", auth: true, title: "Checkout · Keeper Headshots" },
+  { path: /^\/app\/new$/, view: (ctx) => renderStudio(ctx, null), chrome: "app", auth: true, title: "New shoot · Keeper Headshots" },
+  { path: /^\/app\/shoot\/([\w-]+)$/, view: (ctx, id) => renderStudio(ctx, id), chrome: "app", auth: true, title: "Shoot · Keeper Headshots" },
 ];
 
 export function navigate(to, { replace = false, silent = false } = {}) {
@@ -29,7 +29,7 @@ function marketingNav() {
   return html`
   <header class="nav" id="nav">
     <div class="container nav-inner">
-      <a class="logo" href="/" data-link aria-label="AI Headshot Guru home">${logoMark()}${wordmark()}</a>
+      <a class="logo" href="/" data-link aria-label="Keeper Headshots home">${logoMark()}${wordmark()}</a>
       <nav class="nav-links" aria-label="Primary">
         <a href="/#how">How it works</a><a href="/#styles">Styles</a><a href="/#pricing">Pricing</a><a href="/#teams">Teams</a><a href="/#reviews">Reviews</a>
       </nav>
@@ -54,7 +54,7 @@ function appNav() {
   return html`
   <header class="nav" id="nav">
     <div class="container nav-inner">
-      <a class="logo" href="/app" data-link aria-label="AI Headshot Guru — your shoots">${logoMark()}${wordmark()}</a>
+      <a class="logo" href="/app" data-link aria-label="Keeper Headshots — your shoots">${logoMark()}${wordmark()}</a>
       <nav class="nav-links" aria-label="App">
         <a href="/app" data-link>Shoots</a><a href="/app/new" data-link>New shoot</a><a href="/#pricing">Pricing</a>
       </nav>
@@ -73,7 +73,7 @@ async function render() {
   let match;
   const route = routes.find((r) => (match = path.match(r.path)));
   if (!route) {
-    document.title = "Not found · AI Headshot Guru";
+    document.title = "Not found · Keeper Headshots";
     app.innerHTML = html`${marketingNav()}<main id="main" class="container app-main view-enter"><div class="empty"><p class="eyebrow">Error 404</p><h1 class="display h-1">This frame didn't develop.</h1><p class="lede">The page you're looking for doesn't exist or has moved.</p><a class="btn btn-ink" href="/" data-link>Back to the studio ${icon("arrow-right")}</a></div></main>`.v;
     return;
   }
@@ -84,7 +84,7 @@ async function render() {
   const chrome = route.chrome === "marketing" ? marketingNav() : route.chrome === "app" ? appNav() : html``;
   app.innerHTML = html`${chrome}<div id="view"></div>`.v;
   const view = $("#view");
-  const ctx = { root: view, navigate, setTitle: (t) => (document.title = `${t} · AI Headshot Guru`) };
+  const ctx = { root: view, navigate, setTitle: (t) => (document.title = `${t} · Keeper Headshots`) };
   try {
     cleanup = (await route.view(ctx, ...(match?.slice(1) || []))) || null;
   } catch (err) {

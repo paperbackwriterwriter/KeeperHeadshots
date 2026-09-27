@@ -1,4 +1,4 @@
-# AI Headshot Guru
+# Keeper Headshots
 
 Upload a few selfies and get professional AI headshots back — checked, developed and graded by AI. Modelled on [headshotpro.com](https://www.headshotpro.com)'s product and promise ("professional headshots without the photo shoot"), rebranded as **AI Headshot Guru**, with the whole product designed like a photographer's **contact sheet**.
 
@@ -29,7 +29,7 @@ cp .env.example .env      # add ANTHROPIC_API_KEY and GEMINI_API_KEY
 npm start                 # http://localhost:3000
 ```
 
-- **Demo account:** `demo@aiheadshotguru.com` / `studio-demo`. It's seeded with two finished sample shoots so every screen has content. Sample images are illustrations and are labelled "Sample".
+- **Demo account:** `demo@keeperheadshots.com` / `studio-demo`. It's seeded with two finished sample shoots so every screen has content. Sample images are illustrations and are labelled "Sample".
 - Without API keys the app still runs. The studio shows a clear "AI isn't switched on" banner, and the API returns `503 ai_not_configured` instead of pretending.
 - Locally, data (users, shoots, images) lives in `./data` as JSON and files. Delete the folder to reset; the demo reseeds the next time someone signs in as the demo user.
 
@@ -73,28 +73,28 @@ You can also add a webhook: point a Stripe webhook at `/api/billing/webhook` for
 
 `/` landing → `/signup` or `/signin` → `/app` (your shoots) → `/app/new` (upload) → `/app/shoot/:id`, which moves through **Photo check → Looks → Develop → Proofs** based on the shoot's server-side status.
 
-## Design direction: "Studio contact sheet"
+## Design direction: "Studio Heritage"
 
-The brand is about replacing a photo studio, so the UI borrows a studio's own artifacts: contact sheets with frame numbers, prints with captions, and the orange grease-pencil loop a photographer draws around the keeper frame.
+The brand is about replacing a photo studio, so the UI borrows a studio's own artifacts: contact sheets with frame numbers, prints with captions, and the grease-pencil loop a photographer draws around the keeper frame.
 
-- **Palette:** ink navy `#0B1320` is the dominant tone, on warm backdrop paper `#F5F1EA`. There is one sharp accent, a tungsten-flash orange `#FF5B2E`, used only for primary actions and the "best pick" mark. Teal `#0E7F78` is a quiet brand/trust color (stars, verified, likeness bars). Semantic success, warning and danger colors cover grades.
-- **Type:** *Instrument Serif* for display (editorial, with italics for emphasis), *Plus Jakarta Sans* for UI and body, *IBM Plex Mono* for frame numbers, labels and data, with tabular numbers.
+- **Palette:** Ink Navy `#14213D` is the dominant tone, on Ivory `#F7F3EA`. Brass `#B8893B` (and deep brass `#8C6A2C` for text) marks the viewfinder, highlights and the "best pick" loop. Oxblood `#7A2E2E` is kept for featured moments: badges, the popular package and offers. Stone `#6B665B` is the neutral. Semantic success, warning and danger colors cover grades.
+- **Type:** *Fraunces* for display (editorial, with italics for emphasis), *Figtree* for UI and body, *IBM Plex Mono* for frame numbers, labels and data, with tabular numbers.
 - **System:** everything is driven by CSS tokens in `public/css/app.css`: a fluid type scale, a 4px spacing scale, radius, shadow and motion tokens (`--ease-out`, `--ease-spring`, and no linear easing except spinners). There is a film-grain overlay, and gradient-mesh lighting on dark surfaces.
 - **Motion:** a staggered hero reveal with the grease-pencil circle drawing itself in, scroll reveals, a scanning skeleton during the photo check, and frames "developing" out of a sepia blur. `prefers-reduced-motion` turns all of it off.
 - **States:** skeleton loaders, empty dashboard, form validation, API errors, AI-not-configured, partial render failures, grading failure, 404, and disabled, hover, focus and pressed states on every control.
 
-- **Wordmark:** "AI Headshot" in heavy Jakarta Sans, "*Guru*" in Instrument Serif italic in the accent color, next to an aperture mark with an orange flash center.
+- **Logo:** a Fraunces serif "K" framed by brass viewfinder corners, beside "Keeper" in Fraunces semibold over "HEADSHOTS" in tracked Figtree caps. Tagline: "Headshots worth keeping."
 
 ## Notes from the reference product
 
-The live headshotpro.com site was blocked from the build sandbox. The notes below come from public reviews and listings. HeadshotPro's own proof points are listed for reference only; AI Headshot Guru doesn't claim them:
+The live headshotpro.com site was blocked from the build sandbox. The notes below come from public reviews and listings. HeadshotPro's own proof points are listed for reference only; Keeper Headshots doesn't claim them:
 
 - **Promise:** studio-quality business headshots from selfies, in under an hour, with no photographer.
 - **Proof points:** 18M+ headshots, 197k+ customers, 4.8★ on Trustpilot, 100% money-back guarantee.
 - **Pricing:** $29 / $39 / $49 one-time packages (40 / 120 / 240 headshots), and team pricing at $39 per person.
 - **Tone:** plain, confident and reassuring. The copy focuses on saving time and money.
 
-Testimonials on the landing page are placeholder copy, and `hello@aiheadshotguru.com` is a placeholder address. Replace both before launch.
+Testimonials on the landing page are placeholder copy, and `hello@keeperheadshots.com` is a placeholder address. Replace both before launch.
 
 ## Project layout
 

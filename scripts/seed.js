@@ -9,7 +9,7 @@ import { hashPassword } from "../lib/auth.js";
 import { portraitSVG } from "../public/js/shared/portrait.js";
 import { lookFor } from "../public/js/shared/catalog.js";
 
-export const DEMO = { email: "demo@aiheadshotguru.com", password: "studio-demo" };
+export const DEMO = { email: "demo@keeperheadshots.com", password: "studio-demo" };
 
 async function render(sid, seedKey, opts) {
   const jpg = await sharp(Buffer.from(portraitSVG(seedKey, opts))).resize(768, 1024, { fit: "cover" }).jpeg({ quality: 88 }).toBuffer();
