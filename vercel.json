@@ -4,5 +4,13 @@
   "fluid": true,
   "functions": {
     "server.js": { "maxDuration": 300 }
-  }
+  },
+  "redirects": [
+    {
+      "source": "/:path((?!api/billing/webhook$).*)",
+      "has": [{ "type": "host", "value": "aiheadshot.guru" }],
+      "destination": "https://keeperheadshots.com/:path",
+      "permanent": true
+    }
+  ]
 }
