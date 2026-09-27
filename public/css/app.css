@@ -846,6 +846,33 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
 }
 
 /* ---------- 13. Reduced motion ---------- */
+/* ---------- Contact ---------- */
+.contact-page { padding-top: var(--s-8); }
+.contact-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: var(--s-8); align-items: start; }
+.contact-form { max-width: 640px; }
+.contact-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); }
+textarea.input { padding: 14px 16px; min-height: 168px; line-height: var(--lh-body); resize: vertical; font-family: inherit; }
+select.input { appearance: none; padding-right: 44px; cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2314213d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 16px center; font-family: inherit; color: var(--text); }
+.contact-submit { display: flex; align-items: center; gap: var(--s-4); flex-wrap: wrap; margin-top: var(--s-2); }
+.contact-submit .field-hint { font-size: var(--fs-sm); color: var(--text-muted); }
+.hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.contact-side { display: grid; gap: var(--s-3); padding-top: var(--s-7); }
+.contact-card { display: flex; gap: var(--s-4); padding: var(--s-5); border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--border); }
+.contact-card > div { display: grid; gap: 4px; }
+.contact-card span:not(.ficon) { color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.5; }
+.contact-card .link { justify-self: start; font-weight: 600; font-size: var(--fs-sm); margin-top: 4px; }
+.contact-card .ficon, .contact-sent .ficon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--brand-soft); color: var(--accent-text); }
+.contact-card .ficon svg, .contact-sent .ficon svg { width: 20px; height: 20px; }
+.contact-sent { display: flex; gap: var(--s-4); margin-top: var(--s-6); padding: var(--s-6); border-radius: var(--r-lg); background: var(--surface-raised); border: 1px solid var(--border); max-width: 640px; }
+.contact-sent:focus { outline: none; }
+.contact-sent .ficon { background: var(--success-soft); color: var(--success); }
+@media (max-width: 900px) {
+  .contact-page { padding-top: var(--s-6); }
+  .contact-grid { grid-template-columns: 1fr; gap: var(--s-6); }
+  .contact-side { padding-top: 0; }
+}
+@media (max-width: 640px) { .contact-row { grid-template-columns: 1fr; } .contact-submit .btn { width: 100%; } }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
   [data-reveal] { opacity: 1; transform: none; }

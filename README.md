@@ -69,9 +69,13 @@ A paid shoot allows 4 looks (8 headshots). Purchases add credits to the account,
 - on later dashboard visits, which catches a closed tab;
 - optionally, a Stripe webhook: point it at `/api/billing/webhook` for `checkout.session.completed`, and set `STRIPE_WEBHOOK_SECRET`.
 
+### Contact form
+
+`/contact` posts to `/api/contact` (`lib/contact.js`). Each message is saved to storage under `contact/`, then emailed to `CONTACT_TO` (default `hello@keeperheadshots.com`) through ImprovMX SMTP, with Reply-To set to the sender so you can answer straight from Gmail. It needs `SMTP_PASS`; without it the form says it's offline and points people to the email address. A hidden honeypot field and a 5-per-hour limit per visitor keep spam down.
+
 ### Flow
 
-`/` landing → `/signup` or `/signin` → `/app` (your shoots) → `/app/new` (upload) → `/app/shoot/:id`, which moves through **Photo check → Looks → Develop → Proofs** based on the shoot's server-side status.
+`/` landing (and `/contact`) → `/signup` or `/signin` → `/app` (your shoots) → `/app/new` (upload) → `/app/shoot/:id`, which moves through **Photo check → Looks → Develop → Proofs** based on the shoot's server-side status.
 
 ## Design direction: "Studio Heritage"
 

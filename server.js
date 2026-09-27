@@ -12,6 +12,7 @@ import { ingestSelfie, runCheck, advance, startGeneration, retryFailed, startRev
 import { lookFor, MAX_LOOKS, MAX_SELFIES } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
 import { planFor, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT } from "./lib/plan.js";
+import { contactEnabled, validate as validateContact, rateLimited, submit as submitContact } from "./lib/contact.js";
 import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook } from "./lib/billing.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -330,6 +331,24 @@ app.post("/api/billing/sync", requireUser, async (req, res) => {
   if (!billingEnabled() || req.user.demo) return res.json({ added: 0, user: publicUser(req.user) });
   const added = await syncPurchases(req.user);
   res.json({ added, user: publicUser(added ? await users.byId(req.user.id) : req.user) });
+});
+
+/* ------------------------------ Contact ----------------------------- */
+
+app.post("/api/contact", async (req, res) => {
+  // Honeypot: people never see or fill this field; bots usually do.
+  if (req.body?.company) return res.json({ ok: true });
+  const { msg, fields } = validateContact(req.body);
+  if (Object.keys(fields).length) return res.status(400).json({ error: "Please fix the highlighted fields.", fields });
+  if (rateLimited(req.ip || "unknown")) return res.status(429).json({ error: "You've sent several messages already. Please try again later." });
+  if (!contactEnabled()) return res.status(503).json({ error: "Our contact form is offline right now.", code: "contact_not_configured" });
+  try {
+    await submitContact(msg, { user: await currentUser(req).catch(() => null), ip: req.ip });
+  } catch (err) {
+    console.error("[contact]", err.message);
+    return res.status(502).json({ error: "We couldn't send your message just now." });
+  }
+  res.json({ ok: true });
 });
 
 /* ------------------------------- Media ------------------------------ */

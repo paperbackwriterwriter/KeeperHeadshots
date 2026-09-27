@@ -26,7 +26,7 @@ const FAQ = [
   ["Will the headshots actually look like me?", "Likeness is the whole game. We pass your best reference photos to the image model with strict instructions to preserve your features, and every finished headshot is scored for likeness against your originals. Anything that drifts is flagged as a retake."],
   ["Who owns the photos?", "You do. Use your headshots anywhere — LinkedIn, your company site, print, press kits. We never use your photos to train models or for marketing."],
   ["What if I don't like the results?", "Every paid shoot is covered by our 100% money-back guarantee. If none of your headshots are usable, we'll refund you in full."],
-  ["Can I order for my whole team?", "Yes. Each shoot is one person, so a package covers several people: the Executive package includes 12 shoots. Everyone can use the same backdrops and wardrobe so your team page looks consistent. For larger teams, email us about volume pricing."],
+  ["Can I order for my whole team?", "Yes. Each shoot is one person, so a package covers several people: the Executive package includes 12 shoots. Everyone can use the same backdrops and wardrobe so your team page looks consistent. For larger teams, contact us about volume pricing."],
 ];
 
 export function renderLanding({ root }) {
@@ -249,20 +249,20 @@ export function renderLanding({ root }) {
         <div class="teams" id="teams" data-reveal>
           <div style="display:flex;gap:16px;align-items:center">
             <span class="t-ic">${icon("users")}</span>
-            <div><b class="h-4" style="display:block">Headshots for your whole team</b><span class="muted small">One shoot per person, with the same backdrops and wardrobe for everyone. Executive covers 12 people. Larger team? Email us for volume pricing.</span></div>
+            <div><b class="h-4" style="display:block">Headshots for your whole team</b><span class="muted small">One shoot per person, with the same backdrops and wardrobe for everyone. Executive covers 12 people. Larger team? Contact us about volume pricing.</span></div>
           </div>
-          <a class="btn btn-ink" href="mailto:hello@keeperheadshots.com?subject=Team%20headshots">Email us ${icon("arrow-right")}</a>
+          <a class="btn btn-ink" href="/contact?topic=team" data-link>Contact us ${icon("arrow-right")}</a>
         </div>
       </div>
     </section>
 
     <!-- FAQ -->
-    <section class="section" style="padding-top:0">
+    <section class="section" id="faq" style="padding-top:0">
       <div class="container faq">
         <div>
           <p class="eyebrow" data-reveal>FAQ</p>
           <h2 class="display h-1" data-reveal style="--i:1;margin-top:16px">Questions, answered.</h2>
-          <p class="lede" data-reveal style="--i:2;margin-top:20px">Still unsure? Write to us any time at <a class="link" href="mailto:hello@keeperheadshots.com">hello@keeperheadshots.com</a>.</p>
+          <p class="lede" data-reveal style="--i:2;margin-top:20px">Still unsure? <a class="link" href="/contact" data-link>Contact us</a> or email <a class="link" href="mailto:hello@keeperheadshots.com">hello@keeperheadshots.com</a>.</p>
         </div>
         <div class="faq-list">
           ${FAQ.map(([q, a], i) => html`<details data-reveal style="--i:${i % 3}" ${i === 0 ? raw("open") : ""}><summary>${q}${icon("chevron-down")}</summary><p>${a}</p></details>`)}
@@ -331,7 +331,7 @@ export function footer() {
         </div>
         <div><h4>Product</h4><ul><li><a href="/#how">How it works</a></li><li><a href="/#styles">Styles</a></li><li><a href="/#pricing">Pricing</a></li><li><a href="/#teams">Teams</a></li></ul></div>
         <div><h4>Account</h4><ul><li><a href="/signin" data-link>Sign in</a></li><li><a href="/signup" data-link>Create account</a></li><li><a href="/app" data-link>Your shoots</a></li></ul></div>
-        <div><h4>Company</h4><ul><li><a href="/#reviews">Reviews</a></li><li><a href="mailto:hello@keeperheadshots.com">Contact</a></li><li><a href="/#pricing">Money-back guarantee</a></li></ul></div>
+        <div><h4>Company</h4><ul><li><a href="/#reviews">Reviews</a></li><li><a href="/contact" data-link>Contact us</a></li><li><a href="/#pricing">Money-back guarantee</a></li></ul></div>
       </div>
       <div class="footer-base"><span>© ${new Date().getFullYear()} Keeper Headshots</span><span>Your photos are never used to train AI models.</span></div>
     </div>
