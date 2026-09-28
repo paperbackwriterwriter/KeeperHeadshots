@@ -57,6 +57,13 @@ const left = (await storage.list("shoots/")).filter((k) => k.includes("sht_bulk"
 ok("a run out of time stops early and saves its place", cut.finished === false && !!state.drafts, `deleted=${cut.draftsDeleted} cursor=${state.drafts}`);
 ok("the next run finishes the rest", left === 0 && rest.finished === true, `left=${left} deleted=${rest.draftsDeleted}`);
 
+// A damaged record is skipped (and counted) without stopping the run.
+fs.mkdirSync(path.join(dir, "shoots"), { recursive: true });
+fs.writeFileSync(path.join(dir, "shoots", "sht_aaBroken01.json"), "{not json");
+await shoot("sht_zzOldDraft", { days: 150 });
+const bad = await runCleanup();
+ok("a damaged record doesn't stop the run", bad.errors >= 1 && bad.finished === true && !(await exists("sht_zzOldDraft")), `errors=${bad.errors}`);
+
 fs.rmSync(dir, { recursive: true, force: true });
 const passed = results.filter(Boolean).length;
 console.log(`\n${passed}/${results.length} passed`);

@@ -5,13 +5,13 @@ import cookieParser from "cookie-parser";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { users, shoots, id, readMedia, writeMedia, deleteMedia, freeClaimKey, mailboxChecks } from "./lib/store.js";
-import { backend, createJSON, getJSON, del } from "./lib/storage.js";
+import { backend, createJSON, getJSON, del, UNCHANGED } from "./lib/storage.js";
 import { hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailVerified, resetToken, checkResetToken } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, MAIL_FROM } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import { pageFor, isCanonicalHost } from "./lib/seo.js";
 import { aiStatus, AIError } from "./lib/ai.js";
-import { background, ingestSelfie, beginCheck, runCheck, advance, startGeneration, retryFailed, startReview } from "./lib/pipeline.js";
+import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, advance, startGeneration, retryFailed, startReview } from "./lib/pipeline.js";
 import { lookFor, MAX_LOOKS, MAX_SELFIES, PHOTO_FORMATS } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
 import { planFor, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, EMAIL_UNCONFIRMED } from "./lib/plan.js";
@@ -21,6 +21,7 @@ import { BUILD, BUILD_FILES } from "./lib/build.js";
 import { contactEnabled, validate as validateContact, rateLimited, submit as submitContact } from "./lib/contact.js";
 import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExample, generateSquare as generateExampleSquare, generateSet as generateExampleSet, exampleImage, sheet as exampleSheet } from "./lib/examples.js";
 import crypto from "node:crypto";
+import { withCounter, overLimit, hashId } from "./lib/ratelimit.js";
 import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook, stripePublishableKey } from "./lib/billing.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -61,7 +62,8 @@ const isEmail = (s) => typeof s === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.tes
 const appOrigin = (req) => process.env.APP_ORIGIN || (process.env.VERCEL_ENV === "production" ? "https://keeperheadshots.com" : `${req.protocol}://${req.get("host")}`);
 
 const SIGNIN_WINDOW_MS = 15 * 60 * 1000;
-const SIGNIN_MAX_FAILS = 10;
+const SIGNIN_MAX_FAILS = 10; // per network (IP)
+const SIGNIN_MAX_TOTAL = 100; // from everywhere
 const DUMMY_HASH = await hashPassword("not-a-real-password");
 
 const LIVE = ["checking", "generating", "reviewing"];
@@ -120,26 +122,39 @@ app.post("/api/auth/signin", async (req, res) => {
   const { email, password } = req.body || {};
   if (isEmail(email) && email.toLowerCase().trim() === DEMO.email) await seed();
   const user = isEmail(email) ? await users.byEmail(email) : null;
-  // Slow down password guessing: after 10 wrong passwords in 15 minutes the
-  // account refuses sign-ins for the rest of that window (stored on the user,
-  // so it holds across serverless instances).
-  // The attempt is recorded (atomically) before the password is checked and
-  // cleared on success, so a burst of parallel guesses counts every one.
-  const now = Date.now();
+  // Slow down password guessing without letting a stranger lock someone out:
+  // per email address and 15-minute window, 10 wrong passwords from one
+  // network (IP) refuse that network, and 100 from everywhere refuse all
+  // sign-ins for the rest of the window (lib/ratelimit.js, shared by every
+  // server). The attempt is recorded atomically before the password is
+  // checked (so a burst of parallel guesses counts every one) and taken back
+  // on success. Unknown addresses are counted too, so neither the timing nor
+  // a 429 reveals which addresses have accounts. The demo account's password
+  // is public, so it isn't counted (nobody could lock it for everyone).
+  const counted = isEmail(email) && !user?.demo;
+  const addr = counted ? email.toLowerCase().trim() : null;
+  const net = hashId(req.ip || "unknown").slice(0, 12);
   let locked = false;
-  if (user) {
-    await users.update(user.id, (u) => {
-      const recent = (u.signinFails || []).filter((t) => now - t < SIGNIN_WINDOW_MS);
-      locked = recent.length >= SIGNIN_MAX_FAILS;
-      u.signinFails = locked ? recent : [...recent, now];
-    });
+  if (counted) {
+    locked = await withCounter("signin", addr, SIGNIN_WINDOW_MS, (r) => {
+      const fromHere = r.ips?.[net] || 0;
+      if (fromHere >= SIGNIN_MAX_FAILS || (r.total || 0) >= SIGNIN_MAX_TOTAL) return true;
+      r.ips = { ...r.ips, [net]: fromHere + 1 };
+      r.total = (r.total || 0) + 1;
+      return false;
+    }).catch((err) => (console.error("[signin] attempt counter", err.message), false));
   }
   if (locked) return res.status(429).json({ error: "Too many attempts. Wait 15 minutes and try again, or reset your password." });
   // Always run the (async) password hash, even for unknown emails, so timing
   // doesn't reveal which addresses have accounts.
   const ok = await verifyPassword(String(password || "").slice(0, 1000), user?.password || DUMMY_HASH);
   if (!user || !password || !ok) return res.status(401).json({ error: "That email and password don't match an account." });
-  await users.update(user.id, (u) => (u.signinFails = [])).catch(() => {});
+  if (counted) {
+    await withCounter("signin", addr, SIGNIN_WINDOW_MS, (r) => {
+      r.total = Math.max(0, (r.total || 0) - (r.ips?.[net] || 0));
+      r.ips = { ...r.ips, [net]: 0 };
+    }).catch(() => {});
+  }
   setSession(res, user);
   res.json({ user: publicUser(user) });
 });
@@ -196,24 +211,29 @@ app.post("/api/auth/password/forgot", async (req, res) => {
   const human = await checkHuman(req.body?.turnstileToken, { ip: req.ip, action: "reset" });
   if (!human.ok) return res.status(400).json({ error: "We couldn't confirm you're a person. Please complete the security check and try again.", code: "bot_check" });
   if (!mailEnabled()) return res.status(503).json({ error: "Email isn't set up on this site yet. Please contact us to reset your password." });
-  const sent = () => res.json({ status: "sent" });
+  // Everything after the lookup happens after answering, so neither the
+  // response nor its timing reveals whether the address has an account.
   const user = await users.byEmail(email);
-  if (!user || user.demo) return sent();
-  // Record the send atomically first, so parallel requests can't get past the limit.
-  const now = Date.now();
-  let allowed = false;
-  await users.update(user.id, (u) => {
-    const sends = (u.resetSends || []).filter((t) => now - t < RESET_WINDOW_MS);
-    allowed = sends.length < RESET_MAX_SENDS && !(sends.length && now - sends[sends.length - 1] < 60 * 1000);
-    if (allowed) u.resetSends = [...sends, now];
-  });
-  if (!allowed) return sent();
-  // Sent after answering, so neither the response nor its timing reveals
-  // whether the address has an account.
-  const link = `${appOrigin(req)}/reset?token=${resetToken(user)}`;
-  const { subject, text, html } = passwordResetEmail({ name: user.name, link });
-  background(sendMail({ from: { name: "Keeper Headshots", address: MAIL_FROM }, to: { name: user.name, address: user.email }, subject, text, html }).catch((err) => console.error("[reset] send failed", user.id, err.message)));
-  sent();
+  res.json({ status: "sent" });
+  if (!user || user.demo) return;
+  const origin = appOrigin(req);
+  background(
+    (async () => {
+      // Record the send atomically first, so parallel requests can't get past the limit.
+      const now = Date.now();
+      let allowed = false;
+      await users.update(user.id, (u) => {
+        const sends = (u.resetSends || []).filter((t) => now - t < RESET_WINDOW_MS);
+        allowed = sends.length < RESET_MAX_SENDS && !(sends.length && now - sends[sends.length - 1] < 60 * 1000);
+        if (!allowed) return UNCHANGED;
+        u.resetSends = [...sends, now];
+      });
+      if (!allowed) return;
+      const link = `${origin}/reset?token=${resetToken(user)}`;
+      const { subject, text, html } = passwordResetEmail({ name: user.name, link });
+      await sendMail({ from: { name: "Keeper Headshots", address: MAIL_FROM }, to: { name: user.name, address: user.email }, subject, text, html });
+    })().catch((err) => console.error("[reset] send failed", user.id, err.message)),
+  );
 });
 
 // Step 2 sets the new password, signs out every other device (by bumping the
@@ -237,7 +257,7 @@ app.post("/api/auth/password/reset", async (req, res) => {
     u.password = hash;
     u.passwordChangedAt = at;
     u.sessionVersion = (u.sessionVersion || 0) + 1;
-    u.signinFails = [];
+    delete u.signinFails; // replaced by the shared counter below
     u.resetSends = [];
     // The link came from their inbox, so this also confirms the email address.
     newlyVerified = u.emailVerified === false;
@@ -247,6 +267,11 @@ app.post("/api/auth/password/reset", async (req, res) => {
     }
   });
   if (used) return invalid();
+  // Proving they own the inbox lifts any sign-in lock on the address.
+  await withCounter("signin", user.email.toLowerCase(), SIGNIN_WINDOW_MS, (r) => {
+    r.ips = {};
+    r.total = 0;
+  }).catch(() => {});
   if (newlyVerified) trackMeta("CompleteRegistration", { eventId: `reg_${user.id}`, user: updated, req });
   setSession(res, updated);
   res.json({ user: publicUser(updated) });
@@ -316,7 +341,10 @@ app.post("/api/shoots", requireUser, async (req, res) => {
   if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
   if (plan.needsEmail) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
   if (!plan.canDevelop) throw new PlanError(NO_SHOOTS_LEFT);
-  const count = (await shoots.forUser(req.user.id)).length + 1;
+  const mine = await shoots.forUser(req.user.id);
+  const drafts = mine.filter((s) => !s.sample && !(s.shots || []).length).length;
+  if (drafts >= MAX_DRAFTS) return res.status(409).json({ error: `You have ${drafts} shoots that haven't been developed yet. Develop or delete one to start another.`, code: "too_many_drafts" });
+  const count = mine.length + 1;
   const now = new Date().toISOString();
   const shoot = await shoots.create({
     id: id("sht"),
@@ -334,6 +362,12 @@ app.post("/api/shoots", requireUser, async (req, res) => {
   res.status(201).json({ shoot });
 });
 
+// Undeveloped shoots an account can have at once, and photos it can upload
+// an hour: far above real use, but each photo is decoded and stored, so
+// there's a ceiling.
+const MAX_DRAFTS = 20;
+const UPLOADS_PER_HOUR = 150;
+
 // Photo checks per day for accounts past the free allowance (each is a paid
 // AI call). Generous for real use: about seven re-checks of every shoot.
 const DAILY_CHECKS = 40;
@@ -348,6 +382,7 @@ app.post("/api/shoots/:id/selfies", requireUser, async (req, res) => {
   if (!meta) return;
   if (!canEditPhotos(meta)) return res.status(400).json({ error: "Photos can't be changed once developing has started. Start a new shoot instead." });
   if (meta.selfies.length >= MAX_SELFIES) return res.status(400).json({ error: `Up to ${MAX_SELFIES} photos per shoot. Remove one to make room.` });
+  if (await overLimit("uploads", req.user.id, UPLOADS_PER_HOUR)) return res.status(429).json({ error: "That's a lot of photos in one hour. Please wait a little and try again." });
   const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(req.body?.photo || "");
   if (!m) return res.status(400).json({ error: "Photos must be JPG, PNG or WebP." });
   const selfie = await ingestSelfie(meta.id, Buffer.from(m[2], "base64"));
@@ -454,7 +489,7 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
     }
   } catch (err) {
     if (mailboxReserved) await mailboxChecks.release(req.user.email);
-    await shoots.updateMeta(meta.id, (m) => (m.status === "checking" && m.checkStartedAt === startedAt ? void Object.assign(m, { status: "draft" }) : false)).catch(() => {});
+    await shoots.updateMeta(meta.id, (m) => (m.status === "checking" && m.checkStartedAt === startedAt ? void Object.assign(m, { status: statusWithoutCheck(m) }) : false)).catch(() => {});
     throw err;
   }
   try {
@@ -566,14 +601,13 @@ app.post("/api/shoots/:id/review", requireUser, async (req, res) => {
   const plan = planFor(req.user);
   if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
   if (plan.tier !== "owner" && (shoot.regrades || 0) >= FREE.regradesPerShoot) throw new PlanError(`You can re-grade a shoot up to ${FREE.regradesPerShoot} times.`, "regrade_limit", 429);
-  let over = false;
-  await shoots.updateMeta(shoot.id, (m) => {
-    over = plan.tier !== "owner" && (m.regrades || 0) >= FREE.regradesPerShoot;
-    if (over) return false;
+  // Counted in the same write that starts the grading, so a start that's
+  // refused (already grading, or developing again) doesn't use one.
+  const next = await startReview(shoot.id, (m) => {
+    if (plan.tier !== "owner" && (m.regrades || 0) >= FREE.regradesPerShoot) throw new PlanError(`You can re-grade a shoot up to ${FREE.regradesPerShoot} times.`, "regrade_limit", 429);
     m.regrades = (m.regrades || 0) + 1;
   });
-  if (over) throw new PlanError(`You can re-grade a shoot up to ${FREE.regradesPerShoot} times.`, "regrade_limit", 429);
-  res.status(202).json({ shoot: await startReview(shoot.id) });
+  res.status(202).json({ shoot: next });
 });
 
 // Rename a shoot, or set/clear the person's own best pick.
@@ -686,16 +720,20 @@ app.post("/api/billing/embed-error", requireUser, (req, res) => {
   res.json({ ok: true });
 });
 
+// Both call Stripe, whose API rate limit the whole site shares, so each
+// account gets a ceiling. A skipped sync is silent (the webhook and the next
+// visit catch up).
 app.post("/api/billing/confirm", requireUser, async (req, res) => {
   if (!requireBilling(req, res)) return;
   const sessionId = req.body?.sessionId;
   if (typeof sessionId !== "string" || !/^cs_\w{4,200}$/.test(sessionId)) return res.status(400).json({ error: "That checkout link isn't valid." });
+  if (await overLimit("confirm", req.user.id, 30)) return res.status(429).json({ error: "Please wait a minute, then refresh this page." });
   const result = await confirmCheckout(req.user, sessionId);
   res.json({ ...result, user: publicUser(await users.byId(req.user.id)) });
 });
 
 app.post("/api/billing/sync", requireUser, async (req, res) => {
-  if (!billingEnabled() || req.user.demo) return res.json({ added: 0, removed: 0, user: publicUser(req.user) });
+  if (!billingEnabled() || req.user.demo || !req.user.stripeCustomerId || (await overLimit("sync", req.user.id, 20))) return res.json({ added: 0, removed: 0, user: publicUser(req.user) });
   const { added, removed } = await syncPurchases(req.user);
   res.json({ added, removed, user: publicUser(added || removed ? await users.byId(req.user.id) : req.user) });
 });
@@ -787,11 +825,18 @@ app.get("/media/:sid/:name", requireUser, async (req, res) => {
 const EXAMPLE_WIDTHS = [360, 600, 900];
 app.get(/^\/examples\/([a-z0-9-]+)\.(jpg|webp)$/, async (req, res) => {
   const [id, ext] = [req.params[0], req.params[1]];
+  // Each distinct URL misses the CDN cache and costs a storage read and a
+  // resize, so anything but the canonical query (w, then v) is redirected to
+  // it before doing any work.
+  const w = EXAMPLE_WIDTHS.includes(Number(req.query.w)) ? Number(req.query.w) : 600;
+  const v = /^\w{1,12}$/.test(String(req.query.v || "")) ? String(req.query.v) : "";
+  const query = new URLSearchParams({ ...(ext === "webp" ? { w: String(w) } : {}), ...(v ? { v } : {}) }).toString();
+  const asked = req.originalUrl.split("?")[1] || "";
+  if (asked !== query) return res.redirect(301, `/examples/${id}.${ext}${query ? `?${query}` : ""}`);
   const buf = await exampleImage(id);
   if (!buf) return res.status(404).end();
   res.set("Cache-Control", "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=86400");
   if (ext === "jpg") return res.type("image/jpeg").send(buf);
-  const w = EXAMPLE_WIDTHS.includes(Number(req.query.w)) ? Number(req.query.w) : 600;
   const out = await sharp(buf).resize({ width: w, withoutEnlargement: true }).webp({ quality: 78, effort: 4 }).toBuffer();
   res.type("image/webp").send(out);
 });

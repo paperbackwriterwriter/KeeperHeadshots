@@ -69,12 +69,27 @@ addEventListener(
   { passive: true },
 );
 
+// Records where this entry was left, before a new one is pushed.
+function saveScroll() {
+  clearTimeout(scrollSave);
+  try {
+    history.replaceState({ ...history.state, y: window.scrollY }, "");
+  } catch {}
+}
+
 export function navigate(to, { replace = false, silent = false } = {}) {
   if (to === location.pathname + location.search + location.hash && !replace) return;
-  clearTimeout(scrollSave);
-  if (!replace) history.replaceState({ ...history.state, y: window.scrollY }, "");
+  if (replace) clearTimeout(scrollSave);
+  else saveScroll();
   history[replace ? "replaceState" : "pushState"]({}, "", to);
   if (!silent) render();
+}
+
+// An in-page anchor gets its own history entry; Back returns to where the
+// page was before the jump.
+function pushHash(url) {
+  saveScroll();
+  history.pushState({}, "", url);
 }
 
 function marketingNav() {
@@ -82,7 +97,7 @@ function marketingNav() {
   return html`
   <header class="nav" id="nav">
     <div class="container nav-inner">
-      <a class="logo" href="/" data-link aria-label="Keeper Headshots home">${logoMark()}${wordmark()}</a>
+      <a class="logo" href="/" data-link>${logoMark()}${wordmark()}</a>
       <nav class="nav-links" aria-label="Primary">
         <a href="/#how">How it works</a><a href="/#styles">Styles</a><a href="/#pricing">Pricing</a><a href="/team-headshots" data-link>Teams</a><a href="/#faq">FAQ</a>
       </nav>
@@ -107,7 +122,7 @@ function appNav() {
   return html`
   <header class="nav" id="nav">
     <div class="container nav-inner">
-      <a class="logo" href="/app" data-link aria-label="Keeper Headshots — your shoots">${logoMark()}${wordmark()}</a>
+      <a class="logo" href="/app" data-link>${logoMark()}${wordmark()}</a>
       <nav class="nav-links" aria-label="App">
         <a href="/app" data-link>Shoots</a><a href="/app/new" data-link>New shoot</a><a href="/#pricing">Pricing</a><a href="/contact" data-link>Contact</a><a href="/app/account" data-link>Account</a>
       </nav>
@@ -212,7 +227,7 @@ function wireChrome() {
   const nav = $("#nav");
   if (nav) {
     const onScroll = () => nav.classList.toggle("is-scrolled", window.scrollY > 8);
-    onScroll();
+    requestAnimationFrame(onScroll); // after layout, not forcing one mid-render
     window.addEventListener("scroll", onScroll, { passive: true });
     const prev = cleanup;
     cleanup = () => {
@@ -233,11 +248,27 @@ function wireChrome() {
     if (open) sheet.querySelector("a")?.focus();
   });
   sheet?.addEventListener("click", (e) => e.target.closest("a") && setOpen(false));
-  sheet?.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    setOpen(false);
-    toggle.focus();
-  });
+  if (sheet && toggle) {
+    // Closes on a tap outside it, on Escape wherever focus is, and when
+    // keyboard focus moves past it (onto the page it covers).
+    const inside = (el) => el && (sheet.contains(el) || toggle.contains(el));
+    const isOpen = () => sheet.classList.contains("open");
+    const onClick = (e) => isOpen() && !inside(e.target) && setOpen(false);
+    const onKey = (e) => {
+      if (e.key !== "Escape" || !isOpen()) return;
+      setOpen(false);
+      toggle.focus();
+    };
+    sheet.addEventListener("focusout", (e) => isOpen() && e.relatedTarget && !inside(e.relatedTarget) && setOpen(false));
+    document.addEventListener("click", onClick);
+    document.addEventListener("keydown", onKey);
+    const prev = cleanup;
+    cleanup = () => {
+      document.removeEventListener("click", onClick);
+      document.removeEventListener("keydown", onKey);
+      prev?.();
+    };
+  }
   $("#signOut")?.addEventListener("click", async () => {
     await api("/api/auth/signout", { method: "POST" }).catch(() => {});
     state.user = null;
@@ -278,7 +309,7 @@ document.addEventListener("click", (e) => {
   if (updateReady()) return;
   e.preventDefault();
   if (url.pathname === location.pathname && url.search === location.search && url.hash) {
-    history.pushState({}, "", url.pathname + url.search + url.hash);
+    pushHash(url.pathname + url.search + url.hash);
     goToHash(url.hash);
     return;
   }
@@ -290,7 +321,7 @@ document.addEventListener("click", (e) => {
   if (!a || a.getAttribute("href").length < 2 || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
   if (!document.getElementById(decodeURIComponent(a.getAttribute("href").slice(1)))) return;
   e.preventDefault();
-  history.pushState({}, "", location.pathname + location.search + a.getAttribute("href"));
+  pushHash(location.pathname + location.search + a.getAttribute("href"));
   goToHash(a.getAttribute("href"));
 });
 document.addEventListener("click", (e) => e.target.closest("[data-reload]") && location.reload());
@@ -303,7 +334,13 @@ window.addEventListener("pageshow", (e) => {
 // Back/forward to another page returns to where it was scrolled.
 window.addEventListener("popstate", () => {
   clearTimeout(scrollSave); // a pending save belongs to the page just left
-  if (location.pathname + location.search === lastRoute) return goToHash(location.hash);
+  if (location.pathname + location.search === lastRoute) {
+    if (location.hash) return goToHash(location.hash);
+    return window.scrollTo({ top: history.state?.y || 0, behavior: "instant" });
+  }
+  // A newer version was deployed since this tab loaded: load the page fresh
+  // (as link clicks do) rather than mixing new views with old core code.
+  if (updateReady()) return location.reload();
   render({ restoreY: history.state?.y });
 });
 

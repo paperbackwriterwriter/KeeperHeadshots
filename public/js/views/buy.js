@@ -49,7 +49,9 @@ export function renderBuy({ root }, packageId) {
       pixel("InitiateCheckout", { value, currency: "USD", content_name: pkg.name }, eventId);
       // Give the Pixel a moment to send before leaving for Stripe (the server sends it too).
       if (window.fbq) await new Promise((r) => setTimeout(r, 300));
-      if (!disposed) location.assign(url);
+      // Replace, not push: Back from Stripe then returns to the page before
+      // this one, rather than here (which would send them straight back).
+      if (!disposed) location.replace(url);
     } catch (err) {
       if (!disposed) failed(err.message);
     }

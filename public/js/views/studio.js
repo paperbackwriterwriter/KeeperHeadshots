@@ -61,6 +61,9 @@ export async function renderStudio(ctx, id) {
       shoot = data.shoot;
       ctx.setTitle(shoot.name);
       paint(prev);
+      // After uploading, the new shoot's check starts automatically (on the
+      // first load that succeeds, even if that's a "Try again").
+      if (!prev) autoCheck();
     } catch (err) {
       if (disposed) return;
       if (err.status === 404) {
@@ -869,12 +872,13 @@ export async function renderStudio(ctx, id) {
     });
   }
 
-  // After uploading, the new shoot's check starts automatically.
-  await refresh();
-  if (shoot?.status === "draft" && !shoot.check && sessionStorage.getItem("ahg-autocheck") === id) {
+  function autoCheck() {
+    if (shoot?.status !== "draft" || shoot.check || sessionStorage.getItem("ahg-autocheck") !== id) return;
     sessionStorage.removeItem("ahg-autocheck");
     if (state.ai.vision) runCheck();
   }
+
+  await refresh();
   return () => {
     disposed = true;
     stop();

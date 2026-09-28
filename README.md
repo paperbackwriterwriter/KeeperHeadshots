@@ -147,6 +147,7 @@ node scripts/dev/screenshots.js shots   # phone (390px) + desktop (1440px) click
 node scripts/dev/race-tests.js   # double-spend, lockout, open-redirect and other regression checks
 node scripts/dev/reset-tests.js  # password reset and sign-out-everywhere checks
 node scripts/dev/hardening-tests.js  # verify links, sign-ins, photo edits/checks, checkout and contact limits, sign-out
+                                     # (set DATA_DIR to the server's to include the re-check and demo sign-out tests)
 node scripts/dev/cleanup-tests.js    # daily clean-up on a throwaway local store (no server needed)
                                    # (set ADMIN_TOKEN on the server and QA_ADMIN_TOKEN here to test the admin header)
 # Two instances at once: run two servers on one DATA_DIR (ports 3100 + 3101), mock started with

@@ -1,4 +1,4 @@
-// DEV/QA ONLY — regression tests for the second QA pass: verify links never
+// DEV/QA ONLY — regression tests for the second and third QA passes: verify links never
 // sign anyone in, parallel sign-in guesses all count, atomic photo edits and
 // checks, the reset request never reveals accounts, admin token only in a
 // header, checkout rate limit, one account per email under a race. Run against
@@ -165,6 +165,84 @@ if (process.env.QA_ADMIN_TOKEN) {
       statuses.push(r.status);
     }
     ok("contact limit is shared across servers", statuses.slice(0, 5).every((s) => s === 200) && statuses[5] === 429, statuses.join(","));
+  }
+}
+
+// --- Third QA pass ---
+const signin = (email, password, ip) => fetch(B + "/api/auth/signin", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": ip }, body: JSON.stringify({ email, password }) }).then((r) => r.status);
+
+// 12. Wrong passwords lock out the network they come from, not the account.
+{
+  const email = `net${t}@x.com`;
+  await account(email);
+  const wrong = [];
+  for (let i = 0; i < 11; i++) wrong.push(await signin(email, "wrong-password", "198.51.100.7"));
+  const sameNet = await signin(email, "password123", "198.51.100.7");
+  const otherNet = await signin(email, "password123", "198.51.100.8");
+  ok("sign-in lock is per network, not per account", wrong.slice(0, 10).every((s) => s === 401) && wrong[10] === 429 && sameNet === 429 && otherNet === 200, `${wrong.join(",")} same=${sameNet} other=${otherNet}`);
+}
+
+// 13. The public demo account can't be locked by wrong passwords.
+{
+  const wrong = [];
+  for (let i = 0; i < 12; i++) wrong.push(await signin("demo@keeperheadshots.com", "wrong-password", "198.51.100.9"));
+  const right = await signin("demo@keeperheadshots.com", "studio-demo", "198.51.100.9");
+  ok("demo account can't be locked", wrong.every((s) => s === 401) && right === 200, `${[...new Set(wrong)].join(",")} then ${right}`);
+}
+
+// 14. Unknown addresses are counted the same way, so a 429 doesn't reveal accounts.
+{
+  const wrong = [];
+  for (let i = 0; i < 11; i++) wrong.push(await signin(`nobody${t}@x.com`, "wrong-password", "198.51.100.10"));
+  ok("unknown address locks like a real one", wrong[9] === 401 && wrong[10] === 429, wrong.slice(8).join(","));
+}
+
+// 15. Example images: only the canonical query does any work.
+{
+  const odd = await fetch(B + "/examples/hero-1.webp?w=360&v=5&x=123", { redirect: "manual" });
+  const canon = await fetch(B + "/examples/hero-1.webp?w=360&v=5", { redirect: "manual" });
+  ok("non-canonical example URL redirects", odd.status === 301 && odd.headers.get("location") === "/examples/hero-1.webp?w=360&v=5" && canon.status !== 301, `${odd.status} ${odd.headers.get("location")} canon=${canon.status}`);
+}
+
+// 16. At most 20 undeveloped shoots per account.
+{
+  const f = await account(`drafts${t}@x.com`);
+  const made = [];
+  for (let i = 0; i < 21; i++) made.push((await f("/api/shoots", { method: "POST", body: "{}" })).status);
+  ok("undeveloped shoots capped at 20", made.slice(0, 20).every((s) => s === 201) && made[20] === 409, `${made.filter((s) => s === 201).length} made, then ${made[20]}`);
+}
+
+// 17. A re-check that's refused (daily limit) leaves the shoot checked, so it
+// can still be developed. Needs the server's DATA_DIR to set the day's count.
+if (process.env.DATA_DIR) {
+  const fs = await import("node:fs");
+  const email = `recheck${t}@x.com`;
+  const f = await account(email);
+  const { j } = await f("/api/shoots", { method: "POST", body: "{}" });
+  const sid = j.shoot.id;
+  await f(`/api/shoots/${sid}/selfies`, { method: "POST", body: JSON.stringify({ photo }) });
+  await f(`/api/shoots/${sid}/check`, { method: "POST", body: "{}" });
+  const me = await f("/api/me");
+  const file = `${process.env.DATA_DIR}/users/id/${me.j.user.id}.json`;
+  const u = JSON.parse(fs.readFileSync(file, "utf8"));
+  u.credits = 1;
+  u.usage = { ...u.usage, checkDay: { date: new Date().toISOString().slice(0, 10), n: 40 } };
+  fs.writeFileSync(file, JSON.stringify(u));
+  const again = await f(`/api/shoots/${sid}/check`, { method: "POST", body: "{}" });
+  const after = await f(`/api/shoots/${sid}`);
+  ok("refused re-check keeps the shoot checked", again.status === 429 && after.j.shoot.status === "checked" && !!after.j.shoot.check, `${again.status} ${after.j.shoot.status}`);
+}
+
+// 18. Signing out of the demo account doesn't grow its record.
+{
+  const f = client();
+  await f("/api/auth/signin", { method: "POST", headers: { "x-forwarded-for": "198.51.100.11" }, body: JSON.stringify({ email: "demo@keeperheadshots.com", password: "studio-demo" }) });
+  await f("/api/auth/signout", { method: "POST" });
+  if (process.env.DATA_DIR) {
+    const fs = await import("node:fs");
+    const dir = `${process.env.DATA_DIR}/users/id`;
+    const demo = fs.readdirSync(dir).map((n) => JSON.parse(fs.readFileSync(`${dir}/${n}`, "utf8"))).find((u) => u.demo);
+    ok("demo sign-out isn't tracked", !(demo.revokedSessions || []).length, `${(demo.revokedSessions || []).length} entries`);
   }
 }
 

@@ -264,7 +264,7 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .logo-mark { width: 32px; height: 32px; flex: none; color: var(--ink); }
 .logo-word { display: inline-flex; flex-direction: column; gap: 3px; line-height: 1; }
 .logo b { color: var(--ink); font-family: var(--font-display); font-weight: 600; font-size: 1.45rem; letter-spacing: -0.01em; line-height: 0.9; }
-.logo span { font-size: 0.5625rem; font-weight: 700; letter-spacing: 0.34em; color: var(--accent-text); }
+.logo span { font-size: 0.5625rem; font-weight: 700; letter-spacing: 0.34em; text-transform: uppercase; color: var(--accent-text); }
 .nav-links { display: flex; gap: 4px; margin-left: var(--s-5); }
 .nav-links a { text-decoration: none; font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); padding: 8px 12px; border-radius: var(--r-pill); transition: color var(--dur-2), background-color var(--dur-2); }
 .nav-links a:hover { color: var(--text); background: color-mix(in srgb, var(--ink) 6%, transparent); }
@@ -278,6 +278,13 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
   .nav-sheet.open { transform: none; opacity: 1; visibility: visible; }
   .nav-sheet a:not(.btn) { display: flex; align-items: center; min-height: 48px; text-decoration: none; font-weight: 600; font-size: var(--fs-md); border-bottom: 1px solid var(--border); }
   .nav-sheet .btn { margin-top: var(--s-4); }
+}
+
+/* Smallest phones (320px): the signed-in header's logo, account chip, sign-out
+   and menu buttons fit on one line. */
+@media (max-width: 360px) {
+  .nav-inner { gap: var(--s-2); }
+  .nav-actions { gap: 4px; }
 }
 
 .user-chip { text-decoration: none; color: var(--text); display: inline-flex; align-items: center; gap: 10px; padding: 4px 6px 4px 4px; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--surface); font-size: var(--fs-sm); font-weight: 600; }

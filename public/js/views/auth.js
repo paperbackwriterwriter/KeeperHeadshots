@@ -14,7 +14,7 @@ export function renderAuth({ root, navigate }, mode) {
   root.innerHTML = html`
   <main id="main" class="auth">
     <div class="auth-form-wrap">
-      <a class="logo" href="/" data-link aria-label="Keeper Headshots home">${logoMark()}${wordmark()}</a>
+      <a class="logo" href="/" data-link>${logoMark()}${wordmark()}</a>
       <div class="auth-form view-enter">
         <p class="eyebrow"><span class="dot"></span>${isUp ? "Step 1 of 3" : "Welcome back"}</p>
         <h1 class="display h-2">${isUp ? "Create your account" : "Sign in to your studio"}</h1>
@@ -95,7 +95,11 @@ export function renderAuth({ root, navigate }, mode) {
     return f;
   };
 
+  // One request at a time, whichever button started it (the demo button
+  // isn't the one disabled while busy).
+  let inFlight = false;
   async function submit(data) {
+    if (inFlight) return;
     alertBox.hidden = true;
     const fields = validate(data);
     setErrors(fields);
@@ -103,7 +107,9 @@ export function renderAuth({ root, navigate }, mode) {
       $(`#${Object.keys(fields)[0]}`).focus();
       return;
     }
-    const restore = busy($("#submit"), isUp ? "Creating account…" : "Signing in…");
+    inFlight = true;
+    const done = busy($("#submit"), isUp ? "Creating account…" : "Signing in…");
+    const restore = () => ((inFlight = false), done());
     try {
       if (human) data = { ...data, turnstileToken: await human.token() };
       const res = await api(`/api/auth/${isUp ? "signup" : "signin"}`, { method: "POST", body: data });

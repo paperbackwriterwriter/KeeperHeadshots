@@ -103,6 +103,8 @@ export function renderReset({ root, navigate }) {
       </div>`,
     );
 
+  // Coming back here (Back button) after a reset, already signed in.
+  if (!token && state.user) return void navigate("/app", { replace: true });
   if (!token) return failed("This page needs the link from your password reset email. Ask for a new one below.");
 
   shell(

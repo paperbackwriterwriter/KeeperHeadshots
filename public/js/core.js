@@ -40,7 +40,7 @@ export const logoMark = () =>
 // refresh caches. Allowed widths: 360, 600, 900.
 export const example = (id, w = 600) => `/examples/${id}.webp?w=${w}&v=5`;
 
-export const wordmark = () => raw(`<span class="logo-word"><b>Keeper</b><span>HEADSHOTS</span></span>`);
+export const wordmark = () => raw(`<span class="logo-word"><b>Keeper</b> <span>Headshots</span></span>`);
 
 // The brass grease-pencil loop photographers draw around the keeper frame.
 export const greaseCircle = () =>
@@ -127,18 +127,34 @@ export function toast(message, kind = "info", ms = 4200) {
   host.appendChild(el);
   const close = () => {
     if (el.classList.contains("out")) return;
+    clearTimeout(timer);
+    // Dismissed from the keyboard: focus goes back where it was, not to <body>.
+    if (el.contains(document.activeElement)) {
+      let to = returnTo?.isConnected ? returnTo : document.querySelector("main h1");
+      if (to && to.tabIndex < 0 && !to.hasAttribute("tabindex")) to.tabIndex = -1;
+      to?.focus({ preventScroll: true });
+    }
     el.classList.add("out");
     el.addEventListener("animationend", () => el.remove(), { once: true });
     setTimeout(() => el.remove(), 600); // reduced motion: no animationend
   };
   el.querySelector(".toast-close").addEventListener("click", close);
   let timer = setTimeout(close, kind === "error" ? Math.max(ms, 8000) : ms);
+  // Paused while hovered or focused; it resumes only once neither holds.
+  let hovered = false;
+  let returnTo = null;
   const pause = () => clearTimeout(timer);
-  const resume = () => (timer = setTimeout(close, 3000));
-  el.addEventListener("mouseenter", pause);
-  el.addEventListener("mouseleave", resume);
-  el.addEventListener("focusin", pause);
-  el.addEventListener("focusout", resume);
+  const resume = () => {
+    clearTimeout(timer);
+    if (!hovered && !el.contains(document.activeElement)) timer = setTimeout(close, 3000);
+  };
+  el.addEventListener("mouseenter", () => ((hovered = true), pause()));
+  el.addEventListener("mouseleave", () => ((hovered = false), resume()));
+  el.addEventListener("focusin", (e) => {
+    if (!el.contains(e.relatedTarget)) returnTo = e.relatedTarget;
+    pause();
+  });
+  el.addEventListener("focusout", (e) => !el.contains(e.relatedTarget) && setTimeout(resume));
 }
 
 export const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;

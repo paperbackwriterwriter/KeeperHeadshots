@@ -2,17 +2,22 @@ import { html, icon, api, state, spinner } from "../core.js";
 import { pixel, pageUrl } from "../pixel.js";
 
 // Landing page for the link in the "Confirm your email" message.
-export async function renderVerify({ root }) {
+export async function renderVerify({ root, navigate }) {
   const token = state.linkToken || new URLSearchParams(location.search).get("token") || "";
   state.linkToken = null;
   // Keep the token out of the address bar and browser history.
   history.replaceState({}, "", "/verify");
+  // Coming back here (Back button) after the link was used: the token is gone
+  // from the address, so there's nothing to confirm. Signed in and confirmed
+  // means it worked; go on to the shoots.
+  if (!token && state.user?.emailVerified) return void navigate("/app", { replace: true });
 
   const shell = (body) => (root.innerHTML = html`<main id="main" class="container app-main view-enter verify-page"><div class="verify-card">${body}</div></main>`.v);
   shell(html`<div class="verify-icon">${spinner()}</div><h1 class="display h-2">Confirming your email…</h1>`);
 
   let res;
   try {
+    if (!token) throw Object.assign(new Error("This page needs the link from your confirmation email."), { data: {} });
     res = await api("/api/auth/verify", { method: "POST", body: { token, pageUrl: pageUrl() } });
   } catch (err) {
     const expired = err.data?.code === "expired";
