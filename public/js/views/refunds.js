@@ -3,7 +3,7 @@ import { footer } from "./landing.js";
 import { CONTACT_EMAIL } from "./contact.js";
 
 // The written terms behind the "money-back guarantee" shown on the site.
-export const POLICY_UPDATED = "September 27, 2026";
+export const POLICY_UPDATED = "September 28, 2026";
 
 export function renderRefunds({ root }) {
   root.innerHTML = html`
@@ -11,19 +11,19 @@ export function renderRefunds({ root }) {
     <article class="policy">
       <p class="eyebrow"><span class="dot"></span>Refund policy</p>
       <h1 class="display h-1" style="margin-top:12px">Our money-back guarantee</h1>
-      <p class="lede">If none of the headshots from your paid shoot are usable, we'll refund your purchase in full.</p>
+      <p class="lede">If none of the headshots from your first paid shoot are usable, we'll refund your package, less only the later shoots whose headshots you kept.</p>
       <p class="small muted">Last updated ${POLICY_UPDATED}</p>
 
       <div class="policy-callout">
         ${icon("shield-check")}
-        <div><b>The short version</b><span>If none of the headshots from your first paid shoot are usable, tell us within 30 days and we'll refund the whole package to your card. No forms, no hoops.</span></div>
+        <div><b>The short version</b><span>If none of the headshots from your first paid shoot are usable, tell us within 30 days and we'll refund the package to your card, less any later shoots whose headshots you kept. No forms, no hoops.</span></div>
       </div>
 
       <h2 class="h-3">What's covered</h2>
       <ul>
         <li>Every paid package: Starter, Professional and Executive.</li>
-        <li>If none of the headshots from the <b>first paid shoot</b> in your package are ones you'd use professionally, we refund the <b>full package price</b>.</li>
-        <li>If you've already developed more than one shoot from the package, we refund the shoots you haven't used, pro rata. For example, if you bought Professional (6 shoots for $39) and used two, we refund $26.</li>
+        <li>If none of the headshots from the <b>first paid shoot</b> in your package are ones you'd use professionally, we refund the <b>full package price</b>, less any shoots you developed after it and kept. A later shoot that also had nothing usable is refunded too.</li>
+        <li>For example, you buy Professional (6 shoots for $39, so $6.50 a shoot). Your first shoot has nothing you'd use, so you develop a second one and keep those headshots. We refund $32.50. If the second shoot had nothing usable either, we refund the full $39.</li>
         <li>Your free first shoot costs nothing, so there's nothing to refund.</li>
       </ul>
 

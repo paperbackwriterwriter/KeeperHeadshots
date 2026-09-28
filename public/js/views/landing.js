@@ -236,7 +236,7 @@ export function renderLanding({ root }) {
             </article>`,
           )}
         </div>
-        <p class="guarantee">${icon("shield-check")} Money-back guarantee: if none of the headshots from your first paid shoot are usable, we'll refund the package in full. <a class="link" href="/refunds" data-link>See the terms</a></p>
+        <p class="guarantee">${icon("shield-check")} Money-back guarantee: if none of the headshots from your first paid shoot are usable, we'll refund the package, less any later shoots you kept. <a class="link" href="/refunds" data-link>See the terms</a></p>
         <div class="teams" id="teams" data-reveal>
           <div style="display:flex;gap:16px;align-items:center">
             <span class="t-ic">${icon("users")}</span>
