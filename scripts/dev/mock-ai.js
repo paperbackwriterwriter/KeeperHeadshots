@@ -231,6 +231,8 @@ http
       console.log(`[mock] resend to=${to.join(",")} subject="${m.subject}"`);
       return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify({ id }));
     }
+    // Image calls in flight right now (render-race waits for 0 before it measures).
+    if (req.url === "/mock-inflight") return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify({ inflight, renders: rendersInflight }));
     if (req.url === "/mock-mail") return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify(mail));
     const body = raw ? JSON.parse(raw) : {};
     try {

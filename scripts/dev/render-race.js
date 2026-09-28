@@ -36,6 +36,13 @@ for (let i = 0; i < 3; i++) {
 }
 await f(`/api/shoots/${shoot.id}/check`, { method: "POST" });
 
+// The mock's in-flight counts cover every shoot, so let renders left over from
+// earlier test suites finish before measuring this one.
+for (let i = 0; i < 120; i++) {
+  const { inflight } = await fetch(`${MOCK}/mock-inflight`).then((r) => r.json()).catch(() => ({ inflight: 0 }));
+  if (!inflight) break;
+  await new Promise((r) => setTimeout(r, 500));
+}
 const before = mockLog().length;
 const g = await f(`/api/shoots/${shoot.id}/generate`, { method: "POST", body: JSON.stringify({ looks: [{ backdrop: "studio-gray", outfit: "navy-suit" }, { backdrop: "library", outfit: "camel-knit" }, { backdrop: "city-terrace", outfit: "white-shirt" }, { backdrop: "glass-office", outfit: "navy-suit" }].slice(0, process.env.EMAIL ? 4 : 2) }) });
 const frames = g.shoot.shots.length;
