@@ -55,6 +55,7 @@ run race node scripts/dev/race-tests.js
 run reset node scripts/dev/reset-tests.js
 run hardening env DATA_DIR="$DATA" QA_ADMIN_TOKEN=ci-admin-token-ci-admin-token BASE2=http://localhost:3101 node scripts/dev/hardening-tests.js
 run cleanup node scripts/dev/cleanup-tests.js
+run backup node scripts/dev/backup-tests.js
 run alerts node scripts/dev/alert-tests.js
 run growth node scripts/dev/growth-tests.js
 run e2e node scripts/dev/api-e2e.js
