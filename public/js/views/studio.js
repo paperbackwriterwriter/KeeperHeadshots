@@ -1,7 +1,7 @@
 // The shoot flow. One page, driven by the shoot's server-side status:
 //   (new) upload -> draft/checking -> checked (photo check + looks) -> generating/reviewing -> done (proofs)
 
-import { $, $$, html, raw, icon, api, state, toast, media, squareMedia, busy, spinner, greaseCircle, silhouette, esc, reduceMotion, loadSession } from "../core.js";
+import { $, $$, html, raw, icon, api, state, toast, media, squareMedia, sizeMedia, PROFILE_KIT, busy, spinner, greaseCircle, silhouette, esc, reduceMotion, loadSession } from "../core.js";
 import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, lookFor } from "../shared/catalog.js";
 import { portraitDataURL } from "../shared/portrait.js";
 import { aiBanner, planBanner } from "./dashboard.js";
@@ -313,7 +313,7 @@ export async function renderStudio(ctx, id) {
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" id="delete">${icon("trash-2")} Delete</button><button class="btn btn-ghost btn-sm" id="recheck">${icon("refresh-cw")} Re-check photos</button></div>
         ${c.verdict === "retake"
           ? html`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost" id="override">Continue anyway</button><a class="btn btn-flash" href="#addMore">${icon("camera")} Add better photos</a></div>`
-          : html`<button class="btn btn-flash btn-lg" id="toLooks">Choose your looks ${icon("arrow-right")}</button>`}
+          : html`<button class="btn btn-flash btn-lg" id="toLooks">${s.team ? "Continue" : "Choose your looks"} ${icon("arrow-right")}</button>`}
       </div>
       <p class="disclaimer" style="margin-top:16px">${icon("info")} Scores are AI estimates of how well each photo will work as a reference — not a judgment of how you look.</p>`;
   }
@@ -330,7 +330,45 @@ export async function renderStudio(ctx, id) {
     ["botanical", "oxford"],
   ];
 
+  // A team shoot uses the team's looks (set by the team admin) and is already
+  // paid for: confirm and develop.
+  function paintTeamLooks(s) {
+    const looks = s.team.looks;
+    const preview = (l) => portraitDataURL("look-" + l.backdrop + l.outfit, { backdrop: l.backdrop, outfit: l.outfit, skin: 2, hair: "short", hairTone: 1 });
+    root.innerHTML = html`<main id="main" class="container app-main view-enter looks-page">
+      ${stepper(2)}
+      <div class="page-head"><div><p class="eyebrow">${icon("users")} ${s.team.name}</p><h1 class="display h-1" style="margin-top:8px">Your team's look.</h1>
+      <p class="lede" style="margin-top:12px">${s.team.ownerName} chose ${looks.length === 1 ? "this look" : "these looks"} for everyone on the team, so your headshots match. ${looks.length * TAKES_PER_LOOK} headshots, already paid for.</p></div></div>
+      <ol class="look-cards">${looks.map((l, i) => {
+        const x = lookFor(l.backdrop, l.outfit);
+        return html`<li class="look-card is-set"><img src="${preview(l)}" alt="" /><span class="look-text"><b>Look ${i + 1}</b><span>${x ? `${x.backdrop.name} · ${x.outfit.name}` : ""}</span></span></li>`;
+      })}</ol>
+      <div class="actions-bar">
+        <button class="btn btn-ghost" id="backCheck">${icon("arrow-left")} Back to photos</button>
+        <button class="btn btn-flash btn-lg" id="develop">${icon("aperture")} Develop my headshots</button>
+      </div>
+    </main>`.v;
+    $("#backCheck").addEventListener("click", () => {
+      view = "check";
+      paintCheck(shoot);
+    });
+    $("#develop").addEventListener("click", async (e) => {
+      const restore = busy(e.currentTarget, "Setting up…");
+      try {
+        const data = await api(`/api/shoots/${id}/generate`, { method: "POST", body: { looks, override: !!shoot._override } });
+        shoot = data.shoot;
+        paintDevelop(shoot);
+        window.scrollTo({ top: 0, behavior: "instant" });
+        timer = setTimeout(refresh, 1500);
+      } catch (err) {
+        restore();
+        toast(err.message, "error", 7000);
+      }
+    });
+  }
+
   function paintLooks(s) {
+    if (s.team) return paintTeamLooks(s);
     const plan = state.user?.plan;
     const MAX_LOOKS = plan?.maxLooks || MAX_LOOKS_ALL;
     const trial = plan?.tier === "trial";
@@ -659,6 +697,12 @@ export async function renderStudio(ctx, id) {
             ${formatPicker(currentFormat())}
           </div>
           <div id="dlRow"></div>
+          ${best
+            ? html`<div class="kit" aria-labelledby="kitTitle">
+                <p class="kit-title" id="kitTitle">${icon("briefcase")} Profile kit <span>from ${isMine ? "your pick" : "the best pick"}</span></p>
+                <div class="kit-items">${PROFILE_KIT.map(([size, name, detail]) => html`<a class="kit-item" href="${sizeMedia(best.file, size)}" download><b>${icon("download")} ${name}</b><span>${detail}</span></a>`)}</div>
+              </div>`
+            : ""}
           <p class="small muted" style="margin-top:14px;max-width:60ch">Every headshot is ready to use as it is, in either shape: a full-resolution 3:4 portrait for websites, print and business cards, or a 1:1 square for LinkedIn, Microsoft Teams and social media, framed for round profile photos with your face centered and room around it. No cropping needed.</p>
         </div>
       </section>
@@ -784,6 +828,7 @@ export async function renderStudio(ctx, id) {
             const square = html`<a class="btn ${sq ? "btn-flash" : "btn-ghost-inverse"}" href="${squareMedia(t.file)}" download>${icon("focus")} Download square (1:1)</a>`;
             return sq ? html`${square}${portrait}` : html`${portrait}${square}`;
           })()}
+          <p class="lb-sizes">More sizes: ${PROFILE_KIT.map(([size, name], i) => html`${i ? " · " : ""}<a href="${sizeMedia(t.file, size)}" download>${name}</a>`)}</p>
           ${s.sample ? "" : t.id === best?.id
             ? html`<span class="chip" style="align-self:flex-start">${icon("crown")} ${isMine ? "Your pick" : "Best pick"}</span>`
             : html`<button class="btn btn-ghost-inverse" data-pick="${t.id}">${icon("crown")} Make this my pick</button>`}

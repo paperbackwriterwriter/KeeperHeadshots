@@ -70,6 +70,7 @@ export function renderPrivacy({ root }) {
         <li><b>ImprovMX</b> and <b>Google (Gmail)</b>: delivering emails and contact-form messages.</li>
         <li><b>Meta</b> (Facebook and Instagram): advertising measurement, as described below.</li>
       </ul>
+      <p><b>Team headshots:</b> if a colleague invites you to their team, they see your name, email address and the progress of your shoot, and can view and download your finished headshots. They never see your selfies. If you invite people, we email each of them your invitation with your name and email address as the reply-to.</p>
       <p>We may also share information if the law requires it, to protect our rights or someone's safety, or with a buyer if Keeper Headshots is ever sold (this policy would still apply to your data). <b>We don't sell your personal information for money.</b></p>
 
       <h2 class="h-3">Advertising and cookies</h2>

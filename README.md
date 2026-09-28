@@ -98,6 +98,10 @@ To (re)generate one, set a long random `ADMIN_TOKEN` in the environment, redeplo
 
 `/` landing (and `/contact`) → `/signup` or `/signin` → `/app` (your shoots) → `/app/new` (upload) → `/app/shoot/:id`, which moves through **Photo check → Looks → Develop → Proofs** based on the shoot's server-side status.
 
+**Team orders** (`lib/teams.js`, `/app/team`, `/join`): a buyer names a team, picks its looks and invites colleagues by email (`POST /api/team/invites`). Each invite sets aside one of the buyer's shoots (returned if the invite is cancelled, or if the member deletes their team shoot before developing). The emailed link `/join/<token>` is moved into sessionStorage and the address rewritten to `/join` before anything else loads, so the secret never reaches analytics. The colleague signs in or up with the invited address (which also confirms it) and gets a paid shoot fixed to the team's looks. The buyer sees each person's progress and can download their finished headshots, never their selfies. Records: `teams/<id>.json` and `invites/<token>.json`; `scripts/dev/team-tests.js` covers it.
+
+**Profile kit**: besides the portrait and square, each finished headshot can be downloaded as `?size=linkedin` (800×800 JPEG), `?size=banner` (1584×396 LinkedIn banner made from the headshot's backdrop) and `?size=signature` (256px round PNG with a transparent background, for email signatures), each cached next to the original (`-li.jpg`, `-banner.jpg`, `-sig.png`).
+
 ## Design direction: "Studio Heritage"
 
 The brand is about replacing a photo studio, so the UI borrows a studio's own artifacts: contact sheets with frame numbers, prints with captions, and the grease-pencil loop a photographer draws around the keeper frame.

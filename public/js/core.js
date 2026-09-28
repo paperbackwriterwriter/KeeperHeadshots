@@ -182,6 +182,15 @@ export function observeReveals(root = document) {
 export const media = (file, download = false) => (file ? `/media/${file.split("/").map(encodeURIComponent).join("/")}${download ? "?download=1" : ""}` : "");
 // 1:1 square version for LinkedIn / Microsoft Teams profile photos.
 export const squareMedia = (file) => (file ? `/media/${file.split("/").map(encodeURIComponent).join("/")}?square=1&download=1` : "");
+// Ready-made sizes (server.js SIZES): "linkedin" 800×800, "banner" 1584×396,
+// "signature" 256px round PNG.
+export const sizeMedia = (file, size) => (file ? `/media/${file.split("/").map(encodeURIComponent).join("/")}?size=${size}&download=1` : "");
+// For the profile-kit links: what each size is, in the words people use.
+export const PROFILE_KIT = [
+  ["linkedin", "LinkedIn profile photo", "800 × 800, face centered for the round frame"],
+  ["banner", "LinkedIn banner", "1584 × 396, in the colours of this backdrop"],
+  ["signature", "Email signature", "Round PNG, 256 px, transparent corners"],
+];
 
 export function relTime(iso) {
   const d = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -218,3 +227,7 @@ export function busy(btn, label) {
 
 export const silhouette = () =>
   raw(`<svg class="silhouette" viewBox="0 0 100 110" aria-hidden="true"><circle cx="50" cy="34" r="22" fill="currentColor"/><path d="M6 110c2-28 20-44 44-44s42 16 44 44z" fill="currentColor"/></svg>`);
+
+// Where sign-in may send people back to: an app page or a team invitation,
+// on this site only.
+export const safeNext = (next) => (typeof next === "string" && /^\/(app(\/|$|\?)|join$)/.test(next) ? next : null);

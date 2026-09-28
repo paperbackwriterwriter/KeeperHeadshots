@@ -1,4 +1,4 @@
-import { $, $$, html, icon, logoMark, wordmark, api, state, toast, busy, example } from "../core.js";
+import { $, $$, html, icon, logoMark, wordmark, api, state, toast, busy, example, safeNext } from "../core.js";
 
 import { mountTurnstile } from "../turnstile.js";
 
@@ -6,8 +6,11 @@ const DEMO = { email: "demo@keeperheadshots.com", password: "studio-demo" };
 
 export function renderAuth({ root, navigate }, mode) {
   const isUp = mode === "signup";
-  const next = new URLSearchParams(location.search).get("next");
-  const dest = next && next.startsWith("/app") ? next : isUp ? "/app/new" : "/app";
+  const params = new URLSearchParams(location.search);
+  const next = safeNext(params.get("next"));
+  const dest = next || (isUp ? "/app/new" : "/app");
+  // A team invitation links here with the invited address filled in.
+  const prefill = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(params.get("email") || "") ? params.get("email") : "";
 
   const mosaic = ["strip-1", "hero-2", "strip-2", "rv-2", "strip-3", "hero-4", "strip-4", "rv-3", "hero-7", "strip-5", "hero-1", "strip-6", "rv-1", "strip-7", "hero-6", "hero-9"].map((id) => example(id, 360));
 
@@ -24,7 +27,7 @@ export function renderAuth({ root, navigate }, mode) {
           ${isUp
             ? html`<div class="field"><label for="name">Full name</label><input class="input" id="name" name="name" autocomplete="name" placeholder="Maya Okafor" required /><span class="field-error" id="err-name" hidden></span></div>`
             : ""}
-          <div class="field"><label for="email">Email</label><input class="input" id="email" name="email" type="email" autocomplete="email" inputmode="email" placeholder="you@company.com" required /><span class="field-error" id="err-email" hidden></span></div>
+          <div class="field"><label for="email">Email</label><input class="input" id="email" name="email" type="email" autocomplete="email" inputmode="email" placeholder="you@company.com" value="${prefill}" required /><span class="field-error" id="err-email" hidden></span></div>
           <div class="field">
             ${isUp
               ? html`<label for="password">Password</label>`
@@ -116,7 +119,7 @@ export function renderAuth({ root, navigate }, mode) {
       state.user = res.user;
       const first = res.user.name.split(" ")[0];
       if (!isUp) toast(`Welcome back, ${first}.`, "success");
-      else if (res.user.plan?.needsEmail) toast(`Welcome, ${first}. Check your inbox: click the link we sent to ${res.user.email} to unlock your free shoot.`, "success", 9000);
+      else if (res.user.plan?.needsEmail && dest !== "/join") toast(`Welcome, ${first}. Check your inbox: click the link we sent to ${res.user.email} to unlock your free shoot.`, "success", 9000);
       else toast(`Welcome, ${first}. Let's make some headshots.`, "success");
       navigate(dest);
     } catch (err) {

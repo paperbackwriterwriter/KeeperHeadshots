@@ -60,6 +60,7 @@ run env node scripts/dev/env-tests.js
 run alerts node scripts/dev/alert-tests.js
 run growth node scripts/dev/growth-tests.js
 run e2e node scripts/dev/api-e2e.js
+run team node scripts/dev/team-tests.js
 run render-race env MOCKLOG="$MOCKLOG" EMAIL=owner-ci@example.com node scripts/dev/render-race.js
 run slots env MOCKLOG="$MOCKLOG" RENDER_SLOTS=3 node scripts/dev/slots-test.js
 

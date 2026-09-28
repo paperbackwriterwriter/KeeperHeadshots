@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { users, shoots, id, readMedia, writeMedia, deleteMedia, freeClaimKey, mailboxChecks } from "./lib/store.js";
 import { backend, createJSON, getJSON, del, UNCHANGED } from "./lib/storage.js";
 import { hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailVerified, resetToken, checkResetToken } from "./lib/auth.js";
-import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, MAIL_FROM } from "./lib/mail.js";
+import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import { pageFor, isCanonicalHost } from "./lib/seo.js";
 import { aiStatus, AIError } from "./lib/ai.js";
@@ -25,6 +25,7 @@ import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExam
 import crypto from "node:crypto";
 import { withCounter, overLimit, hashId } from "./lib/ratelimit.js";
 import { recordStep, funnelReport, STEPS } from "./lib/stats.js";
+import * as teams from "./lib/teams.js";
 import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook, stripePublishableKey, stripeMode } from "./lib/billing.js";
 
 // Errors logged in production are emailed as a short summary (lib/alert.js).
@@ -332,6 +333,7 @@ const summary = (s) => ({
   cover: s.cover || s.selfies[0]?.file || null,
   checkScore: s.check?.overall_score ?? null,
   bestScore: s.bestScore ?? null,
+  team: s.team ? s.team.name : null,
 });
 
 app.get("/api/shoots", requireUser, async (req, res) => {
@@ -531,7 +533,9 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
   if (LIVE.includes(meta.status)) return res.status(409).json({ error: "This shoot is already in progress." });
   // A shoot is developed once; retries of failed frames go through /resume.
   if (meta.status !== "checked" || (meta.shots || []).length) return res.status(409).json({ error: "This shoot has already been developed. Start a new shoot for new looks." });
-  const looks = (Array.isArray(req.body?.looks) ? req.body.looks : []).map((l) => (l && typeof l === "object" ? lookFor(String(l.backdrop), String(l.outfit)) : null)).filter(Boolean);
+  // A team shoot always uses the team's looks, whatever is sent.
+  const asked = meta.team ? meta.team.looks : req.body?.looks;
+  const looks = (Array.isArray(asked) ? asked : []).map((l) => (l && typeof l === "object" ? lookFor(String(l.backdrop), String(l.outfit)) : null)).filter(Boolean);
   const unique = [...new Map(looks.map((l) => [l.id, l])).values()];
   if (!unique.length) return res.status(400).json({ error: "Pick at least one look." });
   if (unique.length > MAX_LOOKS) return res.status(400).json({ error: `Pick up to ${MAX_LOOKS} looks.` });
@@ -547,7 +551,8 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
   }
   let charged = null;
   try {
-    if (plan.tier !== "owner") {
+    // A team shoot was paid for when its invite was sent.
+    if (plan.tier !== "owner" && !meta.team) {
       if (plan.needsEmail && !plan.credits) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
       // One free shoot per mailbox, however the address is written.
       const wantsFree = plan.freeShootAvailable && !plan.needsEmail && unique.length <= FREE.looks;
@@ -664,7 +669,115 @@ app.delete("/api/shoots/:id", requireUser, async (req, res) => {
   if (meta.sample) return res.status(400).json({ error: "Sample shoots are read-only." });
   if (LIVE.includes(meta.status)) return res.status(409).json({ error: "Wait for the shoot to finish before deleting it." });
   await shoots.remove(meta);
+  // A team shoot deleted before developing gives the shoot back to the admin.
+  if (meta.team && !(meta.shots || []).length) await teams.returnSeat(meta).catch((err) => console.error("[team] return seat", meta.id, err.message));
   res.json({ ok: true });
+});
+
+/* ------------------------------- Teams ------------------------------ */
+
+// Team orders (lib/teams.js): an admin buys shoots and invites colleagues.
+const lookNames = (looks) => looks.map((l) => {
+  const x = lookFor(l.backdrop, l.outfit);
+  return x ? `${x.backdrop.name}, ${x.outfit.name}` : "";
+});
+
+function teamAdminOnly(req, res) {
+  if (req.user.demo) throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
+  if (planFor(req.user).needsEmail) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
+  return true;
+}
+
+async function sendInvite(req, team, inv) {
+  if (!mailEnabled()) return false;
+  const link = `${appOrigin(req)}/join/${inv.token}`;
+  const { subject, text, html } = teamInviteEmail({ ownerName: req.user.name, teamName: team.name, link, looks: lookNames(team.looks) });
+  await sendMail({ from: { name: "Keeper Headshots", address: MAIL_FROM }, replyTo: { name: req.user.name, address: req.user.email }, to: inv.email, subject, text, html });
+  await teams.markSent(team.id, inv.id);
+  return true;
+}
+
+// The admin's team: its looks and each person's progress.
+app.get("/api/team", requireUser, async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ team: await teams.teamStatus(req.user), credits: planFor(req.user).credits || 0, email: mailEnabled() });
+});
+
+app.post("/api/team", requireUser, async (req, res) => {
+  teamAdminOnly(req, res);
+  await teams.saveTeam(req.user, { name: req.body?.name, looks: req.body?.looks });
+  const user = await users.byId(req.user.id);
+  res.json({ team: await teams.teamStatus(user), user: publicUser(user) });
+});
+
+// Invites one or more addresses (comma, space or line separated). Each uses
+// one of the admin's shoots; the answer lists what happened to each address.
+app.post("/api/team/invites", requireUser, async (req, res) => {
+  teamAdminOnly(req, res);
+  const emails = [...new Set(String(req.body?.emails || "").split(/[\s,;]+/).map((e) => e.trim()).filter(Boolean))].slice(0, 25);
+  if (!emails.length) return res.status(400).json({ error: "Add at least one email address." });
+  if (await overLimit("invites", req.user.id, 60)) return res.status(429).json({ error: "That's a lot of invites in one hour. Please wait a little and try again." });
+  const results = [];
+  for (const email of emails) {
+    try {
+      const user = await users.byId(req.user.id); // fresh balance and team for each
+      const { team, invite: inv } = await teams.invite(user, email);
+      const sent = await sendInvite(req, team, inv).catch((err) => (console.error("[team] invite email", err.message), false));
+      results.push({ email: inv.email, ok: true, sent, link: `${appOrigin(req)}/join/${inv.token}` });
+    } catch (err) {
+      if (!(err instanceof PlanError)) throw err;
+      results.push({ email, ok: false, error: err.message });
+    }
+  }
+  const user = await users.byId(req.user.id);
+  res.json({ results, team: await teams.teamStatus(user), user: publicUser(user) });
+});
+
+app.post("/api/team/invites/:inviteId/resend", requireUser, async (req, res) => {
+  teamAdminOnly(req, res);
+  const team = await teams.getTeam(req.user.teamId);
+  const inv = team?.invites?.[req.params.inviteId];
+  if (!inv || inv.status !== "invited") return res.status(404).json({ error: "That invite isn't open any more." });
+  if (inv.sentAt && Date.now() - Date.parse(inv.sentAt) < 60_000) return res.status(429).json({ error: "We just sent it. Give it a minute, and ask them to check their spam folder." });
+  if (!(await sendInvite(req, team, inv))) return res.status(503).json({ error: "Email isn't set up here. Copy the invite link and send it yourself." });
+  res.json({ ok: true });
+});
+
+// The invite link, for sending it yourself.
+app.get("/api/team/invites/:inviteId/link", requireUser, async (req, res) => {
+  const team = await teams.getTeam(req.user.teamId);
+  const inv = team?.ownerId === req.user.id ? team.invites?.[req.params.inviteId] : null;
+  if (!inv || inv.status !== "invited") return res.status(404).json({ error: "That invite isn't open any more." });
+  res.json({ link: `${appOrigin(req)}/join/${inv.token}` });
+});
+
+app.delete("/api/team/invites/:inviteId", requireUser, async (req, res) => {
+  teamAdminOnly(req, res);
+  if (!(await teams.cancelInvite(req.user, req.params.inviteId))) return res.status(409).json({ error: "Only invites that haven't been accepted can be cancelled." });
+  const user = await users.byId(req.user.id);
+  res.json({ team: await teams.teamStatus(user), user: publicUser(user) });
+});
+
+// The invitation page: who invited you, for which team. No sign-in needed to
+// look; accepting needs the invited address.
+app.get("/api/join/:token", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const found = await teams.readInvite(req.params.token);
+  if (!found) return res.status(404).json({ error: "This invitation isn't valid any more. Ask your team admin for a new one." });
+  const { team, invite: inv } = found;
+  const me = await currentUser(req);
+  res.json({
+    team: { name: team.name, ownerName: team.ownerName, looks: lookNames(team.looks) },
+    email: inv.email,
+    status: inv.status,
+    mine: !!me && inv.status === "joined" && inv.userId === me.id ? inv.shootId : null,
+  });
+});
+
+app.post("/api/join/:token", requireUser, async (req, res) => {
+  if (req.user.demo) throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
+  const { shootId } = await teams.accept(req.user, req.params.token);
+  res.json({ shootId, user: publicUser(await users.byId(req.user.id)) });
 });
 
 /* ------------------------------ Account ----------------------------- */
@@ -679,6 +792,9 @@ app.post("/api/account/delete", requireUser, async (req, res) => {
   if (list.some((s) => LIVE.includes(s.status))) {
     return res.status(409).json({ error: "One of your shoots is still developing. Wait for it to finish, then delete your account." });
   }
+  // An undeveloped team shoot goes back to its team; your own team closes.
+  for (const meta of list) if (meta.team && !(meta.shots || []).length) await teams.returnSeat(meta).catch((err) => console.error("[team] return seat", meta.id, err.message));
+  if (req.user.teamId) await teams.removeTeam(req.user.teamId);
   await users.remove(req.user);
   // The funnel keeps its day totals; the per-person "already counted" markers go.
   await del(STEPS.map((step) => `stats/seen/${step}/${req.user.id}.json`)).catch(noteStats);
@@ -802,30 +918,96 @@ async function squareCrop(buf, head) {
     .toBuffer();
 }
 
+// The square crop of a headshot: a widened square made by the pipeline
+// (lib/pipeline.js widenSquare) wins; otherwise a face-centered crop of the
+// portrait, cached next to it.
+async function squareOf(sid, name, shot) {
+  const base = name.replace(/\.\w+$/, "");
+  let sq = shot?.square ? await readMedia(shot.square) : null;
+  if (!sq) sq = await readMedia(`${sid}/${base}-sq.jpg`);
+  if (!sq) {
+    const src = await readMedia(`${sid}/${name}`);
+    if (!src) return null;
+    sq = await squareCrop(src, shot?.qa?.head || null);
+    await writeMedia(`${sid}/${base}-sq.jpg`, sq);
+  }
+  return sq;
+}
+
+// Ready-made sizes, made on first download and cached next to the headshot:
+//   linkedin  800×800 JPEG profile photo (LinkedIn asks for at least 400×400)
+//   banner    1584×396 LinkedIn background in the colours of this headshot's
+//             backdrop (the area above the head, softly blurred), so the
+//             profile photo sits on a matching banner
+//   signature 256×256 round PNG with transparent corners, for email
+//             signatures, Slack and badges
+const SIZES = {
+  linkedin: { suffix: "li.jpg", type: "image/jpeg", label: "linkedin" },
+  banner: { suffix: "banner.jpg", type: "image/jpeg", label: "linkedin-banner" },
+  signature: { suffix: "sig.png", type: "image/png", label: "signature" },
+};
+async function makeSize(size, sid, name, shot) {
+  if (size === "linkedin") {
+    const sq = await squareOf(sid, name, shot);
+    return sq && sharp(sq).resize(800, 800).jpeg({ quality: 90, mozjpeg: true }).toBuffer();
+  }
+  if (size === "signature") {
+    const sq = await squareOf(sid, name, shot);
+    if (!sq) return null;
+    const d = 256;
+    const circle = Buffer.from(`<svg width="${d}" height="${d}"><circle cx="${d / 2}" cy="${d / 2}" r="${d / 2}" fill="#fff"/></svg>`);
+    return sharp(sq).resize(d, d).composite([{ input: circle, blend: "dest-in" }]).png({ compressionLevel: 9 }).toBuffer();
+  }
+  if (size === "banner") {
+    const src = await readMedia(`${sid}/${name}`);
+    if (!src) return null;
+    const { width: W, height: H } = await sharp(src).metadata();
+    // The backdrop above the head (from the quality check's head box), or the
+    // top tenth of the frame when there's no box.
+    const headTop = shot?.qa?.head?.top;
+    const h = Math.max(24, Math.round(H * Math.min(0.3, Math.max(0.08, (Number.isFinite(headTop) ? headTop : 0.1) * 0.85))));
+    return sharp(await sharp(src).extract({ left: 0, top: 0, width: W, height: h }).toBuffer())
+      .resize(1584, 396, { fit: "cover" })
+      .blur(24)
+      .jpeg({ quality: 88, mozjpeg: true })
+      .toBuffer();
+  }
+  return null;
+}
+
 app.get("/media/:sid/:name", requireUser, async (req, res) => {
   const { sid, name } = req.params;
   if (!/^[\w-]+$/.test(sid) || !/^[\w-]+\.(jpg|png)$/.test(name)) return res.status(404).end();
-  if (req.query.square && /-sq\.jpg$/.test(name)) return res.status(404).end();
+  const derived = /-(sq|li|banner|sig)\.(jpg|png)$/.test(name);
+  if ((req.query.square || req.query.size) && derived) return res.status(404).end();
   const meta = await shoots.getMeta(sid);
-  if (!meta || meta.userId !== req.user.id) return res.status(404).end();
+  if (!meta) return res.status(404).end();
+  // The member, or their team admin for a finished headshot (never selfies).
+  if (meta.userId !== req.user.id && !(await teams.adminMayView(req.user, meta, `${sid}/${name}`))) return res.status(404).end();
   const base = name.replace(/\.\w+$/, "");
+  const shotFor = async () => (await shoots.get(sid))?.shots.find((s) => s.file === `${sid}/${name}`);
   if (req.query.square) {
     // 1:1 square for LinkedIn / Microsoft Teams profile photos (see squareCrop).
-    // A widened square made by the pipeline (lib/pipeline.js widenSquare) wins;
-    // otherwise a face-centered crop of the portrait, cached next to it.
-    const shot = (await shoots.get(sid))?.shots.find((s) => s.file === `${sid}/${name}`);
-    let sq = shot?.square ? await readMedia(shot.square) : null;
-    if (!sq) sq = await readMedia(`${sid}/${base}-sq.jpg`);
-    if (!sq) {
-      const src = await readMedia(`${sid}/${name}`);
-      if (!src) return res.status(404).end();
-      sq = await squareCrop(src, shot?.qa?.head || null);
-      await writeMedia(`${sid}/${base}-sq.jpg`, sq);
-    }
+    const sq = await squareOf(sid, name, await shotFor());
+    if (!sq) return res.status(404).end();
     // Revalidate: a widened square can replace the crop shortly after a frame finishes.
     res.set("Cache-Control", "private, no-cache").type("image/jpeg");
     if (req.query.download) res.attachment(`headshot-${base}-square.jpg`);
     return res.send(sq);
+  }
+  if (req.query.size) {
+    const spec = SIZES[req.query.size];
+    if (!spec) return res.status(404).end();
+    const key = `${sid}/${base}-${spec.suffix}`;
+    let buf = await readMedia(key);
+    if (!buf) {
+      buf = await makeSize(req.query.size, sid, name, await shotFor());
+      if (!buf) return res.status(404).end();
+      await writeMedia(key, buf);
+    }
+    res.set("Cache-Control", "private, no-cache").type(spec.type);
+    if (req.query.download) res.attachment(`headshot-${base}-${spec.label}.${spec.suffix.split(".").pop()}`);
+    return res.send(buf);
   }
   const buf = await readMedia(`${sid}/${name}`);
   if (!buf) return res.status(404).end();

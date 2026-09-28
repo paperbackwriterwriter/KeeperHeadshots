@@ -1,4 +1,4 @@
-import { $, html, icon, logoMark, wordmark, state, loadSession, api, toast, busy, initials, observeReveals, reduceMotion, updateReady } from "./core.js";
+import { $, html, icon, logoMark, wordmark, state, loadSession, api, toast, busy, initials, observeReveals, reduceMotion, updateReady, safeNext } from "./core.js";
 // Page code loads on demand, so each page downloads only its own view. (The
 // server adds a modulepreload hint for the first page's view; lib/seo.js.)
 const lazy = (load, name) => async (...args) => (await load())[name](...args);
@@ -13,6 +13,8 @@ const renderPrivacy = lazy(() => import("./views/legal.js"), "renderPrivacy");
 const renderTerms = lazy(() => import("./views/legal.js"), "renderTerms");
 const renderAccount = lazy(() => import("./views/account.js"), "renderAccount");
 const renderFunnel = lazy(() => import("./views/funnel.js"), "renderFunnel");
+const renderTeamAdmin = lazy(() => import("./views/teamadmin.js"), "renderTeamAdmin");
+const renderJoin = lazy(() => import("./views/join.js"), "renderJoin");
 const renderVerify = lazy(() => import("./views/verify.js"), "renderVerify");
 const renderForgot = lazy(() => import("./views/password.js"), "renderForgot");
 const renderReset = lazy(() => import("./views/password.js"), "renderReset");
@@ -47,6 +49,8 @@ const routes = [
   { path: /^\/app$/, view: renderDashboard, chrome: "app", auth: true, title: "Your shoots · Keeper Headshots" },
   { path: /^\/app\/account$/, view: renderAccount, chrome: "app", auth: true, title: "Your account · Keeper Headshots" },
   { path: /^\/app\/funnel$/, view: renderFunnel, chrome: "app", auth: true, title: "Sales funnel · Keeper Headshots" },
+  { path: /^\/app\/team$/, view: renderTeamAdmin, chrome: "app", auth: true, title: "Team headshots · Keeper Headshots" },
+  { path: /^\/join$/, view: renderJoin, chrome: "marketing", title: "Team invitation · Keeper Headshots" },
   { path: /^\/app\/buy\/([\w-]+)$/, view: (ctx, id) => renderBuy(ctx, id), chrome: "app", auth: true, title: "Checkout · Keeper Headshots" },
   { path: /^\/app\/new$/, view: (ctx) => renderStudio(ctx, null), chrome: "app", auth: true, title: "New shoot · Keeper Headshots" },
   { path: /^\/app\/shoot\/([\w-]+)$/, view: (ctx, id) => renderStudio(ctx, id), chrome: "app", auth: true, title: "Shoot · Keeper Headshots" },
@@ -184,7 +188,7 @@ async function render({ restoreY = null } = {}) {
   if (route.auth && !state.user) return navigate(`/signin?next=${encodeURIComponent(path + location.search)}`, { replace: true });
   if (route.guestOnly && state.user) {
     const next = new URLSearchParams(location.search).get("next");
-    return navigate(next && next.startsWith("/app") ? next : "/app", { replace: true });
+    return navigate(safeNext(next) || "/app", { replace: true });
   }
 
   document.title = route.title;
@@ -366,6 +370,18 @@ function loadAnalytics() {
   if (token && ["/verify", "/reset"].includes(location.pathname)) {
     state.linkToken = token;
     history.replaceState({}, "", location.pathname);
+  }
+  // A team invitation carries its secret in the path (/join/<token>). It's
+  // kept for this tab (it has to survive signing up on the way) and the
+  // address becomes plain /join.
+  const join = /^\/join\/([\w-]{20,60})$/.exec(location.pathname);
+  if (join) {
+    try {
+      sessionStorage.setItem("ahg-join", join[1]);
+    } catch {
+      state.joinToken = join[1];
+    }
+    history.replaceState({}, "", "/join");
   }
 }
 

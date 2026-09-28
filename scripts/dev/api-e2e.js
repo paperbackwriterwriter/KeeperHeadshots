@@ -44,7 +44,29 @@ for (let i = 0; i < 60; i++) {
     break;
   }
 }
-// Exit status for CI: the shoot finished, every frame developed and was graded.
-const passed = final?.status === "done" && !!final.review && final.shots.every((x) => x.status === "done");
+// Ready-made sizes of a finished headshot (server.js SIZES).
+let sizesOk = false;
+if (final?.status === "done") {
+  const file = final.shots.find((x) => x.status === "done").file;
+  const get = async (q) => {
+    const r = await fetch(`${B}/media/${file}?${q}`, { headers: { cookie } });
+    return r.ok ? { type: r.headers.get("content-type"), disp: r.headers.get("content-disposition") || "", meta: await sharp(Buffer.from(await r.arrayBuffer())).metadata() } : { status: r.status };
+  };
+  const li = await get("size=linkedin&download=1");
+  const banner = await get("size=banner&download=1");
+  const sig = await get("size=signature&download=1");
+  const again = await get("size=linkedin"); // cached copy
+  const bad = await get("size=poster");
+  sizesOk =
+    li.meta?.width === 800 && li.meta?.height === 800 && /linkedin\.jpg/.test(li.disp) &&
+    banner.meta?.width === 1584 && banner.meta?.height === 396 &&
+    sig.meta?.width === 256 && sig.type === "image/png" && sig.meta?.hasAlpha === true &&
+    again.meta?.width === 800 && bad.status === 404;
+  console.log(JSON.stringify({ sizes: { linkedin: li.meta && `${li.meta.width}x${li.meta.height}`, banner: banner.meta && `${banner.meta.width}x${banner.meta.height}`, signature: sig.meta && `${sig.meta.width}x${sig.meta.height} alpha=${sig.meta.hasAlpha}`, unknown: bad.status } }));
+}
+
+// Exit status for CI: the shoot finished, every frame developed and was graded,
+// and the ready-made sizes come out at the right dimensions.
+const passed = final?.status === "done" && !!final.review && final.shots.every((x) => x.status === "done") && sizesOk;
 console.log(passed ? "PASS end to end" : "FAIL end to end");
 process.exit(passed ? 0 : 1);

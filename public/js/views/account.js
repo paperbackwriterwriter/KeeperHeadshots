@@ -31,6 +31,14 @@ export function renderAccount({ root, navigate }) {
     ${u.plan?.tier === "owner" ? html`<p class="small" style="margin-top:12px"><a class="link" href="/app/funnel" data-link>Sales funnel</a>: sign-ups, photo checks, shoots and purchases by day (owner only).</p>` : ""}
     <p class="small muted" style="margin-top:12px">Need to change your name or email? <a class="link" href="/contact?topic=general" data-link>Contact us</a>. Your data and rights are explained in our <a class="link" href="/privacy" data-link>Privacy Policy</a>.</p>
 
+    ${u.demo
+      ? ""
+      : html`<section class="panel prefs" aria-labelledby="team-title">
+      <h2 class="h-3" id="team-title">Team headshots</h2>
+      <p class="muted">${u.hasTeam ? "Invite colleagues, follow their progress and download everyone's headshots." : "Buying for a team? Pick one look and invite colleagues by email. Each person adds their own selfies, and everyone's headshots match."}</p>
+      <div class="security-actions"><a class="btn btn-ghost" href="/app/team" data-link>${icon("users")} ${u.hasTeam ? "Open my team" : "Set up a team"}</a></div>
+    </section>`}
+
     <section class="panel prefs" aria-labelledby="prefs-title">
       <h2 class="h-3" id="prefs-title">Download format</h2>
       <p class="muted">Choose the shape your download buttons give you. Every headshot is always available in both, and you can switch at any time.</p>

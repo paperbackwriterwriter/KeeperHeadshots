@@ -36,7 +36,7 @@ function teamPage() {
 }
 
 export function renderTeam({ root }) {
-  const cta = state.user ? "/app/new" : "/signup";
+  const cta = state.user ? "/app/team" : `/signup?next=${encodeURIComponent("/app/team")}`;
   const exec = PACKAGES.find((p) => p.id === "executive") || PACKAGES[PACKAGES.length - 1];
   root.innerHTML = html`
   <main id="main">
@@ -93,14 +93,14 @@ export function renderTeam({ root }) {
         <div>
           <p class="eyebrow" data-reveal>How it works for teams</p>
           <h2 class="display h-1" data-reveal style="--i:1;margin-top:16px">Your whole team in <em>four steps.</em></h2>
-          <p class="lede" data-reveal style="--i:2;margin-top:20px">One person can run the whole thing from a single account. Each shoot is one person, with up to 4 looks and 8 headshots.</p>
+          <p class="lede" data-reveal style="--i:2;margin-top:20px">One person sets it up and pays; everyone else just gets an email. Each person's shoot has up to 4 looks and 8 headshots.</p>
         </div>
         <ol class="li-tips tm-steps">
           ${[
-            ["Choose your team's look", "Pick one backdrop, like Glass Office or Studio Gray, and a dress code: suits and blazers, or smart casual."],
-            ["Collect a few selfies", "Ask each person for 1–6 recent photos of just them, and make sure they're happy for you to use them."],
-            ["Run a shoot per person", "Start a shoot for each teammate with the same look. Every photo is checked first, and every headshot is checked for likeness."],
-            ["Download and publish", "Download each person's portraits and squares, then update your website, LinkedIn page, Teams and Slack."],
+            ["Choose your team's look", "Name your team and pick its looks, like Glass Office in suits and blazers. Everyone's shoot uses them, so the headshots match."],
+            ["Invite your team by email", "Paste in your colleagues' addresses. Each invite uses one shoot from your package, and a cancelled invite gives it back."],
+            ["Everyone adds their own selfies", "Each person opens their invite, signs in with that address and uploads a few photos of themselves. Their photos stay private to them."],
+            ["Download everyone's headshots", "Watch each person's progress on your team page, then download their finished headshots in one go for your website, LinkedIn, Teams and Slack."],
           ].map(([t, d], i) => html`<li data-reveal style="--i:${i % 3}"><span class="li-no">${String(i + 1).padStart(2, "0")}</span><div><b>${t}</b><span>${d}</span></div></li>`)}
         </ol>
       </div>

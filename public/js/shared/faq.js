@@ -22,11 +22,11 @@ export const LINKEDIN_FAQ = [
 
 // /team-headshots
 export const TEAM_FAQ = [
-  ["How does ordering headshots for a team work?", "One person buys a package, and each shoot in it is one person. Ask each teammate for a few recent selfies (with their permission), start a shoot for each of them and choose the same look. Every headshot stays in that account, ready to download and share."],
-  ["Can everyone have the same background?", "Yes. Choose the same backdrop for every shoot and each person gets the same setting and lighting, so your team page, org chart and email signatures look consistent. You can match outfits too, or let each person pick their own."],
+  ["How does ordering headshots for a team work?", "One person buys a package, names the team, picks its looks and invites colleagues by email. Each invite uses one shoot. Everyone signs in with their own address, uploads a few selfies and gets headshots in the team's look, and the person who set it up can follow along and download everyone's finished headshots."],
+  ["Can everyone have the same background?", "Yes. You choose the team's looks once, backdrop and outfit, and every invited person's shoot uses them, so everyone gets the same setting and lighting and your team page, org chart and email signatures look consistent."],
   ["How much does it cost per person?", "Each person uses one shoot. The Executive package is 12 shoots for $49, about $4 a person, and each shoot includes up to 4 looks and 8 headshots. For more than 12 people, buy another package or contact us about volume pricing."],
-  ["What about new hires?", "Unused shoots don't expire while your account is open. When someone joins, run a shoot for them in the same look and their headshot matches the rest of the team."],
-  ["Is it OK to upload my colleagues' photos?", "Yes, as long as each person has agreed. Their photos are private to your account, never used to train AI, and you can delete any shoot at any time."],
+  ["What about new hires?", "Unused shoots don't expire while your account is open. When someone joins, invite them from your team page and their headshot matches the rest of the team."],
+  ["Who sees each person's photos?", "Each person uploads their own selfies to their own account, and only they see them. The person who set up the team sees everyone's finished headshots, never their selfies. Photos are never used to train AI, and anyone can delete their shoot at any time. If someone deletes it before developing, the shoot goes back to the team."],
   ["What does each person get?", "Every headshot comes ready to use in two versions: a full-resolution portrait for your website and print, and a 1:1 square framed for LinkedIn, Microsoft Teams and Slack profile photos."],
 ];
 
