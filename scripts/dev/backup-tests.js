@@ -48,6 +48,18 @@ const kept = await storage.getJSON("payments/cs_1.json");
 ok("dry run writes nothing", stillGone && /Would restore 1 records/.test(dry), dry.trim().split("\n").pop());
 ok("restore brings back a deleted account, leaves newer records alone", restored?.credits === 3 && kept.note === "newer" && /Restored 1 records/.test(out), out.trim().split("\n").pop());
 
+// A backup store that can't be reached (store id set, no OIDC token here):
+// tonight's copy still lands in the main store, and it's reported.
+process.env.BACKUP_STORE_ID = "store_unreachable";
+delete process.env.VERCEL_OIDC_TOKEN;
+const errors = [];
+const origError = console.error;
+console.error = (...a) => errors.push(a.join(" "));
+const fb = await runBackup().catch((err) => ({ threw: err.message }));
+console.error = origError;
+delete process.env.BACKUP_STORE_ID;
+ok("unreachable backup store falls back to the main store, with an alert", fb.separateStore === false && !!(await storage.getFile(fb.key)) && errors.some((e) => /backup store unavailable/.test(e)), JSON.stringify(fb));
+
 fs.rmSync(dir, { recursive: true, force: true });
 const passed = results.filter(Boolean).length;
 console.log(`\n${passed}/${results.length} passed`);
