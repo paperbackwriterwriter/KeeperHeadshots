@@ -847,10 +847,12 @@ const CSP = [
   "font-src 'self'",
   "img-src 'self' data: blob: https://www.facebook.com https://*.stripe.com",
   "connect-src 'self' https://www.facebook.com https://connect.facebook.net https://api.stripe.com https://*.stripe.com",
-  "frame-src https://challenges.cloudflare.com https://js.stripe.com https://*.js.stripe.com https://checkout.stripe.com https://hooks.stripe.com",
+  // www.facebook.com: the Meta Pixel's fallback when its normal send is
+  // blocked (a hidden frame that posts the event there).
+  "frame-src https://challenges.cloudflare.com https://js.stripe.com https://*.js.stripe.com https://checkout.stripe.com https://hooks.stripe.com https://www.facebook.com",
   "object-src 'none'",
   "base-uri 'self'",
-  "form-action 'self'",
+  "form-action 'self' https://www.facebook.com",
   "frame-ancestors 'none'",
 ].join("; ");
 
