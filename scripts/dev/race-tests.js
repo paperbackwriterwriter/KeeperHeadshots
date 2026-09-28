@@ -3,7 +3,7 @@
 // wired to scripts/dev/mock-ai.js with RESEND_API_KEY=test
 // RESEND_BASE_URL=http://localhost:4010:  node scripts/dev/race-tests.js
 import sharp from "sharp";
-import { portraitSVG } from "/home/user/aiheadshotguru/public/js/shared/portrait.js";
+import { portraitSVG } from "../../public/js/shared/portrait.js";
 const B = "http://localhost:3100", M = "http://localhost:4010";
 const results = [];
 const ok = (name, cond, extra = "") => (results.push([name, !!cond]), console.log(cond ? "PASS" : "FAIL", name, extra));
