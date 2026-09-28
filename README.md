@@ -82,6 +82,8 @@ To (re)generate one, set a long random `ADMIN_TOKEN` in the environment, redeplo
 
 `/contact` posts to `/api/contact` (`lib/contact.js`). Each message is saved to storage under `contact/`, then emailed to `CONTACT_TO` (default `hello@keeperheadshots.com`), with Reply-To set to the sender so you can answer straight from Gmail. Outgoing mail (`lib/mail.js`) goes through Resend's API when `RESEND_API_KEY` is set (the domain must be verified in Resend; from address `MAIL_FROM`, default `hello@keeperheadshots.com`), otherwise through ImprovMX SMTP with `SMTP_PASS`. Incoming mail to hello@ is still received and forwarded by ImprovMX. Without either key the form says it's offline and points people to the email address. A hidden honeypot field and a 5-per-hour limit per visitor keep spam down.
 
+**Error alerts** (`lib/alert.js`): in production, anything logged with `console.error` (what Vercel counts as a runtime error) is gathered for 20 seconds and emailed as one summary to `ALERT_EMAIL` (default `CONTACT_TO`), at most `ALERTS_PER_HOUR` (default 4) emails an hour and `ALERTS_PER_DAY` (default 10) a day across all servers, so alerts can't use up Resend's daily allowance. `ALERTS=off` turns them off; `ALERTS=on` enables them outside production.
+
 ### Flow
 
 `/` landing (and `/contact`) → `/signup` or `/signin` → `/app` (your shoots) → `/app/new` (upload) → `/app/shoot/:id`, which moves through **Photo check → Looks → Develop → Proofs** based on the shoot's server-side status.
@@ -138,6 +140,9 @@ scripts/dev/*             QA only: local API test double, API e2e, screenshot ru
 
 `scripts/dev/mock-ai.js` is a local stand-in for the Anthropic and Gemini HTTP APIs. The app uses it only if you explicitly point the base URLs at it, so the real SDK code paths, parsing, polling and every UI state can be exercised offline:
 
+All of the suites below run on every push via GitHub Actions (`.github/workflows/ci.yml`);
+`bash scripts/dev/ci.sh` runs the same thing locally (it starts the mock and two servers itself).
+
 ```bash
 npm run mock-ai &
 ANTHROPIC_API_KEY=test GEMINI_API_KEY=test \
@@ -149,6 +154,7 @@ node scripts/dev/reset-tests.js  # password reset and sign-out-everywhere checks
 node scripts/dev/hardening-tests.js  # verify links, sign-ins, photo edits/checks, checkout and contact limits, sign-out
                                      # (set DATA_DIR to the server's to include the re-check and demo sign-out tests)
 node scripts/dev/cleanup-tests.js    # daily clean-up on a throwaway local store (no server needed)
+node scripts/dev/alert-tests.js      # error alert emails (needs the mock on :4010)
                                    # (set ADMIN_TOKEN on the server and QA_ADMIN_TOKEN here to test the admin header)
 # Two instances at once: run two servers on one DATA_DIR (ports 3100 + 3101), mock started with
 # MOCK_QA_FAIL=none and its output in MOCKLOG; each frame must render once and grade once:

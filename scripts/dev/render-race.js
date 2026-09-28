@@ -56,3 +56,7 @@ const done = s.shots.filter((x) => x.status === "done").length;
 // Most frame renders running at the same moment (the pipeline's limit is 2).
 const maxInflight = Math.max(0, ...log.filter((l) => /generateContent/.test(l) && /refs=[2-9]/.test(l)).map((l) => Number(/inflight=(\d+)/.exec(l)?.[1] || 0)));
 console.log(JSON.stringify({ status: s.status, frames, done, renderCalls: renders, reviewCalls: reviews, reviewed: !!s.review, maxInflight }));
+// Exit status for CI: each frame rendered once, graded once, and (with
+// MOCKLOG) never more than 2 renders at the same moment.
+const passed = s.status === "done" && done === frames && (!MOCKLOG || (renders === frames && reviews === 1 && maxInflight <= 2));
+process.exit(passed ? 0 : 1);

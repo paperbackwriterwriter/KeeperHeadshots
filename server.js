@@ -1,4 +1,5 @@
 import "./lib/env.js";
+import { installErrorAlerts } from "./lib/alert.js";
 import express from "express";
 import sharp from "sharp";
 import cookieParser from "cookie-parser";
@@ -23,6 +24,9 @@ import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExam
 import crypto from "node:crypto";
 import { withCounter, overLimit, hashId } from "./lib/ratelimit.js";
 import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook, stripePublishableKey } from "./lib/billing.js";
+
+// Errors logged in production are emailed as a short summary (lib/alert.js).
+installErrorAlerts();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

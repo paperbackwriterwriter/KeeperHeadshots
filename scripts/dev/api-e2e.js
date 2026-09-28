@@ -33,12 +33,18 @@ const c = await f(`/api/shoots/${shoot.id}/check`, { method: "POST" });
 console.log("check", c.shoot.status, c.shoot.check.overall_score, c.shoot.check.photos.length);
 const g = await f(`/api/shoots/${shoot.id}/generate`, { method: "POST", body: JSON.stringify({ looks: [{ backdrop: "studio-gray", outfit: "navy-suit" }, { backdrop: "library", outfit: "camel-knit" }] }) });
 console.log("gen", g.shoot.status, g.shoot.shots.length);
+let final = null;
 for (let i = 0; i < 60; i++) {
   await new Promise((r) => setTimeout(r, 1500));
   const s = (await f(`/api/shoots/${shoot.id}`)).shoot;
   console.log(s.status, s.shots.map((x) => x.status[0]).join(""));
   if (!["generating", "reviewing"].includes(s.status)) {
     console.log(JSON.stringify({ review: s.review && { h: s.review.headline, best: s.review.bestShotId, n: Object.keys(s.review.shots).length }, err: s.error, rerr: s.reviewError }));
+    final = s;
     break;
   }
 }
+// Exit status for CI: the shoot finished, every frame developed and was graded.
+const passed = final?.status === "done" && !!final.review && final.shots.every((x) => x.status === "done");
+console.log(passed ? "PASS end to end" : "FAIL end to end");
+process.exit(passed ? 0 : 1);
