@@ -86,6 +86,8 @@ To (re)generate one, set a long random `ADMIN_TOKEN` in the environment, redeplo
 
 **Sales funnel** (`lib/stats.js`, page `/app/funnel`, owner accounts only): each person's first sign-up, confirmed email, photo check, developed shoot and purchase are counted per day in `stats/days/`, plus every purchase and its revenue after discounts. Demo and owner accounts aren't counted; visitors are in Vercel Analytics.
 
+**Render limits**: each shoot renders at most 2 frames at a time (`GENERATION_CONCURRENCY`), and the whole site at most `RENDER_SLOTS` (default 4, `lib/slots.js`) across all shoots and servers, so Gemini's per-minute image quota isn't tripped when several people develop at once. Frames past the limit wait as "Queued" and the studio says the shoot is next in line.
+
 **Error alerts** (`lib/alert.js`): in production, anything logged with `console.error` (what Vercel counts as a runtime error) is gathered for 20 seconds and emailed as one summary to `ALERT_EMAIL` (default `CONTACT_TO`), at most `ALERTS_PER_HOUR` (default 4) emails an hour and `ALERTS_PER_DAY` (default 10) a day across all servers, so alerts can't use up Resend's daily allowance. `ALERTS=off` turns them off; `ALERTS=on` enables them outside production.
 
 ### Flow
@@ -159,6 +161,7 @@ node scripts/dev/hardening-tests.js  # verify links, sign-ins, photo edits/check
                                      # (set DATA_DIR to the server's to include the re-check and demo sign-out tests)
 node scripts/dev/cleanup-tests.js    # daily clean-up on a throwaway local store (no server needed)
 node scripts/dev/alert-tests.js      # error alert emails (needs the mock on :4010)
+MOCKLOG=mock.log RENDER_SLOTS=3 node scripts/dev/slots-test.js  # site-wide render limit (servers with RENDER_SLOTS=3)
 node scripts/dev/growth-tests.js     # promotion codes and the owner's funnel (funnel-owner@example.com in OWNER_EMAILS)
                                    # (set ADMIN_TOKEN on the server and QA_ADMIN_TOKEN here to test the admin header)
 # Two instances at once: run two servers on one DATA_DIR (ports 3100 + 3101), mock started with
