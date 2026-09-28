@@ -105,11 +105,23 @@ async function anthropic(req, res, body) {
   }));
 }
 
+// Image calls in flight right now, logged with each call so QA scripts can
+// see how many renders ran at once (scripts/dev/render-race.js).
+let inflight = 0;
 async function gemini(req, res, body, url) {
+  inflight++;
+  try {
+    return await geminiCall(req, res, body, url);
+  } finally {
+    inflight--;
+  }
+}
+
+async function geminiCall(req, res, body, url) {
   imageCount++;
   const prompt = body.contents?.[0]?.parts?.find((p) => p.text)?.text || "";
   const refs = body.contents?.[0]?.parts?.filter((p) => p.inlineData).length;
-  console.log(`[mock] ${url} refs=${refs} #${imageCount}`);
+  console.log(`[mock] ${url} refs=${refs} #${imageCount} inflight=${inflight}`);
   await sleep(DELAY + Math.random() * 2500);
   if (FAIL_EVERY && imageCount % FAIL_EVERY === 0) {
     res.writeHead(500, { "content-type": "application/json" });

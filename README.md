@@ -151,5 +151,7 @@ node scripts/dev/hardening-tests.js  # verify links, parallel sign-ins, atomic p
 # Two instances at once: run two servers on one DATA_DIR (ports 3100 + 3101), mock started with
 # MOCK_QA_FAIL=none and its output in MOCKLOG; each frame must render once and grade once:
 MOCKLOG=mock.log node scripts/dev/render-race.js
+# Add EMAIL=someone@x.com (listed in both servers' OWNER_EMAILS, a new address each run) for an
+# 8-frame shoot; maxInflight in the output must stay at 2 (the render limit).
 node scripts/dev/csp-sweep.mjs   # every public page at 1280px and 390px: console/CSP errors, broken images, overflow
 ```

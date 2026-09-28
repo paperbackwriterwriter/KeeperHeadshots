@@ -22,7 +22,9 @@ const f = async (p, o = {}, base = SERVERS[0]) => {
 };
 const mockLog = () => (MOCKLOG ? fs.readFileSync(MOCKLOG, "utf8") : "");
 
-const email = `race${Date.now()}@x.com`;
+// EMAIL: an address listed in the servers' OWNER_EMAILS runs a full 4-look
+// (8-frame) shoot instead of the free 2-look one, which races harder.
+const email = process.env.EMAIL || `race${Date.now()}@x.com`;
 await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Race Test", email, password: "password123" }) });
 const mail = await fetch(`${MOCK}/mock-mail`).then((r) => r.json());
 const link = mail.filter((m) => m.to.includes(email)).flatMap((m) => m.links).find((l) => l.includes("/verify?token="));
@@ -35,7 +37,7 @@ for (let i = 0; i < 3; i++) {
 await f(`/api/shoots/${shoot.id}/check`, { method: "POST" });
 
 const before = mockLog().length;
-const g = await f(`/api/shoots/${shoot.id}/generate`, { method: "POST", body: JSON.stringify({ looks: [{ backdrop: "studio-gray", outfit: "navy-suit" }, { backdrop: "library", outfit: "camel-knit" }] }) });
+const g = await f(`/api/shoots/${shoot.id}/generate`, { method: "POST", body: JSON.stringify({ looks: [{ backdrop: "studio-gray", outfit: "navy-suit" }, { backdrop: "library", outfit: "camel-knit" }, { backdrop: "city-terrace", outfit: "white-shirt" }, { backdrop: "glass-office", outfit: "navy-suit" }].slice(0, process.env.EMAIL ? 4 : 2) }) });
 const frames = g.shoot.shots.length;
 
 // Every 250 ms, poll through every server at once, several times each.
@@ -51,4 +53,6 @@ const log = mockLog().slice(before).split("\n");
 const renders = log.filter((l) => /generateContent/.test(l) && /refs=[2-9]/.test(l)).length;
 const reviews = log.filter((l) => /POST \/v1\/messages/.test(l) && /images=(\d+)/.exec(l) && Number(/images=(\d+)/.exec(l)[1]) > 3 + 1).length;
 const done = s.shots.filter((x) => x.status === "done").length;
-console.log(JSON.stringify({ status: s.status, frames, done, renderCalls: renders, reviewCalls: reviews, reviewed: !!s.review }));
+// Most frame renders running at the same moment (the pipeline's limit is 2).
+const maxInflight = Math.max(0, ...log.filter((l) => /generateContent/.test(l) && /refs=[2-9]/.test(l)).map((l) => Number(/inflight=(\d+)/.exec(l)?.[1] || 0)));
+console.log(JSON.stringify({ status: s.status, frames, done, renderCalls: renders, reviewCalls: reviews, reviewed: !!s.review, maxInflight }));
