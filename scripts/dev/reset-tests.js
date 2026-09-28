@@ -19,6 +19,19 @@ const post = (f, p, body) => f(p, { method: "POST", body: JSON.stringify(body ||
 const inbox = async (email) => (await fetch(`${M}/mock-mail`).then((r) => r.json())).filter((m) => m.to.includes(email));
 const resetLinks = async (email) => (await inbox(email)).flatMap((m) => m.links).filter((l) => l.includes("/reset?token="));
 const tokenOf = (link) => new URL(link).searchParams.get("token");
+// The reset email is sent just after the answer (so timing can't reveal which
+// addresses have accounts): wait for it to arrive, or for a quiet moment when
+// checking that nothing more was sent.
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+async function linksAfter(email, want) {
+  for (let i = 0; i < 50; i++) {
+    const l = await resetLinks(email);
+    if (l.length >= want) return l;
+    await wait(100);
+  }
+  return resetLinks(email);
+}
+const settled = async (email) => (await wait(1500), resetLinks(email));
 
 const email = `reset${Date.now()}@x.com`;
 const laptop = client();
@@ -33,17 +46,17 @@ const r1 = await post(anon, "/api/auth/password/forgot", { email: email.toUpperC
 const r2 = await post(anon, "/api/auth/password/forgot", { email: `nobody${Date.now()}@x.com` });
 ok("forgot: same answer for known and unknown email", r1.status === 200 && r2.status === 200 && r1.j.status === r2.j.status, `${r1.status} ${r2.status}`);
 ok("forgot: rejects a malformed email", (await post(anon, "/api/auth/password/forgot", { email: "nope" })).status === 400);
-const links = await resetLinks(email);
+const links = await linksAfter(email, 1);
 ok("forgot: reset email sent", links.length === 1, `${links.length} link(s)`);
 const token = tokenOf(links[0]);
 
 // Rate limit: a second request within a minute sends nothing (but answers the same).
 const r3 = await post(anon, "/api/auth/password/forgot", { email });
-ok("forgot: second request within a minute sends no email", r3.status === 200 && (await resetLinks(email)).length === 1);
+ok("forgot: second request within a minute sends no email", r3.status === 200 && (await settled(email)).length === 1);
 
 // Demo account can't be reset.
 await post(anon, "/api/auth/password/forgot", { email: "demo@keeperheadshots.com" });
-ok("forgot: demo account gets no email", (await resetLinks("demo@keeperheadshots.com")).length === 0);
+ok("forgot: demo account gets no email", (await settled("demo@keeperheadshots.com")).length === 0);
 
 // Bad links.
 ok("reset: garbage token rejected", (await post(anon, "/api/auth/password/reset", { token: "usr_x.123.abc", password: "new-password1" })).status === 400);
