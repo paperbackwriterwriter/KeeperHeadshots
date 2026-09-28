@@ -106,14 +106,21 @@ async function anthropic(req, res, body) {
 }
 
 // Image calls in flight right now, logged with each call so QA scripts can
-// see how many renders ran at once (scripts/dev/render-race.js).
+// see how many ran at once (scripts/dev/render-race.js): all of them
+// (inflight), and frame renders only (renders: calls with the person's
+// photos as references, not the one-image widening of a finished frame's
+// square, which runs after the frame is delivered).
 let inflight = 0;
+let rendersInflight = 0;
 async function gemini(req, res, body, url) {
+  const render = (body.contents?.[0]?.parts?.filter((p) => p.inlineData).length || 0) >= 2;
   inflight++;
+  if (render) rendersInflight++;
   try {
     return await geminiCall(req, res, body, url);
   } finally {
     inflight--;
+    if (render) rendersInflight--;
   }
 }
 
@@ -121,7 +128,7 @@ async function geminiCall(req, res, body, url) {
   imageCount++;
   const prompt = body.contents?.[0]?.parts?.find((p) => p.text)?.text || "";
   const refs = body.contents?.[0]?.parts?.filter((p) => p.inlineData).length;
-  console.log(`[mock] ${url} refs=${refs} #${imageCount} inflight=${inflight}`);
+  console.log(`[mock] ${url} refs=${refs} #${imageCount} inflight=${inflight} renders=${rendersInflight}`);
   await sleep(DELAY + Math.random() * 2500);
   if (FAIL_EVERY && imageCount % FAIL_EVERY === 0) {
     res.writeHead(500, { "content-type": "application/json" });

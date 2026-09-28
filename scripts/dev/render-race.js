@@ -53,9 +53,11 @@ const log = mockLog().slice(before).split("\n");
 const renders = log.filter((l) => /generateContent/.test(l) && /refs=[2-9]/.test(l)).length;
 const reviews = log.filter((l) => /POST \/v1\/messages/.test(l) && /images=(\d+)/.exec(l) && Number(/images=(\d+)/.exec(l)[1]) > 3 + 1).length;
 const done = s.shots.filter((x) => x.status === "done").length;
-// Most frame renders running at the same moment (the pipeline's limit is 2).
-const maxInflight = Math.max(0, ...log.filter((l) => /generateContent/.test(l) && /refs=[2-9]/.test(l)).map((l) => Number(/inflight=(\d+)/.exec(l)?.[1] || 0)));
-console.log(JSON.stringify({ status: s.status, frames, done, renderCalls: renders, reviewCalls: reviews, reviewed: !!s.review, maxInflight }));
+// Most frame renders running at the same moment (the pipeline's limit is 2;
+// a finished frame's square widening is a separate, single-image call).
+const maxInflight = Math.max(0, ...log.filter((l) => /generateContent/.test(l) && /refs=[2-9]/.test(l)).map((l) => Number(/renders=(\d+)/.exec(l)?.[1] || 0)));
+const maxImageCalls = Math.max(0, ...log.filter((l) => /generateContent/.test(l)).map((l) => Number(/inflight=(\d+)/.exec(l)?.[1] || 0)));
+console.log(JSON.stringify({ status: s.status, frames, done, renderCalls: renders, reviewCalls: reviews, reviewed: !!s.review, maxInflight, maxImageCalls }));
 // Exit status for CI: each frame rendered once, graded once, and (with
 // MOCKLOG) never more than 2 renders at the same moment.
 const passed = s.status === "done" && done === frames && (!MOCKLOG || (renders === frames && reviews === 1 && maxInflight <= 2));
