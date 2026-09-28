@@ -90,6 +90,8 @@ To (re)generate one, set a long random `ADMIN_TOKEN` in the environment, redeplo
 
 **Backups** (`lib/backup.js`): a nightly cron (`/api/cron/backup`, 03:43 UTC) saves every account, payment, refund, claim, usage, shoot and frame record, contact message and funnel count as one gzipped snapshot, `backups/<date>.json.gz`, keeping the last 30 (`BACKUP_KEEP_DAYS`). With a second, private Blob store connected with the env prefix `BACKUP` (`BACKUP_STORE_ID`, reached with the project's Vercel OIDC token, or `BACKUP_READ_WRITE_TOKEN`) they go to that store; otherwise, or if that store can't be reached that night, to the main one (with an alert). Photos aren't included. To restore: `node scripts/restore-backup.js` shows what's in the newest snapshot; add `--only users/`, `--missing` (never overwrite) and `--apply` to write.
 
+**Previews vs. the live site**: preview builds share the live Blob store, so everything they write goes under `preview/` (`STORAGE_NAMESPACE`), apart from live customer data; example headshots are shared. Stripe keys must match: a live key (`sk_live_`) only works on production and a test key (`sk_test_`) only elsewhere; a mismatched key turns payments off and is reported. With a test key on Preview, the buy page says it's test mode and gives Stripe's test card.
+
 **Error alerts** (`lib/alert.js`): in production, anything logged with `console.error` (what Vercel counts as a runtime error) is gathered for 20 seconds and emailed as one summary to `ALERT_EMAIL` (default `CONTACT_TO`), at most `ALERTS_PER_HOUR` (default 4) emails an hour and `ALERTS_PER_DAY` (default 10) a day across all servers, so alerts can't use up Resend's daily allowance. `ALERTS=off` turns them off; `ALERTS=on` enables them outside production.
 
 ### Flow
@@ -163,6 +165,7 @@ node scripts/dev/hardening-tests.js  # verify links, sign-ins, photo edits/check
                                      # (set DATA_DIR to the server's to include the re-check and demo sign-out tests)
 node scripts/dev/cleanup-tests.js    # daily clean-up on a throwaway local store (no server needed)
 node scripts/dev/backup-tests.js     # nightly backup and restore, same (no server needed)
+node scripts/dev/env-tests.js        # preview storage namespace and Stripe key modes (no server needed)
 node scripts/dev/alert-tests.js      # error alert emails (needs the mock on :4010)
 MOCKLOG=mock.log RENDER_SLOTS=3 node scripts/dev/slots-test.js  # site-wide render limit (servers with RENDER_SLOTS=3)
 node scripts/dev/growth-tests.js     # promotion codes and the owner's funnel (funnel-owner@example.com in OWNER_EMAILS)

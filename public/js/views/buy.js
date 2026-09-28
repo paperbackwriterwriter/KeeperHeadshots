@@ -27,6 +27,11 @@ function loadStripe() {
   }));
 }
 
+// On previews and local copies Stripe runs in test mode: say so, with the
+// test card, so nobody mistakes it for a real payment.
+const testNote = () =>
+  state.stripe?.mode === "test" ? html`<p class="banner banner-warn small" style="margin:0 0 16px">${icon("info")}<span><b>Test mode.</b> No real charge. Pay with card 4242 4242 4242 4242, any future date, any CVC.</span></p>` : "";
+
 export function renderBuy({ root }, packageId) {
   const pkg = PACKAGES.find((p) => p.id === packageId);
   let disposed = false;
@@ -42,7 +47,7 @@ export function renderBuy({ root }, packageId) {
 
   // Hosted checkout: redirect to Stripe.
   const redirect = async () => {
-    shell(html`<p class="eyebrow">${icon("lock")} Secure checkout</p><h1 class="display h-2">${pkg.name}: ${pkg.shoots} shoots for $${pkg.price}</h1><p class="lede">Taking you to Stripe to pay…</p><div style="display:flex;justify-content:center">${spinner()}</div>`);
+    shell(html`${testNote()}<p class="eyebrow">${icon("lock")} Secure checkout</p><h1 class="display h-2">${pkg.name}: ${pkg.shoots} shoots for $${pkg.price}</h1><p class="lede">Taking you to Stripe to pay…</p><div style="display:flex;justify-content:center">${spinner()}</div>`);
     try {
       const { url, eventId, value } = await api("/api/billing/checkout", { method: "POST", body: { packageId: pkg.id, pageUrl: pageUrl() } });
       if (disposed) return;
@@ -77,6 +82,7 @@ export function renderBuy({ root }, packageId) {
     <main id="main" class="container app-main view-enter">
       <div class="checkout">
         <section class="checkout-summary" aria-labelledby="order-title">
+          ${testNote()}
           <p class="eyebrow">${icon("lock")} Secure checkout</p>
           <h1 class="display h-2" id="order-title">${pkg.name} package</h1>
           <p class="checkout-price"><strong class="tabular">$${pkg.price}</strong><span>one-time · no subscription</span></p>

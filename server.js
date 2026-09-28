@@ -25,7 +25,7 @@ import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExam
 import crypto from "node:crypto";
 import { withCounter, overLimit, hashId } from "./lib/ratelimit.js";
 import { recordStep, funnelReport, STEPS } from "./lib/stats.js";
-import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook, stripePublishableKey } from "./lib/billing.js";
+import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook, stripePublishableKey, stripeMode } from "./lib/billing.js";
 
 // Errors logged in production are emailed as a short summary (lib/alert.js).
 installErrorAlerts();
@@ -301,7 +301,7 @@ app.post("/api/auth/signout-all", requireUser, async (req, res) => {
 app.get("/api/me", async (req, res) => {
   const user = await currentUser(req);
   const { vision, imaging } = aiStatus();
-  res.json({ user: user ? publicUser(user) : null, ai: { vision, imaging }, meta: { pixelId: metaPixelId() }, turnstile: { siteKey: turnstileSiteKey() }, stripe: { publishableKey: stripePublishableKey() } });
+  res.json({ user: user ? publicUser(user) : null, ai: { vision, imaging }, meta: { pixelId: metaPixelId() }, turnstile: { siteKey: turnstileSiteKey() }, stripe: { publishableKey: stripePublishableKey(), mode: stripeMode() } });
 });
 
 /* ------------------------------ Shoots ------------------------------ */
