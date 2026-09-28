@@ -23,6 +23,7 @@ import { contactEnabled, validate as validateContact, rateLimited, submit as sub
 import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExample, generateSquare as generateExampleSquare, generateSet as generateExampleSet, exampleImage, sheet as exampleSheet } from "./lib/examples.js";
 import crypto from "node:crypto";
 import { withCounter, overLimit, hashId } from "./lib/ratelimit.js";
+import { recordStep, funnelReport, STEPS } from "./lib/stats.js";
 import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook, stripePublishableKey } from "./lib/billing.js";
 
 // Errors logged in production are emailed as a short summary (lib/alert.js).
@@ -71,6 +72,8 @@ const SIGNIN_MAX_TOTAL = 100; // from everywhere
 const DUMMY_HASH = await hashPassword("not-a-real-password");
 
 const LIVE = ["checking", "generating", "reviewing"];
+// Funnel counting never fails the request it records (lib/stats.js).
+const noteStats = (err) => console.warn("[stats]", err.message);
 const MAX_RESUMES = 3;
 
 /* ------------------------------- Auth ------------------------------- */
@@ -119,6 +122,7 @@ app.post("/api/auth/signup", async (req, res) => {
     console.error("[verify] send failed", user.id, err.message);
     return false;
   });
+  background(recordStep("signup", user).catch(noteStats));
   res.status(201).json({ user: publicUser(user), verificationSent });
 });
 
@@ -178,6 +182,7 @@ app.post("/api/auth/verify", async (req, res) => {
   });
   const eventId = `reg_${user.id}`;
   trackMeta("CompleteRegistration", { eventId, user: updated, req });
+  background(recordStep("verified", updated).catch(noteStats));
   res.json({ status: "verified", user: me?.id === user.id ? publicUser(updated) : me ? publicUser(me) : null, eventId });
 });
 
@@ -276,7 +281,10 @@ app.post("/api/auth/password/reset", async (req, res) => {
     r.ips = {};
     r.total = 0;
   }).catch(() => {});
-  if (newlyVerified) trackMeta("CompleteRegistration", { eventId: `reg_${user.id}`, user: updated, req });
+  if (newlyVerified) {
+    trackMeta("CompleteRegistration", { eventId: `reg_${user.id}`, user: updated, req });
+    background(recordStep("verified", updated).catch(noteStats));
+  }
   setSession(res, updated);
   res.json({ user: publicUser(updated) });
 });
@@ -498,6 +506,7 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   }
   try {
     await runCheck(meta.id, startedAt);
+    background(recordStep("checked", req.user).catch(noteStats));
   } catch (err) {
     if (mailboxReserved) await mailboxChecks.release(req.user.email);
     if (counted)
@@ -564,7 +573,9 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
       });
       meta.paidWith = charged;
     }
-    res.status(202).json({ shoot: await startGeneration(meta, unique) });
+    const started = await startGeneration(meta, unique);
+    background(recordStep("developed", req.user).catch(noteStats));
+    res.status(202).json({ shoot: started });
   } catch (err) {
     // Nothing was developed: give back whatever was charged and release the claim.
     if (charged === "credit") await users.update(req.user.id, (u) => (u.credits = (u.credits || 0) + 1)).catch((e) => console.error("[generate] refund credit", e.message));
@@ -668,6 +679,8 @@ app.post("/api/account/delete", requireUser, async (req, res) => {
     return res.status(409).json({ error: "One of your shoots is still developing. Wait for it to finish, then delete your account." });
   }
   await users.remove(req.user);
+  // The funnel keeps its day totals; the per-person "already counted" markers go.
+  await del(STEPS.map((step) => `stats/seen/${step}/${req.user.id}.json`)).catch(noteStats);
   clearSession(res);
   console.log("[account] deleted", req.user.id);
   res.json({ ok: true });
@@ -843,6 +856,14 @@ app.get(/^\/examples\/([a-z0-9-]+)\.(jpg|webp)$/, async (req, res) => {
   if (ext === "jpg") return res.type("image/jpeg").send(buf);
   const out = await sharp(buf).resize({ width: w, withoutEnlargement: true }).webp({ quality: 78, effort: 4 }).toBuffer();
   res.type("image/webp").send(out);
+});
+
+// The sign-up funnel (lib/stats.js), for owner accounts (OWNER_EMAILS) only.
+app.get("/api/owner/funnel", requireUser, async (req, res) => {
+  if (planFor(req.user).tier !== "owner") return res.status(404).json({ error: "Not found" });
+  const days = [7, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 30;
+  res.set("Cache-Control", "no-store");
+  res.json(await funnelReport(days));
 });
 
 // Owner-only generator, enabled only while ADMIN_TOKEN is set.

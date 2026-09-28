@@ -82,6 +82,10 @@ To (re)generate one, set a long random `ADMIN_TOKEN` in the environment, redeplo
 
 `/contact` posts to `/api/contact` (`lib/contact.js`). Each message is saved to storage under `contact/`, then emailed to `CONTACT_TO` (default `hello@keeperheadshots.com`), with Reply-To set to the sender so you can answer straight from Gmail. Outgoing mail (`lib/mail.js`) goes through Resend's API when `RESEND_API_KEY` is set (the domain must be verified in Resend; from address `MAIL_FROM`, default `hello@keeperheadshots.com`), otherwise through ImprovMX SMTP with `SMTP_PASS`. Incoming mail to hello@ is still received and forwarded by ImprovMX. Without either key the form says it's offline and points people to the email address. A hidden honeypot field and a 5-per-hour limit per visitor keep spam down.
 
+**Promotion codes**: checkout accepts Stripe promotion codes (create them in the Stripe dashboard under Product catalog → Coupons). A 100%-off code completes with "no payment required" and still grants the package; it isn't sent to Meta as a Purchase.
+
+**Sales funnel** (`lib/stats.js`, page `/app/funnel`, owner accounts only): each person's first sign-up, confirmed email, photo check, developed shoot and purchase are counted per day in `stats/days/`, plus every purchase and its revenue after discounts. Demo and owner accounts aren't counted; visitors are in Vercel Analytics.
+
 **Error alerts** (`lib/alert.js`): in production, anything logged with `console.error` (what Vercel counts as a runtime error) is gathered for 20 seconds and emailed as one summary to `ALERT_EMAIL` (default `CONTACT_TO`), at most `ALERTS_PER_HOUR` (default 4) emails an hour and `ALERTS_PER_DAY` (default 10) a day across all servers, so alerts can't use up Resend's daily allowance. `ALERTS=off` turns them off; `ALERTS=on` enables them outside production.
 
 ### Flow
@@ -155,6 +159,7 @@ node scripts/dev/hardening-tests.js  # verify links, sign-ins, photo edits/check
                                      # (set DATA_DIR to the server's to include the re-check and demo sign-out tests)
 node scripts/dev/cleanup-tests.js    # daily clean-up on a throwaway local store (no server needed)
 node scripts/dev/alert-tests.js      # error alert emails (needs the mock on :4010)
+node scripts/dev/growth-tests.js     # promotion codes and the owner's funnel (funnel-owner@example.com in OWNER_EMAILS)
                                    # (set ADMIN_TOKEN on the server and QA_ADMIN_TOKEN here to test the admin header)
 # Two instances at once: run two servers on one DATA_DIR (ports 3100 + 3101), mock started with
 # MOCK_QA_FAIL=none and its output in MOCKLOG; each frame must render once and grade once:

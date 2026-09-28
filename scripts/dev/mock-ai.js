@@ -159,6 +159,7 @@ function stripe(req, res, raw) {
       amount_total: Number(form["line_items[0][price_data][unit_amount]"]), currency: "usd",
       metadata: { userId: form["metadata[userId]"], packageId: form["metadata[packageId]"], shoots: form["metadata[shoots]"], ...(form["metadata[gpc]"] ? { gpc: form["metadata[gpc]"] } : {}) },
       success_url: form.success_url || form.return_url, cancel_url: form.cancel_url, ui_mode: form.ui_mode || "hosted_page",
+      status: "open", allow_promotion_codes: form.allow_promotion_codes === "true", total_details: { amount_discount: 0 },
       // Embedded sessions have a client secret instead of a hosted-page URL.
       ...(form.ui_mode === "embedded_page" ? { url: null, client_secret: `${id}_secret_mock`, return_url: form.return_url } : { url: `http://localhost:${PORT}/mock-pay/${id}` }),
     };
@@ -186,7 +187,15 @@ function stripe(req, res, raw) {
   if (pay && stripeSessions.has(pay[1])) {
     const s = stripeSessions.get(pay[1]);
     const cancel = url.searchParams.get("cancel");
-    if (!cancel) s.payment_status = "paid";
+    // ?promo=FREE (100% off: nothing to pay) or ?promo=HALF, like a promotion
+    // code entered on Stripe's page (only when the session allows codes).
+    const promo = s.allow_promotion_codes ? url.searchParams.get("promo") : null;
+    if (promo === "FREE" || promo === "HALF") {
+      const off = promo === "FREE" ? s.amount_total : Math.round(s.amount_total / 2);
+      s.total_details = { amount_discount: off };
+      s.amount_total -= off;
+    }
+    if (!cancel) Object.assign(s, { status: "complete", payment_status: s.amount_total === 0 ? "no_payment_required" : "paid" });
     res.writeHead(302, { location: cancel ? s.cancel_url : s.success_url.replace("{CHECKOUT_SESSION_ID}", s.id) });
     return res.end();
   }

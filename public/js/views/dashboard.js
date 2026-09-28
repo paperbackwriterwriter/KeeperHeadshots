@@ -55,8 +55,9 @@ async function handleCheckoutReturn(navigate, root) {
     const res = await api("/api/billing/confirm", { method: "POST", body: { sessionId: q.get("session_id") } });
     state.user = res.user;
     if (res.added) {
-      pixel("Purchase", { value: res.value, currency: "USD" }, res.eventId);
-      toast(`Payment received: ${res.added} shoots added to your account.`, "success", 7000);
+      // No Purchase event for a free (100%-off) order; the server sends none either.
+      if (res.eventId) pixel("Purchase", { value: res.value, currency: "USD" }, res.eventId);
+      toast(`${res.eventId ? "Payment received" : "Order complete"}: ${res.added} shoots added to your account.`, "success", 7000);
     }
     else if (!res.paid) toast("Your payment is still processing. Your shoots will appear as soon as it clears.", "info", 7000);
     return true;

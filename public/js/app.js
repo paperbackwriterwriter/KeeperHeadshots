@@ -12,6 +12,7 @@ const renderRefunds = lazy(() => import("./views/refunds.js"), "renderRefunds");
 const renderPrivacy = lazy(() => import("./views/legal.js"), "renderPrivacy");
 const renderTerms = lazy(() => import("./views/legal.js"), "renderTerms");
 const renderAccount = lazy(() => import("./views/account.js"), "renderAccount");
+const renderFunnel = lazy(() => import("./views/funnel.js"), "renderFunnel");
 const renderVerify = lazy(() => import("./views/verify.js"), "renderVerify");
 const renderForgot = lazy(() => import("./views/password.js"), "renderForgot");
 const renderReset = lazy(() => import("./views/password.js"), "renderReset");
@@ -45,6 +46,7 @@ const routes = [
   { path: /^\/signup$/, view: (ctx) => renderAuth(ctx, "signup"), chrome: "none", guestOnly: true, title: "Create your account · Keeper Headshots" },
   { path: /^\/app$/, view: renderDashboard, chrome: "app", auth: true, title: "Your shoots · Keeper Headshots" },
   { path: /^\/app\/account$/, view: renderAccount, chrome: "app", auth: true, title: "Your account · Keeper Headshots" },
+  { path: /^\/app\/funnel$/, view: renderFunnel, chrome: "app", auth: true, title: "Sales funnel · Keeper Headshots" },
   { path: /^\/app\/buy\/([\w-]+)$/, view: (ctx, id) => renderBuy(ctx, id), chrome: "app", auth: true, title: "Checkout · Keeper Headshots" },
   { path: /^\/app\/new$/, view: (ctx) => renderStudio(ctx, null), chrome: "app", auth: true, title: "New shoot · Keeper Headshots" },
   { path: /^\/app\/shoot\/([\w-]+)$/, view: (ctx, id) => renderStudio(ctx, id), chrome: "app", auth: true, title: "Shoot · Keeper Headshots" },

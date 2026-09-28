@@ -803,6 +803,32 @@ body:has(.develop-bar) .toasts { bottom: calc(96px + env(safe-area-inset-bottom)
 .bar-row b { text-align: right; font-variant-numeric: tabular-nums; }
 
 .filters { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Owner's sales funnel (/app/funnel) */
+.funnel { display: grid; gap: var(--s-4); }
+.funnel-row { display: grid; grid-template-columns: minmax(9rem, 13rem) 1fr 3.5rem 7.5rem; gap: var(--s-3); align-items: center; }
+.funnel-label { font-weight: 600; font-size: var(--fs-sm); }
+.funnel-track { height: 14px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--ink) 7%, transparent); overflow: hidden; }
+.funnel-bar { display: block; height: 100%; border-radius: inherit; background: var(--ink); }
+.funnel-row-buy .funnel-bar { background: var(--accent); }
+.funnel-n { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
+.funnel-rate { font-family: var(--font-mono); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.funnel-rate small { color: var(--text-muted); font-family: var(--font-body, inherit); }
+.funnel-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--s-4); border-top: 1px solid var(--border); padding-top: var(--s-4); }
+.funnel-sum div { display: grid; gap: 2px; }
+.funnel-sum b { font-family: var(--font-display); font-size: var(--fs-xl); font-variant-numeric: tabular-nums lining-nums; }
+.funnel-sum span { font-size: var(--fs-sm); color: var(--text-muted); }
+.funnel-note { margin: var(--s-3) 0 var(--s-5); max-width: 70ch; }
+.funnel-table-wrap { overflow-x: auto; padding: 0; }
+.funnel-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.funnel-table th, .funnel-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+.funnel-table th:first-child { text-align: left; }
+.funnel-table thead th { font-size: var(--fs-xs); color: var(--text-muted); font-weight: 600; }
+.funnel-table tbody tr:last-child > * { border-bottom: 0; }
+@media (max-width: 560px) {
+  .funnel-row { grid-template-columns: 1fr auto; row-gap: 6px; }
+  .funnel-track { grid-column: 1 / -1; order: 3; }
+  .funnel-rate { grid-column: 1 / -1; order: 4; }
+}
 .filter { min-height: 40px; padding: 0 14px; border-radius: var(--r-pill); border: 1px solid var(--border); background: transparent; cursor: pointer; font-weight: 600; font-size: var(--fs-sm); display: inline-flex; align-items: center; gap: 8px; transition: all var(--dur-2); }
 .filter:hover { border-color: var(--ink-400); }
 .filter[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
