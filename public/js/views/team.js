@@ -73,7 +73,7 @@ export function renderTeam({ root }) {
           ${[
             ["layers", "A consistent look", "Pick one backdrop for everyone. Each person gets the same setting and lighting, so your team page, org chart and email signatures look like they belong together."],
             ["users", "Remote and hybrid friendly", "Everyone sends a few selfies from wherever they work. No scheduling, no travel, no one missing from the team page."],
-            ["plus", "New hires match later", "Unused shoots don't expire while your account is open. When someone joins, run their shoot in the same look and they fit right in."],
+            ["plus", "New hires match later", "Unused shoots don't expire while your account is open. When someone joins, invite them from your team page and they fit right in."],
             ["focus", "Ready for every profile", "Each headshot comes as a full-resolution portrait for your website and a 1:1 square framed for LinkedIn, Microsoft Teams and Slack."],
             ["badge-check", "Checked before anyone sees it", "Every headshot is compared with that person's own photos for likeness and inspected for polish. Anything that falls short is retaken automatically."],
             ["lock", "Private by default", "Photos stay private to your account, are never used to train AI, and any shoot can be deleted at any time."],
