@@ -4,9 +4,9 @@ import sharp from "sharp";
 import cookieParser from "cookie-parser";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { users, shoots, id, readMedia, writeMedia, deleteMedia, freeClaimKey } from "./lib/store.js";
+import { users, shoots, id, readMedia, writeMedia, deleteMedia, freeClaimKey, mailboxChecks } from "./lib/store.js";
 import { backend, createJSON, getJSON, del } from "./lib/storage.js";
-import { hashPassword, verifyPassword, setSession, clearSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailVerified, resetToken, checkResetToken } from "./lib/auth.js";
+import { hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailVerified, resetToken, checkResetToken } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, MAIL_FROM } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import { pageFor, isCanonicalHost } from "./lib/seo.js";
@@ -178,7 +178,8 @@ app.post("/api/auth/verify/resend", requireUser, async (req, res) => {
   res.json({ status: "sent", email: req.user.email });
 });
 
-app.post("/api/auth/signout", (req, res) => {
+app.post("/api/auth/signout", async (req, res) => {
+  await revokeSession(req).catch((err) => console.error("[signout] revoke", err.message));
   clearSession(res);
   res.json({ ok: true });
 });
@@ -426,24 +427,40 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   // a lifetime allowance; paid accounts a generous daily one (each check is a
   // paid AI call, and a package alone shouldn't make them unlimited).
   const counted = plan.tier !== "owner";
+  // Free checks are shared by every address for the same mailbox.
+  const perMailbox = plan.checksLeft != null;
+  let mailboxReserved = false;
+  let mailboxTotal = 0;
   const today = new Date().toISOString().slice(0, 10);
   const dayMsg = `That's ${DAILY_CHECKS} photo checks today. You can check more photos tomorrow.`;
   try {
+    if (perMailbox) {
+      const total = await mailboxChecks.reserve(req.user.email, FREE.checks, req.user.usage?.checks || 0);
+      if (total === null) {
+        await users.update(req.user.id, (u) => (u.usage = { ...u.usage, checks: Math.max(u.usage?.checks || 0, FREE.checks) })).catch(() => {});
+        throw new PlanError(limitMsg);
+      }
+      mailboxReserved = true;
+      mailboxTotal = total;
+    }
     if (counted) {
       await users.update(req.user.id, (u) => {
         if (planFor(u).checksLeft === 0) throw new PlanError(limitMsg);
         const day = u.usage?.checkDay?.date === today ? u.usage.checkDay.n : 0;
         if (day >= DAILY_CHECKS) throw new PlanError(dayMsg, "daily_checks", 429);
-        u.usage = { ...u.usage, checks: (u.usage?.checks || 0) + 1, checkDay: { date: today, n: day + 1 } };
+        // Shows what's left for the whole mailbox, not just this address.
+        u.usage = { ...u.usage, checks: Math.max((u.usage?.checks || 0) + 1, mailboxTotal), checkDay: { date: today, n: day + 1 } };
       });
     }
   } catch (err) {
+    if (mailboxReserved) await mailboxChecks.release(req.user.email);
     await shoots.updateMeta(meta.id, (m) => (m.status === "checking" && m.checkStartedAt === startedAt ? void Object.assign(m, { status: "draft" }) : false)).catch(() => {});
     throw err;
   }
   try {
     await runCheck(meta.id, startedAt);
   } catch (err) {
+    if (mailboxReserved) await mailboxChecks.release(req.user.email);
     if (counted)
       await users
         .update(req.user.id, (u) => {
@@ -690,7 +707,7 @@ app.post("/api/contact", async (req, res) => {
   if (req.body?.company) return res.json({ ok: true });
   const { msg, fields } = validateContact(req.body);
   if (Object.keys(fields).length) return res.status(400).json({ error: "Please fix the highlighted fields.", fields });
-  if (rateLimited(req.ip || "unknown")) return res.status(429).json({ error: "You've sent several messages already. Please try again later." });
+  if (await rateLimited(req.ip || "unknown")) return res.status(429).json({ error: "You've sent several messages already. Please try again later." });
   const human = await checkHuman(req.body?.turnstileToken, { ip: req.ip, action: "contact" });
   if (!human.ok) return res.status(400).json({ error: "We couldn't confirm you're a person. Please complete the security check and try again.", code: "bot_check" });
   if (!contactEnabled()) return res.status(503).json({ error: "Our contact form is offline right now.", code: "contact_not_configured" });

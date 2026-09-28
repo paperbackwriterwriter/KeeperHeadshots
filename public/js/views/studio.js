@@ -81,7 +81,10 @@ export async function renderStudio(ctx, id) {
       // poll) and back off until a poll succeeds again.
       if (!pollErrors++) toast(err.message, "error");
     }
-    if (!disposed && shoot && LIVE.includes(shoot.status)) timer = setTimeout(refresh, Math.min(3000 * 2 ** pollErrors, 15000));
+    // Frames take 30–60 s each, so while developing a check every 4 s is
+    // plenty (each check reads the shoot and its frames from storage).
+    const every = shoot?.status === "generating" ? 4000 : 3000;
+    if (!disposed && shoot && LIVE.includes(shoot.status)) timer = setTimeout(refresh, Math.min(every * 2 ** pollErrors, 15000));
   }
 
   function paint(prev) {

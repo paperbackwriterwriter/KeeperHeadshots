@@ -50,8 +50,29 @@ const routes = [
   { path: /^\/app\/shoot\/([\w-]+)$/, view: (ctx, id) => renderStudio(ctx, id), chrome: "app", auth: true, title: "Shoot · Keeper Headshots" },
 ];
 
+// The app restores scroll itself (the browser's own restore would run before
+// the page has re-rendered): each history entry remembers where it was left.
+if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+// Remember the position once scrolling pauses, so Back and Forward both find
+// it (a page left with the Back button has no link click to record it).
+let scrollSave = null;
+addEventListener(
+  "scroll",
+  () => {
+    clearTimeout(scrollSave);
+    scrollSave = setTimeout(() => {
+      try {
+        history.replaceState({ ...history.state, y: window.scrollY }, "");
+      } catch {} // browsers rate-limit replaceState; losing one save is harmless
+    }, 200);
+  },
+  { passive: true },
+);
+
 export function navigate(to, { replace = false, silent = false } = {}) {
   if (to === location.pathname + location.search + location.hash && !replace) return;
+  clearTimeout(scrollSave);
+  if (!replace) history.replaceState({ ...history.state, y: window.scrollY }, "");
   history[replace ? "replaceState" : "pushState"]({}, "", to);
   if (!silent) render();
 }
@@ -122,7 +143,7 @@ function focusHeading() {
 let renderSeq = 0;
 let lastRoute = null;
 
-async function render() {
+async function render({ restoreY = null } = {}) {
   const seq = ++renderSeq;
   lastRoute = location.pathname + location.search;
   cleanup?.();
@@ -173,7 +194,8 @@ async function render() {
   observeReveals(app);
   focusHeading();
   pixel("PageView");
-  if (location.hash) requestAnimationFrame(() => document.getElementById(location.hash.slice(1))?.scrollIntoView());
+  if (restoreY != null) requestAnimationFrame(() => window.scrollTo({ top: restoreY, behavior: "instant" }));
+  else if (location.hash) requestAnimationFrame(() => document.getElementById(location.hash.slice(1))?.scrollIntoView());
   else window.scrollTo({ top: 0, behavior: "instant" });
 }
 
@@ -278,9 +300,11 @@ window.addEventListener("pageshow", (e) => {
   if (e.persisted && location.pathname.startsWith("/app/buy/")) render();
 });
 // Back/forward between sections of the same page only scrolls.
+// Back/forward to another page returns to where it was scrolled.
 window.addEventListener("popstate", () => {
+  clearTimeout(scrollSave); // a pending save belongs to the page just left
   if (location.pathname + location.search === lastRoute) return goToHash(location.hash);
-  render();
+  render({ restoreY: history.state?.y });
 });
 
 // Vercel Web Analytics: cookieless visit counts. Production domain only. One-

@@ -120,6 +120,54 @@ if (process.env.QA_ADMIN_TOKEN) {
   ok("over-long password rejected", long.status === 400 && !!long.j?.fields?.password, String(long.status));
 }
 
+// 9. The free photo checks are shared by every address for one mailbox.
+{
+  const base = `pa${t}`;
+  const a = await account(`${base}@gmail.com`);
+  const { j } = await a("/api/shoots", { method: "POST", body: "{}" });
+  await a(`/api/shoots/${j.shoot.id}/selfies`, { method: "POST", body: JSON.stringify({ photo }) });
+  for (let i = 0; i < 4; i++) await a(`/api/shoots/${j.shoot.id}/check`, { method: "POST" });
+  const b = await account(`${base}+second@gmail.com`);
+  const left = (await b("/api/me")).j.user.plan.checksLeft;
+  const s2 = (await b("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;
+  await b(`/api/shoots/${s2}/selfies`, { method: "POST", body: JSON.stringify({ photo }) });
+  const runs = [];
+  for (let i = 0; i < 3; i++) runs.push((await b(`/api/shoots/${s2}/check`, { method: "POST" })).status);
+  ok("plus-addresses share the mailbox's free checks", left === 2 && runs.join() === "200,200,402", `left=${left} checks=${runs.join(",")}`);
+}
+
+// 10. Signing out revokes that session: a copy of its cookie stops working,
+// while the same account stays signed in on another device.
+{
+  const email = `revoke${t}@x.com`;
+  await account(email);
+  const signIn = async () => {
+    const r = await fetch(B + "/api/auth/signin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password: "password123" }) });
+    return r.headers.get("set-cookie").split(";")[0];
+  };
+  const [one, two] = [await signIn(), await signIn()];
+  const me = (cookie) => fetch(B + "/api/me", { headers: { cookie } }).then((r) => r.json()).then((d) => d.user?.email || null);
+  await fetch(B + "/api/auth/signout", { method: "POST", headers: { cookie: one } });
+  const copied = await me(one);
+  const other = await me(two);
+  ok("sign-out revokes that session only", copied === null && other === email, `copied=${copied} other=${other}`);
+}
+
+// 11. The contact form's hourly limit is shared by every server instance.
+// Needs a second server on the same storage at B2 (default :3101).
+{
+  const B2 = process.env.BASE2 || "http://localhost:3101";
+  const up = await fetch(B2 + "/api/me").then(() => true).catch(() => false);
+  if (up) {
+    const statuses = [];
+    for (let i = 0; i < 6; i++) {
+      const r = await fetch((i % 2 ? B2 : B) + "/api/contact", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": `203.0.113.${t % 200}` }, body: JSON.stringify({ name: "Rate Test", email: "rate@x.com", topic: "general", message: "Checking the shared hourly limit." }) });
+      statuses.push(r.status);
+    }
+    ok("contact limit is shared across servers", statuses.slice(0, 5).every((s) => s === 200) && statuses[5] === 429, statuses.join(","));
+  }
+}
+
 const passed = results.filter((r) => r[1]).length;
 console.log(`\n${passed}/${results.length} passed`);
 process.exit(passed === results.length ? 0 : 1);
