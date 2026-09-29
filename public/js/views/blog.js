@@ -1,6 +1,6 @@
 import { html } from "../core.js";
 import { footer } from "./landing.js";
-import { SORO_EMBED } from "../shared/soro.js";
+import { SORO_EMBED, BLOG_SLUG, postTitle } from "../shared/soro.js";
 
 // /blog: articles written and hosted by Soro (trysoro.com). The server sends
 // Soro's snippet in the page itself (lib/seo.js): <div id="soro-blog"></div>
@@ -15,6 +15,9 @@ export function renderBlog({ root }) {
   // Back/Forward within the blog: load that address fresh, so Soro shows it.
   if (shown) return void location.reload();
   shown = true;
+  // An article: its own title (the server sent the same), not the blog's.
+  const post = new URLSearchParams(location.search).get("post");
+  if (post && BLOG_SLUG.test(post)) document.title = postTitle(post);
   const soro = document.getElementById("soro-blog");
   root.innerHTML = html`
   <main id="main" class="container app-main view-enter blog-page">

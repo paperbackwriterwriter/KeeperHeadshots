@@ -237,6 +237,10 @@ if (process.env.DATA_DIR) {
   ok("other pages don't", !/trysoro/.test(home) && !/trysoro/.test(buy));
   const page = await (await fetch(B + "/blog")).text();
   ok("the blog page carries Soro's snippet as given", page.includes('<div id="soro-blog"></div>') && page.includes('<script src="https://app.trysoro.com/api/embed/1cec6634-2353-4a99-a706-b269ffe2172d" defer></script>'));
+  const art = await (await fetch(B + "/blog?post=professional-ai-headshots-from-selfies&utm_source=x")).text();
+  ok("an article points search engines to its own address", art.includes('<link rel="canonical" href="https://keeperheadshots.com/blog?post=professional-ai-headshots-from-selfies" />') && art.includes("<title>Professional AI Headshots from Selfies · Keeper Headshots Blog</title>") && art.includes('og:type" content="article"') && art.includes('<div id="soro-blog"></div>'));
+  const odd = await (await fetch(B + "/blog?post=%3Cscript%3E")).text();
+  ok("an odd post value gets the plain blog page", odd.includes('<link rel="canonical" href="https://keeperheadshots.com/blog" />') && !odd.includes("%3Cscript"));
   ok("article addresses load the blog", (await fetch(B + "/blog/some-article")).status === 200 && (await fetch(B + "/blog/not.an.article")).status === 404);
 }
 

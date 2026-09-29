@@ -14,7 +14,7 @@ import { CONTACT_TO } from "./lib/contact.js";
 import { hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailVerified, resetToken, checkResetToken } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
-import { pageFor, isCanonicalHost } from "./lib/seo.js";
+import { pageFor, blogPostPage, isCanonicalHost } from "./lib/seo.js";
 import { aiStatus, AIError } from "./lib/ai.js";
 import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, advance, startGeneration, retryFailed, startReview } from "./lib/pipeline.js";
 import { lookFor, MAX_LOOKS, MAX_SELFIES, PHOTO_FORMATS } from "./public/js/shared/catalog.js";
@@ -1295,7 +1295,9 @@ app.get(/.*/, (req, res) => {
   if (/^\/[\/\\]/.test(req.path) || req.path.includes("\\")) return res.status(404).type("html").send(pageFor("/__not_found__").html);
   const clean = req.path.length > 1 ? "/" + req.path.replace(/\/+$/, "").replace(/^\/+/, "") : "/";
   if (clean !== req.path) return res.redirect(301, clean + req.url.slice(req.path.length));
-  const { status, html } = pageFor(clean);
+  // A blog article (/blog?post=<slug>) is its own page to search engines.
+  const post = clean === "/blog" && typeof req.query.post === "string" ? blogPostPage(req.query.post) : null;
+  const { status, html } = post || pageFor(clean);
   if (!isCanonicalHost(req.get("host"))) res.set("X-Robots-Tag", "noindex");
   res.status(status).type("html").send(html);
 });
