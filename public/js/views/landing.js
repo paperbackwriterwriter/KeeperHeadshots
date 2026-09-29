@@ -145,19 +145,17 @@ export function renderLanding({ root }) {
         <p class="lede" data-reveal style="--i:2">Corporate, creative or somewhere in between. Each backdrop is lit like a real set, and each outfit is tailored to fit.</p>
       </div>
       <div class="marquee" data-reveal style="--i:3" role="region" aria-label="Example looks" tabindex="0">
-        <div class="marquee-track" style="--n:${STRIP.length}">
-          ${[0, 1].map(
-            (copy) => html`<ul class="marquee-group" ${copy ? raw('aria-hidden="true"') : ""}>
-              ${STRIP.map((s) => {
-                const b = BACKDROPS.find((x) => x.id === s.backdrop);
-                const o = OUTFITS.find((x) => x.id === s.outfit);
-                return html`<li><figure class="strip-card print">
-                  <img src="${example(s.id)}" alt="${copy ? "" : `Example headshot: ${b.name} backdrop, ${o.name}`}" loading="lazy" decoding="async" width="224" height="280" />
-                  <figcaption class="print-cap"><b>${b.name}</b><span>${o.name}</span></figcaption>
-                </figure></li>`;
-              })}
-            </ul>`,
-          )}
+        <div class="marquee-track">
+          <ul class="marquee-group">
+            ${STRIP.map((s) => {
+              const b = BACKDROPS.find((x) => x.id === s.backdrop);
+              const o = OUTFITS.find((x) => x.id === s.outfit);
+              return html`<li><figure class="strip-card print">
+                <img src="${example(s.id)}" alt="Example headshot: ${b.name} backdrop, ${o.name}" loading="lazy" decoding="async" width="224" height="280" />
+                <figcaption class="print-cap"><b>${b.name}</b><span>${o.name}</span></figcaption>
+              </figure></li>`;
+            })}
+          </ul>
         </div>
       </div>
     </section>
@@ -277,9 +275,11 @@ export function renderLanding({ root }) {
   ${footer()}`.v;
   const stopHero = heroCycle();
   const stopStrip = stripPreload();
+  const stopReel = stripReel();
   return () => {
     stopHero?.();
     stopStrip?.();
+    stopReel?.();
   };
 }
 
@@ -300,6 +300,82 @@ function stripPreload() {
   }, { rootMargin: "800px 0px" });
   io.observe(row);
   return () => io.disconnect();
+}
+
+// Slides the wardrobe strip left forever. Each card is placed every frame
+// at its spot on a loop one strip long; a card that leaves on the left moves
+// straight to the back of the line, off the right edge. (Sliding the whole
+// row, or each card by a whole strip's width, as CSS animations, left blank
+// stretches on iPhone Safari, which skips drawing animated layers that are
+// too large or start far off screen.) Runs only while the strip is on
+// screen; reduced-motion users get a still row they can scroll instead.
+const REEL_SPEED = 38; // px per second
+function stripReel() {
+  const row = $(".marquee");
+  const list = row && $(".marquee-group", row);
+  if (!list || matchMedia("(prefers-reduced-motion: reduce)").matches) return null;
+  const originals = [...list.children];
+  let cards = originals;
+  let step = 0; // one card plus the gap
+  let loop = 0; // the whole line of cards
+  let offset = 0;
+  let last = 0;
+  let frame = 0;
+  let visible = false;
+  const measure = () => {
+    // A very wide screen needs more cards than one strip to stay covered.
+    step = originals[1].offsetLeft - originals[0].offsetLeft;
+    while (cards.length * step < row.clientWidth + 2 * step) {
+      const copies = originals.map((li) => {
+        const c = li.cloneNode(true);
+        c.setAttribute("aria-hidden", "true");
+        c.querySelector("img")?.setAttribute("alt", "");
+        return c;
+      });
+      list.append(...copies);
+      cards = [...list.children];
+    }
+    loop = cards.length * step;
+  };
+  const place = () => {
+    cards.forEach((li, i) => {
+      const x = ((((i * step - offset) % loop) + loop + step) % loop) - step; // from -step up to loop - step
+      li.style.transform = `translateX(${(x - i * step).toFixed(1)}px)`;
+    });
+  };
+  const tick = (now) => {
+    offset = (offset + (Math.min(now - (last || now), 100) / 1000) * REEL_SPEED) % (loop || 1);
+    last = now;
+    place();
+    frame = requestAnimationFrame(tick);
+  };
+  const start = () => {
+    if (frame || !visible) return;
+    last = 0;
+    frame = requestAnimationFrame(tick);
+  };
+  const stop = () => {
+    cancelAnimationFrame(frame);
+    frame = 0;
+  };
+  row.classList.add("is-reel");
+  measure();
+  place();
+  const io = new IntersectionObserver((entries) => {
+    visible = entries.some((e) => e.isIntersecting);
+    visible ? start() : stop();
+  });
+  io.observe(row);
+  const onResize = () => {
+    measure();
+    place();
+  };
+  addEventListener("resize", onResize);
+  return () => {
+    stop();
+    io.disconnect();
+    removeEventListener("resize", onResize);
+  };
 }
 
 // Rotate the hero through example people. The next set is decoded before the
