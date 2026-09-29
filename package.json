@@ -10,7 +10,8 @@
     "mock-ai": "node scripts/dev/mock-ai.js",
     "screenshots": "node scripts/dev/screenshots.js shots",
     "icons": "node scripts/build-icons.js",
-    "prerender": "node scripts/prerender.js"
+    "prerender": "node scripts/prerender.js",
+    "og": "node scripts/build-og.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",

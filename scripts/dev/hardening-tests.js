@@ -218,6 +218,17 @@ if (process.env.DATA_DIR) {
   ok("non-canonical example URL redirects", odd.status === 301 && odd.headers.get("location") === "/examples/hero-1.webp?w=360&v=5" && canon.status !== 301, `${odd.status} ${odd.headers.get("location")} canon=${canon.status}`);
 }
 
+// 15b. Landing pages point to their own social preview image, which renders.
+{
+  const og = async (p) => /<meta property="og:image" content="([^"]+)"/.exec(await (await fetch(B + p)).text())?.[1];
+  const [re, contact] = [await og("/real-estate-headshots"), await og("/contact")];
+  ok("landing pages have their own preview image", re?.endsWith("/og/real-estate.png") && contact?.endsWith("/og.png"), `${re} ${contact}`);
+  const img = await fetch(B + "/og/real-estate.png");
+  const buf = Buffer.from(await img.arrayBuffer());
+  ok("the preview image renders at 1200×630", img.status === 200 && img.headers.get("content-type") === "image/png" && buf.readUInt32BE(16) === 1200 && buf.readUInt32BE(20) === 630, `${img.status} ${buf.length}`);
+  ok("unknown preview images are 404", (await fetch(B + "/og/nothing.png")).status === 404);
+}
+
 // 16. At most 20 undeveloped shoots per account.
 {
   const f = await account(`drafts${t}@x.com`);

@@ -4,7 +4,8 @@
   "fluid": true,
   "functions": {
     "server.js": {
-      "maxDuration": 300
+      "maxDuration": 300,
+      "includeFiles": "assets/og/**"
     }
   },
   "redirects": [

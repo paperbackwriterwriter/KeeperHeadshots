@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { users, shoots, id, readMedia, writeMedia, deleteMedia, freeClaimKey, mailboxChecks } from "./lib/store.js";
 import { backend, createJSON, getJSON, putJSON, del, UNCHANGED } from "./lib/storage.js";
 import { runReminders, checkUnsubscribeToken } from "./lib/reminders.js";
+import { ogImage } from "./lib/og.js";
 import { hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailVerified, resetToken, checkResetToken } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
@@ -1061,6 +1062,14 @@ app.get(/^\/examples\/([a-z0-9-]+)\.(jpg|webp)$/, async (req, res) => {
   if (ext === "jpg") return res.type("image/jpeg").send(buf);
   const out = await sharp(buf).resize({ width: w, withoutEnlargement: true }).webp({ quality: 78, effort: 4 }).toBuffer();
   res.type("image/webp").send(out);
+});
+
+// Social preview images for the landing pages (lib/og.js).
+app.get(/^\/og\/([a-z-]+)\.png$/, async (req, res) => {
+  const buf = await ogImage(req.params[0]);
+  if (!buf) return res.status(404).end();
+  res.set("Cache-Control", "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400");
+  res.type("image/png").send(buf);
 });
 
 // The sign-up funnel (lib/stats.js), for owner accounts (OWNER_EMAILS) only.
