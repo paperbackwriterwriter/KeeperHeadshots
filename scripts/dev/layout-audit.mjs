@@ -115,6 +115,21 @@ for (let i = 0; i < 60; i++) {
   await new Promise((r) => setTimeout(r, 1000));
 }
 
+// Customer results: two approved (shown on the home page), one waiting.
+const offer = async (f, sid, fields) => {
+  const s = (await f(`/api/shoots/${sid}`)).j.shoot;
+  const shot = s.shots.find((x) => x.status === "done");
+  return (await f("/api/showcase", { method: "POST", body: JSON.stringify({ shootId: sid, shotId: shot.id, consent: true, ...fields }) })).j.entry;
+};
+const ana = await account(`ana${t}@example.com`, "Ana Lima");
+const ben = await account(`ben${t}@example.com`, "Ben Adeyemi");
+const shared = [
+  await offer(sam, samShoot, { name: "Sam", role: "Associate, Acme Legal", quote: "Our whole team matched in an afternoon, and nobody had to book a photographer." }),
+  await offer(ana, await shoot(ana, "done", [{ backdrop: "city-terrace", outfit: "camel-knit" }]), { name: "Ana", role: "Real estate agent", quote: "On my signs and listings the same week." }),
+  await offer(ben, await shoot(ben, "done", [{ backdrop: "library", outfit: "black-turtleneck" }]), { name: "Ben", role: "", quote: "" }),
+];
+for (const e of shared.slice(0, 2)) await owner(`/api/owner/showcase/${e.id}`, { method: "POST", body: JSON.stringify({ status: "approved" }) });
+
 /* ---------- Pages and states ---------- */
 
 const click = (sel) => async (p) => { await p.click(sel); await p.waitForTimeout(500); };
@@ -147,6 +162,9 @@ const STATES = [
   { name: "shoot-lightbox", url: `/app/shoot/${mayaDone}`, who: maya, prep: async (p) => { await p.locator("#proofs img").first().click(); await p.waitForTimeout(500); }, full: false },
   { name: "team-shoot-looks", url: `/app/shoot/${samShoot}`, who: sam },
   { name: "account", url: "/app/account", who: maya },
+  { name: "account-shared", url: "/app/account", who: sam, prep: async (p) => { await p.waitForSelector(".share-status"); } },
+  { name: "shoot-share-form", url: `/app/shoot/${mayaDone}`, who: maya, prep: async (p) => { await p.click("#shareOpen"); await p.waitForSelector("#shareForm"); } },
+  { name: "showcase-admin", url: "/app/showcase", who: owner, prep: async (p) => { await p.waitForSelector(".sc-item"); } },
   { name: "buy", url: "/app/buy/professional", who: maya },
   { name: "team-setup", url: "/app/team", who: maya },
   { name: "team-admin", url: "/app/team", who: owner },

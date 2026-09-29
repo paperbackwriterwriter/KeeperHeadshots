@@ -6,6 +6,7 @@ import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, TAKES_PER_LOOK, MAX_SEL
 import { portraitDataURL } from "../shared/portrait.js";
 import { aiBanner, planBanner } from "./dashboard.js";
 import { currentFormat, formatPicker, formatHrefs, formatName, saveFormat, downloadAll } from "./format.js";
+import { mountShare } from "./share.js";
 
 const STEPS = ["Upload", "Photo check", "Looks", "Develop", "Proofs"];
 const LIVE = ["checking", "generating", "reviewing"];
@@ -719,6 +720,8 @@ export async function renderStudio(ctx, id) {
         <div class="proofs" id="proofs"></div>
       </section>
 
+      <div id="sharePanel"></div>
+
       ${upgradeBand(s, done.length)}
 
       <section class="panel" style="margin-top:48px;display:flex;gap:24px;align-items:center;justify-content:space-between;flex-wrap:wrap">
@@ -755,6 +758,7 @@ export async function renderStudio(ctx, id) {
       });
     };
     drawDl();
+    mountShare($("#sharePanel"), s, ordered, best);
     $$("[data-format]").forEach((b) =>
       b.addEventListener("click", async () => {
         const fmt = b.dataset.format;

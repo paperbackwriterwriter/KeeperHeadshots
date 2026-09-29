@@ -245,6 +245,9 @@ export function renderLanding({ root }) {
       </div>
     </section>
 
+    <!-- Customer results: filled in only when customers have shared some (lib/showcase.js) -->
+    <section class="section" id="customers" style="padding-top:0" aria-labelledby="customersTitle" hidden></section>
+
     <!-- FAQ -->
     <section class="section" id="faq" style="padding-top:0">
       <div class="container faq">
@@ -276,11 +279,42 @@ export function renderLanding({ root }) {
   const stopHero = heroCycle();
   const stopStrip = stripPreload();
   const stopReel = stripReel();
+  customerResults();
   return () => {
     stopHero?.();
     stopStrip?.();
     stopReel?.();
   };
+}
+
+// Headshots customers shared with their permission, once approved. The
+// section stays hidden until there's at least one.
+async function customerResults() {
+  let entries = [];
+  try {
+    entries = (await (await fetch("/api/showcase")).json()).entries || [];
+  } catch {
+    return;
+  }
+  const slot = $("#customers");
+  if (!slot || !entries.length) return;
+  slot.innerHTML = html`<div class="container">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">From our customers</p>
+        <h2 class="display h-1" id="customersTitle" style="margin-top:16px">Real customers. <em>Their</em> headshots.</h2>
+      </div>
+      <p class="lede">Made from their own selfies, and shared with us by the people in them.</p>
+    </div>
+    <div class="customers">${entries.map(
+      (e) => html`<figure class="customer">
+        <img src="/showcase/${e.id}.webp?w=600&amp;v=${e.v}" alt="Headshot of ${e.name}, made by Keeper Headshots" loading="lazy" width="600" height="800" />
+        <figcaption>${e.quote ? html`<blockquote>“${e.quote}”</blockquote>` : ""}<p><b>${e.name}</b>${e.role ? html`<span>, ${e.role}</span>` : ""}</p></figcaption>
+      </figure>`,
+    )}</div>
+    <p class="small muted customers-note">Shared with permission. Want yours here? Use "Share your results" on your finished shoot.</p>
+  </div>`.v;
+  slot.hidden = false;
 }
 
 // The wardrobe strip's photos are lazy, but most of them sit outside the

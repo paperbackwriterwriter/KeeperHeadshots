@@ -13,6 +13,7 @@ const renderPrivacy = lazy(() => import("./views/legal.js"), "renderPrivacy");
 const renderTerms = lazy(() => import("./views/legal.js"), "renderTerms");
 const renderAccount = lazy(() => import("./views/account.js"), "renderAccount");
 const renderFunnel = lazy(() => import("./views/funnel.js"), "renderFunnel");
+const renderShowcaseAdmin = lazy(() => import("./views/showcaseadmin.js"), "renderShowcaseAdmin");
 const renderTeamAdmin = lazy(() => import("./views/teamadmin.js"), "renderTeamAdmin");
 const renderJoin = lazy(() => import("./views/join.js"), "renderJoin");
 const renderUnsubscribe = lazy(() => import("./views/unsubscribe.js"), "renderUnsubscribe");
@@ -50,6 +51,7 @@ const routes = [
   { path: /^\/app$/, view: renderDashboard, chrome: "app", auth: true, title: "Your shoots · Keeper Headshots" },
   { path: /^\/app\/account$/, view: renderAccount, chrome: "app", auth: true, title: "Your account · Keeper Headshots" },
   { path: /^\/app\/funnel$/, view: renderFunnel, chrome: "app", auth: true, title: "Sales funnel · Keeper Headshots" },
+  { path: /^\/app\/showcase$/, view: renderShowcaseAdmin, chrome: "app", auth: true, title: "Customer results · Keeper Headshots" },
   { path: /^\/app\/team$/, view: renderTeamAdmin, chrome: "app", auth: true, title: "Team headshots · Keeper Headshots" },
   { path: /^\/join$/, view: renderJoin, chrome: "marketing", title: "Team invitation · Keeper Headshots" },
   { path: /^\/unsubscribe$/, view: renderUnsubscribe, chrome: "none", title: "Reminder emails · Keeper Headshots" },

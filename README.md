@@ -86,6 +86,8 @@ To (re)generate one, set a long random `ADMIN_TOKEN` in the environment, redeplo
 
 **Sales funnel** (`lib/stats.js`, page `/app/funnel`, owner accounts only): each person's first sign-up, confirmed email, photo check, developed shoot and purchase are counted per day in `stats/days/`, plus every purchase and its revenue after discounts. Demo and owner accounts aren't counted; visitors are in Vercel Analytics.
 
+**Customer results** (`lib/showcase.js`): on a finished shoot, a customer can offer one headshot with a first name, job and short quote, ticking a permission box (`POST /api/showcase`). The owner gets an email and approves or declines at `/app/showcase`; the home page's "From our customers" section appears only when at least one is approved (up to 6, `GET /api/showcase`). A copy of the headshot is kept under `showcase/`; taking it down (results page or Account), deleting the shoot or deleting the account removes it, and the CDN drops it within about 10 minutes.
+
 **Render limits**: each shoot renders at most 2 frames at a time (`GENERATION_CONCURRENCY`), and the whole site at most `RENDER_SLOTS` (default 4, `lib/slots.js`) across all shoots and servers, so Gemini's per-minute image quota isn't tripped when several people develop at once. Frames past the limit wait as "Queued" and the studio says the shoot is next in line.
 
 **Backups** (`lib/backup.js`): a nightly cron (`/api/cron/backup`, 03:43 UTC) saves every account, payment, refund, claim, usage, shoot and frame record, contact message and funnel count as one gzipped snapshot, `backups/<date>.json.gz`, keeping the last 30 (`BACKUP_KEEP_DAYS`). With a second, private Blob store connected with the env prefix `BACKUP` (`BACKUP_STORE_ID`, reached with the project's Vercel OIDC token, or `BACKUP_READ_WRITE_TOKEN`) they go to that store; otherwise, or if that store can't be reached that night, to the main one (with an alert). Photos aren't included. To restore: `node scripts/restore-backup.js` shows what's in the newest snapshot; add `--only users/`, `--missing` (never overwrite) and `--apply` to write.
@@ -190,6 +192,7 @@ node scripts/dev/hardening-tests.js  # verify links, sign-ins, photo edits/check
                                      # (set DATA_DIR to the server's to include the re-check and demo sign-out tests)
 node scripts/dev/cleanup-tests.js    # daily clean-up on a throwaway local store (no server needed)
 node scripts/dev/reminder-tests.js   # reminder emails: who's due, one-click unsubscribe, account switch
+node scripts/dev/showcase-tests.js   # customer results: permission, approval, take-down
 node scripts/dev/backup-tests.js     # nightly backup and restore, same (no server needed)
 node scripts/dev/env-tests.js        # preview storage namespace and Stripe key modes (no server needed)
 node scripts/dev/alert-tests.js      # error alert emails (needs the mock on :4010)

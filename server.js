@@ -9,6 +9,8 @@ import { users, shoots, id, readMedia, writeMedia, deleteMedia, freeClaimKey, ma
 import { backend, createJSON, getJSON, putJSON, del, UNCHANGED } from "./lib/storage.js";
 import { runReminders, checkUnsubscribeToken } from "./lib/reminders.js";
 import { ogImage } from "./lib/og.js";
+import * as showcase from "./lib/showcase.js";
+import { CONTACT_TO } from "./lib/contact.js";
 import { hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailVerified, resetToken, checkResetToken } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
@@ -686,6 +688,7 @@ app.delete("/api/shoots/:id", requireUser, async (req, res) => {
   if (meta.sample) return res.status(400).json({ error: "Sample shoots are read-only." });
   if (LIVE.includes(meta.status)) return res.status(409).json({ error: "Wait for the shoot to finish before deleting it." });
   await shoots.remove(meta);
+  await showcase.removeForShoot(meta.id).catch((err) => console.error("[showcase] remove", meta.id, err.message));
   // A team shoot deleted before developing gives the shoot back to the admin.
   if (meta.team && !(meta.shots || []).length) await teams.returnSeat(meta).catch((err) => console.error("[team] return seat", meta.id, err.message));
   res.json({ ok: true });
@@ -812,6 +815,7 @@ app.post("/api/account/delete", requireUser, async (req, res) => {
   // An undeveloped team shoot goes back to its team; your own team closes.
   for (const meta of list) if (meta.team && !(meta.shots || []).length) await teams.returnSeat(meta).catch((err) => console.error("[team] return seat", meta.id, err.message));
   if (req.user.teamId) await teams.removeTeam(req.user.teamId);
+  await showcase.removeForUser(req.user.id);
   await users.remove(req.user);
   // The funnel keeps its day totals; the per-person "already counted" markers go.
   await del(STEPS.map((step) => `stats/seen/${step}/${req.user.id}.json`)).catch(noteStats);
@@ -1062,6 +1066,76 @@ app.get(/^\/examples\/([a-z0-9-]+)\.(jpg|webp)$/, async (req, res) => {
   if (ext === "jpg") return res.type("image/jpeg").send(buf);
   const out = await sharp(buf).resize({ width: w, withoutEnlargement: true }).webp({ quality: 78, effort: 4 }).toBuffer();
   res.type("image/webp").send(out);
+});
+
+// Customer results (lib/showcase.js): offered by customers, shown on the home
+// page only once an owner approves them.
+const isOwner = (u) => !!u && planFor(u).tier === "owner";
+app.get("/api/showcase", async (req, res) => {
+  res.set("Cache-Control", "public, max-age=60, s-maxage=300, stale-while-revalidate=60");
+  res.json({ entries: await showcase.approved() });
+});
+app.get(/^\/showcase\/(shc_[\w-]{10,30})\.webp$/, async (req, res) => {
+  const e = await showcase.get(req.params[0]);
+  const shown = e?.status === "approved";
+  // Anything not yet approved is only visible to an owner or its own customer.
+  const viewer = shown ? null : await currentUser(req);
+  if (!e || (!shown && !isOwner(viewer) && viewer?.id !== e.userId)) return res.status(404).end();
+  const buf = await showcase.image(e.id);
+  if (!buf) return res.status(404).end();
+  const w = [360, 600].includes(Number(req.query.w)) ? Number(req.query.w) : 360;
+  // Short CDN lifetime, so a customer taking theirs down is honoured quickly.
+  res.set("Cache-Control", shown ? "public, max-age=300, s-maxage=600" : "private, no-store");
+  res.type("image/webp").send(await sharp(buf).resize({ width: w, withoutEnlargement: true }).webp({ quality: 80 }).toBuffer());
+});
+app.get("/api/showcase/mine", requireUser, async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ entry: showcase.ownEntry(await showcase.forUser(req.user.id)) });
+});
+app.post("/api/showcase", requireUser, async (req, res) => {
+  if (req.user.demo) return res.status(403).json({ error: DEMO_READ_ONLY, code: "demo_read_only" });
+  if (req.body?.consent !== true) return res.status(400).json({ error: "Tick the box to give your permission.", fields: { consent: "Tick the box to give your permission." } });
+  if (await overLimit("showcase", req.user.id, 10)) return res.status(429).json({ error: "Too many attempts. Please wait a little and try again." });
+  req.params.id = String(req.body?.shootId || "");
+  const shoot = await ownShoot(req, res);
+  if (!shoot) return;
+  if (shoot.sample) return res.status(400).json({ error: "Sample shoots can't be shared." });
+  try {
+    const { entry, first } = await showcase.submit(req.user, shoot, String(req.body?.shotId || ""), req.body || {});
+    console.log("[showcase] offered", entry.id, req.user.id);
+    if (first && mailEnabled()) {
+      sendMail({
+        from: { name: "Keeper Headshots website", address: MAIL_FROM },
+        to: CONTACT_TO,
+        subject: `[Customer results] ${entry.name} offered a headshot`,
+        text: [`${entry.name}${entry.role ? `, ${entry.role}` : ""} offered a headshot for the home page.`, entry.quote ? `\n"${entry.quote}"` : "", `\nReview it: ${appOrigin(req)}/app/showcase`].join("\n"),
+      }).catch((err) => console.error("[showcase] notify", err.message));
+    }
+    res.json({ entry: showcase.ownEntry(entry) });
+  } catch (err) {
+    if (!err.status) throw err;
+    res.status(err.status).json({ error: err.message, ...(err.field ? { fields: { [err.field]: err.message } } : {}) });
+  }
+});
+app.delete("/api/showcase/mine", requireUser, async (req, res) => {
+  await showcase.removeForUser(req.user.id);
+  console.log("[showcase] withdrawn", req.user.id);
+  res.json({ ok: true });
+});
+app.get("/api/owner/showcase", requireUser, async (req, res) => {
+  if (!isOwner(req.user)) return res.status(404).json({ error: "Not found" });
+  res.set("Cache-Control", "no-store");
+  const entries = await showcase.forOwner();
+  const owners = await Promise.all(entries.map((e) => users.byId(e.userId).catch(() => null)));
+  res.json({ entries: entries.map((e, i) => ({ ...showcase.ownEntry(e), decidedAt: e.decidedAt, email: owners[i]?.email || null })) });
+});
+app.post("/api/owner/showcase/:id", requireUser, async (req, res) => {
+  if (!isOwner(req.user)) return res.status(404).json({ error: "Not found" });
+  if (req.body?.remove === true) return res.json({ ok: await showcase.remove(req.params.id) });
+  const e = await showcase.decide(req.params.id, String(req.body?.status || ""));
+  if (!e) return res.status(404).json({ error: "That entry is gone." });
+  console.log("[showcase]", e.status, e.id);
+  res.json({ entry: showcase.ownEntry(e) });
 });
 
 // Social preview images for the landing pages (lib/og.js).

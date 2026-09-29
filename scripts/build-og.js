@@ -17,7 +17,7 @@ const corners = (s, pad = 12, len = 30) => {
   return `<path d="M${l} ${t + len}V${t}H${l + len}M${r - len} ${t}H${r}V${t + len}M${r} ${b - len}V${b}H${r - len}M${l + len} ${b}H${l}V${b - len}" />`;
 };
 const page = ({ title, sub }) => `<!doctype html><html><head><meta charset="utf-8"><style>
-@font-face { font-family: Fraunces; src: url(${font("fraunces-latin.woff2")}) format("woff2"); font-weight: 100 900; }
+@font-face { font-family: Fraunces; src: url(${font("fraunces-latin-o72.woff2")}) format("woff2"); font-weight: 100 900; }
 @font-face { font-family: Fraunces; src: url(${font("fraunces-latin-ext.woff2")}) format("woff2"); font-weight: 100 900; unicode-range: U+0100-024F; }
 @font-face { font-family: Figtree; src: url(${font("figtree-latin.woff2")}) format("woff2"); font-weight: 300 900; }
 * { margin: 0; box-sizing: border-box; }

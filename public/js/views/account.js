@@ -2,6 +2,7 @@ import { $, $$, html, raw, esc, icon, state, api, toast, busy, initials } from "
 import { CONTACT_EMAIL } from "./contact.js";
 import { PHOTO_FORMATS } from "../shared/catalog.js";
 import { currentFormat, formatName, saveFormat } from "./format.js";
+import { shareStatus, wireShareRemove } from "./share.js";
 
 const plural = (n) => `${n} ${n === 1 ? "shoot" : "shoots"}`;
 function shootsLeft(plan, credits) {
@@ -28,7 +29,7 @@ export function renderAccount({ root, navigate }) {
         <div><dt>Shoots left</dt><dd>${shootsLeft(u.plan, credits)}</dd></div>
       </dl>
     </section>
-    ${u.plan?.tier === "owner" ? html`<p class="small" style="margin-top:12px"><a class="link" href="/app/funnel" data-link>Sales funnel</a>: sign-ups, photo checks, shoots and purchases by day (owner only).</p>` : ""}
+    ${u.plan?.tier === "owner" ? html`<p class="small" style="margin-top:12px"><a class="link" href="/app/funnel" data-link>Sales funnel</a>: sign-ups, photo checks, shoots and purchases by day. <a class="link" href="/app/showcase" data-link>Customer results</a>: headshots offered for the home page (owner only).</p>` : ""}
     <p class="small muted" style="margin-top:12px">Need to change your name or email? <a class="link" href="/contact?topic=general" data-link>Contact us</a>. Your data and rights are explained in our <a class="link" href="/privacy" data-link>Privacy Policy</a>.</p>
 
     ${u.demo
@@ -38,6 +39,8 @@ export function renderAccount({ root, navigate }) {
       <p class="muted">${u.hasTeam ? "Invite colleagues, follow their progress and download everyone's headshots." : "Buying for a team? Pick one look and invite colleagues by email. Each person adds their own selfies, and everyone's headshots match."}</p>
       <div class="security-actions"><a class="btn btn-ghost" href="/app/team" data-link>${icon("users")} ${u.hasTeam ? "Open my team" : "Set up a team"}</a></div>
     </section>`}
+
+    <div id="shareSlot"></div>
 
     <section class="panel prefs" aria-labelledby="prefs-title">
       <h2 class="h-3" id="prefs-title">Download format</h2>
@@ -110,6 +113,18 @@ export function renderAccount({ root, navigate }) {
   );
 
   if (u.demo) return;
+  // A headshot shared for the home page, if any (views/share.js).
+  const slot = $("#shareSlot", root);
+  api("/api/showcase/mine")
+    .then(({ entry }) => {
+      if (!entry || !slot.isConnected) return;
+      slot.innerHTML = html`<section class="panel prefs" aria-labelledby="share-title">
+        <h2 class="h-3" id="share-title">Your shared headshot</h2>
+        ${shareStatus(entry)}
+      </section>`.v;
+      wireShareRemove(slot, () => (slot.innerHTML = ""));
+    })
+    .catch(() => {});
   const rem = $("#remindersOn", root);
   rem.addEventListener("change", async () => {
     const on = rem.checked;
