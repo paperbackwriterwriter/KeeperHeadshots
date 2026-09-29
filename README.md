@@ -163,7 +163,9 @@ scripts/dev/*             QA only: local API test double, API e2e, screenshot ru
 
 It also saves a full-page screenshot of every state at 390 and 1280px (`<outDir>/shots`). **Look at those too**: the audit measures, but it can't judge everything a person notices.
 
-Run it against a server with a fresh `DATA_DIR`, wired to the mock, with `audit-owner@example.com` in `OWNER_EMAILS`. It exits 1 if it finds anything. Sample photos are replaced with stand-in portraits of the right shape, so broken images don't distort the layout. The film grain is hidden in its screenshots: it's fixed to the screen, so a full-page capture would otherwise show a false "seam" one screen down.
+It also watches the wardrobe strip in motion, with its clock sped up so a full loop fits in about ten seconds. It checks card positions and the actual pixels, and reports a strip that stands still or shows a gap, including cards that are in place but not drawn (what iPhone Safari did).
+
+It runs automatically on GitHub (`.github/workflows/layout.yml`) in both Chromium and WebKit (Safari's engine): on every push to main, on pull requests and nightly. Each run keeps the report and screenshots as a build artifact for 14 days. Locally, `bash scripts/dev/layout-ci.sh [chromium|webkit]` does the same setup. To run the audit by hand instead, point it at a server with a fresh `DATA_DIR`, wired to the mock, with `audit-owner@example.com` in `OWNER_EMAILS`. It exits 1 if it finds anything. Sample photos are replaced with stand-in portraits of the right shape, so broken images don't distort the layout. The film grain is hidden in its screenshots: it's fixed to the screen, so a full-page capture would otherwise show a false "seam" one screen down.
 
 ### QA without spending API credits
 

@@ -1,0 +1,46 @@
+# Layout audit (scripts/dev/layout-audit.mjs) in Chromium and in WebKit,
+# Safari's engine: every page and app state at eight widths, plus the
+# wardrobe strip in motion. Runs on every push to main, on pull requests,
+# and nightly. The report and screenshots are kept as a build artifact.
+name: Layout
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "37 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: layout-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - name: Install ${{ matrix.browser }}
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Layout audit
+        run: bash scripts/dev/layout-ci.sh ${{ matrix.browser }} layout-audit
+      - name: Keep the report and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: layout-audit-${{ matrix.browser }}
+          path: layout-audit
+          retention-days: 14

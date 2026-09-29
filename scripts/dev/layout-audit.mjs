@@ -5,13 +5,19 @@
 // elements, and buttons of different heights side by side. It also saves a
 // full-page screenshot of every state at phone and desktop width, to look at.
 //
+// It also watches the wardrobe strip move (with the animation clock sped
+// up, so a whole loop fits in a few seconds) and reports if it stands
+// still or ever shows a gap.
+//
+// BROWSER=webkit runs it in WebKit, Safari's engine (default: chromium).
 // Needs the server on BASE wired to scripts/dev/mock-ai.js, with
-// AUDIT_OWNER (default audit-owner@example.com) in its OWNER_EMAILS:
+// AUDIT_OWNER (default audit-owner@example.com) in its OWNER_EMAILS, and a
+// fresh DATA_DIR (scripts/dev/layout-ci.sh sets all of this up):
 //   node scripts/dev/layout-audit.mjs <outDir>
 // Writes <outDir>/report.txt (and prints it) plus <outDir>/shots/*.png.
 // Exits 1 if anything was found.
 
-import { chromium } from "playwright";
+import { chromium, webkit } from "playwright";
 import sharp from "sharp";
 import fs from "node:fs";
 import path from "node:path";
@@ -24,6 +30,7 @@ const OUT = process.argv[2] || "layout-audit";
 const WIDTHS = (process.env.WIDTHS || "320,375,390,412,768,1024,1280,1440").split(",").map(Number);
 const SHOT_WIDTHS = [390, 1280];
 const ONLY = process.env.ONLY ? new RegExp(process.env.ONLY) : null;
+const BROWSER = process.env.BROWSER === "webkit" ? "webkit" : "chromium";
 fs.mkdirSync(path.join(OUT, "shots"), { recursive: true });
 
 /* ---------- Accounts and shoots, made through the API ---------- */
@@ -115,6 +122,7 @@ const openMenu = async (p) => { if (await p.locator("#navToggle").isVisible()) {
 const STATES = [
   ...["/", "/linkedin-headshots", "/team-headshots", "/real-estate-headshots", "/resume-headshots", "/doctor-headshots", "/lawyer-headshots", "/contact", "/refunds", "/privacy", "/terms", "/signin", "/signup", "/forgot-password"].map((u) => ({ name: u === "/" ? "home" : u.slice(1), url: u })),
   { name: "home-menu", url: "/", prep: openMenu, phoneOnly: true },
+  { name: "home-strip", url: "/", motion: stripMotion, widths: [390, 1280] },
   { name: "signin-errors", url: "/signin", prep: click("form button[type=submit]") },
   { name: "reset-invalid", url: "/reset?token=not-a-real-token-000000000" },
   { name: "verify-invalid", url: "/verify?token=not-a-real-token-000000000" },
@@ -142,6 +150,65 @@ const STATES = [
   { name: "team-admin", url: "/app/team", who: owner },
   { name: "funnel", url: "/app/funnel", who: owner },
 ].filter((s) => !ONLY || ONLY.test(s.name));
+
+/* ---------- The wardrobe strip, in motion ---------- */
+
+// Samples the strip for a full loop and reports if it never moves, or if a
+// gap wider than the normal space between cards ever shows. (Both happened
+// on iPhone Safari: a blank stretch at the end of each loop, then a strip
+// that stood still.)
+const SPEEDUP = 8;
+async function stripMotion(p) {
+  const found = [];
+  await p.locator(".marquee").scrollIntoViewIfNeeded();
+  await p.waitForTimeout(600);
+  const sample = () =>
+    p.evaluate(() => {
+      const box = document.querySelector(".marquee").getBoundingClientRect();
+      const cards = [...document.querySelectorAll(".marquee-group > li")].filter((li) => getComputedStyle(li).display !== "none");
+      const shown = cards.map((li) => li.getBoundingClientRect()).filter((r) => r.right > box.left && r.left < box.right).sort((a, b) => a.left - b.left);
+      let gap = 0;
+      let cur = box.left;
+      for (const r of shown) {
+        gap = Math.max(gap, r.left - cur);
+        cur = Math.max(cur, r.right);
+      }
+      gap = Math.max(gap, box.right - cur);
+      return { gap: Math.round(gap), pos: cards.map((li) => Math.round(li.getBoundingClientRect().left)).join(",") };
+    });
+  // Cards can be in place yet not drawn (what iPhone Safari did), so also
+  // look at the pixels: the widest run of columns across the photo band
+  // that are nothing but page background.
+  const bg = await p.evaluate(() => getComputedStyle(document.body).backgroundColor.match(/\d+/g).slice(0, 3).map(Number));
+  const strip = p.locator(".marquee");
+  const blank = async () => {
+    const { data, info } = await sharp(await strip.screenshot()).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const rows = [0.3, 0.4, 0.5, 0.6].map((f) => Math.round(info.height * f));
+    let run = 0;
+    let widest = 0;
+    for (let x = 0; x < info.width; x++) {
+      const empty = rows.every((y) => {
+        const i = (y * info.width + x) * info.channels;
+        return Math.abs(data[i] - bg[0]) + Math.abs(data[i + 1] - bg[1]) + Math.abs(data[i + 2] - bg[2]) < 24;
+      });
+      run = empty ? run + 1 : 0;
+      widest = Math.max(widest, run);
+    }
+    return Math.round(widest / (info.width / (await strip.boundingBox()).width)); // in CSS px
+  };
+  const samples = [];
+  // One loop is about a minute; sped up, it fits in about ten seconds.
+  for (let i = 0; i < 40; i++) {
+    samples.push({ ...(await sample()), blank: await blank() });
+    await p.waitForTimeout(150);
+  }
+  if (new Set(samples.map((x) => x.pos)).size < 3) found.push({ kind: "strip doesn't move", el: "div.marquee", detail: "card positions unchanged over 10 seconds" });
+  const worst = Math.max(...samples.map((x) => x.gap));
+  if (worst > 24) found.push({ kind: "strip shows a gap", el: "div.marquee", detail: `${worst}px of empty strip at one point in the loop (cards are 16px apart)` });
+  const unpainted = Math.max(...samples.map((x) => x.blank));
+  if (unpainted > 40) found.push({ kind: "strip shows a blank stretch", el: "div.marquee", detail: `${unpainted}px of the strip drawn as bare background at one point in the loop` });
+  return found;
+}
 
 /* ---------- What gets measured on each page ---------- */
 
@@ -303,14 +370,20 @@ async function exampleImage(url) {
   return placeholder.get(key);
 }
 
-const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || "/opt/pw-browsers/chromium" });
+// A locally installed Chromium if there is one (this dev container); else
+// Playwright's own browsers (CI installs them).
+const localChromium = process.env.CHROMIUM || "/opt/pw-browsers/chromium";
+const browser = BROWSER === "webkit" ? await webkit.launch() : await chromium.launch(fs.existsSync(localChromium) ? { executablePath: localChromium } : {});
+console.log(`browser: ${BROWSER} ${browser.version()}`);
 const results = new Map(); // key -> { state, kind, el, detail, widths }
 const errors = [];
 for (const s of STATES) {
   const url = typeof s.url === "function" ? null : s.url;
-  for (const w of WIDTHS) {
+  for (const w of s.widths || WIDTHS) {
     if (s.phoneOnly && w > 640) continue;
-    const ctx = await browser.newContext({ viewport: { width: w, height: w < 700 ? 844 : 900 }, reducedMotion: "reduce" });
+    const ctx = await browser.newContext({ viewport: { width: w, height: w < 700 ? 844 : 900 }, reducedMotion: s.motion ? "no-preference" : "reduce" });
+    // Motion checks run the page's animation clock faster.
+    if (s.motion) await ctx.addInitScript((k) => { const raf = window.requestAnimationFrame.bind(window); const t0 = performance.now(); window.requestAnimationFrame = (cb) => raf((t) => cb(t0 + (t - t0) * k)); }, SPEEDUP);
     if (s.who) await ctx.addCookies([{ name: s.who.jar.v.split("=")[0], value: s.who.jar.v.split("=").slice(1).join("="), url: BASE }]);
     await ctx.route("**/examples/**", async (route) => route.fulfill({ contentType: "image/webp", body: await exampleImage(route.request().url()) }));
     await ctx.route(/^https:\/\//, (route) => route.abort());
@@ -329,13 +402,13 @@ for (const s of STATES) {
       });
       await p.waitForTimeout(300);
       if (s.prep) await s.prep(p);
-      for (const f of await p.evaluate(measure)) {
+      for (const f of s.motion ? await s.motion(p) : await p.evaluate(measure)) {
         const key = `${s.name}|${f.kind}|${f.el}`;
         const r = results.get(key) || { state: s.name, ...f, widths: [] };
         r.widths.push(w);
         results.set(key, r);
       }
-      if (SHOT_WIDTHS.includes(w)) await p.screenshot({ path: path.join(OUT, "shots", `${s.name}-${w}.png`), fullPage: s.full !== false });
+      if (SHOT_WIDTHS.includes(w) && !s.motion) await p.screenshot({ path: path.join(OUT, "shots", `${s.name}-${w}.png`), fullPage: s.full !== false });
     } catch (err) {
       errors.push(`${s.name} @${w}: ${err.message.split("\n")[0]}`);
     }
@@ -353,7 +426,7 @@ for (const [state, rs] of byState) {
   for (const r of rs) lines.push(`  - ${r.kind}: ${r.el} — ${r.detail} [at ${r.widths.join(", ")}px]`);
 }
 if (errors.length) lines.push("\nErrors while loading", ...errors.map((e) => "  - " + e));
-const summary = `${STATES.length} pages/states x ${WIDTHS.length} widths: ${results.size} finding(s)${errors.length ? `, ${errors.length} error(s)` : ""}`;
+const summary = `${BROWSER}: ${STATES.length} pages/states x ${WIDTHS.length} widths: ${results.size} finding(s)${errors.length ? `, ${errors.length} error(s)` : ""}`;
 const report = [summary, ...lines].join("\n");
 fs.writeFileSync(path.join(OUT, "report.txt"), report + "\n");
 console.log("\n" + report);
