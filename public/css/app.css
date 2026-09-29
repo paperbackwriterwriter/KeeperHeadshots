@@ -1020,7 +1020,10 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
   .ring { --size: 112px; }
   .pcheck { grid-template-columns: 92px 1fr; }
   .hero-ctas .btn { flex: 1 1 100%; }
-  .hero-proof { gap: var(--s-4); }
+  /* Three equal columns so all three points stay on one row on a phone. */
+  .hero-proof { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3); }
+  .proof-item strong { font-size: var(--fs-md); white-space: nowrap; }
+  .proof-item span { font-size: var(--fs-xs); line-height: 1.35; }
   .step-item { grid-template-columns: 52px 1fr; gap: var(--s-3); }
   .step-no { font-size: 2.6rem; }
   .scoreboard strong { font-size: 2rem; }
