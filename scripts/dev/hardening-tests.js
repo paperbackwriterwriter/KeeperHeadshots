@@ -244,6 +244,17 @@ if (process.env.DATA_DIR) {
   ok("article addresses load the blog", (await fetch(B + "/blog/some-article")).status === 200 && (await fetch(B + "/blog/not.an.article")).status === 404);
 }
 
+// 15d. /llms.txt (a summary for AI search tools) is served and its prices
+// match the packages, so it can't go stale when prices change.
+{
+  const r = await fetch(B + "/llms.txt");
+  const txt = await r.text();
+  const { PACKAGES } = await import("../../public/js/shared/catalog.js");
+  ok("llms.txt is served as text", r.status === 200 && /text\/plain/.test(r.headers.get("content-type") || "") && txt.startsWith("# Keeper Headshots"));
+  const wrong = PACKAGES.filter((p) => !txt.includes(`${p.name}: $${p.price} one-time, ${p.shoots} shoots`));
+  ok("llms.txt prices match the packages", !wrong.length, wrong.map((p) => p.name).join(", "));
+}
+
 // 16. At most 20 undeveloped shoots per account.
 {
   const f = await account(`drafts${t}@x.com`);
