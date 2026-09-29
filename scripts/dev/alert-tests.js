@@ -28,6 +28,13 @@ await wait(900);
 let mail = await sent();
 ok("a burst of errors sends one summary email", mail.length === 1 && /3 errors/.test(mail[0].subject), mail.map((m) => m.subject).join(" | "));
 
+// Node's own warnings (printed as errors) don't send an alert.
+console.error("(node:4) ExperimentalWarning: vm.USE_MAIN_CONTEXT_DEFAULT_LOADER is an experimental feature and might change at any time");
+console.error("(node:4) [DEP0040] DeprecationWarning: The `punycode` module is deprecated.");
+await wait(900);
+mail = await sent();
+ok("Node warnings don't send an alert", mail.length === 1, `${mail.length} emails`);
+
 // The hourly cap (2 here) holds: a third burst isn't emailed.
 console.error("second burst");
 await wait(900);
