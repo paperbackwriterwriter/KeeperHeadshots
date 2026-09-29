@@ -29,7 +29,7 @@ server() {
     ANTHROPIC_API_KEY=sk-ant-test ANTHROPIC_BASE_URL=$M GEMINI_API_KEY=test GEMINI_BASE_URL=$M \
     RESEND_API_KEY=re_test RESEND_BASE_URL=$M META_PIXEL_ID=123456 META_CAPI_TOKEN=tok META_GRAPH_BASE=$M \
     STRIPE_SECRET_KEY=sk_test_mock STRIPE_API_BASE=$M STRIPE_PUBLISHABLE_KEY=pk_test_mockmockmock \
-    ADMIN_TOKEN=ci-admin-token-ci-admin-token OWNER_EMAILS=owner-ci@example.com,funnel-owner@example.com,slots-owner@example.com,showcase-owner@example.com RENDER_SLOTS=3 \
+    ADMIN_TOKEN=ci-admin-token-ci-admin-token OWNER_EMAILS=owner-ci@example.com,funnel-owner@example.com,slots-owner@example.com,showcase-owner@example.com,invite-owner@example.com RENDER_SLOTS=3 \
     node server.js >"$WORK/server-$1.log" 2>&1 &
   PIDS+=($!)
 }

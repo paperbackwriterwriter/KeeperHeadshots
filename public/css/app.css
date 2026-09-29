@@ -1337,7 +1337,7 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
 .delete-form .check { display: flex; gap: 10px; align-items: flex-start; font-size: var(--fs-sm); color: #7d1a11; cursor: pointer; }
 .delete-form .check input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--danger); flex: none; }
 .prefs .check { display: inline-flex; gap: 10px; align-items: center; margin-top: 4px; font-weight: 600; cursor: pointer; }
-.prefs .check input { width: 20px; height: 20px; margin: 0; accent-color: var(--ink-950); flex: none; cursor: pointer; }
+.prefs .check input { width: 20px; height: 20px; margin: 0; accent-color: var(--text); flex: none; cursor: pointer; }
 .delete-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 /* Download format (studio results + account) */
 .fmt-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -1513,7 +1513,7 @@ select.input { appearance: none; padding-right: 44px; cursor: pointer; backgroun
 .share-head { display: flex; gap: 16px; align-items: flex-start; }
 .share-head .ficon { flex: none; }
 .share-head p { margin-top: 6px; max-width: 64ch; }
-.share-status { display: flex; gap: 16px; align-items: flex-start; padding: 16px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--paper-50); }
+.share-status { display: flex; gap: 16px; align-items: flex-start; padding: 16px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface-sunken); }
 .share-status img { width: 96px; height: 128px; object-fit: cover; border-radius: 10px; flex: none; }
 .share-status > div { display: grid; gap: 8px; justify-items: start; min-width: 0; }
 .share-status q { font-style: italic; }
@@ -1525,12 +1525,12 @@ select.input { appearance: none; padding-right: 44px; cursor: pointer; backgroun
 .share-pick { position: relative; cursor: pointer; border-radius: 12px; }
 .share-pick input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
 .share-pick img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 12px; border: 3px solid transparent; transition: border-color 0.15s; }
-.share-pick input:checked + img { border-color: var(--ink-950); }
+.share-pick input:checked + img { border-color: var(--text); }
 .share-pick input:focus-visible + img { outline: 3px solid var(--flash-500); outline-offset: 2px; }
 .share-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--s-4); }
 textarea.input.share-quote { min-height: 96px; }
 .share-form .check { display: flex; gap: 10px; align-items: flex-start; font-size: var(--fs-sm); cursor: pointer; max-width: 70ch; }
-.share-form .check input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--ink-950); flex: none; }
+.share-form .check input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--text); flex: none; }
 .share-form .field-error:not([hidden]) { margin-top: -8px; }
 
 /* Customer results on the home page (views/landing.js) */

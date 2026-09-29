@@ -92,6 +92,7 @@ let shootId;
   const r = await member(`/api/join/${token}`, { method: "POST" });
   shootId = r.j?.shootId;
   ok("accepting creates a team shoot", r.status === 200 && !!shootId && r.j.user.emailVerified === true, JSON.stringify(r.j));
+  ok("the invitation alone doesn't unlock the free shoot", r.j.user.plan.needsEmail === true && r.j.user.plan.canDevelop === false, JSON.stringify(r.j.user.plan));
   const again = await member(`/api/join/${token}`, { method: "POST" });
   ok("accepting again returns the same shoot", again.j?.shootId === shootId);
   ok("the invitation now points to their shoot", (await member(`/api/join/${token}`)).j.mine === shootId);
@@ -142,6 +143,19 @@ let final;
   ok("deleting an undeveloped team shoot returns the seat", (await credits(admin)) === mid + 1, `${mid} -> ${await credits(admin)}`);
   const m = (await admin("/api/team")).j.team.members.find((x) => x.email === carol);
   ok("the member shows as returned", m?.status === "returned", m?.status);
+}
+
+// 7b. Accepting an invitation to an owner address (made by someone who
+// doesn't own that inbox) never gives owner access.
+{
+  const target = "invite-owner@example.com";
+  const r = await admin("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: target }) });
+  const link = r.j.results[0].link;
+  const squatter = await account(target, { verify: false });
+  const j = await squatter(`/api/join/${tokenOf(link)}`, { method: "POST" });
+  ok("an invitation doesn't grant owner access", j.status === 200 && j.j.user.plan.tier !== "owner", JSON.stringify(j.j?.user?.plan));
+  const again = (await squatter("/api/me")).j.user.plan;
+  ok("nor a free shoot for the unproven address", again.tier !== "owner" && again.canDevelop === false, JSON.stringify(again));
 }
 
 // 8. With no shoots left, invites are refused.

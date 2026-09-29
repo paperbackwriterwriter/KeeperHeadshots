@@ -337,7 +337,13 @@ document.addEventListener("submit", async (e) => {
     state.user = res.user;
     if (res.status === "verified") pixel("CompleteRegistration", {}, res.eventId);
     toast("Email confirmed. Your free shoot is ready.", "success", 6000);
-    render();
+    // Swap just the banner, so a page in progress (photos being picked on
+    // /app/new) keeps its state.
+    const { planBanner } = await import("./views/dashboard.js");
+    const banner = form.closest(".banner");
+    const next = planBanner();
+    if (banner) banner.outerHTML = next ? next.v : "";
+    else render();
   } catch (e2) {
     restore();
     if (e2.status === 401) return navigate(`/signin?next=${encodeURIComponent(location.pathname)}`);

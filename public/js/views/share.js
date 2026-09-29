@@ -32,7 +32,7 @@ export function wireShareRemove(scope, after) {
     const restore = busy(e.currentTarget, "Taking it down…");
     try {
       await api("/api/showcase/mine", { method: "DELETE" });
-      toast("Taken down. It's no longer shown anywhere.", "success");
+      toast("Taken down. It disappears from the site within about 10 minutes.", "success");
       after();
     } catch (err) {
       restore();

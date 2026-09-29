@@ -11,7 +11,7 @@ import { runReminders, checkUnsubscribeToken } from "./lib/reminders.js";
 import { ogImage } from "./lib/og.js";
 import * as showcase from "./lib/showcase.js";
 import { CONTACT_TO } from "./lib/contact.js";
-import { hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailCode, checkEmailCode, emailVerified, resetToken, checkResetToken } from "./lib/auth.js";
+import { hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailCode, checkEmailCode, emailVerified, ownsMailbox, resetToken, checkResetToken } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import { pageFor, blogPostPage, isCanonicalHost } from "./lib/seo.js";
@@ -180,7 +180,7 @@ app.post("/api/auth/verify", async (req, res) => {
   const { user, error } = await checkEmailToken(req.body?.token);
   if (error === "invalid") return res.status(400).json({ error: "This confirmation link isn't valid. Make sure you copied the whole link, or ask for a new one.", code: "invalid" });
   const me = await currentUser(req);
-  if (emailVerified(user)) return res.json({ status: "already", user: me ? publicUser(me) : null });
+  if (ownsMailbox(user)) return res.json({ status: "already", user: me ? publicUser(me) : null });
   // The link confirms the address; it never signs anyone in. (Signing in from
   // it would let someone send their own unclicked link to another person and
   // have that person work, and upload photos, inside the sender's account.)
@@ -193,6 +193,7 @@ async function markVerified(user, req) {
   const updated = await users.update(user.id, (u) => {
     u.emailVerified = true;
     u.emailVerifiedAt = new Date().toISOString();
+    delete u.emailVerifiedVia;
   });
   const eventId = `reg_${user.id}`;
   trackMeta("CompleteRegistration", { eventId, user: updated, req });
@@ -203,8 +204,18 @@ async function markVerified(user, req) {
 // The 6-digit code from the same email (lib/auth.js), typed on the page the
 // person is signed in on. It confirms only the signed-in account.
 app.post("/api/auth/verify/code", requireUser, async (req, res) => {
-  if (emailVerified(req.user)) return res.json({ status: "already", user: publicUser(req.user) });
-  if (await overLimit("verifycode", req.user.id, 8)) return res.status(429).json({ error: "Too many tries. Wait a while, or use the link in the email instead.", code: "rate_limited" });
+  if (ownsMailbox(req.user)) return res.json({ status: "already", user: publicUser(req.user) });
+  // Guessing limits: a few tries an hour per account and per connection, and
+  // 20 in all per account, after which only the emailed link works.
+  const tooMany = { error: "Too many tries. Use the link in the email instead, or wait a while.", code: "rate_limited" };
+  if ((await overLimit("verifycode", req.user.id, 8)) || (await overLimit("verifycodeip", req.ip || "unknown", 30))) return res.status(429).json(tooMany);
+  let spent = false;
+  await users.update(req.user.id, (u) => {
+    spent = (u.verifyCodeTries || 0) >= 20;
+    if (!spent) u.verifyCodeTries = (u.verifyCodeTries || 0) + 1;
+    return spent ? UNCHANGED : undefined;
+  });
+  if (spent) return res.status(429).json(tooMany);
   if (!checkEmailCode(req.user, req.body?.code)) {
     return res.status(400).json({ error: "That code isn't right. Check the latest email from us, or use its link.", fields: { code: "That code isn't right." } });
   }
@@ -214,7 +225,7 @@ app.post("/api/auth/verify/code", requireUser, async (req, res) => {
 });
 
 app.post("/api/auth/verify/resend", requireUser, async (req, res) => {
-  if (emailVerified(req.user)) return res.json({ status: "already", user: publicUser(req.user) });
+  if (ownsMailbox(req.user)) return res.json({ status: "already", user: publicUser(req.user) });
   const now = Date.now();
   const sends = (req.user.verifySends || []).filter((t) => now - t < 24 * 60 * 60 * 1000);
   if (sends.length && now - sends[sends.length - 1] < 60 * 1000) return res.status(429).json({ error: "We just sent one. Give it a minute, and check your spam folder too." });
@@ -503,7 +514,8 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   if (!canEditPhotos(meta)) return res.status(409).json({ error: "This shoot has already been developed. Start a new shoot to check new photos." });
   const plan = planFor(req.user);
   if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
-  if (plan.needsEmail) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
+  // A team shoot can go ahead on the invitation alone (lib/teams.js).
+  if (plan.needsEmail && !(meta.team && emailVerified(req.user))) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
   const limitMsg = `Free accounts include ${FREE.checks} photo checks, and you've used them. Buy a package to keep going.`;
   if (plan.checksLeft === 0) throw new PlanError(limitMsg);
   // One check at a time per shoot: a double-click doesn't run (or count) twice.
@@ -1161,10 +1173,11 @@ app.post("/api/owner/showcase/:id", requireUser, async (req, res) => {
 
 // Social preview images for the landing pages (lib/og.js).
 app.get(/^\/og\/([a-z-]+)\.png$/, async (req, res) => {
-  const buf = await ogImage(req.params[0]);
-  if (!buf) return res.status(404).end();
-  res.set("Cache-Control", "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400");
-  res.type("image/png").send(buf);
+  const og = await ogImage(req.params[0]);
+  if (!og) return res.status(404).end();
+  // A preview with a missing example is retried soon rather than kept a week.
+  res.set("Cache-Control", og.complete ? "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400" : "public, max-age=300, s-maxage=300");
+  res.type("image/png").send(og.buf);
 });
 
 // The sign-up funnel (lib/stats.js), for owner accounts (OWNER_EMAILS) only.

@@ -77,6 +77,12 @@ await users.update(buyer.id, (u) => void (u.usage = { freeShootUsed: freeShoot }
   await users.update(credited.id, (u) => void (u.usage = { freeShootUsed: cs }));
   ok("no buy reminder with shoots left", !(await dueReminder(await fresh(credited))));
 
+  const cant = await person("cant", { usage: { freeShootUsed: "sht_gone" } });
+  await shoot(cant, { days: 3 });
+  ok("no develop reminder for someone who can't develop now", !(await dueReminder(await fresh(cant))));
+  const invited = await person("invited", { emailVerifiedVia: "invite" });
+  await shoot(invited, { days: 3 });
+  ok("never to an address confirmed only by a team invitation", !(await dueReminder(await fresh(invited))));
   const unverified = await person("unverified", { emailVerified: false });
   await shoot(unverified, { days: 3 });
   ok("never to an unconfirmed address", !(await dueReminder(await fresh(unverified))));

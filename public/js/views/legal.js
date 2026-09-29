@@ -29,7 +29,7 @@ export function renderPrivacy({ root }) {
     title: "Your privacy",
     lede: "What we collect, why we collect it, who helps us run the service, and the choices you have.",
     callout:
-      "We use your photos only to make your headshots. We don't sell them, we don't use them to train AI, and we don't use them in our marketing. You can delete a shoot, or your whole account, at any time.",
+      "We use your photos only to make your headshots. We don't sell them, we don't use them to train AI, and we don't use them in our marketing unless you choose to share one. You can delete a shoot, or your whole account, at any time.",
     body: html`
       <p>This policy covers keeperheadshots.com and the Keeper Headshots studio ("Keeper Headshots", "we", "us"). Keeper Headshots is based in Iowa, USA. If you have a question about your data, email ${mail}.</p>
 

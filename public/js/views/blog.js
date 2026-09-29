@@ -26,7 +26,7 @@ export function renderBlog({ root }) {
       <h1 class="display h-1" style="margin-top:12px">Headshot tips and guides</h1>
       <p class="lede">Advice on professional headshots: what to wear, where to use them, and how to make a great first impression online.</p>
     </header>
-    <div class="blog-embed" aria-live="polite"><div id="soro-blog"></div></div>
+    <div class="blog-embed"><div id="soro-blog"></div></div>
     <p class="blog-fallback muted" id="blogFallback" hidden data-prerender-skip>The articles didn't load. Check your connection and <a class="link" href="/blog">try again</a>.</p>
   </main>
   ${footer()}`.v;
