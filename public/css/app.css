@@ -1563,3 +1563,22 @@ textarea.input.share-quote { min-height: 96px; }
 .blog-embed { min-height: 240px; max-width: 880px; }
 .blog-embed img { max-width: 100%; height: auto; }
 .blog-fallback { margin-top: var(--s-4); }
+/* Soro draws its articles in dark text for a light page. In dark mode the
+   articles sit on a light "paper" card, with the light theme's colors, so
+   they stay readable whatever colors Soro uses. */
+@media (prefers-color-scheme: dark) {
+  .blog-embed {
+    color-scheme: light;
+    --text: #14213d;
+    --text-muted: #525c6c;
+    --text-subtle: #5d6573;
+    --border: #ddd4c2;
+    --border-strong: #c9bea8;
+    --accent-text: #8c6a2c;
+    background: #fbf8f2;
+    color: #14213d;
+    border-radius: var(--r-lg);
+    padding: clamp(20px, 4vw, 40px);
+  }
+  .blog-embed:not(:has(#soro-blog > *)) { background: none; padding: 0; }
+}
