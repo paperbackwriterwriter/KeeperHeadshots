@@ -20,6 +20,12 @@
       "permanent": true
     }
   ],
+  "rewrites": [
+    {
+      "source": "/v/:build/js/:path*",
+      "destination": "/js/:path*"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -44,6 +50,15 @@
     },
     {
       "source": "/fonts/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/v/(.*)",
       "headers": [
         {
           "key": "Cache-Control",

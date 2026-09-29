@@ -1114,6 +1114,18 @@ app.get("/api/cron/backup", cronOnly, async (req, res) => {
 
 /* ------------------------------- Static ----------------------------- */
 
+// Scripts are addressed by version, /v/<build>/js/... (lib/seo.js). The
+// folder only changes when the code does, so browsers keep them for a year.
+// (On Vercel the CDN serves these through a rewrite in vercel.json; this is
+// for local runs, and a fallback.)
+app.use((req, res, next) => {
+  const m = /^\/v\/[\w-]{1,40}(\/js\/.*)$/.exec(req.path);
+  if (!m) return next();
+  req.url = m[1];
+  if (process.env.NODE_ENV === "production") res.set("Cache-Control", "public, max-age=31536000, immutable");
+  express.static(path.join(__dirname, "public"), { fallthrough: false, cacheControl: process.env.NODE_ENV !== "production", maxAge: 0 })(req, res, next);
+});
+
 // On Vercel, files in public/ are served by the CDN before reaching Express.
 app.use(express.static(path.join(__dirname, "public"), { extensions: ["html"], maxAge: process.env.NODE_ENV === "production" ? "1h" : 0 }));
 

@@ -1,6 +1,6 @@
 // Shared helpers: DOM templating, icons, API client, toasts, session state.
 
-import { ICONS } from "/js/icons.js";
+import { ICONS } from "./icons.js";
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
