@@ -4,6 +4,7 @@
 // header, checkout rate limit, one account per email under a race. Run against
 // a local server wired to scripts/dev/mock-ai.js (see race-tests.js):
 //   node scripts/dev/hardening-tests.js
+import fs from "node:fs";
 import sharp from "sharp";
 import { portraitSVG } from "../../public/js/shared/portrait.js";
 const B = process.env.BASE || "http://localhost:3100", M = "http://localhost:4010";
@@ -180,6 +181,19 @@ const signin = (email, password, ip) => fetch(B + "/api/auth/signin", { method: 
   const sameNet = await signin(email, "password123", "198.51.100.7");
   const otherNet = await signin(email, "password123", "198.51.100.8");
   ok("sign-in lock is per network, not per account", wrong.slice(0, 10).every((s) => s === 401) && wrong[10] === 429 && sameNet === 429 && otherNet === 200, `${wrong.join(",")} same=${sameNet} other=${otherNet}`);
+}
+
+// 12b. Wrong passwords just before the current 15-minute window began still
+// count. Needs the server's DATA_DIR to seed the previous window.
+if (process.env.DATA_DIR) {
+  const { counterKey, hashId } = await import("../../lib/ratelimit.js");
+  const email = `edge${t}@x.com`, ip = "198.51.100.21";
+  await account(email);
+  const file = `${process.env.DATA_DIR}/${counterKey("signin", email, 15 * 60 * 1000, 1)}`;
+  fs.mkdirSync(file.replace(/\/[^/]+$/, ""), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ ips: { [hashId(ip).slice(0, 12)]: 9 }, total: 9 }));
+  const tries = [await signin(email, "wrong-password", ip), await signin(email, "password123", ip)];
+  ok("sign-in lock counts the previous window too", tries[0] === 401 && tries[1] === 429, tries.join(","));
 }
 
 // 13. The public demo account can't be locked by wrong passwords.

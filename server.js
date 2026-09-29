@@ -23,7 +23,7 @@ import { BUILD, BUILD_FILES } from "./lib/build.js";
 import { contactEnabled, validate as validateContact, rateLimited, submit as submitContact } from "./lib/contact.js";
 import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExample, generateSquare as generateExampleSquare, generateSet as generateExampleSet, exampleImage, sheet as exampleSheet } from "./lib/examples.js";
 import crypto from "node:crypto";
-import { withCounter, overLimit, hashId } from "./lib/ratelimit.js";
+import { withCounter, readCounter, overLimit, hashId } from "./lib/ratelimit.js";
 import { recordStep, funnelReport, STEPS } from "./lib/stats.js";
 import * as teams from "./lib/teams.js";
 import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook, stripePublishableKey, stripeMode } from "./lib/billing.js";
@@ -133,10 +133,10 @@ app.post("/api/auth/signin", async (req, res) => {
   if (isEmail(email) && email.toLowerCase().trim() === DEMO.email) await seed();
   const user = isEmail(email) ? await users.byEmail(email) : null;
   // Slow down password guessing without letting a stranger lock someone out:
-  // per email address and 15-minute window, 10 wrong passwords from one
-  // network (IP) refuse that network, and 100 from everywhere refuse all
-  // sign-ins for the rest of the window (lib/ratelimit.js, shared by every
-  // server). The attempt is recorded atomically before the password is
+  // per email address, 10 wrong passwords from one network (IP) refuse that
+  // network, and 100 from everywhere refuse all sign-ins, counting the
+  // current 15-minute window and the one before it, so guesses either side of
+  // a window's start still add up (lib/ratelimit.js, shared by every server). The attempt is recorded atomically before the password is
   // checked (so a burst of parallel guesses counts every one) and taken back
   // on success. Unknown addresses are counted too, so neither the timing nor
   // a 429 reveals which addresses have accounts. The demo account's password
@@ -146,9 +146,10 @@ app.post("/api/auth/signin", async (req, res) => {
   const net = hashId(req.ip || "unknown").slice(0, 12);
   let locked = false;
   if (counted) {
+    const prev = await readCounter("signin", addr, SIGNIN_WINDOW_MS, 1).catch(() => ({}));
     locked = await withCounter("signin", addr, SIGNIN_WINDOW_MS, (r) => {
       const fromHere = r.ips?.[net] || 0;
-      if (fromHere >= SIGNIN_MAX_FAILS || (r.total || 0) >= SIGNIN_MAX_TOTAL) return true;
+      if (fromHere + (prev.ips?.[net] || 0) >= SIGNIN_MAX_FAILS || (r.total || 0) + (prev.total || 0) >= SIGNIN_MAX_TOTAL) return true;
       r.ips = { ...r.ips, [net]: fromHere + 1 };
       r.total = (r.total || 0) + 1;
       return false;
@@ -160,10 +161,12 @@ app.post("/api/auth/signin", async (req, res) => {
   const ok = await verifyPassword(String(password || "").slice(0, 1000), user?.password || DUMMY_HASH);
   if (!user || !password || !ok) return res.status(401).json({ error: "That email and password don't match an account." });
   if (counted) {
-    await withCounter("signin", addr, SIGNIN_WINDOW_MS, (r) => {
-      r.total = Math.max(0, (r.total || 0) - (r.ips?.[net] || 0));
+    const forgive = (r) => {
+      if (!r.ips?.[net]) return;
+      r.total = Math.max(0, (r.total || 0) - r.ips[net]);
       r.ips = { ...r.ips, [net]: 0 };
-    }).catch(() => {});
+    };
+    await Promise.all([0, 1].map((back) => withCounter("signin", addr, SIGNIN_WINDOW_MS, forgive, back))).catch(() => {});
   }
   setSession(res, user);
   res.json({ user: publicUser(user) });
@@ -279,10 +282,11 @@ app.post("/api/auth/password/reset", async (req, res) => {
   });
   if (used) return invalid();
   // Proving they own the inbox lifts any sign-in lock on the address.
-  await withCounter("signin", user.email.toLowerCase(), SIGNIN_WINDOW_MS, (r) => {
+  const lift = (r) => {
     r.ips = {};
     r.total = 0;
-  }).catch(() => {});
+  };
+  await Promise.all([0, 1].map((back) => withCounter("signin", user.email.toLowerCase(), SIGNIN_WINDOW_MS, lift, back))).catch(() => {});
   if (newlyVerified) {
     trackMeta("CompleteRegistration", { eventId: `reg_${user.id}`, user: updated, req });
     background(recordStep("verified", updated).catch(noteStats));
