@@ -1556,3 +1556,10 @@ textarea.input.share-quote { min-height: 96px; }
   .sc-item img { width: 88px; }
   .share-status img { width: 72px; height: 96px; }
 }
+
+/* Blog (views/blog.js): the articles are rendered by Soro's embed */
+.blog-head { max-width: 760px; margin-bottom: var(--s-6); }
+.blog-head .lede { margin-top: var(--s-4); }
+.blog-embed { min-height: 240px; max-width: 880px; }
+.blog-embed img { max-width: 100%; height: auto; }
+.blog-fallback { margin-top: var(--s-4); }

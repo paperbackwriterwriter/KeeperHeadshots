@@ -1279,9 +1279,18 @@ const CSP = [
   "form-action 'self' https://www.facebook.com",
   "frame-ancestors 'none'",
 ].join("; ");
+// The blog's articles come from Soro (views/blog.js): its script, the data it
+// fetches and the images and styles it shows are allowed on /blog pages only.
+const SORO = "https://app.trysoro.com https://*.trysoro.com";
+const BLOG_CSP = CSP.replace("script-src 'self'", `script-src 'self' ${SORO}`)
+  .replace("style-src 'self'", `style-src 'self' ${SORO}`)
+  .replace("font-src 'self'", `font-src 'self' ${SORO}`)
+  .replace("img-src 'self' data: blob:", "img-src 'self' data: blob: https:")
+  .replace("connect-src 'self'", `connect-src 'self' ${SORO}`)
+  .replace("frame-src ", `frame-src ${SORO} `);
 
 app.get(/.*/, (req, res) => {
-  res.set("Content-Security-Policy", CSP);
+  res.set("Content-Security-Policy", /^\/blog(\/|$)/.test(req.path) ? BLOG_CSP : CSP);
   // "//evil.com/" or "/\\evil.com" must never become a redirect to another site.
   if (/^\/[\/\\]/.test(req.path) || req.path.includes("\\")) return res.status(404).type("html").send(pageFor("/__not_found__").html);
   const clean = req.path.length > 1 ? "/" + req.path.replace(/\/+$/, "").replace(/^\/+/, "") : "/";

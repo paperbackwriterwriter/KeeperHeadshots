@@ -135,7 +135,7 @@ for (const e of shared.slice(0, 2)) await owner(`/api/owner/showcase/${e.id}`, {
 const click = (sel) => async (p) => { await p.click(sel); await p.waitForTimeout(500); };
 const openMenu = async (p) => { if (await p.locator("#navToggle").isVisible()) { await p.click("#navToggle"); await p.waitForTimeout(400); } };
 const STATES = [
-  ...["/", "/linkedin-headshots", "/team-headshots", "/real-estate-headshots", "/resume-headshots", "/doctor-headshots", "/lawyer-headshots", "/contact", "/refunds", "/privacy", "/terms", "/signin", "/signup", "/forgot-password"].map((u) => ({ name: u === "/" ? "home" : u.slice(1), url: u })),
+  ...["/", "/linkedin-headshots", "/team-headshots", "/real-estate-headshots", "/resume-headshots", "/doctor-headshots", "/lawyer-headshots", "/blog", "/contact", "/refunds", "/privacy", "/terms", "/signin", "/signup", "/forgot-password"].map((u) => ({ name: u === "/" ? "home" : u.slice(1), url: u })),
   { name: "home-menu", url: "/", prep: openMenu, phoneOnly: true },
   { name: "home-strip", url: "/", motion: stripMotion, widths: [390, 1280] },
   { name: "signin-errors", url: "/signin", prep: click("form button[type=submit]") },

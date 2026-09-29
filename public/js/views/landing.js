@@ -531,7 +531,7 @@ export function footer() {
         </div>
         <div><h2 class="footer-h">Product</h2><ul><li><a href="/#how">How it works</a></li><li><a href="/linkedin-headshots" data-link>LinkedIn headshots</a></li><li><a href="/#styles">Styles</a></li><li><a href="/#pricing">Pricing</a></li><li><a href="/team-headshots" data-link>Team headshots</a></li><li><a href="/real-estate-headshots" data-link>Real estate headshots</a></li><li><a href="/resume-headshots" data-link>Résumé headshots</a></li><li><a href="/doctor-headshots" data-link>Doctor headshots</a></li><li><a href="/lawyer-headshots" data-link>Lawyer headshots</a></li></ul></div>
         <div><h2 class="footer-h">Account</h2><ul><li><a href="/signin" data-link>Sign in</a></li><li><a href="/signup" data-link>Create account</a></li><li><a href="/app" data-link>Your shoots</a></li></ul></div>
-        <div><h2 class="footer-h">Company</h2><ul><li><a href="/#faq">FAQ</a></li><li><a href="/contact" data-link>Contact us</a></li><li><a href="/refunds" data-link>Money-back guarantee</a></li><li><a href="/privacy" data-link>Privacy policy</a></li><li><a href="/terms" data-link>Terms of service</a></li></ul></div>
+        <div><h2 class="footer-h">Company</h2><ul><li><a href="/blog">Blog</a></li><li><a href="/#faq">FAQ</a></li><li><a href="/contact" data-link>Contact us</a></li><li><a href="/refunds" data-link>Money-back guarantee</a></li><li><a href="/privacy" data-link>Privacy policy</a></li><li><a href="/terms" data-link>Terms of service</a></li></ul></div>
       </div>
       <div class="footer-base"><span>© ${new Date().getFullYear()} Keeper Headshots</span><span>Your photos are never used to train AI models.</span></div>
     </div>

@@ -39,6 +39,8 @@ for (const path of Object.keys(PAGES)) {
   const html = await page.evaluate(() => {
     const app = document.getElementById("app").cloneNode(true);
     app.querySelectorAll(".toast, [data-prerender-skip]").forEach((el) => el.remove());
+    // Content loaded from elsewhere at view time (the blog's articles) isn't baked in.
+    app.querySelectorAll("[data-prerender-empty]").forEach((el) => (el.innerHTML = ""));
     return app.innerHTML;
   });
   out[path] = clean(html);

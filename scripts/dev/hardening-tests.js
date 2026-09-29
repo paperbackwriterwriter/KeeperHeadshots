@@ -229,6 +229,15 @@ if (process.env.DATA_DIR) {
   ok("unknown preview images are 404", (await fetch(B + "/og/nothing.png")).status === 404);
 }
 
+// 15c. Soro's blog script is allowed on /blog pages only.
+{
+  const csp = async (p) => (await fetch(B + p)).headers.get("content-security-policy") || "";
+  const [blog, post, home, buy] = [await csp("/blog"), await csp("/blog/some-article"), await csp("/"), await csp("/app/buy/starter")];
+  ok("the blog allows Soro's script", /script-src[^;]*app\.trysoro\.com/.test(blog) && /script-src[^;]*app\.trysoro\.com/.test(post));
+  ok("other pages don't", !/trysoro/.test(home) && !/trysoro/.test(buy));
+  ok("article addresses load the blog", (await fetch(B + "/blog/some-article")).status === 200 && (await fetch(B + "/blog/not.an.article")).status === 404);
+}
+
 // 16. At most 20 undeveloped shoots per account.
 {
   const f = await account(`drafts${t}@x.com`);

@@ -8,6 +8,7 @@ const renderDashboard = lazy(() => import("./views/dashboard.js"), "renderDashbo
 const renderStudio = lazy(() => import("./views/studio.js"), "renderStudio");
 const renderBuy = lazy(() => import("./views/buy.js"), "renderBuy");
 const renderContact = lazy(() => import("./views/contact.js"), "renderContact");
+const renderBlog = lazy(() => import("./views/blog.js"), "renderBlog");
 const renderRefunds = lazy(() => import("./views/refunds.js"), "renderRefunds");
 const renderPrivacy = lazy(() => import("./views/legal.js"), "renderPrivacy");
 const renderTerms = lazy(() => import("./views/legal.js"), "renderTerms");
@@ -34,6 +35,7 @@ let cleanup = null;
 const routes = [
   { path: /^\/$/, view: renderLanding, chrome: "marketing", title: "Professional AI Headshots from Selfies | Keeper Headshots" },
   { path: /^\/linkedin-headshots$/, view: renderLinkedIn, chrome: "marketing", title: "LinkedIn Headshots from Selfies | Keeper Headshots" },
+  { path: /^\/blog(\/[\w-]+)?$/, view: renderBlog, chrome: "marketing", title: "Blog: headshot tips and guides · Keeper Headshots" },
   { path: /^\/team-headshots$/, view: renderTeam, chrome: "marketing", title: "Team Headshots for Companies | Keeper Headshots" },
   { path: /^\/real-estate-headshots$/, view: renderRealEstate, chrome: "marketing", title: "Real Estate Agent Headshots | Keeper Headshots" },
   { path: /^\/resume-headshots$/, view: renderResume, chrome: "marketing", title: "Résumé & CV Headshots from Selfies | Keeper Headshots" },
@@ -312,9 +314,12 @@ document.addEventListener("click", async (e) => {
 // Intercept in-app links.
 document.addEventListener("click", (e) => {
   const a = e.target.closest("a[data-link], a[href^='/']");
-  if (!a || a.target || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0 || a.hasAttribute("download")) return;
+  if (e.defaultPrevented || !a || a.target || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0 || a.hasAttribute("download")) return;
   const url = new URL(a.href, location.origin);
   if (url.origin !== location.origin || url.pathname.startsWith("/media/")) return;
+  // The blog loads fresh: its page allows Soro's script, other pages don't.
+  // Within the blog, the embed's own links reload it with the new address.
+  if (/^\/blog(\/|$)/.test(url.pathname) || /^\/blog(\/|$)/.test(location.pathname)) return;
   // A newer version was deployed since this tab loaded: load the page fresh.
   if (updateReady()) return;
   e.preventDefault();
