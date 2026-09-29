@@ -111,7 +111,7 @@ function marketingNav() {
     <div class="container nav-inner">
       <a class="logo" href="/" data-link>${logoMark()}${wordmark()}</a>
       <nav class="nav-links" aria-label="Primary">
-        <a href="/#how">How it works</a><a href="/#styles">Styles</a><a href="/#pricing">Pricing</a><a href="/team-headshots" data-link>Teams</a><a href="/#faq">FAQ</a>
+        <a href="/#how">How it works</a><a href="/#styles">Styles</a><a href="/#pricing">Pricing</a><a href="/team-headshots" data-link>Teams</a><a href="/blog">Blog</a><a href="/#faq">FAQ</a>
       </nav>
       <div class="nav-actions">
         ${signedIn
@@ -122,7 +122,7 @@ function marketingNav() {
       </div>
     </div>
     <div class="nav-sheet" id="navSheet">
-      <a href="/#how">How it works</a><a href="/#styles">Styles</a><a href="/#pricing">Pricing</a><a href="/team-headshots" data-link>Teams</a><a href="/#faq">FAQ</a><a href="/contact" data-link>Contact</a>
+      <a href="/#how">How it works</a><a href="/#styles">Styles</a><a href="/#pricing">Pricing</a><a href="/team-headshots" data-link>Teams</a><a href="/blog">Blog</a><a href="/#faq">FAQ</a><a href="/contact" data-link>Contact</a>
       ${signedIn ? html`<a href="/app" data-link>Your shoots</a>` : html`<a href="/signin" data-link>Sign in</a>`}
       <a class="btn btn-flash btn-block" href="${signedIn ? "/app/new" : "/signup"}" data-link>Get your headshots ${icon("arrow-right")}</a>
     </div>
