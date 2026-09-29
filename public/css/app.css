@@ -18,6 +18,22 @@
 @font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/plex-mono-latin-400.woff2") format("woff2"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
 @font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("/fonts/plex-mono-latin-500.woff2") format("woff2"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
 
+/* Stand-ins drawn until the web fonts arrive, scaled to the same letter
+   widths so text wraps the same and nothing jumps when they swap in (layout
+   shift). Fraunces narrows as it grows (optical size), so headings get one
+   set matched to the phone headline (~46-60px, "S") and one to the desktop
+   headline (~70-86px, "L"); --font-display switches at 901px. Scales come
+   from each font's average letter width (Capsize metrics): Georgia on
+   Apple/Windows, Noto Serif on Android, DejaVu on Linux. */
+@font-face { font-family: "Fraunces S Georgia"; src: local("Georgia"); size-adjust: 102.3%; ascent-override: 95.6%; descent-override: 24.9%; line-gap-override: 0%; }
+@font-face { font-family: "Fraunces S Noto"; src: local("Noto Serif"), local("NotoSerif-Regular"), local("Noto Serif Regular"); size-adjust: 94.8%; ascent-override: 103.2%; descent-override: 26.9%; line-gap-override: 0%; }
+@font-face { font-family: "Fraunces S DejaVu"; src: local("DejaVu Serif"), local("DejaVuSerif"); size-adjust: 88.3%; ascent-override: 110.8%; descent-override: 28.9%; line-gap-override: 0%; }
+@font-face { font-family: "Fraunces L Georgia"; src: local("Georgia"); size-adjust: 96.0%; ascent-override: 101.9%; descent-override: 26.6%; line-gap-override: 0%; }
+@font-face { font-family: "Fraunces L Noto"; src: local("Noto Serif"), local("NotoSerif-Regular"), local("Noto Serif Regular"); size-adjust: 89.0%; ascent-override: 109.9%; descent-override: 28.7%; line-gap-override: 0%; }
+@font-face { font-family: "Fraunces L DejaVu"; src: local("DejaVu Serif"), local("DejaVuSerif"); size-adjust: 82.9%; ascent-override: 118.0%; descent-override: 30.8%; line-gap-override: 0%; }
+@font-face { font-family: "Figtree Arial"; src: local("Arial"), local("ArialMT"), local("Helvetica"), local("Roboto"), local("Roboto-Regular"), local("Segoe UI"); size-adjust: 100.8%; ascent-override: 94.2%; descent-override: 24.8%; line-gap-override: 0%; }
+@font-face { font-family: "Figtree DejaVu"; src: local("DejaVu Sans"), local("DejaVuSans"); size-adjust: 88.3%; ascent-override: 107.6%; descent-override: 28.3%; line-gap-override: 0%; }
+
 /* ---------- 1. Tokens ---------- */
 :root {
   /* Color — raw */
@@ -77,8 +93,8 @@
   --photo-paper: #ffffff;
 
   /* Type */
-  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
-  --font-body: "Figtree", "Avenir Next", "Segoe UI", sans-serif;
+  --font-display: "Fraunces", "Fraunces S Georgia", "Fraunces S Noto", "Fraunces S DejaVu", Georgia, serif;
+  --font-body: "Figtree", "Figtree Arial", "Figtree DejaVu", "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
   --fs-2xs: 0.6875rem; /* 11 */
   --fs-xs: 0.75rem; /* 12 */
@@ -132,6 +148,9 @@
   --dur-4: 720ms;
   --dur-5: 1200ms;
 }
+
+/* Desktop headlines are bigger, so Fraunces is narrower there (see 0. Fonts). */
+@media (min-width: 901px) { :root { --font-display: "Fraunces", "Fraunces L Georgia", "Fraunces L Noto", "Fraunces L DejaVu", Georgia, serif; } }
 
 /* ---------- 2. Base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
