@@ -122,6 +122,33 @@ await users.update(buyer.id, (u) => void (u.usage = { freeShootUsed: freeShoot }
   ok("each is recorded on the account", !!(await fresh(dev)).reminders?.develop && !!(await fresh(buyer)).reminders?.buy);
 }
 
+// 3b. An unfinished checkout gets one reminder that links back to that
+// package, and then no "buy" reminder: only one reminder about buying.
+{
+  const shopper = await person("shopper", { lastCheckout: { packageId: "professional", at: ago(2) } });
+  ok("unfinished checkout → checkout reminder", (await dueReminder(await fresh(shopper)))?.kind === "checkout");
+  const soon = await person("cosoon", { lastCheckout: { packageId: "starter", at: ago(0.2) } });
+  ok("not within a day of the checkout", !(await dueReminder(await fresh(soon))));
+  const late = await person("colate", { lastCheckout: { packageId: "starter", at: ago(9) } });
+  ok("not after a week", !(await dueReminder(await fresh(late))));
+  const bought = await person("cobought", { lastCheckout: { packageId: "starter", at: ago(2) }, purchases: [{ id: "cs_9" }] });
+  ok("not once they've bought", !(await dueReminder(await fresh(bought))));
+  const junk = await person("cojunk", { lastCheckout: { packageId: "nope", at: ago(2) } });
+  ok("not for an unknown package", !(await dueReminder(await fresh(junk))));
+
+  const both = await person("both", { lastCheckout: { packageId: "starter", at: ago(3) } });
+  const fs2 = await shoot(both, { days: 5, status: "done", developed: true });
+  await users.update(both.id, (u) => void (u.usage = { freeShootUsed: fs2 }));
+  ok("checkout comes before buy", (await dueReminder(await fresh(both)))?.kind === "checkout");
+
+  const r = await runReminders({ origin: "https://example.test", state: {} });
+  ok("the run sends both checkout reminders", r.sent === 2, JSON.stringify(r));
+  const [m] = await mailsTo(shopper.email);
+  ok("it names the package and links back to it", m?.subject === "Still deciding on your headshots?" && m.links.includes("https://example.test/app/buy/professional"), JSON.stringify(m));
+  ok("it offers one-click unsubscribe", /\/api\/unsubscribe\?token=/.test(m?.headers?.["List-Unsubscribe"] || ""));
+  ok("then no buy reminder too", !(await dueReminder(await fresh(both))), JSON.stringify((await fresh(both)).reminders));
+}
+
 // 4. Against the server: the unsubscribe page's call, mail apps' one-click
 // POST, and the account-page switch.
 {

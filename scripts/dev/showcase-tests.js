@@ -56,6 +56,21 @@ const shoot = await doneShoot(dana);
 const [shotA, shotB] = shoot.shots.filter((x) => x.status === "done");
 const before = await shown();
 
+// 0. "Your headshots are ready" goes out once when a shoot finishes, and not
+// again after a regrade.
+{
+  const ready = async () => (await mails()).filter((m) => m.to.includes(`dana${t}@x.com`) && m.subject === "Your headshots are ready");
+  await new Promise((r) => setTimeout(r, 500));
+  const first = await ready();
+  ok("a ready email is sent when the shoot finishes", first.length === 1 && first[0].links.some((l) => l.endsWith(`/app/shoot/${shoot.id}`)), JSON.stringify(first.map((m) => m.links)));
+  await dana(`/api/shoots/${shoot.id}/review`, { method: "POST", body: "{}" });
+  for (let i = 0; i < 30; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    if ((await dana(`/api/shoots/${shoot.id}`)).j.shoot.status === "done") break;
+  }
+  ok("a regrade doesn't send it again", (await ready()).length === 1);
+}
+
 // 1. Offering needs permission, one of your own finished headshots, and a name.
 let entry;
 {

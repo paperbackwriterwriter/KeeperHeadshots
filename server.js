@@ -869,6 +869,9 @@ app.post("/api/billing/checkout", requireUser, async (req, res) => {
   if (tooMany) return res.status(429).json({ error: "You've started several checkouts in the last hour. Please try again a little later, or contact us." });
   const embedded = req.body?.embedded === true && !!stripePublishableKey();
   const checkout = await createCheckout(req.user, String(req.body?.packageId || ""), origin, { gpc: gpc(req), embedded });
+  // For the one "unfinished checkout" reminder (lib/reminders.js).
+  const packageId = String(req.body?.packageId || "");
+  await users.update(req.user.id, (u) => void (u.lastCheckout = { packageId, at: new Date().toISOString() })).catch((err) => console.error("[checkout] record", err.message));
   const eventId = `checkout_${checkout.id}`;
   trackMeta("InitiateCheckout", { eventId, user: req.user, req, value: checkout.value });
   res.json(embedded ? { clientSecret: checkout.clientSecret, eventId, value: checkout.value } : { url: checkout.url, eventId, value: checkout.value });

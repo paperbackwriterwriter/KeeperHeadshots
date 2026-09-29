@@ -45,8 +45,8 @@ export function renderPrivacy({ root }) {
       <h2 class="h-3">How we use it</h2>
       <ul>
         <li>To run the studio: check your photos, create your headshots, run our quality check on every headshot, and show you the results.</li>
-        <li>To manage your account and purchases, including refunds, and to send account emails such as the link that confirms your email address.</li>
-        <li>To send at most two reminder emails: one if your photos pass the check but you haven't developed them, and one after your free shoot. Every reminder has a link to stop them, and you can turn them off on your <a class="link" href="/app/account" data-link>Account page</a>.</li>
+        <li>To manage your account and purchases, including refunds, and to send account emails such as the link that confirms your email address and a note when your headshots are ready.</li>
+        <li>To send at most two reminder emails: one if your photos pass the check but you haven't developed them, and one after your free shoot or if you start a checkout and don't finish it. Every reminder has a link to stop them, and you can turn them off on your <a class="link" href="/app/account" data-link>Account page</a>.</li>
         <li>To answer your messages and help with your shoots.</li>
         <li>To keep the service secure and prevent fraud and abuse, including misuse of the free shoot.</li>
         <li>To measure how well our ads work (see "Advertising and cookies" below).</li>
