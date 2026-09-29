@@ -1582,3 +1582,33 @@ textarea.input.share-quote { min-height: 96px; }
   }
   .blog-embed:not(:has(#soro-blog > *)) { background: none; padding: 0; }
 }
+
+/* Email confirmation code in the banner (views/dashboard.js, app.js) */
+.verify-code { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; align-items: flex-start; }
+.verify-code .input { width: 9.5em; min-height: 44px; font-family: var(--font-mono); font-size: 1.125rem; letter-spacing: 0.12em; text-align: center; }
+.verify-code .btn { min-height: 44px; }
+.verify-code .field-error { flex-basis: 100%; margin: 0; }
+
+/* Home page on phones: a selfie → headshot pair right under the headline, and
+   the buttons before the longer description, so the first screen shows what
+   the product does and how to start (views/landing.js). Desktop keeps the
+   contact sheet beside the text. */
+.hero-ba { display: none; }
+@media (max-width: 900px) {
+  .hero-grid > div:first-child { display: flex; flex-direction: column; }
+  .hero-grid > div:first-child > .eyebrow { order: 0; }
+  .hero-grid > div:first-child > h1 { order: 1; margin-bottom: var(--s-4); }
+  .hero-ba { order: 2; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px; max-width: 420px; width: 100%; }
+  .hero-grid > div:first-child > .hero-ctas { order: 3; margin-top: var(--s-5); }
+  .hero-grid > div:first-child > .lede { order: 4; margin-top: var(--s-5); }
+  .hero-grid > div:first-child > .hero-proof { order: 5; }
+  .hero-ba figure { margin: 0; position: relative; }
+  .hero-ba img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 14px; box-shadow: var(--shadow-md, 0 8px 24px rgba(20, 33, 61, 0.14)); }
+  .hero-ba figure:first-child img { transform: rotate(-2deg); }
+  .hero-ba figcaption { position: absolute; left: 8px; bottom: 8px; padding: 3px 8px; border-radius: 999px; background: rgba(20, 33, 61, 0.78); color: #f7f2e9; font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.04em; }
+  .hero-ba-arrow { color: var(--accent-text); display: grid; place-items: center; }
+  .hero-ba-arrow svg { width: 26px; height: 26px; }
+}
+.verify-code .input { flex: 1 1 8em; max-width: 12em; }
+.verify-resend { margin-top: 8px; font-size: var(--fs-sm); }
+.link-btn { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }

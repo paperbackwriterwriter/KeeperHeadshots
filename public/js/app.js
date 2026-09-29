@@ -306,12 +306,43 @@ document.addEventListener("click", async (e) => {
       // On the verify page itself, re-running it would show "couldn't confirm".
       return location.pathname === "/verify" ? navigate("/app") : render();
     }
-    toast(`Sent. Check ${res.email} for a link from hello@keeperheadshots.com.`, "success", 7000);
+    toast(`Sent. Check ${res.email} for a code and link from hello@keeperheadshots.com.`, "success", 7000);
     btn.textContent = "Email sent";
   } catch (err) {
     restore();
     if (err.status === 401) return navigate(`/signin?next=${encodeURIComponent("/app")}`);
     toast(err.message, "error", 7000);
+  }
+});
+
+// The 6-digit code from the confirmation email, typed into the banner
+// (views/dashboard.js planBanner). Confirms the signed-in account.
+document.addEventListener("submit", async (e) => {
+  const form = e.target.closest("form[data-verify-code]");
+  if (!form) return;
+  e.preventDefault();
+  const input = form.querySelector("input");
+  const err = form.querySelector(".field-error");
+  const showError = (msg) => {
+    err.textContent = msg || "";
+    err.hidden = !msg;
+    input.setAttribute("aria-invalid", msg ? "true" : "false");
+  };
+  const code = input.value.replace(/\D/g, "");
+  if (code.length !== 6) return showError("Enter the 6 digits from the email."), input.focus();
+  showError("");
+  const restore = busy(form.querySelector("button[type=submit]"), "Checking…");
+  try {
+    const res = await api("/api/auth/verify/code", { method: "POST", body: { code } });
+    state.user = res.user;
+    if (res.status === "verified") pixel("CompleteRegistration", {}, res.eventId);
+    toast("Email confirmed. Your free shoot is ready.", "success", 6000);
+    render();
+  } catch (e2) {
+    restore();
+    if (e2.status === 401) return navigate(`/signin?next=${encodeURIComponent(location.pathname)}`);
+    showError(e2.message);
+    input.focus();
   }
 });
 

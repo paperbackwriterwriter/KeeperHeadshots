@@ -11,7 +11,7 @@ import { runReminders, checkUnsubscribeToken } from "./lib/reminders.js";
 import { ogImage } from "./lib/og.js";
 import * as showcase from "./lib/showcase.js";
 import { CONTACT_TO } from "./lib/contact.js";
-import { hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailVerified, resetToken, checkResetToken } from "./lib/auth.js";
+import { hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailCode, checkEmailCode, emailVerified, resetToken, checkResetToken } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import { pageFor, blogPostPage, isCanonicalHost } from "./lib/seo.js";
@@ -93,7 +93,7 @@ async function sendVerification(user, req) {
     console.warn("[verify] Email is not configured; no confirmation email sent for", user.id, process.env.VERCEL ? "" : link);
     return false;
   }
-  const { subject, text, html } = verificationEmail({ name: user.name, link });
+  const { subject, text, html } = verificationEmail({ name: user.name, link, code: emailCode(user) });
   await sendMail({ from: { name: "Keeper Headshots", address: MAIL_FROM }, to: { name: user.name, address: user.email }, subject, text, html });
   return true;
 }
@@ -185,6 +185,11 @@ app.post("/api/auth/verify", async (req, res) => {
   // it would let someone send their own unclicked link to another person and
   // have that person work, and upload photos, inside the sender's account.)
   if (error === "expired") return res.status(410).json({ error: "This confirmation link has expired. Ask for a new one below.", code: "expired", signedIn: me?.id === user.id });
+  const { updated, eventId } = await markVerified(user, req);
+  res.json({ status: "verified", user: me?.id === user.id ? publicUser(updated) : me ? publicUser(me) : null, eventId });
+});
+
+async function markVerified(user, req) {
   const updated = await users.update(user.id, (u) => {
     u.emailVerified = true;
     u.emailVerifiedAt = new Date().toISOString();
@@ -192,7 +197,20 @@ app.post("/api/auth/verify", async (req, res) => {
   const eventId = `reg_${user.id}`;
   trackMeta("CompleteRegistration", { eventId, user: updated, req });
   background(recordStep("verified", updated).catch(noteStats));
-  res.json({ status: "verified", user: me?.id === user.id ? publicUser(updated) : me ? publicUser(me) : null, eventId });
+  return { updated, eventId };
+}
+
+// The 6-digit code from the same email (lib/auth.js), typed on the page the
+// person is signed in on. It confirms only the signed-in account.
+app.post("/api/auth/verify/code", requireUser, async (req, res) => {
+  if (emailVerified(req.user)) return res.json({ status: "already", user: publicUser(req.user) });
+  if (await overLimit("verifycode", req.user.id, 8)) return res.status(429).json({ error: "Too many tries. Wait a while, or use the link in the email instead.", code: "rate_limited" });
+  if (!checkEmailCode(req.user, req.body?.code)) {
+    return res.status(400).json({ error: "That code isn't right. Check the latest email from us, or use its link.", fields: { code: "That code isn't right." } });
+  }
+  const { updated, eventId } = await markVerified(req.user, req);
+  console.log("[verify] confirmed by code", req.user.id);
+  res.json({ status: "verified", user: publicUser(updated), eventId });
 });
 
 app.post("/api/auth/verify/resend", requireUser, async (req, res) => {

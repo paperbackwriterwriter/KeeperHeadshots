@@ -46,14 +46,19 @@ export function renderLanding({ root }) {
         <div>
           <p class="eyebrow" data-reveal style="--i:0"><span class="dot"></span>The AI headshot studio</p>
           <h1 class="display h-hero" data-reveal style="--i:1">Professional AI headshots, <em>without</em> the photo shoot.</h1>
+          <div class="hero-ba" role="img" aria-label="Example: a casual selfie, and a professional headshot made from it" data-reveal style="--i:2">
+            <figure><img src="${example("hero-selfie", 360)}" alt="" width="360" height="480" fetchpriority="high" /><figcaption>Your selfie</figcaption></figure>
+            <span class="hero-ba-arrow" aria-hidden="true">${icon("arrow-right")}</span>
+            <figure><img src="${example("hero-2", 360)}" alt="" width="360" height="480" fetchpriority="high" /><figcaption>Your headshot</figcaption></figure>
+          </div>
           <p class="lede" data-reveal style="--i:2">Upload a few selfies. Our AI studio checks your photos, develops studio-quality headshots in the looks you choose, then grades every frame so you know exactly which one to use.</p>
           <div class="hero-ctas" data-reveal style="--i:3">
-            <a class="btn btn-flash btn-lg" href="${cta}" data-link>Create your headshots ${icon("arrow-right")}</a>
+            <a class="btn btn-flash btn-lg" href="${cta}" data-link>${state.user ? "Create your headshots" : "Try it free"} ${icon("arrow-right")}</a>
             <a class="btn btn-ghost btn-lg" href="/#how">See how it works</a>
           </div>
           <div class="hero-proof" data-reveal style="--i:4">
             <div class="proof-item"><strong class="tabular">&lt; 15 min</strong><span>typical turnaround</span></div>
-            <div class="proof-item"><strong class="tabular">From $29</strong><span>one-time, no subscription</span></div>
+            <div class="proof-item"><strong>Free</strong><span>first shoot, no card needed</span></div>
             <div class="proof-item"><strong class="tabular">Refund</strong><span>if none are usable</span></div>
           </div>
         </div>

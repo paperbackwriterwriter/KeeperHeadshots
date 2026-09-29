@@ -255,6 +255,27 @@ if (process.env.DATA_DIR) {
   ok("llms.txt prices match the packages", !wrong.length, wrong.map((p) => p.name).join(", "));
 }
 
+// 15e. The confirmation email's 6-digit code confirms the signed-in account
+// only (for people who signed up in Facebook's in-app browser).
+{
+  const codeOf = async (email) => /(\d{6}) is your Keeper Headshots code/.exec((await mailFor(email)).map((m) => m.subject).join("\n"))?.[1];
+  const a = client(), bee = client();
+  const ea = `code${t}@x.com`, eb = `codeb${t}@x.com`;
+  await a("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Code A", email: ea, password: "password123" }) });
+  await bee("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Code B", email: eb, password: "password123" }) });
+  const [ca, cb] = [await codeOf(ea), await codeOf(eb)];
+  ok("the confirmation email carries a code", /^\d{6}$/.test(ca || "") && /^\d{6}$/.test(cb || ""), `${ca} ${cb}`);
+  const wrong = await a("/api/auth/verify/code", { method: "POST", body: JSON.stringify({ code: ca === "000000" ? "000001" : "000000" }) });
+  ok("a wrong code is refused", wrong.status === 400 && wrong.j.user === undefined);
+  ok("another account's code is refused", (await a("/api/auth/verify/code", { method: "POST", body: JSON.stringify({ code: cb }) })).status === 400);
+  ok("the code needs a signed-in account", (await client()("/api/auth/verify/code", { method: "POST", body: JSON.stringify({ code: ca }) })).status === 401);
+  const good = await a("/api/auth/verify/code", { method: "POST", body: JSON.stringify({ code: `${ca.slice(0, 3)} ${ca.slice(3)}` }) });
+  ok("the right code confirms the account", good.status === 200 && good.j.status === "verified" && good.j.user.emailVerified === true && good.j.user.plan.canDevelop === true, JSON.stringify(good.j));
+  let limited = false;
+  for (let i = 0; i < 10 && !limited; i++) limited = (await bee("/api/auth/verify/code", { method: "POST", body: JSON.stringify({ code: "111111" }) })).status === 429;
+  ok("guessing is limited", limited);
+}
+
 // 16. At most 20 undeveloped shoots per account.
 {
   const f = await account(`drafts${t}@x.com`);

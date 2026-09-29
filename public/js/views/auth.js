@@ -119,7 +119,7 @@ export function renderAuth({ root, navigate }, mode) {
       state.user = res.user;
       const first = res.user.name.split(" ")[0];
       if (!isUp) toast(`Welcome back, ${first}.`, "success");
-      else if (res.user.plan?.needsEmail && dest !== "/join") toast(`Welcome, ${first}. Check your inbox: click the link we sent to ${res.user.email} to unlock your free shoot.`, "success", 9000);
+      else if (res.user.plan?.needsEmail && dest !== "/join") toast(`Welcome, ${first}. We emailed a 6-digit code to ${res.user.email}: enter it on the next page to unlock your free shoot.`, "success", 9000);
       else toast(`Welcome, ${first}. Let's make some headshots.`, "success");
       navigate(dest);
     } catch (err) {
