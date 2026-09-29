@@ -54,7 +54,7 @@ export function renderFunnel({ root, navigate }) {
             <span class="funnel-label">${label}</span>
             <span class="funnel-track"><span class="funnel-bar" style="width:${Math.max(n ? 1.5 : 0, Math.min(100, (n / top) * 100))}%"></span></span>
             <span class="funnel-n">${n}</span>
-            <span class="funnel-rate">${buyer ? html`${pct(n, t.signup)} <small>of sign-ups</small>` : i ? html`${pct(n, prev)} <small>of previous</small>` : html`<small>&nbsp;</small>`}</span>
+            <span class="funnel-rate">${buyer ? html`<b>${pct(n, t.signup)}</b><small>of sign-ups</small>` : i ? html`<b>${pct(n, prev)}</b><small>of previous</small>` : html`<b>${n ? "100%" : "—"}</b><small>starting point</small>`}</span>
           </div>`;
         })}
         <div class="funnel-sum">
@@ -65,12 +65,13 @@ export function renderFunnel({ root, navigate }) {
         </div>
       </section>
       <p class="small muted funnel-note">Each person is counted once per step, on the day they reach it, so a period's steps can include people who signed up before it. Demo and owner accounts aren't counted. Days with no activity aren't listed. Counting started on 28 Sep 2026. Visitors are in <a class="link" href="https://vercel.com/christianswebsites/keeperheadshots/analytics" target="_blank" rel="noopener">Vercel Analytics</a>.</p>
+      <p class="small muted funnel-scroll-hint">Swipe the table sideways to see every column.</p>
       <div class="panel funnel-table-wrap">
         <table class="funnel-table">
           <thead><tr><th scope="col">Day</th>${STEPS.map(([, l]) => html`<th scope="col">${l.replace(/ (their|a) /, " ")}</th>`)}<th scope="col">Purchases</th><th scope="col">Revenue</th></tr></thead>
           <tbody>
             ${active.length ? "" : html`<tr><td colspan="${STEPS.length + 3}" style="text-align:left">No activity in this period yet.</td></tr>`}
-            ${active.map((d) => html`<tr><th scope="row">${shortDate(d.date)}</th>${STEPS.map(([k]) => html`<td>${d[k] || ""}</td>`)}<td>${d.purchases || ""}</td><td>${d.revenue ? money(d.revenue) : ""}</td></tr>`)}
+            ${active.map((d) => html`<tr><th scope="row">${shortDate(d.date)}</th>${STEPS.map(([k]) => html`<td>${d[k] || ""}</td>`)}<td>${d.purchases || ""}</td><td>${d.revenue || d.purchases ? money(d.revenue || 0) : ""}</td></tr>`)}
           </tbody>
         </table>
       </div>`.v;

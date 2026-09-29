@@ -922,14 +922,18 @@ body:has(.develop-bar) .toasts { bottom: calc(96px + env(safe-area-inset-bottom)
 
 /* Owner's sales funnel (/app/funnel) */
 .funnel { display: grid; gap: var(--s-4); }
-.funnel-row { display: grid; grid-template-columns: minmax(9rem, 13rem) 1fr 3.5rem 7.5rem; gap: var(--s-3); align-items: center; }
+.funnel-row { display: grid; grid-template-columns: minmax(9rem, 13rem) 1fr 3.5rem 10rem; gap: var(--s-3); align-items: center; }
 .funnel-label { font-weight: 600; font-size: var(--fs-sm); }
 .funnel-track { height: 14px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--ink) 7%, transparent); overflow: hidden; }
 .funnel-bar { display: block; height: 100%; border-radius: inherit; background: var(--ink); }
 .funnel-row-buy .funnel-bar { background: var(--accent); }
 .funnel-n { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
-.funnel-rate { font-family: var(--font-mono); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+/* The percentage in a fixed, right-aligned column, so the words after it line up. */
+.funnel-rate { display: grid; grid-template-columns: 4.5ch 1fr; gap: 6px; align-items: baseline; font-family: var(--font-mono); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.funnel-rate b { font-weight: 600; text-align: right; }
 .funnel-rate small { color: var(--text-muted); font-family: var(--font-body, inherit); }
+.funnel-scroll-hint { display: none; margin: 0 0 var(--s-2); }
+@media (max-width: 640px) { .funnel-scroll-hint { display: block; } }
 .funnel-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--s-4); border-top: 1px solid var(--border); padding-top: var(--s-4); }
 .funnel-sum div { display: grid; gap: 2px; align-content: start; }
 .funnel-sum b { font-family: var(--font-display); font-size: var(--fs-xl); font-variant-numeric: tabular-nums lining-nums; }
@@ -944,7 +948,8 @@ body:has(.develop-bar) .toasts { bottom: calc(96px + env(safe-area-inset-bottom)
 @media (max-width: 560px) {
   .funnel-row { grid-template-columns: 1fr auto; row-gap: 6px; }
   .funnel-track { grid-column: 1 / -1; order: 3; }
-  .funnel-rate { grid-column: 1 / -1; order: 4; }
+  .funnel-rate { grid-column: 1 / -1; order: 4; grid-template-columns: auto 1fr; }
+  .funnel-rate b { text-align: left; }
 }
 .filter { min-height: 40px; padding: 0 14px; border-radius: var(--r-pill); border: 1px solid var(--border); background: transparent; cursor: pointer; font-weight: 600; font-size: var(--fs-sm); display: inline-flex; align-items: center; gap: 8px; transition: all var(--dur-2); }
 .filter:hover { border-color: var(--ink-400); }
