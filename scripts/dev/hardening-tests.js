@@ -235,6 +235,8 @@ if (process.env.DATA_DIR) {
   const [blog, post, home, buy] = [await csp("/blog"), await csp("/blog/some-article"), await csp("/"), await csp("/app/buy/starter")];
   ok("the blog allows Soro's script", /script-src[^;]*app\.trysoro\.com/.test(blog) && /script-src[^;]*app\.trysoro\.com/.test(post));
   ok("other pages don't", !/trysoro/.test(home) && !/trysoro/.test(buy));
+  const page = await (await fetch(B + "/blog")).text();
+  ok("the blog page carries Soro's snippet as given", page.includes('<div id="soro-blog"></div>') && page.includes('<script src="https://app.trysoro.com/api/embed/1cec6634-2353-4a99-a706-b269ffe2172d" defer></script>'));
   ok("article addresses load the blog", (await fetch(B + "/blog/some-article")).status === 200 && (await fetch(B + "/blog/not.an.article")).status === 404);
 }
 

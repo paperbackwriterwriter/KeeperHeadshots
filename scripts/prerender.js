@@ -39,8 +39,13 @@ for (const path of Object.keys(PAGES)) {
   const html = await page.evaluate(() => {
     const app = document.getElementById("app").cloneNode(true);
     app.querySelectorAll(".toast, [data-prerender-skip]").forEach((el) => el.remove());
-    // Content loaded from elsewhere at view time (the blog's articles) isn't baked in.
-    app.querySelectorAll("[data-prerender-empty]").forEach((el) => (el.innerHTML = ""));
+    // The blog's Soro embed: its empty div exactly as Soro gives it, without
+    // any articles it loaded (views/blog.js).
+    app.querySelectorAll("#soro-blog").forEach((el) => {
+      const div = document.createElement("div");
+      div.id = "soro-blog";
+      el.replaceWith(div);
+    });
     return app.innerHTML;
   });
   out[path] = clean(html);

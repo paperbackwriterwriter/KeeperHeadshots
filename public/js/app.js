@@ -199,8 +199,12 @@ async function render({ restoreY = null } = {}) {
 
   document.title = route.title;
   const chrome = route.chrome === "marketing" ? marketingNav() : route.chrome === "app" ? appNav() : html``;
+  // The blog's Soro embed fills a div it found when the page loaded; keep that
+  // same element in the page while the view is swapped in (views/blog.js).
+  const soro = document.getElementById("soro-blog");
   app.innerHTML = html`${chrome}<div id="view"></div>`.v;
   const view = $("#view");
+  if (soro) view.append(soro);
   const ctx = { root: view, navigate, setTitle: (t) => (document.title = `${t} · Keeper Headshots`) };
   let viewCleanup = null;
   try {
