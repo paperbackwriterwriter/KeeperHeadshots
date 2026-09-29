@@ -1,11 +1,12 @@
-import { $, html, icon, api, state, toast, busy } from "../core.js";
+import { $, html, icon, api, state, toast, busy, logoMark, wordmark } from "../core.js";
 import { mountTurnstile } from "../turnstile.js";
 import { pageUrl } from "../pixel.js";
 
 // Password reset: /forgot-password asks for the email address and sends a
 // one-hour link; /reset?token=… (the link in that email) sets a new password.
 
-const shell = (root, body) => (root.innerHTML = html`<main id="main" class="container app-main view-enter verify-page"><div class="verify-card reset-card">${body}</div></main>`.v);
+// Like sign-in and sign-up: no site menu, just the logo (home) above the card.
+const shell = (root, body) => (root.innerHTML = html`<main id="main" class="container app-main view-enter verify-page auth-lite"><a class="logo" href="/" data-link>${logoMark()}${wordmark()}</a><div class="verify-card reset-card">${body}</div></main>`.v);
 
 const showAlert = (box, message) => {
   box.innerHTML = `${icon("circle-alert").v}<span>${message.replace(/</g, "&lt;")}</span>`;
@@ -84,7 +85,7 @@ export function renderForgot({ root }) {
   return () => human?.remove();
 }
 
-export function renderReset({ root, navigate }) {
+export async function renderReset({ root, navigate }) {
   const token = state.linkToken || new URLSearchParams(location.search).get("token") || "";
   state.linkToken = null;
   // Keep the token out of the address bar and browser history.
@@ -106,6 +107,11 @@ export function renderReset({ root, navigate }) {
   // Coming back here (Back button) after a reset, already signed in.
   if (!token && state.user) return void navigate("/app", { replace: true });
   if (!token) return failed("This page needs the link from your password reset email. Ask for a new one below.");
+  try {
+    await api("/api/auth/password/reset/check", { method: "POST", body: { token } });
+  } catch (err) {
+    return failed(err.message);
+  }
 
   shell(
     root,
@@ -125,7 +131,8 @@ export function renderReset({ root, navigate }) {
         <span class="field-error" id="err-password" hidden></span>
       </div>
       <button class="btn btn-flash btn-lg btn-block" type="submit" id="submit">Save new password ${icon("arrow-right")}</button>
-    </form>`,
+    </form>
+    <p class="muted small"><a class="link" href="/signin" data-link>Back to sign in</a></p>`,
   );
 
   const form = $("#resetForm");

@@ -64,10 +64,15 @@ const [uid, exp, sig] = token.split(".");
 ok("reset: tampered expiry rejected", (await post(anon, "/api/auth/password/reset", { token: `${uid}.${Number(exp) + 1000}.${sig}`, password: "new-password1" })).status === 400);
 ok("reset: short password rejected", (await post(anon, "/api/auth/password/reset", { token, password: "short" })).status === 400);
 
+// The page checks its link on opening, without using it up.
+ok("reset check: a bad link is refused up front", (await post(anon, "/api/auth/password/reset/check", { token: "usr_x.123.abc" })).status === 400);
+ok("reset check: a good link passes (and still works below)", (await post(anon, "/api/auth/password/reset/check", { token })).status === 200);
+
 // Two tabs submit the same link at once: exactly one wins.
 const tabA = client(), tabB = client();
 const [x, y] = await Promise.all([post(tabA, "/api/auth/password/reset", { token, password: "new-password1" }), post(tabB, "/api/auth/password/reset", { token, password: "other-password1" })]);
 ok("reset: link works exactly once, even in parallel", [x.status, y.status].sort().join() === "200,400", `${x.status},${y.status}`);
+ok("reset check: a used link is refused up front", (await post(anon, "/api/auth/password/reset/check", { token })).status === 400);
 const winner = x.status === 200 ? { f: tabA, pw: "new-password1" } : { f: tabB, pw: "other-password1" };
 ok("reset: signs this browser in", (await winner.f("/api/shoots")).status === 200);
 ok("reset: link can't be reused later", (await post(anon, "/api/auth/password/reset", { token, password: "third-password1" })).status === 400);

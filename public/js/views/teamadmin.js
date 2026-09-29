@@ -7,9 +7,9 @@ import { downloadAll } from "./format.js";
 // Server side: lib/teams.js and the /api/team routes.
 
 const STATUS = {
-  invited: ["Invited", "badge"],
+  invited: ["Invited", "badge badge-muted"],
   joined: ["Joined", "badge badge-info"],
-  returned: ["Shoot returned", "badge"],
+  returned: ["Shoot returned", "badge badge-muted"],
 };
 const shootLabel = (m) => {
   if (m.status !== "joined") return STATUS[m.status] || [m.status, "badge"];

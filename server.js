@@ -252,6 +252,17 @@ app.post("/api/auth/password/forgot", async (req, res) => {
 
 // Step 2 sets the new password, signs out every other device (by bumping the
 // session version) and signs this browser in.
+// The reset page checks its link when it opens, so an expired or used link
+// says so straight away rather than after a new password has been typed.
+// Nothing changes here; the link is only used by the reset itself.
+app.post("/api/auth/password/reset/check", async (req, res) => {
+  if (await overLimit("resetcheck", req.ip || "unknown", 60)) return res.status(429).json({ error: "Too many attempts. Please wait a little and try again." });
+  const { error } = await checkResetToken(req.body?.token);
+  if (error === "expired") return res.status(410).json({ error: "This reset link has expired. Ask for a new one below.", code: "expired" });
+  if (error) return res.status(400).json({ error: "This reset link isn't valid or has already been used. Ask for a new one below.", code: "invalid" });
+  res.json({ ok: true });
+});
+
 app.post("/api/auth/password/reset", async (req, res) => {
   const { token, password } = req.body || {};
   if (!password || String(password).length < 8) return res.status(400).json({ error: "Please fix the highlighted fields.", fields: { password: "Use at least 8 characters." } });
