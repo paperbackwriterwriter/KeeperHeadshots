@@ -55,6 +55,14 @@ export function renderAccount({ root, navigate }) {
 
     ${u.demo
       ? ""
+      : html`<section class="panel prefs" aria-labelledby="reminders-title">
+      <h2 class="h-3" id="reminders-title">Reminder emails</h2>
+      <p class="muted">At most two, ever: one if your photos pass the check but you haven't developed them, and one after your free shoot if you'd like more looks. Emails about your account and orders always arrive.</p>
+      <label class="check"><input type="checkbox" id="remindersOn" ${u.emailReminders !== false ? raw("checked") : ""} /> <span>Send me reminder emails</span></label>
+    </section>`}
+
+    ${u.demo
+      ? ""
       : html`<section class="panel prefs" aria-labelledby="security-title">
       <h2 class="h-3" id="security-title">Password and sign-in</h2>
       <p class="muted">To change your password, we'll email you a link to choose a new one. If you signed in on a shared or lost device, sign out of it from here.</p>
@@ -102,6 +110,20 @@ export function renderAccount({ root, navigate }) {
   );
 
   if (u.demo) return;
+  const rem = $("#remindersOn", root);
+  rem.addEventListener("change", async () => {
+    const on = rem.checked;
+    rem.disabled = true;
+    try {
+      const r = await api("/api/account/preferences", { method: "POST", body: { reminders: on } });
+      state.user = r.user;
+      toast(on ? "Reminder emails are on." : "Reminder emails are off.", "success", 2500);
+    } catch (err) {
+      rem.checked = !on;
+      toast(err.message, "error");
+    }
+    rem.disabled = false;
+  });
   $("#signoutAll", root).addEventListener("click", async (e) => {
     const restore = busy(e.currentTarget, "Signing out…");
     try {

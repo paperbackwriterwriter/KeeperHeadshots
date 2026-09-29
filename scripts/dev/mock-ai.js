@@ -227,7 +227,7 @@ http
       const id = `mock_${Date.now().toString(36)}`;
       const to = m.to.map((a) => /<([^>]+)>/.exec(a)?.[1] || a);
       const links = [...new Set(`${m.text || ""} ${m.html || ""}`.match(/https?:\/\/[^\s"<>]+/g) || [])].map((l) => l.replace(/&amp;/g, "&"));
-      mail.push({ from: m.from, to, replyTo: m.reply_to, subject: m.subject, links, via: "resend", id });
+      mail.push({ from: m.from, to, replyTo: m.reply_to, subject: m.subject, links, headers: m.headers, via: "resend", id });
       console.log(`[mock] resend to=${to.join(",")} subject="${m.subject}"`);
       return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify({ id }));
     }

@@ -126,6 +126,8 @@ const STATES = [
   { name: "signin-errors", url: "/signin", prep: click("form button[type=submit]") },
   { name: "reset-invalid", url: "/reset?token=not-a-real-token-000000000" },
   { name: "verify-invalid", url: "/verify?token=not-a-real-token-000000000" },
+  { name: "unsubscribe-no-link", url: "/unsubscribe" },
+  { name: "unsubscribe-invalid", url: "/unsubscribe?token=usr_nobody.not-a-real-token-00000000000000" },
   { name: "not-found", url: "/no-such-page" },
   { name: "join-no-link", url: "/join" },
   { name: "join-signed-out", url: `/join/${tok(1)}` },

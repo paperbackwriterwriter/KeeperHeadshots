@@ -6,7 +6,8 @@ import cookieParser from "cookie-parser";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { users, shoots, id, readMedia, writeMedia, deleteMedia, freeClaimKey, mailboxChecks } from "./lib/store.js";
-import { backend, createJSON, getJSON, del, UNCHANGED } from "./lib/storage.js";
+import { backend, createJSON, getJSON, putJSON, del, UNCHANGED } from "./lib/storage.js";
+import { runReminders, checkUnsubscribeToken } from "./lib/reminders.js";
 import { hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailVerified, resetToken, checkResetToken } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
@@ -823,8 +824,14 @@ app.post("/api/account/delete", requireUser, async (req, res) => {
 app.post("/api/account/preferences", requireUser, async (req, res) => {
   if (req.user.demo) return res.status(403).json({ error: DEMO_READ_ONLY, code: "demo_read_only" });
   const want = req.body?.photoFormat;
-  if (!PHOTO_FORMATS.some((f) => f.id === want)) return res.status(400).json({ error: "Choose portrait, square or both." });
-  const user = await users.update(req.user.id, (u) => (u.photoFormat = want));
+  const reminders = req.body?.reminders;
+  if (want === undefined && typeof reminders !== "boolean") return res.status(400).json({ error: "Nothing to change." });
+  if (want !== undefined && !PHOTO_FORMATS.some((f) => f.id === want)) return res.status(400).json({ error: "Choose portrait, square or both." });
+  const user = await users.update(req.user.id, (u) => {
+    if (want !== undefined) u.photoFormat = want;
+    if (reminders === true) delete u.remindersOff;
+    if (reminders === false) u.remindersOff = u.remindersOff || new Date().toISOString();
+  });
   res.json({ user: publicUser(user) });
 });
 
@@ -1111,9 +1118,31 @@ function cronOnly(req, res, next) {
 
 // Storage clean-up (lib/cleanup.js).
 app.get("/api/cron/cleanup", cronOnly, async (req, res) => {
-  const report = await runCleanup();
+  const report = await runCleanup({ budgetMs: 180_000 });
   console.log("[cleanup]", JSON.stringify(report));
+  // Then the day's reminder emails (lib/reminders.js), resuming where the
+  // last run stopped. A problem here never undoes the clean-up.
+  const state = (await getJSON(REMINDER_STATE).catch(() => null)) || {};
+  report.reminders = await runReminders({ origin: appOrigin(req), deadline: Date.now() + 60_000, state }).catch((err) => (console.error("[reminders]", err.message), { error: err.message }));
+  await putJSON(REMINDER_STATE, state).catch((err) => console.error("[reminders] state", err.message));
+  console.log("[reminders]", JSON.stringify(report.reminders));
   res.json(report);
+});
+
+// Unsubscribing from reminder emails. The email's footer link opens
+// /unsubscribe (which posts here); mail apps' one-click unsubscribe
+// (List-Unsubscribe-Post, RFC 8058) posts here directly, form-encoded.
+const REMINDER_STATE = "cron/reminders-state.json";
+app.post("/api/unsubscribe", express.urlencoded({ extended: false, limit: "2kb" }), async (req, res) => {
+  const uid = checkUnsubscribeToken(req.query.token || req.body?.token);
+  if (!uid) return res.status(400).json({ error: "This unsubscribe link isn't valid. You can turn reminders off on your account page." });
+  const user = await users.update(uid, (u) => {
+    if (u.remindersOff) return UNCHANGED;
+    u.remindersOff = new Date().toISOString();
+  }).catch(() => null);
+  if (!user) return res.status(404).json({ error: "We couldn't find that account. It may have been deleted." });
+  console.log("[reminders] unsubscribed", uid);
+  res.json({ ok: true });
 });
 
 // Nightly backup of accounts, payments and shoot records (lib/backup.js).

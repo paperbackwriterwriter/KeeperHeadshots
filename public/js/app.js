@@ -15,6 +15,7 @@ const renderAccount = lazy(() => import("./views/account.js"), "renderAccount");
 const renderFunnel = lazy(() => import("./views/funnel.js"), "renderFunnel");
 const renderTeamAdmin = lazy(() => import("./views/teamadmin.js"), "renderTeamAdmin");
 const renderJoin = lazy(() => import("./views/join.js"), "renderJoin");
+const renderUnsubscribe = lazy(() => import("./views/unsubscribe.js"), "renderUnsubscribe");
 const renderVerify = lazy(() => import("./views/verify.js"), "renderVerify");
 const renderForgot = lazy(() => import("./views/password.js"), "renderForgot");
 const renderReset = lazy(() => import("./views/password.js"), "renderReset");
@@ -51,6 +52,7 @@ const routes = [
   { path: /^\/app\/funnel$/, view: renderFunnel, chrome: "app", auth: true, title: "Sales funnel · Keeper Headshots" },
   { path: /^\/app\/team$/, view: renderTeamAdmin, chrome: "app", auth: true, title: "Team headshots · Keeper Headshots" },
   { path: /^\/join$/, view: renderJoin, chrome: "marketing", title: "Team invitation · Keeper Headshots" },
+  { path: /^\/unsubscribe$/, view: renderUnsubscribe, chrome: "none", title: "Reminder emails · Keeper Headshots" },
   { path: /^\/app\/buy\/([\w-]+)$/, view: (ctx, id) => renderBuy(ctx, id), chrome: "app", auth: true, title: "Checkout · Keeper Headshots" },
   { path: /^\/app\/new$/, view: (ctx) => renderStudio(ctx, null), chrome: "app", auth: true, title: "New shoot · Keeper Headshots" },
   { path: /^\/app\/shoot\/([\w-]+)$/, view: (ctx, id) => renderStudio(ctx, id), chrome: "app", auth: true, title: "Shoot · Keeper Headshots" },

@@ -92,6 +92,8 @@ To (re)generate one, set a long random `ADMIN_TOKEN` in the environment, redeplo
 
 **Previews vs. the live site**: preview builds share the live Blob store, so everything they write goes under `preview/` (`STORAGE_NAMESPACE`), apart from live customer data; example headshots are shared. Stripe keys must match: a live key (`sk_live_`) only works on production and a test key (`sk_test_`) only elsewhere; a mismatched key turns payments off and is reported. With a test key on Preview, the buy page says it's test mode and gives Stripe's test card.
 
+**Reminder emails** (`lib/reminders.js`): after the daily clean-up, the same cron sends at most two reminders per account, ever: "develop" (photos passed the check but nothing developed, 1 to 14 days later) and "buy" (free shoot developed, nothing bought, 2 to 21 days later). Never to unconfirmed, demo or owner accounts, and at most `REMINDERS_PER_DAY` (default 30) a day so they can't crowd out confirmations and password resets. Every reminder has a signed unsubscribe link (`/unsubscribe`) and one-click unsubscribe headers (RFC 8058); people can also switch them off on the account page.
+
 **Error alerts** (`lib/alert.js`): in production, anything logged with `console.error` (what Vercel counts as a runtime error) is gathered for 20 seconds and emailed as one summary to `ALERT_EMAIL` (default `CONTACT_TO`), at most `ALERTS_PER_HOUR` (default 4) emails an hour and `ALERTS_PER_DAY` (default 10) a day across all servers, so alerts can't use up Resend's daily allowance. `ALERTS=off` turns them off; `ALERTS=on` enables them outside production.
 
 ### Flow
@@ -186,6 +188,7 @@ node scripts/dev/reset-tests.js  # password reset and sign-out-everywhere checks
 node scripts/dev/hardening-tests.js  # verify links, sign-ins, photo edits/checks, checkout and contact limits, sign-out
                                      # (set DATA_DIR to the server's to include the re-check and demo sign-out tests)
 node scripts/dev/cleanup-tests.js    # daily clean-up on a throwaway local store (no server needed)
+node scripts/dev/reminder-tests.js   # reminder emails: who's due, one-click unsubscribe, account switch
 node scripts/dev/backup-tests.js     # nightly backup and restore, same (no server needed)
 node scripts/dev/env-tests.js        # preview storage namespace and Stripe key modes (no server needed)
 node scripts/dev/alert-tests.js      # error alert emails (needs the mock on :4010)

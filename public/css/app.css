@@ -1336,6 +1336,8 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
 .delete-form { display: grid; gap: var(--s-4); max-width: 440px; padding: var(--s-5); border: 1px solid #f0bbb4; border-radius: var(--r-lg); background: var(--danger-soft); }
 .delete-form .check { display: flex; gap: 10px; align-items: flex-start; font-size: var(--fs-sm); color: #7d1a11; cursor: pointer; }
 .delete-form .check input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--danger); flex: none; }
+.prefs .check { display: inline-flex; gap: 10px; align-items: center; margin-top: 4px; font-weight: 600; cursor: pointer; }
+.prefs .check input { width: 20px; height: 20px; margin: 0; accent-color: var(--ink-950); flex: none; cursor: pointer; }
 .delete-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 /* Download format (studio results + account) */
 .fmt-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
