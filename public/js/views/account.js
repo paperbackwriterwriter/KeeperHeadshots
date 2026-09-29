@@ -1,4 +1,4 @@
-import { $, $$, html, raw, icon, state, api, toast, busy, initials } from "../core.js";
+import { $, $$, html, raw, esc, icon, state, api, toast, busy, initials } from "../core.js";
 import { CONTACT_EMAIL } from "./contact.js";
 import { PHOTO_FORMATS } from "../shared/catalog.js";
 import { currentFormat, formatName, saveFormat } from "./format.js";
@@ -23,7 +23,7 @@ export function renderAccount({ root, navigate }) {
       <span class="avatar avatar-lg" aria-hidden="true">${initials(u.name)}</span>
       <dl class="account-facts">
         <div><dt>Name</dt><dd>${u.name}</dd></div>
-        <div><dt>Email</dt><dd>${u.email}</dd></div>
+        <div><dt>Email</dt><dd>${raw(esc(u.email).replace("@", "@<wbr>"))}</dd></div>
         <div><dt>Member since</dt><dd>${u.createdAt ? date(u.createdAt) : "—"}</dd></div>
         <div><dt>Shoots left</dt><dd>${shootsLeft(u.plan, credits)}</dd></div>
       </dl>

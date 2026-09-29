@@ -14,7 +14,7 @@ const TEAM = [
   ["team-3", "Engineering"],
   ["team-4", "Finance"],
   ["team-5", "Marketing"],
-  ["team-6", "Customer success"],
+  ["team-6", "Support"],
 ];
 
 const perPerson = (p) => `$${(p.price / p.shoots).toFixed(2)}`;

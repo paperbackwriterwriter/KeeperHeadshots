@@ -164,8 +164,8 @@ export async function renderStudio(ctx, id) {
     const room = MAX_SELFIES - s.selfies.length;
     return html`<section class="panel add-more" id="addMore" aria-labelledby="addMoreTitle">
       <div class="add-more-copy">
-        <h3 class="h-4" id="addMoreTitle">${icon("image-plus")} Add more photos</h3>
-        <p class="small muted">Your ${s.selfies.length} photo${s.selfies.length === 1 ? "" : "s"} stay${s.selfies.length === 1 ? "s" : ""} in this shoot. Add ${room ? `up to ${room} more` : "more after removing one"} and we'll re-check the whole set.</p>
+        <h3 class="h-4" id="addMoreTitle">${icon("image-plus")} ${s.selfies.length ? "Add more photos" : "Add photos"}</h3>
+        <p class="small muted">${s.selfies.length ? html`Your ${s.selfies.length} photo${s.selfies.length === 1 ? "" : "s"} stay${s.selfies.length === 1 ? "s" : ""} in this shoot. Add ${room ? `up to ${room} more` : "more after removing one"} and we'll re-check the whole set.` : `This shoot has no photos yet. Add 1 to ${MAX_SELFIES} recent photos of just you, then run the photo check.`}</p>
         ${tips.length ? html`<ul class="tips" style="margin-top:14px">${tips.map((t) => html`<li>${icon("arrow-right")}<span>${t}</span></li>`)}</ul>` : ""}
       </div>
       ${room
@@ -256,8 +256,8 @@ export async function renderStudio(ctx, id) {
       });
     }
     return html`<div class="page-head">
-        <div><p class="eyebrow">${s.name}</p><h1 class="display h-1" style="margin-top:8px">${checking ? "Reviewing your photos" : "Ready for your photo check"}</h1></div>
-        ${checking ? "" : html`<button class="btn btn-flash btn-lg" id="runCheck">${icon("scan-face")} Run photo check</button>`}
+        <div><p class="eyebrow">${s.name}</p><h1 class="display h-1" style="margin-top:8px">${checking ? "Reviewing your photos" : s.selfies.length ? "Ready for your photo check" : "Add your photos"}</h1></div>
+        ${checking || !s.selfies.length ? "" : html`<button class="btn btn-flash btn-lg" id="runCheck">${icon("scan-face")} Run photo check</button>`}
       </div>
       ${checking
         ? html`<p class="status-line">${spinner()}<span id="phrase" aria-live="polite">${phrases[0]}</span></p>`
@@ -310,7 +310,7 @@ export async function renderStudio(ctx, id) {
       <div style="margin-top:24px">${addPhotosPanel(s, c.tips || [])}</div>
 
       <div class="actions-bar">
-        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" id="delete">${icon("trash-2")} Delete</button><button class="btn btn-ghost btn-sm" id="recheck">${icon("refresh-cw")} Re-check photos</button></div>
+        <div class="btn-pair" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" id="delete">${icon("trash-2")} Delete</button><button class="btn btn-ghost btn-sm" id="recheck">${icon("refresh-cw")} Re-check photos</button></div>
         ${c.verdict === "retake"
           ? html`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost" id="override">Continue anyway</button><a class="btn btn-flash" href="#addMore">${icon("camera")} Add better photos</a></div>`
           : html`<button class="btn btn-flash btn-lg" id="toLooks">${s.team ? "Continue" : "Choose your looks"} ${icon("arrow-right")}</button>`}
@@ -404,7 +404,7 @@ export async function renderStudio(ctx, id) {
           <div class="backdrops" id="backdrops" role="group" aria-label="Backdrop">
             ${BACKDROPS.map((b) => html`<button type="button" class="opt" data-backdrop="${b.id}" aria-pressed="false">
               <span class="sw" style="background:radial-gradient(circle at 42% 34%, ${b.tones[0]}, ${b.tones[1]})"></span>
-              <span><span class="opt-name">${b.name}</span><br /><span class="opt-sub">${b.blurb}</span></span>
+              <span><span class="opt-name">${b.name}</span><span class="opt-sub">${b.blurb}</span></span>
               <span class="tick">${icon("check")}</span>
             </button>`)}
           </div>
@@ -444,7 +444,7 @@ export async function renderStudio(ctx, id) {
       $$("#backdrops .opt").forEach((b) => b.setAttribute("aria-pressed", String(!!cur && b.dataset.backdrop === cur.backdrop)));
       $$("#outfits .pill-opt").forEach((b) => b.setAttribute("aria-pressed", String(!!cur && b.dataset.outfit === cur.outfit)));
       $("#tally").textContent = looks.length * TAKES_PER_LOOK;
-      $("#tallySub").textContent = `headshots · ${looks.length} look${looks.length === 1 ? "" : "s"} × ${TAKES_PER_LOOK}`;
+      $("#tallySub").innerHTML = html`headshots<span class="hide-s"> · ${looks.length} look${looks.length === 1 ? "" : "s"} × ${TAKES_PER_LOOK}</span>`.v;
       $("#develop").disabled = !looks.length || (plan && !plan.canDevelop);
     };
 
@@ -677,17 +677,17 @@ export async function renderStudio(ctx, id) {
             : ""}
         </div>
         <div>
-          <p class="eyebrow"><span class="dot"></span>${r ? "Retoucher's verdict" : "Your proofs"} · ${s.name}</p>
+          <p class="eyebrow"><span class="dot"></span>${r ? "Retoucher's verdict" : "Your proofs"}\u00a0· ${s.name}</p>
           <h1 class="display h-1">${r?.headline || `${plural(done.length, "headshot")}, developed.`}</h1>
           <p class="lede">${r?.summary || "Every frame is below. Grading scores will appear here once the AI review completes."}</p>
           <div class="scoreboard">
             <div><strong class="tabular">${r ? keepers : done.length}</strong><span>${r ? "Keepers" : "Headshots"}</span></div>
-            <div><strong class="tabular">${avgLikeness}</strong><span>Avg. likeness /10</span></div>
+            <div><strong class="tabular">${avgLikeness}<small>/10</small></strong><span>Avg. likeness</span></div>
             <div><strong class="tabular">${bestG?.overall ?? "—"}</strong><span>Best score</span></div>
           </div>
           ${bestG
             ? html`<div class="bars" style="max-width:420px;margin-bottom:24px">${[["Likeness", bestG.likeness], ["Polish", bestG.polish], ["Lighting", bestG.lighting]].map(([k, v]) => html`<div class="bar-row"><span>${k}</span><div class="meter-track"><div class="meter-fill" style="--v:${v};--mcol:var(--teal-600)"></div></div><b>${v}</b></div>`)}</div>
-              <p class="small" style="margin-bottom:24px"><span class="chip">${icon("briefcase")} Best for ${bestG.best_for}</span> <span class="muted" style="margin-left:6px">${bestG.note}</span></p>`
+              <p class="small best-for" style="margin-bottom:24px"><span class="chip">${icon("briefcase")} Best for ${bestG.best_for}</span><span class="muted">${bestG.note}</span></p>`
             : ""}
           ${isMine && aiBest
             ? html`<p class="small muted" style="margin:-8px 0 20px">The retoucher's pick was frame ${String(aiBest.n).padStart(2, "0")}. <button class="link" id="resetPick" style="background:none;border:0;padding:0;cursor:pointer;font:inherit">Use the retoucher's pick</button></p>`
@@ -726,7 +726,7 @@ export async function renderStudio(ctx, id) {
           <p class="eyebrow">References used</p>
           <div class="refs" style="margin-top:10px">${s.selfies.map((p, i) => html`<img src="${media(p.file)}" alt="Reference photo ${i + 1}" loading="lazy" />`)}</div>
         </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div class="refs-actions" style="display:flex;gap:10px;flex-wrap:wrap">
           ${s.check ? html`<span class="score-pill g-${s.check.overall_score >= 80 ? "keeper" : s.check.overall_score >= 60 ? "solid" : "retake"}"><i></i>Photo check ${s.check.overall_score}</span>` : ""}
           ${s.sample ? "" : html`<button class="btn btn-ghost btn-sm" id="regradeAll" title="Run the AI grading again on these headshots">${icon("refresh-cw")} Re-grade</button><button class="btn btn-ghost btn-sm" id="delete">${icon("trash-2")} Delete shoot</button>`}
           <a class="btn btn-ink btn-sm" href="/app/new" data-link>${icon("plus")} New shoot</a>
@@ -741,7 +741,7 @@ export async function renderStudio(ctx, id) {
       const fmt = currentFormat();
       const n = done.length;
       const what = fmt === "both" ? "as portraits and squares" : fmt === "square" ? "as 1:1 squares" : "as 3:4 portraits";
-      $("#dlRow").innerHTML = html`<div style="display:flex;gap:10px;flex-wrap:wrap">
+      $("#dlRow").innerHTML = html`<div class="dl-buttons">
         ${best ? html`<button class="btn btn-flash btn-lg" id="dlBest">${icon("download")} Download ${isMine ? "your pick" : "best pick"}${fmt === "both" ? "" : ` · ${fmt === "square" ? "1:1" : "3:4"}`}</button>` : ""}
         <button class="btn btn-ghost btn-lg" id="dlAll" aria-label="Download all ${plural(n, "headshot")}, ${what}">${icon("download")} All ${n}</button>
         <a class="btn btn-ghost btn-lg" href="#upgrade">${icon("sparkles")} More options</a>

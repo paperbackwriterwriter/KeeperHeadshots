@@ -124,12 +124,12 @@ export async function renderTeamAdmin({ root, navigate }) {
               const [label, cls] = shootLabel(m);
               return html`<li class="team-member">
                 <div class="tm-who">${m.pick ? html`<img src="${media(m.pick)}" alt="" loading="lazy" />` : html`<span class="avatar" aria-hidden="true">${(m.name || m.email)[0].toUpperCase()}</span>`}
-                  <div><b>${m.name || m.email}</b>${m.name ? html`<span class="muted small">${m.email}</span>` : ""}</div></div>
+                  <div><b title="${m.name || m.email}">${m.name || m.email}</b>${m.name ? html`<span class="muted small">${m.email}</span>` : ""}</div></div>
                 <span class="${cls}">${label}</span>
                 <div class="tm-actions">
-                  ${m.pick ? html`<a class="btn btn-ghost btn-sm" href="${media(m.pick, true)}" download>${icon("download")} Portrait</a><a class="btn btn-ghost btn-sm" href="${squareMedia(m.pick)}" download>Square</a><a class="btn btn-ghost btn-sm" href="${sizeMedia(m.pick, "linkedin")}" download>LinkedIn</a>` : ""}
+                  ${m.pick ? html`<a class="btn btn-ghost btn-sm" href="${media(m.pick, true)}" download>Portrait</a><a class="btn btn-ghost btn-sm" href="${squareMedia(m.pick)}" download>Square</a><a class="btn btn-ghost btn-sm" href="${sizeMedia(m.pick, "linkedin")}" download>LinkedIn</a>` : ""}
                   ${m.status === "invited"
-                    ? html`<button class="btn btn-ghost btn-sm" data-copy="${m.id}">${icon("link")} Copy link</button>${data.email ? html`<button class="btn btn-ghost btn-sm" data-resend="${m.id}">Resend</button>` : ""}<button class="btn btn-ghost btn-sm" data-cancel="${m.id}">Cancel</button>`
+                    ? html`<button class="btn btn-ghost btn-sm" data-copy="${m.id}">Copy link</button>${data.email ? html`<button class="btn btn-ghost btn-sm" data-resend="${m.id}">Resend</button>` : ""}<button class="btn btn-ghost btn-sm" data-cancel="${m.id}">Cancel</button>`
                     : ""}
                 </div>
               </li>`;

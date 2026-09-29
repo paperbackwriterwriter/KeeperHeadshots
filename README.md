@@ -150,6 +150,21 @@ scripts/seed.js           demo account and sample shoots
 scripts/dev/*             QA only: local API test double, API e2e, screenshot runner
 ```
 
+### Layout audit (run on every QA pass)
+
+`scripts/dev/layout-audit.mjs` loads every public page and every app state (dashboard, each shoot step, proofs, the photo viewer, account, checkout, team admin and invitations, funnel) at 320, 375, 390, 412, 768, 1024, 1280 and 1440px. It reports:
+
+- a page that scrolls sideways;
+- text cut off or running off the screen;
+- uneven gaps between items of the same kind in a row (spaced by their visible text, or by their centres when centred);
+- one item left alone on a wrapped row (2 + 1);
+- overlapping neighbours;
+- same-size buttons side by side at different heights.
+
+It also saves a full-page screenshot of every state at 390 and 1280px (`<outDir>/shots`). **Look at those too**: the audit measures, but it can't judge everything a person notices.
+
+Run it against a server with a fresh `DATA_DIR`, wired to the mock, with `audit-owner@example.com` in `OWNER_EMAILS`. It exits 1 if it finds anything. Sample photos are replaced with stand-in portraits of the right shape, so broken images don't distort the layout. The film grain is hidden in its screenshots: it's fixed to the screen, so a full-page capture would otherwise show a false "seam" one screen down.
+
 ### QA without spending API credits
 
 `scripts/dev/mock-ai.js` is a local stand-in for the Anthropic and Gemini HTTP APIs. The app uses it only if you explicitly point the base URLs at it, so the real SDK code paths, parsing, polling and every UI state can be exercised offline:
@@ -163,6 +178,7 @@ ANTHROPIC_API_KEY=test GEMINI_API_KEY=test \
 ANTHROPIC_BASE_URL=http://localhost:4010 GEMINI_BASE_URL=http://localhost:4010 PORT=3100 npm start &
 node scripts/dev/api-e2e.js   # add RESEND_API_KEY=test RESEND_BASE_URL=http://localhost:4010 to the server to test the Resend path
 node scripts/dev/screenshots.js shots   # phone (390px) + desktop (1440px) click-through
+node scripts/dev/layout-audit.mjs audit   # every page and app state at 8 widths (see below)
 node scripts/dev/race-tests.js   # double-spend, lockout, open-redirect and other regression checks
 node scripts/dev/reset-tests.js  # password reset and sign-out-everywhere checks
 node scripts/dev/hardening-tests.js  # verify links, sign-ins, photo edits/checks, checkout and contact limits, sign-out

@@ -55,7 +55,7 @@ export function renderResume({ root }) {
           <h1 class="display h-hero" data-reveal style="--i:1">A professional headshot for <em>your job search.</em></h1>
           <p class="lede" data-reveal style="--i:2">Turn a few selfies into a polished, professional photo for your CV, LinkedIn profile and job applications. Download a 3:4 portrait for CV photo boxes, a 1:1 square for LinkedIn and job sites, or both. Ready in minutes, not days.</p>
           <div class="hero-ctas" data-reveal style="--i:3">
-            <a class="btn btn-flash btn-lg" href="${cta}" data-link>Create your job-search headshot ${icon("arrow-right")}</a>
+            <a class="btn btn-flash btn-lg" href="${cta}" data-link><span>Create your <span class="nowrap">job-search</span> headshot</span> ${icon("arrow-right")}</a>
             <a class="btn btn-ghost btn-lg" href="#photo-or-not">Photo on a résumé?</a>
           </div>
           <div class="hero-proof" data-reveal style="--i:4">
@@ -177,7 +177,7 @@ export function renderResume({ root }) {
             <p class="eyebrow" style="color:#a9b1bd">First shoot free · from $29 after that</p>
             <h2 class="display h-1" style="margin-top:16px">Your next application deserves a better photo.</h2>
           </div>
-          <a class="btn btn-flash btn-lg" href="${cta}" data-link>Create your job-search headshot ${icon("arrow-right")}</a>
+          <a class="btn btn-flash btn-lg" href="${cta}" data-link><span>Create your <span class="nowrap">job-search</span> headshot</span> ${icon("arrow-right")}</a>
         </div>
       </div>
     </section>

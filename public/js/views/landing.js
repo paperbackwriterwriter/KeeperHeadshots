@@ -218,7 +218,7 @@ export function renderLanding({ root }) {
             <p class="eyebrow" data-reveal>Pricing</p>
             <h2 class="display h-1" data-reveal style="--i:1;margin-top:16px">One payment. <em>No</em> subscription.</h2>
           </div>
-          <p class="lede" data-reveal style="--i:2">Pick a package, keep every photo forever. Covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>.</p>
+          <p class="lede" data-reveal style="--i:2">Pick a package, keep every photo forever. Covered by our <a class="link" href="/refunds" data-link><span class="nowrap">money-back</span> guarantee</a>.</p>
         </div>
         <div class="pricing">
           ${PACKAGES.map(
@@ -234,9 +234,9 @@ export function renderLanding({ root }) {
             </article>`,
           )}
         </div>
-        <p class="guarantee">${icon("shield-check")} Money-back guarantee: if none of the headshots from your first paid shoot are usable, we'll refund the package, less any later shoots you kept. <a class="link" href="/refunds" data-link>See the terms</a></p>
+        <p class="guarantee">${icon("shield-check")}<span>Money-back guarantee: if none of the headshots from your first paid shoot are usable, we'll refund the package, less any later shoots you kept. <a class="link" href="/refunds" data-link>See the terms</a></span></p>
         <div class="teams" id="teams" data-reveal>
-          <div style="display:flex;gap:16px;align-items:center">
+          <div style="display:flex;gap:16px;align-items:flex-start">
             <span class="t-ic">${icon("users")}</span>
             <div><b class="h-4" style="display:block">Headshots for your whole team</b><span class="muted small">One shoot per person, with the same backdrops and wardrobe for everyone. Executive covers 12 people. Larger team? Contact us about volume pricing.</span></div>
           </div>
@@ -465,7 +465,7 @@ function reviewPreview() {
       <span class="eyebrow"><span class="dot"></span>Retoucher's verdict</span>
       <span class="badge badge-success">${icon("check")} 2 keepers</span>
     </div>
-    <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:16px;align-items:start">
+    <div class="rv-grid">
       <div class="print" style="position:relative;padding:8px 8px 0">
         <img src="${example(shots[0].seed)}" alt="Example best-pick headshot" loading="lazy" />
         <div class="print-cap"><b>Best pick</b><span>94 / 100</span></div>
@@ -493,7 +493,7 @@ export function footer() {
       <div class="footer-grid">
         <div>
           <a class="logo" href="/" data-link style="color:var(--text)">${logoMark()}${wordmark()}</a>
-          <p style="margin-top:12px;max-width:34ch">Professional headshots from the photos you already have. Checked, developed and graded by AI.</p>
+          <p style="margin-top:12px">Professional headshots from the photos you already have. Checked, developed and graded by AI.</p>
         </div>
         <div><h2 class="footer-h">Product</h2><ul><li><a href="/#how">How it works</a></li><li><a href="/linkedin-headshots" data-link>LinkedIn headshots</a></li><li><a href="/#styles">Styles</a></li><li><a href="/#pricing">Pricing</a></li><li><a href="/team-headshots" data-link>Team headshots</a></li><li><a href="/real-estate-headshots" data-link>Real estate headshots</a></li><li><a href="/resume-headshots" data-link>Résumé headshots</a></li><li><a href="/doctor-headshots" data-link>Doctor headshots</a></li><li><a href="/lawyer-headshots" data-link>Lawyer headshots</a></li></ul></div>
         <div><h2 class="footer-h">Account</h2><ul><li><a href="/signin" data-link>Sign in</a></li><li><a href="/signup" data-link>Create account</a></li><li><a href="/app" data-link>Your shoots</a></li></ul></div>

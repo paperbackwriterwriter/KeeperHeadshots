@@ -22,7 +22,7 @@ export async function renderJoin({ root, navigate }) {
   const token = savedToken();
   const shell = (body) => (root.innerHTML = html`<main id="main" class="container app-main view-enter"><div class="join-card">${body}</div></main>`.v);
   if (!token) {
-    shell(html`<p class="eyebrow">Team invitation</p><h1 class="display h-2">Open the link from your invitation email.</h1><p class="lede">This page needs the link your team admin sent you. If it doesn't work, ask them for a new one.</p><a class="btn btn-ink" href="/" data-link>Go to Keeper Headshots</a>`);
+    shell(html`<p class="eyebrow">${icon("users")} Team invitation</p><h1 class="display h-2">Open the link from your invitation email.</h1><p class="lede">This page needs the link your team admin sent you. If it doesn't work, ask them for a new one.</p><div class="btn-row"><a class="btn btn-flash btn-lg" href="/" data-link>Go to Keeper Headshots</a></div>`);
     return;
   }
   shell(html`<div style="display:flex;justify-content:center">${spinner()}</div>`);
@@ -30,7 +30,7 @@ export async function renderJoin({ root, navigate }) {
   try {
     inv = await api(`/api/join/${encodeURIComponent(token)}`);
   } catch (err) {
-    shell(html`<p class="eyebrow">Team invitation</p><h1 class="display h-2">This invitation doesn't work.</h1><p class="lede">${err.message}</p><a class="btn btn-ink" href="/" data-link>Go to Keeper Headshots</a>`);
+    shell(html`<p class="eyebrow">${icon("users")} Team invitation</p><h1 class="display h-2">This invitation doesn't work.</h1><p class="lede">${err.message}</p><div class="btn-row"><a class="btn btn-flash btn-lg" href="/" data-link>Go to Keeper Headshots</a></div>`);
     return;
   }
   if (inv.mine) {
@@ -54,14 +54,20 @@ export async function renderJoin({ root, navigate }) {
   if (!me) {
     const q = `?next=${encodeURIComponent(here)}&email=${encodeURIComponent(inv.email)}`;
     shell(html`${intro}<p>Sent to <b>${inv.email}</b>. Use that address to continue.</p>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><a class="btn btn-flash btn-lg" href="/signup${q}" data-link>Create my account ${icon("arrow-right")}</a><a class="btn btn-ghost btn-lg" href="/signin${q}" data-link>I have an account</a></div>`);
+      <div class="btn-row"><a class="btn btn-flash btn-lg" href="/signup${q}" data-link>Create my account ${icon("arrow-right")}</a><a class="btn btn-ghost btn-lg" href="/signin${q}" data-link>I have an account</a></div>`);
     return;
   }
   if (!sameEmail) {
-    shell(html`${intro}<div class="banner banner-warn">${icon("info")}<div>This invitation was sent to <b>${inv.email}</b>, but you're signed in as ${me.email}. Sign out, then sign in or create an account with ${inv.email}.</div></div>`);
+    shell(html`${intro}<div class="banner banner-warn">${icon("info")}<div><b>This invitation is for a different email address.</b>It was sent to ${inv.email}. You're signed in as ${me.email}. Sign out, then sign in or create an account with the invited address.</div></div>
+      <div class="btn-row"><button class="btn btn-flash btn-lg" id="switch" type="button">Sign out and continue</button></div>`);
+    root.querySelector("#switch").addEventListener("click", async (e) => {
+      busy(e.currentTarget, "Signing out…");
+      await api("/api/auth/signout", { method: "POST" }).catch(() => {});
+      location.reload(); // header and page both as signed out
+    });
     return;
   }
-  shell(html`${intro}<button class="btn btn-flash btn-lg" id="accept">Start my headshot ${icon("arrow-right")}</button>`);
+  shell(html`${intro}<div class="btn-row"><button class="btn btn-flash btn-lg" id="accept">Start my headshot ${icon("arrow-right")}</button></div>`);
   root.querySelector("#accept").addEventListener("click", async (e) => {
     const restore = busy(e.currentTarget, "Setting up…");
     try {
