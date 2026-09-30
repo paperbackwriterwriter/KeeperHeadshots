@@ -20,6 +20,13 @@ trap cleanup EXIT
 echo "== syntax"
 for f in server.js lib/*.js scripts/*.js scripts/dev/*.js public/js/*.js public/js/views/*.js public/js/shared/*.js; do node --check "$f"; done
 
+# The server must start the way Vercel starts it: without require() of ES
+# modules (Vercel's loader doesn't allow it, though local Node does), so a
+# dependency that needs it is caught here rather than by a crashed deploy.
+echo "== loads on Vercel"
+VERCEL=1 SESSION_SECRET=ci-session-secret-ci-session-secret node --no-experimental-require-module \
+  -e 'import("./server.js").then(() => process.exit(0), (e) => { console.error(e); process.exit(1); })'
+
 MOCK_QA_FAIL=none node scripts/dev/mock-ai.js >"$MOCKLOG" 2>&1 &
 PIDS+=($!)
 

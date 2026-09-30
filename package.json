@@ -1,7 +1,7 @@
 {
   "name": "keeperheadshots",
   "version": "1.0.0",
-  "description": "Keeper Headshots — professional AI headshots from selfies",
+  "description": "Keeper Headshots \u2014 professional AI headshots from selfies",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -22,7 +22,7 @@
     "express": "^5.2.1",
     "lucide-static": "^1.48.0",
     "nodemailer": "^10.0.10",
-    "sanitize-html": "^2.17.7",
+    "sanitize-html": "2.17.7",
     "sharp": "^0.35.4",
     "stripe": "^22.6.2",
     "zod": "^4.6.5"
@@ -34,5 +34,10 @@
   "engines": {
     "node": "22.x"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "sanitize-html": {
+      "htmlparser2": "^8.0.2"
+    }
+  }
 }
