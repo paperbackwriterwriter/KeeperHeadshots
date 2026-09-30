@@ -80,6 +80,10 @@
     {
       "path": "/api/cron/backup",
       "schedule": "43 3 * * *"
+    },
+    {
+      "path": "/api/cron/blog",
+      "schedule": "27 7 * * *"
     }
   ]
 }

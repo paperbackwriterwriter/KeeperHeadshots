@@ -2,7 +2,9 @@ import { html } from "../core.js";
 import { footer } from "./landing.js";
 import { SORO_EMBED, BLOG_SLUG, postTitle } from "../shared/soro.js";
 
-// /blog: articles written and hosted by Soro (trysoro.com). The server sends
+// /blog: articles written by Soro (trysoro.com). When the site reads Soro's
+// RSS feed (SORO_FEED_URL, lib/blog.js), the server sends the articles in the
+// page itself and this view keeps them. Otherwise, Soro's embed: the server sends
 // Soro's snippet in the page itself (lib/seo.js): <div id="soro-blog"></div>
 // and its script. Soro's script runs once per page load and fills that div,
 // so this view keeps the same div (app.js carries it over while the page is
@@ -12,9 +14,18 @@ import { SORO_EMBED, BLOG_SLUG, postTitle } from "../shared/soro.js";
 let shown = false;
 
 export function renderBlog({ root }) {
-  // Back/Forward within the blog: load that address fresh, so Soro shows it.
+  // Back/Forward within the blog: load that address fresh, from the server.
   if (shown) return void location.reload();
   shown = true;
+  // Served from Soro's feed (lib/blog.js): the server sent the articles in the
+  // page; keep them (app.js carried the element over) and add the footer.
+  const ssr = root.querySelector("[data-blog-ssr]");
+  if (ssr) {
+    if (ssr.dataset.title) document.title = ssr.dataset.title;
+    root.innerHTML = footer().v;
+    root.prepend(ssr);
+    return;
+  }
   // An article: its own title (the server sent the same), not the blog's.
   const post = new URLSearchParams(location.search).get("post");
   if (post && BLOG_SLUG.test(post)) document.title = postTitle(post);

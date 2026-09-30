@@ -199,12 +199,12 @@ async function render({ restoreY = null } = {}) {
 
   document.title = route.title;
   const chrome = route.chrome === "marketing" ? marketingNav() : route.chrome === "app" ? appNav() : html``;
-  // The blog's Soro embed fills a div it found when the page loaded; keep that
-  // same element in the page while the view is swapped in (views/blog.js).
-  const soro = document.getElementById("soro-blog");
+  // The blog keeps what the server sent while the view is swapped in
+  // (views/blog.js): the articles themselves, or the div Soro's embed fills.
+  const keep = document.querySelector("[data-blog-ssr]") || document.getElementById("soro-blog");
   app.innerHTML = html`${chrome}<div id="view"></div>`.v;
   const view = $("#view");
-  if (soro) view.append(soro);
+  if (keep) view.append(keep);
   const ctx = { root: view, navigate, setTitle: (t) => (document.title = `${t} · Keeper Headshots`) };
   let viewCleanup = null;
   try {
@@ -358,8 +358,8 @@ document.addEventListener("click", (e) => {
   if (e.defaultPrevented || !a || a.target || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0 || a.hasAttribute("download")) return;
   const url = new URL(a.href, location.origin);
   if (url.origin !== location.origin || url.pathname.startsWith("/media/")) return;
-  // The blog loads fresh: its page allows Soro's script, other pages don't.
-  // Within the blog, the embed's own links reload it with the new address.
+  // The blog loads fresh: the server sends its articles (or allows Soro's
+  // embed script there, which other pages don't).
   if (/^\/blog(\/|$)/.test(url.pathname) || /^\/blog(\/|$)/.test(location.pathname)) return;
   // A newer version was deployed since this tab loaded: load the page fresh.
   if (updateReady()) return;

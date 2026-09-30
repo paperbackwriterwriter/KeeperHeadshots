@@ -14,7 +14,8 @@ import { CONTACT_TO } from "./lib/contact.js";
 import { hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailCode, checkEmailCode, emailVerified, ownsMailbox, resetToken, checkResetToken } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
-import { pageFor, blogPostPage, isCanonicalHost } from "./lib/seo.js";
+import { pageFor, blogPostPage, blogIndexPage, blogArticlePage, blogSitemap, isCanonicalHost } from "./lib/seo.js";
+import { blogIndex, blogPost, blogImage, syncBlog } from "./lib/blog.js";
 import { aiStatus, AIError } from "./lib/ai.js";
 import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, advance, startGeneration, retryFailed, startReview } from "./lib/pipeline.js";
 import { lookFor, MAX_LOOKS, MAX_SELFIES, PHOTO_FORMATS } from "./public/js/shared/catalog.js";
@@ -1269,6 +1270,14 @@ app.get("/api/cron/backup", cronOnly, async (req, res) => {
   res.json(report);
 });
 
+// The blog's articles from Soro's feed (lib/blog.js). The site also reads the
+// feed when someone opens the blog and the copy is an hour old.
+app.get("/api/cron/blog", cronOnly, async (req, res) => {
+  const report = await syncBlog();
+  console.log("[blog] cron", JSON.stringify(report));
+  res.json(report);
+});
+
 /* ------------------------------- Static ----------------------------- */
 
 // Scripts are addressed by version, /v/<build>/js/... (lib/seo.js). The
@@ -1320,12 +1329,52 @@ const BLOG_CSP = CSP.replace("script-src 'self'", `script-src 'self' ${SORO}`)
   .replace("connect-src 'self'", `connect-src 'self' ${SORO}`)
   .replace("frame-src ", `frame-src ${SORO} `);
 
-app.get(/.*/, (req, res) => {
+// The blog's images (copies of Soro's, lib/blog.js). The name is a hash of
+// the original address, so a file never changes.
+app.get("/blog/img/:name", async (req, res) => {
+  const buf = await blogImage(req.params.name).catch(() => null);
+  if (!buf) return res.status(404).end();
+  res.set("Cache-Control", "public, max-age=31536000, immutable").type(req.params.name.endsWith(".webp") ? "image/webp" : "image/jpeg").send(buf);
+});
+// The articles' own sitemap (robots.txt lists it next to /sitemap.xml).
+app.get("/blog/sitemap.xml", async (req, res) => {
+  const index = await blogIndex().catch(() => null);
+  res.set("Cache-Control", "public, max-age=0, s-maxage=3600").type("application/xml").send(blogSitemap(index));
+});
+
+// The blog served from Soro's feed: /blog lists the articles, /blog/<slug>
+// is one, and the embed's old addresses (/blog?post=<slug>) move there.
+// Returns false when the blog isn't served from the feed (views/blog.js
+// shows Soro's embed instead).
+async function serveBlog(req, res, clean) {
+  if (clean !== "/blog" && !clean.startsWith("/blog/")) return false;
+  const index = await blogIndex().catch((err) => (console.error("[blog]", err.message), null));
+  if (!index) return false;
+  res.set("Content-Security-Policy", CSP);
+  if (!isCanonicalHost(req.get("host"))) res.set("X-Robots-Tag", "noindex");
+  const notFound = () => res.status(404).type("html").send(pageFor("/__not_found__").html);
+  if (clean === "/blog") {
+    const post = req.query.post;
+    if (typeof post !== "string") res.status(200).type("html").send(blogIndexPage(index).html);
+    else if (index.posts.some((p) => p.slug === post.toLowerCase())) res.redirect(301, `/blog/${post.toLowerCase()}`);
+    else notFound();
+    return true;
+  }
+  const slug = clean.slice("/blog/".length);
+  const post = await blogPost(slug);
+  if (post) res.status(200).type("html").send(blogArticlePage(post, index).html);
+  else if (slug !== slug.toLowerCase() && index.posts.some((p) => p.slug === slug.toLowerCase())) res.redirect(301, `/blog/${slug.toLowerCase()}`);
+  else notFound();
+  return true;
+}
+
+app.get(/.*/, async (req, res) => {
   res.set("Content-Security-Policy", /^\/blog(\/|$)/.test(req.path) ? BLOG_CSP : CSP);
   // "//evil.com/" or "/\\evil.com" must never become a redirect to another site.
   if (/^\/[\/\\]/.test(req.path) || req.path.includes("\\")) return res.status(404).type("html").send(pageFor("/__not_found__").html);
   const clean = req.path.length > 1 ? "/" + req.path.replace(/\/+$/, "").replace(/^\/+/, "") : "/";
   if (clean !== req.path) return res.redirect(301, clean + req.url.slice(req.path.length));
+  if (await serveBlog(req, res, clean)) return;
   // A blog article (/blog?post=<slug>) is its own page to search engines.
   const post = clean === "/blog" && typeof req.query.post === "string" ? blogPostPage(req.query.post) : null;
   const { status, html } = post || pageFor(clean);

@@ -63,6 +63,7 @@ run e2e node scripts/dev/api-e2e.js
 run team node scripts/dev/team-tests.js
 run reminders node scripts/dev/reminder-tests.js
 run showcase node scripts/dev/showcase-tests.js
+run blog node scripts/dev/blog-tests.js
 run render-race env MOCKLOG="$MOCKLOG" EMAIL=owner-ci@example.com node scripts/dev/render-race.js
 run slots env MOCKLOG="$MOCKLOG" RENDER_SLOTS=3 node scripts/dev/slots-test.js
 

@@ -7,3 +7,4 @@ Disallow: /media/
 Disallow: /verify
 
 Sitemap: https://keeperheadshots.com/sitemap.xml
+Sitemap: https://keeperheadshots.com/blog/sitemap.xml
