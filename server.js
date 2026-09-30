@@ -14,7 +14,7 @@ import { CONTACT_TO } from "./lib/contact.js";
 import { hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailCode, checkEmailCode, emailVerified, ownsMailbox, resetToken, checkResetToken } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
-import { pageFor, blogPostPage, blogIndexPage, blogArticlePage, blogSitemap, isCanonicalHost } from "./lib/seo.js";
+import { pageFor, blogPostPage, blogIndexPage, blogArticlePage, blogNotFoundPage, blogSitemap, isCanonicalHost } from "./lib/seo.js";
 import { blogIndex, blogPost, blogImage, syncBlog } from "./lib/blog.js";
 import { aiStatus, AIError } from "./lib/ai.js";
 import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, advance, startGeneration, retryFailed, startReview } from "./lib/pipeline.js";
@@ -1334,7 +1334,8 @@ const BLOG_CSP = CSP.replace("script-src 'self'", `script-src 'self' ${SORO}`)
 app.get("/blog/img/:name", async (req, res) => {
   const buf = await blogImage(req.params.name).catch(() => null);
   if (!buf) return res.status(404).end();
-  res.set("Cache-Control", "public, max-age=31536000, immutable").type(req.params.name.endsWith(".webp") ? "image/webp" : "image/jpeg").send(buf);
+  // s-maxage: Vercel's CDN keeps a copy too (max-age alone is only for browsers).
+  res.set("Cache-Control", "public, max-age=31536000, s-maxage=31536000, immutable").type(req.params.name.endsWith(".webp") ? "image/webp" : "image/jpeg").send(buf);
 });
 // The articles' own sitemap (robots.txt lists it next to /sitemap.xml).
 app.get("/blog/sitemap.xml", async (req, res) => {
@@ -1352,7 +1353,7 @@ async function serveBlog(req, res, clean) {
   if (!index) return false;
   res.set("Content-Security-Policy", CSP);
   if (!isCanonicalHost(req.get("host"))) res.set("X-Robots-Tag", "noindex");
-  const notFound = () => res.status(404).type("html").send(pageFor("/__not_found__").html);
+  const notFound = () => res.status(404).type("html").send(blogNotFoundPage(index).html);
   if (clean === "/blog") {
     const post = req.query.post;
     if (typeof post !== "string") res.status(200).type("html").send(blogIndexPage(index).html);

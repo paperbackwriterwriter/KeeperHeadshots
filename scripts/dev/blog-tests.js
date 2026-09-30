@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
-import { parseFeed, cleanHtml, privateAddress, excerptOf, pipeTable } from "../../lib/blog.js";
+import { parseFeed, cleanHtml, privateAddress, excerptOf, pipeTable, truncate, fetchImage } from "../../lib/blog.js";
 
 const results = [];
 const ok = (name, cond, extra = "") => (results.push(!!cond), console.log(cond ? "PASS" : "FAIL", name, extra));
@@ -30,8 +30,25 @@ ok("clean: image without a copy left out, copied one rewritten", !clean.includes
 ok("clean: h1 inside the article becomes h2", cleanHtml("<p>a</p><h1>Sub</h1>").includes("<h2>Sub</h2>"));
 ok("tables: Markdown table in a paragraph becomes a table", cleanHtml("<p>| Use | Crop | | --- | --- | | LinkedIn | Square | | Website | Portrait |</p>") === '<table><thead><tr><th scope="col">Use</th><th scope="col">Crop</th></tr></thead><tbody><tr><td>LinkedIn</td><td>Square</td></tr><tr><td>Website</td><td>Portrait</td></tr></tbody></table>');
 ok("tables: other text with bars left alone", pipeTable("| just | some bars |") === null && cleanHtml("<p>a | b</p>") === "<p>a | b</p>");
+ok("tables: empty cells keep their place", pipeTable("| | Price | | --- | --- | | Studio | $300 |") === '<table><thead><tr><th scope="col"></th><th scope="col">Price</th></tr></thead><tbody><tr><td>Studio</td><td>$300</td></tr></tbody></table>' && pipeTable("| a | b | c |\n| --- | --- | --- |\n| 1 |  | 3 |").includes("<td>1</td><td></td><td>3</td>"));
+ok("tables: a table is read within its own paragraph", cleanHtml("<p>| x | y |</p><p>| A | B | | --- | --- | | 1 | 2 |</p>") === '<p>| x | y |</p><table><thead><tr><th scope="col">A</th><th scope="col">B</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table>');
+ok("excerpt: plain text with angle brackets kept", truncate("Use <b> tags and a <title> element.", 160) === "Use <b> tags and a <title> element.");
 ok("excerpt: cut at a word", excerptOf("word ".repeat(80), 50).endsWith("word…"));
 ok("addresses: private ones refused", ["127.0.0.1", "10.1.2.3", "192.168.0.1", "169.254.169.254", "172.20.0.1", "::1", "fd00::1", "::ffff:127.0.0.1"].every(privateAddress) && !["8.8.8.8", "2606:4700::1111"].some(privateAddress));
+ok("addresses: IPv6 forms of private addresses refused", ["::ffff:7f00:1", "::ffff:a9fe:a9fe", "64:ff9b::a9fe:a9fe", "::7f00:1", "fec0::1", "2002:7f00:1::", "100::1"].every(privateAddress) && !["::ffff:8.8.8.8", "2002:808:808::1"].some(privateAddress));
+for (const u of ["https://localhost:9/x.jpg", "https://127.0.0.1/x.jpg", "https://[::ffff:127.0.0.1]/x.jpg", "http://example.com/x.jpg"]) {
+  const err = await fetchImage(u).then(() => "fetched", (e) => e.message);
+  ok(`images: ${u} refused`, /not a public address|not https/.test(err), err);
+}
+// Hostile feeds are read in linear time (no pattern re-scans the text).
+const timed = (xml) => {
+  const t = Date.now();
+  try { parseFeed(xml); } catch {}
+  return Date.now() - t;
+};
+const slow = Math.max(timed("<rss><item><enclosure " + "a".repeat(1e6) + "/></item>"), timed("<rss>" + "<item>".repeat(3e5)), timed("<rss><item>" + "<link>".repeat(1e5) + "</item>"), timed("<rss>" + "<![CDATA[".repeat(2e5)));
+ok("feed: hostile input read quickly", slow < 2000, `${slow} ms`);
+ok("feed: one broken item doesn't stop the rest", parseFeed('<rss><item><title>a</title><link>https://[</link></item><item><title>b</title><link>https://keeperheadshots.com/blog?post=ok-one</link></item></rss>').map((i) => i.slug).join() === ",ok-one");
 let threw = false;
 try { parseFeed("<html><body>Not a feed</body></html>"); } catch { threw = true; }
 ok("feed: an HTML page isn't read as a feed", threw);
@@ -175,11 +192,37 @@ try {
   // An empty feed or a failed read keeps what's there.
   current = feed([]);
   rep = await cron();
-  ok("empty feed: kept the articles", rep.error === "empty feed" && (await get("/blog/what-to-wear")).status === 200);
+  ok("empty feed: kept the articles", /no usable articles/.test(rep.error || "") && (await get("/blog/what-to-wear")).status === 200, JSON.stringify(rep));
+  // A feed whose articles all have addresses we can't use: also kept.
+  current = feed([first().replace(/<slug>what-to-wear<\/slug>/, "<slug>What_To_Wear</slug>").replace(/\?post=what-to-wear/, "?post=What_To_Wear")]);
+  rep = await cron();
+  ok("no usable articles: kept the articles", /no usable articles/.test(rep.error || "") && (await get("/blog/what-to-wear")).status === 200, JSON.stringify(rep));
   failFeed = true;
   rep = await cron();
   ok("failed read: kept the articles", /500/.test(rep.error || "") && (await get("/blog/what-to-wear")).status === 200, JSON.stringify(rep));
   failFeed = false;
+
+  // Articles missing from the blog: a 404 page with the latest articles.
+  r = await get("/blog/not-here");
+  page = await r.text();
+  ok("unknown article: a blog 404 page", r.status === 404 && page.includes("We couldn't find that article") && page.includes("data-blog-ssr") && page.includes('content="noindex"'));
+
+  // Most of the blog vanishing at once is treated as a fault.
+  const many = ["one-a", "two-b", "three-c", "four-d"].map((slug, i) => item({ slug, title: `Post ${i}`, date: `Mon, 2${i} Sep 2026 09:00:00 GMT`, body: "<description>x</description><content:encoded><![CDATA[<p>Body</p>]]></content:encoded>" }));
+  current = feed(many);
+  rep = await cron();
+  current = feed([many[0]]);
+  rep = await cron();
+  ok("most articles gone at once: kept", rep.removed === 0 && (await get("/blog/four-d")).status === 200, JSON.stringify(rep));
+  current = feed(many.slice(0, 3));
+  rep = await cron();
+  ok("one article unpublished: removed", rep.removed === 1 && (await get("/blog/four-d")).status === 404, JSON.stringify(rep));
+
+  // An image that can't be copied is retried later, not on every read.
+  current = feed([item({ slug: "broken-image", title: "Broken image", date: "Tue, 29 Sep 2026 09:00:00 GMT", extra: `<enclosure url="${F}/img/missing.jpg" type="image/jpeg" length="1" />`, body: "<description>x</description>" }), ...many.slice(0, 3)]);
+  rep = await cron();
+  const rep2 = await cron();
+  ok("missing image: retried later, not every read", rep.incomplete === 1 && rep2.unchanged === 4 && !rep2.incomplete, JSON.stringify([rep, rep2]));
 
   // Other pages keep their normal policy.
   const home = await get("/");
