@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
-import { parseFeed, cleanHtml, privateAddress, excerptOf } from "../../lib/blog.js";
+import { parseFeed, cleanHtml, privateAddress, excerptOf, pipeTable } from "../../lib/blog.js";
 
 const results = [];
 const ok = (name, cond, extra = "") => (results.push(!!cond), console.log(cond ? "PASS" : "FAIL", name, extra));
@@ -28,6 +28,8 @@ ok("clean: leading title heading dropped", !clean.includes("My Title"));
 ok("clean: article links point at /blog/<slug>", clean.includes('href="/blog/other-one"'));
 ok("clean: image without a copy left out, copied one rewritten", !clean.includes("e.com/a.jpg") && clean.includes('src="/blog/img/aaaaaaaaaaaaaaaaaaaaaaaa.jpg"') && clean.includes('width="10"'));
 ok("clean: h1 inside the article becomes h2", cleanHtml("<p>a</p><h1>Sub</h1>").includes("<h2>Sub</h2>"));
+ok("tables: Markdown table in a paragraph becomes a table", cleanHtml("<p>| Use | Crop | | --- | --- | | LinkedIn | Square | | Website | Portrait |</p>") === '<table><thead><tr><th scope="col">Use</th><th scope="col">Crop</th></tr></thead><tbody><tr><td>LinkedIn</td><td>Square</td></tr><tr><td>Website</td><td>Portrait</td></tr></tbody></table>');
+ok("tables: other text with bars left alone", pipeTable("| just | some bars |") === null && cleanHtml("<p>a | b</p>") === "<p>a | b</p>");
 ok("excerpt: cut at a word", excerptOf("word ".repeat(80), 50).endsWith("word…"));
 ok("addresses: private ones refused", ["127.0.0.1", "10.1.2.3", "192.168.0.1", "169.254.169.254", "172.20.0.1", "::1", "fd00::1", "::ffff:127.0.0.1"].every(privateAddress) && !["8.8.8.8", "2606:4700::1111"].some(privateAddress));
 let threw = false;
