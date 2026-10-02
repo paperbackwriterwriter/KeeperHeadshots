@@ -19,8 +19,8 @@ import { blogIndex, blogPost, blogImage, syncBlog } from "./lib/blog.js";
 import { isPreview, watermark } from "./lib/preview.js";
 import { reviewShoots, sendOffer } from "./lib/outreach.js";
 import { aiStatus, AIError } from "./lib/ai.js";
-import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, advance, startGeneration, retryFailed, startReview } from "./lib/pipeline.js";
-import { lookFor, MAX_LOOKS, MAX_SELFIES, PHOTO_FORMATS } from "./public/js/shared/catalog.js";
+import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, advance, startGeneration, retryFailed, startReview, addLooks } from "./lib/pipeline.js";
+import { lookFor, MAX_LOOKS, MAX_SELFIES, PHOTO_FORMATS, isPreviewOffer } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
 import { planFor, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, EMAIL_UNCONFIRMED } from "./lib/plan.js";
 import { gpc, metaPixelId, track as trackMeta } from "./lib/meta.js";
@@ -645,6 +645,43 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
   }
 });
 
+// Extra looks bought with a preview offer ("Preview + 2 more looks"): they're
+// added to that shoot and developed. The credit is taken first, atomically,
+// and given back if the shoot can't take them.
+app.post("/api/shoots/:id/more-looks", requireUser, async (req, res) => {
+  const meta = await ownShoot(req, res, { full: false });
+  if (!meta || !requireAI("imaging", res) || !requireAI("vision", res)) return;
+  const have = req.user.extraLooks?.[meta.id] || 0;
+  if (!have) return res.status(400).json({ error: "This shoot has no extra looks to add." });
+  if (LIVE.includes(meta.status)) return res.status(409).json({ error: "This shoot is still in progress." });
+  const existing = new Set((meta.looks || []).map((l) => lookFor(l.backdrop, l.outfit)?.id));
+  const asked = Array.isArray(req.body?.looks) ? req.body.looks : [];
+  const looks = [...new Map(asked.map((l) => (l && typeof l === "object" ? lookFor(String(l.backdrop), String(l.outfit)) : null)).filter((l) => l && !existing.has(l.id)).map((l) => [l.id, l])).values()];
+  if (!looks.length) return res.status(400).json({ error: "Pick a look this shoot doesn't have yet." });
+  if (looks.length > have) return res.status(400).json({ error: `Pick up to ${have} look${have === 1 ? "" : "s"}.` });
+  let taken = false;
+  await users.update(req.user.id, (u) => {
+    taken = false;
+    const left = u.extraLooks?.[meta.id] || 0;
+    if (left < looks.length) return UNCHANGED;
+    u.extraLooks = { ...u.extraLooks, [meta.id]: left - looks.length };
+    if (!u.extraLooks[meta.id]) delete u.extraLooks[meta.id];
+    taken = true;
+  });
+  if (!taken) return res.status(409).json({ error: "Those looks have already been added." });
+  const giveBack = () => users.update(req.user.id, (u) => void (u.extraLooks = { ...u.extraLooks, [meta.id]: (u.extraLooks?.[meta.id] || 0) + looks.length })).catch((e) => console.error("[more-looks] refund", e.message));
+  try {
+    if (!(await addLooks(meta.id, looks))) {
+      await giveBack();
+      return res.status(409).json({ error: "This shoot is busy. Try again in a moment." });
+    }
+  } catch (err) {
+    await giveBack();
+    throw err;
+  }
+  res.status(202).json({ shoot: await shoots.get(meta.id), user: publicUser(await users.byId(req.user.id)) });
+});
+
 app.post("/api/shoots/:id/resume", requireUser, async (req, res) => {
   if (req.user.demo) throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
   const shoot = await ownShoot(req, res);
@@ -903,9 +940,19 @@ app.post("/api/billing/checkout", requireUser, async (req, res) => {
   });
   if (tooMany) return res.status(429).json({ error: "You've started several checkouts in the last hour. Please try again a little later, or contact us." });
   const embedded = req.body?.embedded === true && !!stripePublishableKey();
-  const checkout = await createCheckout(req.user, String(req.body?.packageId || ""), origin, { gpc: gpc(req), embedded });
-  // For the one "unfinished checkout" reminder (lib/reminders.js).
   const packageId = String(req.body?.packageId || "");
+  // A preview offer is for one of this account's finished free previews that
+  // nothing has unlocked yet.
+  let shootId = null;
+  if (isPreviewOffer(packageId)) {
+    shootId = String(req.body?.shootId || "");
+    const meta = /^sht_[\w-]{6,40}$/.test(shootId) ? await shoots.getMeta(shootId) : null;
+    if (!meta || meta.userId !== req.user.id) return res.status(400).json({ error: "Choose the shoot to keep first." });
+    if (!isPreview(meta, req.user)) return res.status(400).json({ error: "This shoot is already yours to keep. Pick a package to keep shooting.", code: "not_preview" });
+    if (meta.status !== "done") return res.status(400).json({ error: "Wait for this shoot to finish, then keep it." });
+  }
+  const checkout = await createCheckout(req.user, packageId, origin, { gpc: gpc(req), embedded, shootId });
+  // For the one "unfinished checkout" reminder (lib/reminders.js).
   await users.update(req.user.id, (u) => void (u.lastCheckout = { packageId, at: new Date().toISOString() })).catch((err) => console.error("[checkout] record", err.message));
   const eventId = `checkout_${checkout.id}`;
   trackMeta("InitiateCheckout", { eventId, user: req.user, req, value: checkout.value });

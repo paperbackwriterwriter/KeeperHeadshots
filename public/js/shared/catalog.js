@@ -88,14 +88,14 @@ export const PACKAGES = [
   {
     id: "starter",
     name: "Starter",
-    price: 29,
+    price: 29.99,
     shoots: 3,
     features: ["3 shoots", "Up to 24 headshots", "4 looks per shoot", "AI photo check & grading", "LinkedIn & Teams square crops"],
   },
   {
     id: "professional",
     name: "Professional",
-    price: 39,
+    price: 39.99,
     shoots: 6,
     popular: true,
     features: ["6 shoots", "Up to 48 headshots", "4 looks per shoot", "AI photo check & grading", "LinkedIn & Teams square crops", "Our most popular package"],
@@ -103,11 +103,34 @@ export const PACKAGES = [
   {
     id: "executive",
     name: "Executive",
-    price: 49,
+    price: 49.99,
     shoots: 12,
     features: ["12 shoots", "Up to 96 headshots", "4 looks per shoot", "AI photo check & grading", "LinkedIn & Teams square crops", "Best value per shoot", "Great for small teams"],
   },
 ];
+
+// Offers on a free preview's results page (lib/preview.js): keep that
+// shoot's headshots at full resolution, or keep them and add more looks to
+// the same shoot (chosen after paying). Bought for one shoot, with its id.
+export const PREVIEW_OFFERS = [
+  {
+    id: "keep",
+    name: "Keep your preview",
+    price: 8.99,
+    looks: 0,
+    features: ["Every headshot from this shoot", "Full-resolution files", "LinkedIn, square, banner and email-signature sizes"],
+  },
+  {
+    id: "keep-plus",
+    name: "Preview + 2 more looks",
+    price: 14.99,
+    looks: 2,
+    popular: true,
+    features: ["Everything in Keep your preview", "2 more looks of your choice", `${2 * TAKES_PER_LOOK} more headshots, checked and graded`],
+  },
+];
+export const offerFor = (id) => PACKAGES.find((p) => p.id === id) || PREVIEW_OFFERS.find((p) => p.id === id) || null;
+export const isPreviewOffer = (id) => PREVIEW_OFFERS.some((p) => p.id === id);
 
 export function lookFor(backdropId, outfitId) {
   const backdrop = BACKDROPS.find((b) => b.id === backdropId);

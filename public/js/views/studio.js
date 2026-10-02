@@ -2,15 +2,37 @@
 //   (new) upload -> draft/checking -> checked (photo check + looks) -> generating/reviewing -> done (proofs)
 
 import { $, $$, html, raw, icon, api, state, toast, media, squareMedia, sizeMedia, PROFILE_KIT, busy, spinner, greaseCircle, silhouette, esc, reduceMotion, loadSession } from "../core.js";
-import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, lookFor } from "../shared/catalog.js";
+import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, PREVIEW_OFFERS, lookFor } from "../shared/catalog.js";
 import { portraitDataURL } from "../shared/portrait.js";
-import { aiBanner, planBanner } from "./dashboard.js";
+import { aiBanner, planBanner, confirmPurchase } from "./dashboard.js";
 import { currentFormat, formatPicker, formatHrefs, formatName, saveFormat, downloadAll } from "./format.js";
 import { mountShare } from "./share.js";
 
 // A free shoot's headshots are watermarked previews until the account buys a
 // package (the server adds the watermark; lib/preview.js).
 const isLocked = (s) => !!s?.preview && !s.sample && !state.user?.purchased && state.user?.plan?.tier !== "owner";
+
+// Extra looks bought for this shoot ("Preview + 2 more looks") not added yet.
+const extraLooks = (s) => (s && !s.sample ? state.user?.extraLooks?.[s.id] || 0 : 0);
+
+// On a preview's results: keep it, keep it with 2 more looks, or a package.
+function keepPanel(s) {
+  const lowest = Math.min(...PACKAGES.map((p) => p.price));
+  return html`<section class="keep-panel" aria-labelledby="keepTitle">
+    <h2 class="keep-title" id="keepTitle">Keep your headshots</h2>
+    <p class="keep-sub">Love them? Make them yours: every headshot from this shoot in full resolution, in every size.</p>
+    <div class="keep-offers">${PREVIEW_OFFERS.map(
+      (o) => html`<a class="keep-offer ${o.popular ? "pop" : ""}" href="/app/buy/${o.id}?shoot=${encodeURIComponent(s.id)}" data-link>
+        ${o.popular ? html`<span class="keep-badge">Best value</span>` : ""}
+        <span class="keep-name">${o.name}</span>
+        <span class="keep-price"><strong class="tabular">$${o.price}</strong> one-time</span>
+        <span class="keep-what">${o.looks ? `Keep these, plus ${o.looks} new looks (${o.looks * TAKES_PER_LOOK} more headshots)` : "Every headshot from this shoot"}</span>
+        <span class="keep-go">${o.looks ? "Keep + add looks" : "Keep them"} ${icon("arrow-right")}</span>
+      </a>`,
+    )}</div>
+    <p class="keep-more">${icon("layers")}<span>Need more shoots? Packages from <b>$${lowest}</b> include this shoot too. <a class="link" href="#upgrade">See packages</a></span></p>
+  </section>`;
+}
 
 const STEPS = ["Upload", "Photo check", "Looks", "Develop", "Proofs"];
 const LIVE = ["checking", "generating", "reviewing"];
@@ -51,6 +73,19 @@ export async function renderStudio(ctx, id) {
   };
 
   if (!id) return renderUpload(ctx);
+
+  // Back from Stripe after buying a preview offer for this shoot.
+  const q = new URLSearchParams(location.search);
+  const outcome = q.get("checkout");
+  if (outcome) {
+    history.replaceState(history.state, "", location.pathname);
+    if (outcome === "cancelled") toast("Checkout cancelled. You haven't been charged.", "info");
+    else {
+      root.innerHTML = html`<main id="main" class="container app-main"><div class="empty" aria-busy="true"><div style="display:flex;justify-content:center">${spinner()}</div><h1 class="display h-2">Confirming your payment…</h1></div></main>`.v;
+      await confirmPurchase(q.get("session_id"));
+      if (disposed) return;
+    }
+  }
 
   root.innerHTML = html`<main id="main" class="container app-main"><div class="loading-page" aria-busy="true">
     <div class="skel" style="height:14px;width:120px"></div><div class="skel" style="height:56px;width:min(520px,90%)"></div>
@@ -372,27 +407,34 @@ export async function renderStudio(ctx, id) {
     });
   }
 
-  function paintLooks(s) {
-    if (s.team) return paintTeamLooks(s);
-    const plan = state.user?.plan;
-    const MAX_LOOKS = plan?.maxLooks || MAX_LOOKS_ALL;
+  // `extra`: picking the extra looks bought for a finished shoot (they're
+  // added to it), rather than the looks for a new one.
+  function paintLooks(s, extra = 0) {
+    if (s.team && !extra) return paintTeamLooks(s);
+    const plan = extra ? null : state.user?.plan;
+    const MAX_LOOKS = extra || plan?.maxLooks || MAX_LOOKS_ALL;
     const trial = plan?.tier === "trial";
-    let looks = (s.looks?.length ? s.looks.map((l) => ({ ...l })) : SUGGESTED.slice(0, 2).map(([backdrop, outfit]) => ({ backdrop, outfit }))).slice(0, MAX_LOOKS);
-    let active = 0;
     const same = (a, b) => a.backdrop === b.backdrop && a.outfit === b.outfit;
-    const taken = (look, except = -1) => looks.some((l, i) => i !== except && same(l, look));
+    const had = extra ? (s.looks || []).map((l) => ({ ...l })) : [];
+    let looks = [];
+    let active = 0;
+    const taken = (look, except = -1) => looks.some((l, i) => i !== except && same(l, look)) || had.some((l) => same(l, look));
     const suggest = () => {
       const fresh = SUGGESTED.map(([backdrop, outfit]) => ({ backdrop, outfit })).filter((l) => !taken(l));
       // Prefer a backdrop that isn't on the list yet, for variety.
       return fresh.find((l) => !looks.some((x) => x.backdrop === l.backdrop)) || fresh[0] || { backdrop: BACKDROPS[0].id, outfit: OUTFITS.find((o) => !taken({ backdrop: BACKDROPS[0].id, outfit: o.id }))?.id };
     };
+    if (extra) while (looks.length < MAX_LOOKS) looks.push(suggest());
+    else looks = (s.looks?.length ? s.looks.map((l) => ({ ...l })) : SUGGESTED.slice(0, 2).map(([backdrop, outfit]) => ({ backdrop, outfit }))).slice(0, MAX_LOOKS);
     const preview = (l) => portraitDataURL("look-" + l.backdrop + l.outfit, { backdrop: l.backdrop, outfit: l.outfit, skin: 2, hair: "short", hairTone: 1 });
 
     root.innerHTML = html`<main id="main" class="container app-main view-enter looks-page">
       ${stepper(2)}
-      <div class="page-head"><div><p class="eyebrow">${s.name}</p><h1 class="display h-1" style="margin-top:8px">Dress the set.</h1><p class="lede" style="margin-top:12px">Up to ${MAX_LOOKS} looks, ${TAKES_PER_LOOK} takes each. Tap a look to change its backdrop or outfit, or tap an empty slot to add one.</p></div></div>
+      ${extra
+        ? html`<div class="page-head"><div><p class="eyebrow">${s.name}</p><h1 class="display h-1" style="margin-top:8px">Pick your ${plural(MAX_LOOKS, "extra look")}.</h1><p class="lede" style="margin-top:12px">${TAKES_PER_LOOK} takes each, added to this shoot beside the headshots you have. Tap a look to change its backdrop or outfit.</p></div></div>`
+        : html`<div class="page-head"><div><p class="eyebrow">${s.name}</p><h1 class="display h-1" style="margin-top:8px">Dress the set.</h1><p class="lede" style="margin-top:12px">Up to ${MAX_LOOKS} looks, ${TAKES_PER_LOOK} takes each. Tap a look to change its backdrop or outfit, or tap an empty slot to add one.</p></div></div>`}
 
-      ${trial ? html`<div class="banner banner-info">${icon("sparkles")}<div><b>Your free preview shoot.</b>Up to ${MAX_LOOKS} looks (${MAX_LOOKS * TAKES_PER_LOOK} headshots), watermarked until you buy any package. Paid packages unlock up to ${MAX_LOOKS_ALL} looks per shoot.</div></div>` : ""}
+      ${trial ? html`<div class="banner banner-info">${icon("sparkles")}<div><b>Your free preview shoot.</b>Up to ${MAX_LOOKS} looks (${MAX_LOOKS * TAKES_PER_LOOK} preview headshots). Paid packages unlock up to ${MAX_LOOKS_ALL} looks per shoot.</div></div>` : ""}
       ${plan && !plan.canDevelop ? planBanner() : ""}
       <section aria-labelledby="looksTitle">
         <div class="looks-head">
@@ -423,7 +465,7 @@ export async function renderStudio(ctx, id) {
       </section>
 
       <div class="develop-bar">
-        <button class="btn btn-ghost btn-sm" id="backCheck" aria-label="Back to photo check">${icon("arrow-left")}<span class="hide-s">Photo check</span></button>
+        <button class="btn btn-ghost btn-sm" id="backCheck" aria-label="${extra ? "Back to your headshots" : "Back to photo check"}">${icon("arrow-left")}<span class="hide-s">${extra ? "Your headshots" : "Photo check"}</span></button>
         <p class="develop-tally"><strong class="tabular" id="tally">0</strong> <span id="tallySub">headshots</span></p>
         <button class="btn btn-flash btn-lg" id="develop">${icon("aperture")} Develop</button>
       </div>
@@ -501,13 +543,17 @@ export async function renderStudio(ctx, id) {
       if (b) edit({ outfit: b.dataset.outfit });
     });
     $("#backCheck").addEventListener("click", () => {
+      if (extra) return paintProofs(shoot);
       view = "check";
       paintCheck(shoot);
     });
     $("#develop").addEventListener("click", async (e) => {
       const restore = busy(e.currentTarget, "Setting up…");
       try {
-        const data = await api(`/api/shoots/${id}/generate`, { method: "POST", body: { looks, override: !!shoot._override } });
+        const data = extra
+          ? await api(`/api/shoots/${id}/more-looks`, { method: "POST", body: { looks } })
+          : await api(`/api/shoots/${id}/generate`, { method: "POST", body: { looks, override: !!shoot._override } });
+        if (data.user) state.user = data.user;
         shoot = data.shoot;
         paintDevelop(shoot);
         window.scrollTo({ top: 0, behavior: "instant" });
@@ -641,9 +687,9 @@ export async function renderStudio(ctx, id) {
     }
     return html`<section class="upsell" id="upgrade" aria-labelledby="upsellTitle">
       <div>
-        <p class="eyebrow">${isLocked(s) ? "Keep these headshots" : "Upgrade"}</p>
-        <h2 class="display h-2" id="upsellTitle">${isLocked(s) ? "Remove the watermark." : "Upgrade for more options."}</h2>
-        <p class="upsell-sub">${isLocked(s) ? "Any package unlocks this shoot at full resolution, without the watermark, and adds paid shoots with more looks, more takes and more headshots to choose from." : html`${s.paidWith === "free" ? `That was your free shoot. ` : ""}Paid shoots give you more looks, more takes and more headshots to choose from.`}</p>
+        <p class="eyebrow">${isLocked(s) ? "Or go further" : "Upgrade"}</p>
+        <h2 class="display h-2" id="upsellTitle">${isLocked(s) ? "Keep these, and get more shoots." : "Upgrade for more options."}</h2>
+        <p class="upsell-sub">${isLocked(s) ? "Every package includes this shoot in full resolution, plus new shoots with more looks, more takes and more headshots to choose from." : html`${s.paidWith === "free" ? `That was your free shoot. ` : ""}Paid shoots give you more looks, more takes and more headshots to choose from.`}</p>
         <ul class="upsell-perks">${perks.map(([ic, t, d]) => html`<li><span class="ficon">${ic}</span><div><b>${t}</b><span>${d}</span></div></li>`)}</ul>
       </div>
       ${pkgs}
@@ -671,6 +717,7 @@ export async function renderStudio(ctx, id) {
 
     root.innerHTML = html`<main id="main" class="container app-main view-enter">
       ${stepper(4)}
+      ${extraLooks(s) ? html`<div class="banner banner-info extra-banner">${icon("sparkles")}<div><b>You have ${plural(extraLooks(s), "extra look")} to add to this shoot.</b>Pick the backdrops and outfits, and we'll develop ${extraLooks(s) * TAKES_PER_LOOK} more headshots beside these.</div><button class="btn btn-sm btn-flash" type="button" id="pickExtra">${icon("plus")} Pick your looks</button></div>` : ""}
       ${s.sample ? html`<div class="banner banner-info">${icon("info")}<div><b>This is a sample shoot.</b>It shows exactly what your proofs will look like — sample images are illustrations. Start a new shoot to develop real headshots from your photos.</div><a class="btn btn-sm btn-flash" href="/app/new" data-link>New shoot</a></div>` : ""}
       ${s.reviewError ? html`<div class="banner banner-warn">${icon("circle-alert")}<div><b>Your headshots are ready, but grading didn't finish.</b>${s.reviewError}</div><button class="btn btn-sm btn-ink" id="regrade">${icon("refresh-cw")} Retry grading</button></div>` : ""}
       ${failed ? html`<div class="banner banner-warn">${icon("circle-alert")}<div><b>${failed} frame${failed === 1 ? "" : "s"} didn't develop.</b>You can retry just those frames — the rest stay as they are.</div><button class="btn btn-sm btn-ink" id="resume">${icon("refresh-cw")} Retry</button></div>` : ""}
@@ -699,9 +746,7 @@ export async function renderStudio(ctx, id) {
           ${isMine && aiBest
             ? html`<p class="small muted" style="margin:-8px 0 20px">The retoucher's pick was frame ${String(aiBest.n).padStart(2, "0")}. <button class="link" id="resetPick" style="background:none;border:0;padding:0;cursor:pointer;font:inherit">Use the retoucher's pick</button></p>`
             : ""}
-          ${locked
-            ? html`<div class="banner banner-info preview-banner">${icon("lock")}<div><b>This is your free preview.</b>Your headshots have a watermark and are shown smaller. Buy any package to download every headshot from this shoot at full resolution, without the watermark, and get more shoots for new looks.<div class="btn-row" style="margin-top:12px"><a class="btn btn-flash btn-sm" href="/app/buy/${PACKAGES.find((p) => p.popular)?.id || PACKAGES[0].id}" data-link>${icon("sparkles")} Remove the watermark</a><a class="btn btn-ghost btn-sm" href="#upgrade">See packages</a></div></div></div>`
-            : ""}
+          ${locked ? keepPanel(s) : ""}
           <div class="fmt-row">
             <span class="fmt-label" id="fmtLabel">Download as</span>
             ${formatPicker(currentFormat())}
@@ -713,7 +758,7 @@ export async function renderStudio(ctx, id) {
                 <div class="kit-items">${PROFILE_KIT.map(([size, name, detail]) => html`<a class="kit-item" href="${sizeMedia(best.file, size)}" download><b>${icon("download")} ${name}</b><span>${detail}</span></a>`)}</div>
               </div>`
             : ""}
-          <p class="small muted" style="margin-top:14px;max-width:60ch">${locked ? "Previews download with the watermark. After you buy, the same buttons give the full-resolution headshots. " : ""}Every headshot is ready to use as it is, in either shape: a full-resolution 3:4 portrait for websites, print and business cards, or a 1:1 square for LinkedIn, Microsoft Teams and social media, framed for round profile photos with your face centered and room around it. No cropping needed.</p>
+          <p class="small muted" style="margin-top:14px;max-width:60ch">${locked ? "These are previews. Once you keep them, the same buttons give the full-resolution headshots. " : ""}Every headshot is ready to use as it is, in either shape: a full-resolution 3:4 portrait for websites, print and business cards, or a 1:1 square for LinkedIn, Microsoft Teams and social media, framed for round profile photos with your face centered and room around it. No cropping needed.</p>
         </div>
       </section>
 
@@ -756,7 +801,7 @@ export async function renderStudio(ctx, id) {
       $("#dlRow").innerHTML = html`<div class="dl-buttons">
         ${best ? html`<button class="btn btn-flash btn-lg" id="dlBest">${icon("download")} Download ${isMine ? "your pick" : "best pick"}${fmt === "both" ? "" : ` · ${fmt === "square" ? "1:1" : "3:4"}`}</button>` : ""}
         <button class="btn btn-ghost btn-lg" id="dlAll" aria-label="Download all ${plural(n, "headshot")}, ${what}">${icon("download")} All ${n}</button>
-        <a class="btn btn-ghost btn-lg" href="#upgrade">${icon("sparkles")} More options</a>
+        ${locked ? "" : html`<a class="btn btn-ghost btn-lg" href="#upgrade">${icon("sparkles")} More options</a>`}
       </div>`.v;
       $("#dlBest")?.addEventListener("click", () => downloadAll(formatHrefs(best.file, fmt)));
       $("#dlAll").addEventListener("click", async (e) => {
@@ -767,6 +812,10 @@ export async function renderStudio(ctx, id) {
       });
     };
     drawDl();
+    $("#pickExtra")?.addEventListener("click", () => {
+      paintLooks(shoot, extraLooks(shoot));
+      window.scrollTo({ top: 0, behavior: "instant" });
+    });
     if (!locked) mountShare($("#sharePanel"), s, ordered, best);
     $$("[data-format]").forEach((b) =>
       b.addEventListener("click", async () => {

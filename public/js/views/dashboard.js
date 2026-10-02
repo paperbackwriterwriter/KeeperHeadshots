@@ -33,7 +33,7 @@ export function planBanner() {
       </form>
       <p class="verify-resend">Didn't get it? <button class="link-btn" type="button" data-resend-verify>Resend email</button></p></div></div>`;
   if (plan.tier === "trial")
-    return html`<div class="banner banner-info">${icon("sparkles")}<div><b>Your first shoot is a free preview.</b>Up to 2 looks, which makes 4 headshots, each checked and graded by AI. They're watermarked until you buy any package.</div></div>`;
+    return html`<div class="banner banner-info">${icon("sparkles")}<div><b>Your first shoot is a free preview.</b>Up to 2 looks, which makes 4 headshots, each checked and graded by AI.</div></div>`;
   if (plan.tier === "none")
     return html`<div class="banner banner-warn">${icon("circle-alert")}<div><b>You're out of shoots.</b>Buy a package to develop more. Your existing shoots and downloads stay available.</div><a class="btn btn-sm btn-flash" href="/#pricing">Buy shoots</a></div>`;
   if (plan.tier === "paid")
@@ -58,19 +58,26 @@ async function handleCheckoutReturn(navigate, root) {
   }
   // Something on screen while the payment is confirmed (a second or two).
   root.innerHTML = html`<main id="main" class="container app-main"><div class="empty" aria-busy="true"><div style="display:flex;justify-content:center">${spinner()}</div><h1 class="display h-2">Confirming your payment…</h1></div></main>`.v;
+  return (await confirmPurchase(q.get("session_id"))) !== null;
+}
+
+// Confirms a checkout Stripe sent the customer back from (the dashboard, or
+// a shoot's page for a preview offer): updates the account, sends the Pixel
+// Purchase and says what was bought. Returns the result, or null on failure.
+export async function confirmPurchase(sessionId) {
   try {
-    const res = await api("/api/billing/confirm", { method: "POST", body: { sessionId: q.get("session_id") } });
+    const res = await api("/api/billing/confirm", { method: "POST", body: { sessionId } });
     state.user = res.user;
-    if (res.added) {
+    if (res.granted) {
       // No Purchase event for a free (100%-off) order; the server sends none either.
       if (res.eventId) pixel("Purchase", { value: res.value, currency: "USD" }, res.eventId);
-      toast(`${res.eventId ? "Payment received" : "Order complete"}: ${res.added} shoots added to your account.`, "success", 7000);
-    }
-    else if (!res.paid) toast("Your payment is still processing. Your shoots will appear as soon as it clears.", "info", 7000);
-    return true;
+      const what = res.added ? `${res.added} shoots added to your account.` : res.packageId === "keep-plus" ? "your headshots are yours to keep. Now pick your 2 extra looks." : "your headshots are yours to keep, in full resolution.";
+      toast(`${res.eventId ? "Payment received" : "Order complete"}: ${what}`, "success", 7000);
+    } else if (!res.paid) toast("Your payment is still processing. Your order will appear as soon as it clears.", "info", 7000);
+    return res;
   } catch (err) {
     toast(err.message, "error", 7000);
-    return false;
+    return null;
   }
 }
 

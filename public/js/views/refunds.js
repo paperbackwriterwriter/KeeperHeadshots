@@ -23,7 +23,7 @@ export function renderRefunds({ root }) {
       <ul>
         <li>Your first paid package, whichever you choose: Starter, Professional or Executive. The guarantee applies once per person.</li>
         <li>If none of the headshots from the <b>first paid shoot</b> in your package are ones you'd use professionally, we refund the <b>full package price</b>, less any shoots you developed after it and kept. A later shoot that also had nothing usable is refunded too.</li>
-        <li>For example, you buy Professional (6 shoots for $39, so $6.50 a shoot). Your first shoot has nothing you'd use, so you develop a second one and keep those headshots. We refund $32.50. If the second shoot had nothing usable either, we refund the full $39.</li>
+        <li>For example, you buy Professional (6 shoots for $39.99, so $6.67 a shoot). Your first shoot has nothing you'd use, so you develop a second one and keep those headshots. We refund $33.32. If the second shoot had nothing usable either, we refund the full $39.99.</li>
         <li>Your free first shoot costs nothing, so there's nothing to refund.</li>
       </ul>
 

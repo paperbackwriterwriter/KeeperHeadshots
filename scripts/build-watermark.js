@@ -31,7 +31,7 @@ const band = `<!doctype html><html><head>${head}<style>
 body { width: ${BAND.w}px; height: ${BAND.h}px; background: rgba(20,33,61,0.92); color: #f7f2e9; display: flex; align-items: center; justify-content: center; gap: 16px; font-size: 22px; font-weight: 600; white-space: nowrap; }
 b { color: #e0b766; letter-spacing: 0.16em; font-weight: 800; }
 span { opacity: 0.9; }
-</style></head><body><b>FREE PREVIEW</b><span>Buy any package to remove the watermark · keeperheadshots.com</span></body></html>`;
+</style></head><body><b>FREE PREVIEW</b><span>Keep these headshots from $8.99 · keeperheadshots.com</span></body></html>`;
 
 const exe = [process.env.CHROMIUM_PATH, "/opt/pw-browsers/chromium"].find((p) => p && fs.existsSync(p));
 const browser = await chromium.launch(exe ? { executablePath: exe } : {});

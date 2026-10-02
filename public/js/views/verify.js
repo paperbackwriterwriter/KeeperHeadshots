@@ -41,7 +41,7 @@ export async function renderVerify({ root, navigate }) {
   shell(html`
     <div class="verify-icon verify-icon-ok">${icon("mail-check")}</div>
     <h1 class="display h-2">${res.status === "verified" ? "Email confirmed." : "You're already confirmed."}</h1>
-    <p class="lede">${free ? "Your free preview shoot is unlocked: up to 2 looks and 4 headshots, each checked for likeness before you see it. They're watermarked until you buy any package." : "Thanks for confirming your email address."}</p>
+    <p class="lede">${free ? "Your free preview shoot is unlocked: up to 2 looks and 4 headshots, each checked for likeness before you see it." : "Thanks for confirming your email address."}</p>
     <div class="verify-actions">
       ${state.user
         ? html`<a class="btn btn-flash btn-lg" href="${free ? "/app/new" : "/app"}" data-link>${free ? "Start your free shoot" : "Go to your shoots"} ${icon("arrow-right")}</a>`

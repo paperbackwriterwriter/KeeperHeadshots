@@ -56,7 +56,7 @@ const t = Date.now();
 {
   const f = await account(`half${t}@x.com`);
   const r = await buy(f, "professional", "HALF");
-  ok("discounted order reports the amount paid", r.added === 6 && r.value === 19.5 && !!r.eventId, `added=${r.added} value=${r.value}`);
+  ok("discounted order reports the amount paid", r.added === 6 && r.value === 19.99 && !!r.eventId, `added=${r.added} value=${r.value}`);
 }
 
 // 4. The funnel counts each step once per person, and only owners can see it.
@@ -77,7 +77,7 @@ const t = Date.now();
   const after = (await owner("/api/owner/funnel?days=7")).j;
   const d = (k) => after.totals[k] - before.totals[k];
   const deltas = { signup: d("signup"), verified: d("verified"), checked: d("checked"), developed: d("developed"), buyer: d("buyer"), purchases: d("purchases"), revenue: d("revenue") };
-  ok("funnel counts each step once per person", dev.status === 202 && deltas.signup === 1 && deltas.verified === 1 && deltas.checked === 1 && deltas.developed === 1 && deltas.buyer === 1 && deltas.purchases === 2 && deltas.revenue === 3900 + 1450, JSON.stringify(deltas));
+  ok("funnel counts each step once per person", dev.status === 202 && deltas.signup === 1 && deltas.verified === 1 && deltas.checked === 1 && deltas.developed === 1 && deltas.buyer === 1 && deltas.purchases === 2 && deltas.revenue === 3999 + 1499, JSON.stringify(deltas));
   ok("funnel report has one row per day", after.rows.length === 7 && after.rows[0].date === new Date().toISOString().slice(0, 10));
   const stranger = await f("/api/owner/funnel");
   ok("only owners can see the funnel", stranger.status === 404, String(stranger.status));

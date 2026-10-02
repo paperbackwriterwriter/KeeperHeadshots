@@ -164,7 +164,7 @@ function stripe(req, res, raw) {
     const s = {
       id, object: "checkout.session", customer: form.customer, client_reference_id: form.client_reference_id, payment_status: "unpaid",
       amount_total: Number(form["line_items[0][price_data][unit_amount]"]), currency: "usd",
-      metadata: { userId: form["metadata[userId]"], packageId: form["metadata[packageId]"], shoots: form["metadata[shoots]"], ...(form["metadata[gpc]"] ? { gpc: form["metadata[gpc]"] } : {}) },
+      metadata: Object.fromEntries(Object.entries(form).filter(([k]) => k.startsWith("metadata[")).map(([k, v]) => [k.slice(9, -1), v])),
       success_url: form.success_url || form.return_url, cancel_url: form.cancel_url, ui_mode: form.ui_mode || "hosted_page",
       status: "open", allow_promotion_codes: form.allow_promotion_codes === "true", total_details: { amount_discount: 0 },
       // Embedded sessions have a client secret instead of a hosted-page URL.

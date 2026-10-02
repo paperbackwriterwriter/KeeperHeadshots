@@ -32,8 +32,8 @@ async function account(email, name = "Pat Lee", verify = true) {
   else if (verify) await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email) }) });
   return f;
 }
-async function buy(f, packageId = "starter") {
-  const { j } = await f("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId }) });
+async function buy(f, packageId = "starter", shootId) {
+  const { j } = await f("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId, shootId }) });
   const id = new URL(j.url).pathname.split("/").pop();
   await fetch(`${M}/mock-pay/${id}?promo=FREE`, { redirect: "manual" });
   return (await f("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: id }) })).j;
@@ -63,9 +63,10 @@ const t = Date.now();
 // 0. Email copy.
 {
   const e = reminderEmail({ kind: "buy", name: "Pat", link: "L", pricing: "P", unsubscribe: "U", preview: true });
-  ok("the 'buy' reminder for a preview talks about the watermark", /watermark/i.test(e.subject + e.text));
+  ok("the 'buy' reminder for a preview offers to keep it, without mentioning a watermark", /\$8\.99/.test(e.subject + e.text) && /\$14\.99/.test(e.text) && !/watermark/i.test(e.subject + e.text + e.html));
   const o = offerEmail({ name: "Pat Lee", code: "KEEP30", discount: "30% off", until: "Sunday", link: "L", pricing: "P", usedFree: true, preview: true, unsubscribe: "U" });
   ok("the offer email has the code, the discount and the unsubscribe link", o.text.includes("KEEP30") && o.text.includes("30% off any package until Sunday") && o.text.includes("U") && o.html.includes("KEEP30"));
+  ok("and doesn't mention a watermark", !/watermark/i.test(o.subject + o.text + o.html));
 }
 
 const owner = await account(OWNER, "Owner");
@@ -134,7 +135,52 @@ let previewBytes = 0;
   ok("buyers don't get offers, and show as bought", row?.bought === true && row.preview === false && count.eligible >= 0);
 }
 
-// 4. A paid shoot is never a preview.
+// 4. The preview offers: keep one shoot ($8.99), or keep it and add 2 looks
+// ($14.99). Bought for one finished preview of your own.
+{
+  const kim = await account(`kim${t}@x.com`, "Kim Park");
+  const prev = await doneShoot(kim);
+  const kimFile = `/media/${prev.shots.find((x) => x.status === "done").file}`;
+  const start = (body) => kim("/api/billing/checkout", { method: "POST", body: JSON.stringify(body) });
+  ok("an offer needs a shoot", (await start({ packageId: "keep" })).status === 400);
+  ok("not someone else's", (await start({ packageId: "keep", shootId: shoot.id })).status === 400);
+  ok("not one that's already unlocked", (await pat("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "keep", shootId: shoot.id }) })).status === 400);
+  const c = await start({ packageId: "keep-plus", shootId: prev.id });
+  ok("a preview offer starts checkout at its price", c.status === 200 && c.j.value === 14.99, JSON.stringify(c.j));
+  // Stripe sends the buyer back to the shoot.
+  const sid = new URL(c.j.url).pathname.split("/").pop();
+  const back = await fetch(`${M}/mock-pay/${sid}`, { redirect: "manual" });
+  ok("and returns to that shoot", (back.headers.get("location") || "").includes(`/app/shoot/${prev.id}?checkout=success`), back.headers.get("location"));
+  const conf = (await kim("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid }) })).j;
+  ok("paying unlocks it, with 2 looks to add, and no shoot credits", conf.granted === true && conf.added === 0 && conf.packageId === "keep-plus" && conf.value === 14.99 && conf.user.purchased === true && conf.user.extraLooks[prev.id] === 2 && conf.user.plan.credits === 0, JSON.stringify({ ...conf, user: { extraLooks: conf.user?.extraLooks, credits: conf.user?.plan?.credits } }));
+  const again = (await kim("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid }) })).j;
+  ok("confirming twice grants once", again.granted === false && again.user.extraLooks[prev.id] === 2);
+  const img = await get(kim, kimFile);
+  ok("the headshots are now the originals", img.status === 200 && /immutable/.test(img.cache));
+  ok("the shoot can't be kept twice", (await start({ packageId: "keep", shootId: prev.id })).status === 400);
+  const add = (looks) => kim(`/api/shoots/${prev.id}/more-looks`, { method: "POST", body: JSON.stringify({ looks }) });
+  ok("extra looks can't repeat one the shoot has", (await add([{ backdrop: "studio-gray", outfit: "navy-suit" }])).status === 400);
+  ok("or be more than were bought", (await add([{ backdrop: "glass-office", outfit: "navy-suit" }, { backdrop: "studio-gray", outfit: "white-shirt" }, { backdrop: "glass-office", outfit: "white-shirt" }])).status === 400);
+  ok("and only the owner adds them", (await pat(`/api/shoots/${prev.id}/more-looks`, { method: "POST", body: JSON.stringify({ looks: [{ backdrop: "glass-office", outfit: "navy-suit" }] }) })).status === 404);
+  const r = await add([{ backdrop: "glass-office", outfit: "navy-suit" }, { backdrop: "studio-gray", outfit: "white-shirt" }]);
+  ok("2 new looks are added and developed", r.status === 202 && r.j.shoot.looks.length === 3 && r.j.shoot.shots.length === 6 && r.j.user.extraLooks[prev.id] === undefined, `${r.status} ${JSON.stringify(r.j?.error || r.j?.shoot?.looks)}`);
+  ok("they can't be added twice", (await add([{ backdrop: "glass-office", outfit: "white-shirt" }])).status === 400);
+  let s;
+  for (let i = 0; i < 60; i++) {
+    await new Promise((res) => setTimeout(res, 1500));
+    s = (await kim(`/api/shoots/${prev.id}`)).j.shoot;
+    if (!["generating", "reviewing"].includes(s.status)) break;
+  }
+  ok("the shoot finishes with all its headshots", s.status === "done" && s.shots.filter((x) => x.status === "done").length === 6 && s.shots.slice(0, 2).every((x, i) => x.file === prev.shots[i].file), `${s.status} ${s.shots.filter((x) => x.status === "done").length}`);
+
+  const lee = await account(`lee${t}@x.com`, "Lee Ray");
+  const leeShoot = await doneShoot(lee);
+  const k = await buy(lee, "keep", leeShoot.id);
+  ok("'Keep your preview' unlocks it with no looks to add", k.granted === true && k.user.purchased === true && !k.user.extraLooks[leeShoot.id], JSON.stringify(k.user?.extraLooks));
+  ok("and nothing to add", (await lee(`/api/shoots/${leeShoot.id}/more-looks`, { method: "POST", body: JSON.stringify({ looks: [{ backdrop: "glass-office", outfit: "navy-suit" }] }) })).status === 400);
+}
+
+// 5. A paid shoot is never a preview.
 {
   const paid = await doneShoot(pat);
   ok("a shoot paid with a credit isn't a preview", !paid.preview && paid.paidWith === "credit");
