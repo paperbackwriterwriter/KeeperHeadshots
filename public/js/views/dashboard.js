@@ -33,7 +33,7 @@ export function planBanner() {
       </form>
       <p class="verify-resend">Didn't get it? <button class="link-btn" type="button" data-resend-verify>Resend email</button></p></div></div>`;
   if (plan.tier === "trial")
-    return html`<div class="banner banner-info">${icon("sparkles")}<div><b>Your first shoot is free.</b>Up to 2 looks, which makes 4 headshots, each checked and graded by AI.</div></div>`;
+    return html`<div class="banner banner-info">${icon("sparkles")}<div><b>Your first shoot is a free preview.</b>Up to 2 looks, which makes 4 headshots, each checked and graded by AI. They're watermarked until you buy any package.</div></div>`;
   if (plan.tier === "none")
     return html`<div class="banner banner-warn">${icon("circle-alert")}<div><b>You're out of shoots.</b>Buy a package to develop more. Your existing shoots and downloads stay available.</div><a class="btn btn-sm btn-flash" href="/#pricing">Buy shoots</a></div>`;
   if (plan.tier === "paid")

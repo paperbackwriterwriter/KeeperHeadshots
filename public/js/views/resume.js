@@ -174,7 +174,7 @@ export function renderResume({ root }) {
       <div class="container">
         <div class="cta-band">
           <div>
-            <p class="eyebrow" style="color:#a9b1bd">First shoot free · from $29 after that</p>
+            <p class="eyebrow" style="color:#a9b1bd">Free preview shoot · from $29</p>
             <h2 class="display h-1" style="margin-top:16px">Your next application deserves a better photo.</h2>
           </div>
           <a class="btn btn-flash btn-lg" href="${cta}" data-link><span>Create your <span class="nowrap">job-search</span> headshot</span> ${icon("arrow-right")}</a>

@@ -123,11 +123,20 @@ const offer = async (f, sid, fields) => {
 };
 const ana = await account(`ana${t}@example.com`, "Ana Lima");
 const ben = await account(`ben${t}@example.com`, "Ben Adeyemi");
+// Their free shoots are watermarked previews until they buy (lib/preview.js),
+// and only bought ones can be shared.
+const anaShoot = await shoot(ana, "done", [{ backdrop: "city-terrace", outfit: "camel-knit" }]);
+const benShoot = await shoot(ben, "done", [{ backdrop: "library", outfit: "black-turtleneck" }]);
+await buy(ana, "starter");
+await buy(ben, "starter");
 const shared = [
   await offer(sam, samShoot, { name: "Sam", role: "Associate, Acme Legal", quote: "Our whole team matched in an afternoon, and nobody had to book a photographer." }),
-  await offer(ana, await shoot(ana, "done", [{ backdrop: "city-terrace", outfit: "camel-knit" }]), { name: "Ana", role: "Real estate agent", quote: "On my signs and listings the same week." }),
-  await offer(ben, await shoot(ben, "done", [{ backdrop: "library", outfit: "black-turtleneck" }]), { name: "Ben", role: "", quote: "" }),
+  await offer(ana, anaShoot, { name: "Ana", role: "Real estate agent", quote: "On my signs and listings the same week." }),
+  await offer(ben, benShoot, { name: "Ben", role: "", quote: "" }),
 ];
+// A free shoot that's still a watermarked preview.
+const pia = await account(`pia${t}@example.com`, "Pia Novak");
+const piaShoot = await shoot(pia, "done", [{ backdrop: "studio-gray", outfit: "navy-suit" }, { backdrop: "glass-office", outfit: "charcoal-blazer" }]);
 for (const e of shared.slice(0, 2)) await owner(`/api/owner/showcase/${e.id}`, { method: "POST", body: JSON.stringify({ status: "approved" }) });
 
 /* ---------- Pages and states ---------- */
@@ -159,6 +168,7 @@ const STATES = [
   { name: "shoot-looks", url: `/app/shoot/${mayaChecked}`, who: maya, prep: click("#toLooks") },
   { name: "shoot-developing", url: async () => `/app/shoot/${await shoot(owner, "developing")}`, who: owner },
   { name: "shoot-proofs", url: `/app/shoot/${mayaDone}`, who: maya },
+  { name: "shoot-preview", url: `/app/shoot/${piaShoot}`, who: pia },
   { name: "shoot-lightbox", url: `/app/shoot/${mayaDone}`, who: maya, prep: async (p) => { await p.locator("#proofs img").first().click(); await p.waitForTimeout(500); }, full: false },
   { name: "team-shoot-looks", url: `/app/shoot/${samShoot}`, who: sam },
   { name: "account", url: "/app/account", who: maya },

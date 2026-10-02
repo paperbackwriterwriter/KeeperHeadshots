@@ -59,7 +59,8 @@ if (final?.status === "done") {
   const bad = await get("size=poster");
   sizesOk =
     li.meta?.width === 800 && li.meta?.height === 800 && /linkedin\.jpg/.test(li.disp) &&
-    banner.meta?.width === 1584 && banner.meta?.height === 396 &&
+    // A free shoot is a preview (lib/preview.js): the banner is shrunk to 1024 wide.
+    banner.meta?.width === (final.preview ? 1024 : 1584) && banner.meta?.height === (final.preview ? 256 : 396) &&
     sig.meta?.width === 256 && sig.type === "image/png" && sig.meta?.hasAlpha === true &&
     again.meta?.width === 800 && bad.status === 404;
   console.log(JSON.stringify({ sizes: { linkedin: li.meta && `${li.meta.width}x${li.meta.height}`, banner: banner.meta && `${banner.meta.width}x${banner.meta.height}`, signature: sig.meta && `${sig.meta.width}x${sig.meta.height} alpha=${sig.meta.hasAlpha}`, unknown: bad.status } }));

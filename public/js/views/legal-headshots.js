@@ -162,7 +162,7 @@ export function renderLegal({ root }) {
       <div class="container">
         <div class="cta-band">
           <div>
-            <p class="eyebrow" style="color:#a9b1bd">First shoot free · from $29 after that</p>
+            <p class="eyebrow" style="color:#a9b1bd">Free preview shoot · from $29</p>
             <h2 class="display h-1" style="margin-top:16px">Make your first impression before the consultation.</h2>
           </div>
           <a class="btn btn-flash btn-lg" href="${cta}" data-link>Create your headshot ${icon("arrow-right")}</a>

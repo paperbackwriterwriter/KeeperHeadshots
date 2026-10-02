@@ -144,7 +144,7 @@ export function renderTerms({ root }) {
       <h2 class="h-3">3. Your account</h2>
       <ul>
         <li>Give accurate information and keep your password private. You're responsible for what happens in your account.</li>
-        <li>The free shoot is limited to one per person. Please don't create extra accounts to get more free shoots.</li>
+        <li>The free shoot is a preview: its headshots carry a watermark and are provided at a reduced size until you buy any package, which unlocks them at full resolution. It is limited to one per person. Please don't create extra accounts to get more free shoots.</li>
         <li>Tell us straight away at ${mail} if you think someone else has used your account.</li>
       </ul>
 

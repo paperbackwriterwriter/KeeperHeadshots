@@ -5,7 +5,7 @@
   "functions": {
     "server.js": {
       "maxDuration": 300,
-      "includeFiles": "assets/og/**"
+      "includeFiles": "assets/{og,watermark}/**"
     }
   },
   "redirects": [

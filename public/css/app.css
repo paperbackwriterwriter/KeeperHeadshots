@@ -928,6 +928,13 @@ body:has(.develop-bar) .toasts { bottom: calc(96px + env(safe-area-inset-bottom)
 }
 
 /* Owner's sales funnel (/app/funnel) */
+.owner-section { margin-top: var(--s-8); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-3); }
+.owner-section > * { min-width: 0; }
+.shoot-sum { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+.shoots-table td, .shoots-table th { white-space: nowrap; }
+.offer-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--s-4); align-items: end; margin-top: var(--s-2); }
+.offer-form .btn-row, .offer-form #offerResult { grid-column: 1 / -1; }
+.preview-banner .btn-row { display: flex; flex-wrap: wrap; gap: 10px; }
 .funnel { display: grid; gap: var(--s-4); }
 .funnel-row { display: grid; grid-template-columns: minmax(9rem, 13rem) 1fr 3.5rem 10rem; gap: var(--s-3); align-items: center; }
 .funnel-label { font-weight: 600; font-size: var(--fs-sm); }
@@ -1054,6 +1061,8 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
 /* ---------- 12. Responsive ---------- */
 @media (max-width: 1080px) {
   .proofs { grid-template-columns: repeat(3, 1fr); }
+  /* Four headshots (a free shoot) as 2 + 2, not 3 + 1. */
+  .proofs:has(> :nth-child(4):last-child) { grid-template-columns: repeat(2, 1fr); }
   .contact { grid-template-columns: repeat(4, 1fr); }
 }
 @media (max-width: 900px) {

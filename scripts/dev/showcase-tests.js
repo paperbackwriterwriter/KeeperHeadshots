@@ -45,6 +45,14 @@ async function doneShoot(f) {
   if (s.status !== "done") throw new Error(`shoot didn't develop: ${s.status}`);
   return s;
 }
+// Pays on the stand-in Stripe page (a free shoot's headshots can only be
+// shared once the account has bought a package: lib/preview.js).
+async function buy(f, packageId = "starter") {
+  const { j } = await f("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId }) });
+  const id = new URL(j.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${id}?promo=FREE`, { redirect: "manual" });
+  return (await f("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: id }) })).j;
+}
 const anon = client();
 const shown = async () => (await anon("/api/showcase")).j.entries.map((e) => e.id);
 const offer = (f, s, shot, extra = {}) => f("/api/showcase", { method: "POST", body: JSON.stringify({ shootId: s.id, shotId: shot.id, name: "Dana", role: "Realtor", quote: "Used it on my listings <b>the same day</b>.", consent: true, ...extra }) });
@@ -53,6 +61,9 @@ const t = Date.now();
 const owner = await account(OWNER, "Owner");
 const dana = await account(`dana${t}@x.com`);
 const shoot = await doneShoot(dana);
+// A free preview can't be shared until the account buys a package.
+ok("a free preview can't be shared", (await offer(dana, shoot, shoot.shots.find((x) => x.status === "done"))).status === 402);
+await buy(dana);
 const [shotA, shotB] = shoot.shots.filter((x) => x.status === "done");
 const before = await shown();
 
@@ -134,6 +145,7 @@ let entry;
 
   const lee = await account(`lee${t}@x.com`, "Lee Park");
   const s2 = await doneShoot(lee);
+  await buy(lee);
   const r2 = await offer(lee, s2, s2.shots.find((x) => x.status === "done"), { name: "Lee" });
   await owner(`/api/owner/showcase/${r2.j.entry.id}`, { method: "POST", body: JSON.stringify({ status: "approved" }) });
   await lee("/api/account/delete", { method: "POST", body: JSON.stringify({ password: "password123" }) });

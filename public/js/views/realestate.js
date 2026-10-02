@@ -179,7 +179,7 @@ export function renderRealEstate({ root }) {
       <div class="container">
         <div class="cta-band">
           <div>
-            <p class="eyebrow" style="color:#a9b1bd">First shoot free · from $29 after that</p>
+            <p class="eyebrow" style="color:#a9b1bd">Free preview shoot · from $29</p>
             <h2 class="display h-1" style="margin-top:16px">Your next listing deserves a better headshot.</h2>
           </div>
           <a class="btn btn-flash btn-lg" href="${cta}" data-link>Create your agent headshot ${icon("arrow-right")}</a>

@@ -16,6 +16,8 @@ import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInvit
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import { pageFor, blogPostPage, blogIndexPage, blogArticlePage, blogNotFoundPage, blogSitemap, isCanonicalHost } from "./lib/seo.js";
 import { blogIndex, blogPost, blogImage, syncBlog } from "./lib/blog.js";
+import { isPreview, watermark } from "./lib/preview.js";
+import { reviewShoots, sendOffer } from "./lib/outreach.js";
 import { aiStatus, AIError } from "./lib/ai.js";
 import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, advance, startGeneration, retryFailed, startReview } from "./lib/pipeline.js";
 import { lookFor, MAX_LOOKS, MAX_SELFIES, PHOTO_FORMATS } from "./public/js/shared/catalog.js";
@@ -628,6 +630,8 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
         }
       });
       meta.paidWith = charged;
+      // The free shoot is a watermarked preview until a package is bought (lib/preview.js).
+      if (charged === "free") meta.preview = true;
     }
     const started = await startGeneration(meta, unique);
     background(recordStep("developed", req.user).catch(noteStats));
@@ -1047,14 +1051,30 @@ app.get("/media/:sid/:name", requireUser, async (req, res) => {
   if (meta.userId !== req.user.id && !(await teams.adminMayView(req.user, meta, `${sid}/${name}`))) return res.status(404).end();
   const base = name.replace(/\.\w+$/, "");
   const shotFor = async () => (await shoots.get(sid))?.shots.find((s) => s.file === `${sid}/${name}`);
+  // A free preview's headshots (not its selfies) get the watermark, until the
+  // account buys a package (lib/preview.js). Not cached for long, so the
+  // clean copy shows as soon as they buy.
+  const owner = meta.preview ? (meta.userId === req.user.id ? req.user : await users.byId(meta.userId)) : null;
+  const preview = isPreview(meta, owner) && !!(await shotFor());
+  const send = async (buf, type, filename, cache) => {
+    if (preview) {
+      buf = await watermark(buf, { png: type === "image/png", band: req.query.size !== "signature" });
+      res.set("Cache-Control", "private, no-cache");
+      filename = filename?.replace(/^headshot-/, "headshot-preview-");
+    } else res.set("Cache-Control", cache);
+    res.type(type);
+    if (req.query.download) {
+      res.attachment(filename);
+      if (meta.userId === req.user.id && !meta.downloadedAt) background(shoots.updateMeta(sid, (m) => (m.downloadedAt ? false : ((m.downloadedAt = new Date().toISOString()), m))).catch(() => {}));
+    }
+    res.send(buf);
+  };
   if (req.query.square) {
     // 1:1 square for LinkedIn / Microsoft Teams profile photos (see squareCrop).
     const sq = await squareOf(sid, name, await shotFor());
     if (!sq) return res.status(404).end();
     // Revalidate: a widened square can replace the crop shortly after a frame finishes.
-    res.set("Cache-Control", "private, no-cache").type("image/jpeg");
-    if (req.query.download) res.attachment(`headshot-${base}-square.jpg`);
-    return res.send(sq);
+    return send(sq, "image/jpeg", `headshot-${base}-square.jpg`, "private, no-cache");
   }
   if (req.query.size) {
     const spec = SIZES[req.query.size];
@@ -1066,16 +1086,11 @@ app.get("/media/:sid/:name", requireUser, async (req, res) => {
       if (!buf) return res.status(404).end();
       await writeMedia(key, buf);
     }
-    res.set("Cache-Control", "private, no-cache").type(spec.type);
-    if (req.query.download) res.attachment(`headshot-${base}-${spec.label}.${spec.suffix.split(".").pop()}`);
-    return res.send(buf);
+    return send(buf, spec.type, `headshot-${base}-${spec.label}.${spec.suffix.split(".").pop()}`, "private, no-cache");
   }
   const buf = await readMedia(`${sid}/${name}`);
   if (!buf) return res.status(404).end();
-  const type = name.endsWith(".png") ? "image/png" : "image/jpeg";
-  res.set("Cache-Control", "private, max-age=31536000, immutable").type(type);
-  if (req.query.download) res.attachment(`headshot-${base}.${name.split(".").pop()}`);
-  res.send(buf);
+  return send(buf, name.endsWith(".png") ? "image/png" : "image/jpeg", `headshot-${base}.${name.split(".").pop()}`, "private, max-age=31536000, immutable");
 });
 
 /* ----------------------------- Examples ----------------------------- */
@@ -1134,6 +1149,7 @@ app.post("/api/showcase", requireUser, async (req, res) => {
   const shoot = await ownShoot(req, res);
   if (!shoot) return;
   if (shoot.sample) return res.status(400).json({ error: "Sample shoots can't be shared." });
+  if (isPreview(shoot, req.user)) return res.status(402).json({ error: "Buy any package to share a headshot from your free preview.", code: "preview" });
   try {
     const { entry, first } = await showcase.submit(req.user, shoot, String(req.body?.shotId || ""), req.body || {});
     console.log("[showcase] offered", entry.id, req.user.id);
@@ -1187,6 +1203,26 @@ app.get("/api/owner/funnel", requireUser, async (req, res) => {
   const days = [7, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 30;
   res.set("Cache-Control", "no-store");
   res.json(await funnelReport(days));
+});
+
+// Owner: recent customer shoots and how each went (lib/outreach.js).
+app.get("/api/owner/shoots", requireUser, async (req, res) => {
+  if (!isOwner(req.user)) return res.status(404).json({ error: "Not found" });
+  const days = [7, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 30;
+  res.set("Cache-Control", "no-store");
+  res.json(await reviewShoots(days));
+});
+
+// Owner: a one-time follow-up email with a Stripe promotion code. POST with
+// send: false only counts who'd get it.
+app.post("/api/owner/offer", requireUser, async (req, res) => {
+  if (!isOwner(req.user)) return res.status(404).json({ error: "Not found" });
+  const code = String(req.body?.code || "").trim().toUpperCase();
+  const discount = String(req.body?.discount || "").trim().slice(0, 40);
+  const until = String(req.body?.until || "").trim().slice(0, 40);
+  const report = await sendOffer({ code, discount, until, origin: appOrigin(req), dryRun: req.body?.send !== true });
+  if (req.body?.send === true) console.log("[offer]", code, JSON.stringify(report));
+  res.json(report);
 });
 
 // Owner-only generator, enabled only while ADMIN_TOKEN is set.

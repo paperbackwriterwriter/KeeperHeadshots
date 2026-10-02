@@ -8,6 +8,10 @@ import { aiBanner, planBanner } from "./dashboard.js";
 import { currentFormat, formatPicker, formatHrefs, formatName, saveFormat, downloadAll } from "./format.js";
 import { mountShare } from "./share.js";
 
+// A free shoot's headshots are watermarked previews until the account buys a
+// package (the server adds the watermark; lib/preview.js).
+const isLocked = (s) => !!s?.preview && !s.sample && !state.user?.purchased && state.user?.plan?.tier !== "owner";
+
 const STEPS = ["Upload", "Photo check", "Looks", "Develop", "Proofs"];
 const LIVE = ["checking", "generating", "reviewing"];
 
@@ -388,7 +392,7 @@ export async function renderStudio(ctx, id) {
       ${stepper(2)}
       <div class="page-head"><div><p class="eyebrow">${s.name}</p><h1 class="display h-1" style="margin-top:8px">Dress the set.</h1><p class="lede" style="margin-top:12px">Up to ${MAX_LOOKS} looks, ${TAKES_PER_LOOK} takes each. Tap a look to change its backdrop or outfit, or tap an empty slot to add one.</p></div></div>
 
-      ${trial ? html`<div class="banner banner-info">${icon("sparkles")}<div><b>Your free shoot.</b>Up to ${MAX_LOOKS} looks (${MAX_LOOKS * TAKES_PER_LOOK} headshots). Paid packages unlock up to ${MAX_LOOKS_ALL} looks per shoot.</div></div>` : ""}
+      ${trial ? html`<div class="banner banner-info">${icon("sparkles")}<div><b>Your free preview shoot.</b>Up to ${MAX_LOOKS} looks (${MAX_LOOKS * TAKES_PER_LOOK} headshots), watermarked until you buy any package. Paid packages unlock up to ${MAX_LOOKS_ALL} looks per shoot.</div></div>` : ""}
       ${plan && !plan.canDevelop ? planBanner() : ""}
       <section aria-labelledby="looksTitle">
         <div class="looks-head">
@@ -637,9 +641,9 @@ export async function renderStudio(ctx, id) {
     }
     return html`<section class="upsell" id="upgrade" aria-labelledby="upsellTitle">
       <div>
-        <p class="eyebrow">Upgrade</p>
-        <h2 class="display h-2" id="upsellTitle">Upgrade for more options.</h2>
-        <p class="upsell-sub">${s.paidWith === "free" ? `That was your free shoot. ` : ""}Paid shoots give you more looks, more takes and more headshots to choose from.</p>
+        <p class="eyebrow">${isLocked(s) ? "Keep these headshots" : "Upgrade"}</p>
+        <h2 class="display h-2" id="upsellTitle">${isLocked(s) ? "Remove the watermark." : "Upgrade for more options."}</h2>
+        <p class="upsell-sub">${isLocked(s) ? "Any package unlocks this shoot at full resolution, without the watermark, and adds paid shoots with more looks, more takes and more headshots to choose from." : html`${s.paidWith === "free" ? `That was your free shoot. ` : ""}Paid shoots give you more looks, more takes and more headshots to choose from.`}</p>
         <ul class="upsell-perks">${perks.map(([ic, t, d]) => html`<li><span class="ficon">${ic}</span><div><b>${t}</b><span>${d}</span></div></li>`)}</ul>
       </div>
       ${pkgs}
@@ -657,6 +661,8 @@ export async function renderStudio(ctx, id) {
     const bestG = best && grade(best);
     const isMine = !!picked && picked.id !== aiBest?.id;
     const keepers = done.filter((t) => grade(t)?.grade === "keeper").length;
+    // A free shoot is a watermarked preview until any package is bought (lib/preview.js).
+    const locked = isLocked(s);
     const avgLikeness = r ? (done.reduce((a, t) => a + (grade(t)?.likeness || 0), 0) / Math.max(1, done.length)).toFixed(1) : "—";
     const counts = { all: done.length, keeper: keepers, solid: done.filter((t) => grade(t)?.grade === "solid").length, retake: done.filter((t) => grade(t)?.grade === "retake").length };
     let filter = "all";
@@ -693,6 +699,9 @@ export async function renderStudio(ctx, id) {
           ${isMine && aiBest
             ? html`<p class="small muted" style="margin:-8px 0 20px">The retoucher's pick was frame ${String(aiBest.n).padStart(2, "0")}. <button class="link" id="resetPick" style="background:none;border:0;padding:0;cursor:pointer;font:inherit">Use the retoucher's pick</button></p>`
             : ""}
+          ${locked
+            ? html`<div class="banner banner-info preview-banner">${icon("lock")}<div><b>This is your free preview.</b>Your headshots have a watermark and are shown smaller. Buy any package to download every headshot from this shoot at full resolution, without the watermark, and get more shoots for new looks.<div class="btn-row" style="margin-top:12px"><a class="btn btn-flash btn-sm" href="/app/buy/${PACKAGES.find((p) => p.popular)?.id || PACKAGES[0].id}" data-link>${icon("sparkles")} Remove the watermark</a><a class="btn btn-ghost btn-sm" href="#upgrade">See packages</a></div></div></div>`
+            : ""}
           <div class="fmt-row">
             <span class="fmt-label" id="fmtLabel">Download as</span>
             ${formatPicker(currentFormat())}
@@ -704,7 +713,7 @@ export async function renderStudio(ctx, id) {
                 <div class="kit-items">${PROFILE_KIT.map(([size, name, detail]) => html`<a class="kit-item" href="${sizeMedia(best.file, size)}" download><b>${icon("download")} ${name}</b><span>${detail}</span></a>`)}</div>
               </div>`
             : ""}
-          <p class="small muted" style="margin-top:14px;max-width:60ch">Every headshot is ready to use as it is, in either shape: a full-resolution 3:4 portrait for websites, print and business cards, or a 1:1 square for LinkedIn, Microsoft Teams and social media, framed for round profile photos with your face centered and room around it. No cropping needed.</p>
+          <p class="small muted" style="margin-top:14px;max-width:60ch">${locked ? "Previews download with the watermark. After you buy, the same buttons give the full-resolution headshots. " : ""}Every headshot is ready to use as it is, in either shape: a full-resolution 3:4 portrait for websites, print and business cards, or a 1:1 square for LinkedIn, Microsoft Teams and social media, framed for round profile photos with your face centered and room around it. No cropping needed.</p>
         </div>
       </section>
 
@@ -758,7 +767,7 @@ export async function renderStudio(ctx, id) {
       });
     };
     drawDl();
-    mountShare($("#sharePanel"), s, ordered, best);
+    if (!locked) mountShare($("#sharePanel"), s, ordered, best);
     $$("[data-format]").forEach((b) =>
       b.addEventListener("click", async () => {
         const fmt = b.dataset.format;

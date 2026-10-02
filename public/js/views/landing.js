@@ -58,7 +58,7 @@ export function renderLanding({ root }) {
           </div>
           <div class="hero-proof" data-reveal style="--i:4">
             <div class="proof-item"><strong class="tabular">&lt; 15 min</strong><span>typical turnaround</span></div>
-            <div class="proof-item"><strong>Free</strong><span>first shoot, no card needed</span></div>
+            <div class="proof-item"><strong>Free</strong><span>preview shoot, no card needed</span></div>
             <div class="proof-item"><strong class="tabular">Refund</strong><span>if none are usable</span></div>
           </div>
         </div>

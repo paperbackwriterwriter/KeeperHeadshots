@@ -11,7 +11,8 @@
     "screenshots": "node scripts/dev/screenshots.js shots",
     "icons": "node scripts/build-icons.js",
     "prerender": "node scripts/prerender.js",
-    "og": "node scripts/build-og.js"
+    "og": "node scripts/build-og.js",
+    "watermark": "node scripts/build-watermark.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
