@@ -16,7 +16,7 @@ import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInvit
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import { pageFor, blogPostPage, blogIndexPage, blogArticlePage, blogNotFoundPage, blogSitemap, isCanonicalHost } from "./lib/seo.js";
 import { blogIndex, blogPost, blogImage, syncBlog } from "./lib/blog.js";
-import { isPreview, watermark } from "./lib/preview.js";
+import { isPreview, isKept, watermark } from "./lib/preview.js";
 import { reviewShoots, sendOffer } from "./lib/outreach.js";
 import { aiStatus, AIError } from "./lib/ai.js";
 import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, advance, startGeneration, retryFailed, startReview, addLooks } from "./lib/pipeline.js";
@@ -942,16 +942,23 @@ app.post("/api/billing/checkout", requireUser, async (req, res) => {
   const embedded = req.body?.embedded === true && !!stripePublishableKey();
   const packageId = String(req.body?.packageId || "");
   // A preview offer is for one of this account's finished free previews that
-  // nothing has unlocked yet.
+  // nothing has unlocked yet; "Keep your pick" also names the one headshot.
   let shootId = null;
+  let shotId = null;
   if (isPreviewOffer(packageId)) {
     shootId = String(req.body?.shootId || "");
     const meta = /^sht_[\w-]{6,40}$/.test(shootId) ? await shoots.getMeta(shootId) : null;
     if (!meta || meta.userId !== req.user.id) return res.status(400).json({ error: "Choose the shoot to keep first." });
     if (!isPreview(meta, req.user)) return res.status(400).json({ error: "This shoot is already yours to keep. Pick a package to keep shooting.", code: "not_preview" });
     if (meta.status !== "done") return res.status(400).json({ error: "Wait for this shoot to finish, then keep it." });
+    if (packageId === "keep") {
+      shotId = String(req.body?.shotId || "");
+      const shot = (await shoots.get(shootId))?.shots.find((s) => s.id === shotId && s.status === "done");
+      if (!shot) return res.status(400).json({ error: "Pick the headshot to keep first." });
+      if (isKept(req.user, shootId, shotId)) return res.status(400).json({ error: "That headshot is already yours. Pick another one, or keep them all.", code: "kept" });
+    }
   }
-  const checkout = await createCheckout(req.user, packageId, origin, { gpc: gpc(req), embedded, shootId });
+  const checkout = await createCheckout(req.user, packageId, origin, { gpc: gpc(req), embedded, shootId, shotId });
   // For the one "unfinished checkout" reminder (lib/reminders.js).
   await users.update(req.user.id, (u) => void (u.lastCheckout = { packageId, at: new Date().toISOString() })).catch((err) => console.error("[checkout] record", err.message));
   const eventId = `checkout_${checkout.id}`;
@@ -1102,7 +1109,8 @@ app.get("/media/:sid/:name", requireUser, async (req, res) => {
   // account buys a package (lib/preview.js). Not cached for long, so the
   // clean copy shows as soon as they buy.
   const owner = meta.preview ? (meta.userId === req.user.id ? req.user : await users.byId(meta.userId)) : null;
-  const preview = isPreview(meta, owner) && !!(await shotFor());
+  const previewShot = isPreview(meta, owner) ? await shotFor() : null;
+  const preview = !!previewShot && !isKept(owner, sid, previewShot.id);
   const send = async (buf, type, filename, cache) => {
     if (preview) {
       buf = await watermark(buf, { png: type === "image/png", band: req.query.size !== "signature" });

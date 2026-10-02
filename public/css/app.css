@@ -943,6 +943,9 @@ body:has(.develop-bar) .toasts { bottom: calc(96px + env(safe-area-inset-bottom)
 .keep-offer:hover { border-color: var(--ink); transform: translateY(-2px); }
 .keep-offer.pop { background: var(--flash-500); border-color: var(--flash-500); color: #fff; box-shadow: 0 12px 28px -12px rgba(122, 46, 46, 0.8); }
 .keep-offer.pop:hover { background: var(--flash-600); }
+.keep-offer.kept { border-style: dashed; background: transparent; }
+.keep-offer.kept:hover { transform: none; border-color: var(--border-strong); }
+.keep-name svg { width: 16px; height: 16px; vertical-align: -2px; }
 .keep-name { font-weight: 800; }
 .keep-price { font-size: var(--fs-sm); opacity: 0.85; }
 .keep-price strong { font-size: var(--fs-xl); opacity: 1; margin-right: 4px; }

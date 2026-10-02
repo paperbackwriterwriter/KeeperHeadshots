@@ -37,17 +37,20 @@ const testNote = () =>
 export function renderBuy({ root }, packageId) {
   const pkg = offerFor(packageId);
   const offer = !!pkg && isPreviewOffer(pkg.id);
-  const shootId = offer ? new URLSearchParams(location.search).get("shoot") || "" : null;
+  const q = new URLSearchParams(location.search);
+  const shootId = offer ? q.get("shoot") || "" : null;
+  // "Keep your pick" is for one headshot of that shoot.
+  const shotId = offer ? q.get("shot") || "" : null;
   const back = offer ? `/app/shoot/${shootId}` : "/app";
   const headline = offer ? `${pkg.name}: $${pkg.price}` : `${pkg?.name}: ${pkg?.shoots} shoots for $${pkg?.price}`;
-  const body = (extra) => ({ packageId: pkg.id, ...(offer ? { shootId } : {}), pageUrl: pageUrl(), ...extra });
+  const body = (extra) => ({ packageId: pkg.id, ...(offer ? { shootId, ...(pkg.id === "keep" ? { shotId } : {}) } : {}), pageUrl: pageUrl(), ...extra });
   let disposed = false;
   let checkout = null;
   const shell = (body) =>
     (root.innerHTML = html`<main id="main" class="container app-main"><div class="empty view-enter" style="max-width:640px;margin:0 auto">${body}</div></main>`.v);
   const failed = (message) =>
     shell(html`<p class="eyebrow">Checkout</p><h1 class="display h-2">We couldn't start checkout.</h1><p class="lede">${message}</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><a class="btn btn-ink" href="${back}" data-link>${offer ? "Back to your shoot" : "Back to your shoots"}</a><a class="btn btn-ghost" href="/#pricing">Pricing</a></div>`);
-  if (!pkg || (offer && !shootId)) {
+  if (!pkg || (offer && !shootId) || (pkg?.id === "keep" && !shotId)) {
     shell(html`<p class="eyebrow">Checkout</p><h1 class="display h-2">That package doesn't exist.</h1><p class="lede">Pick one from the pricing section.</p><a class="btn btn-ink" href="/#pricing">See pricing</a>`);
     return;
   }
@@ -84,8 +87,8 @@ export function renderBuy({ root }, packageId) {
 
   // Embedded checkout: order summary beside Stripe's payment form.
   function embed(key) {
-    const others = offer ? PREVIEW_OFFERS.filter((p) => p.id !== pkg.id) : PACKAGES.filter((p) => p.id !== pkg.id);
-    const link = (p) => (offer ? `/app/buy/${p.id}?shoot=${encodeURIComponent(shootId)}` : `/app/buy/${p.id}`);
+    const others = offer ? PREVIEW_OFFERS.filter((p) => p.id !== pkg.id && (p.id !== "keep" || shotId)) : PACKAGES.filter((p) => p.id !== pkg.id);
+    const link = (p) => (offer ? `/app/buy/${p.id}?shoot=${encodeURIComponent(shootId)}${p.id === "keep" ? `&shot=${encodeURIComponent(shotId)}` : ""}` : `/app/buy/${p.id}`);
     root.innerHTML = html`
     <main id="main" class="container app-main view-enter">
       <div class="checkout">
@@ -96,7 +99,7 @@ export function renderBuy({ root }, packageId) {
           <p class="checkout-price"><strong class="tabular">$${pkg.price}</strong><span>one-time · no subscription</span></p>
           <ul class="checkout-features">${pkg.features.map((f) => html`<li>${icon("check")}<span>${f}</span></li>`)}</ul>
           <p class="checkout-note">${icon("shield-check")}<span>Covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>. ${offer ? "Your headshots stay in your account to download any time." : "Unused shoots don't expire while your account is open."}</span></p>
-          <p class="small muted">${offer ? "Rather have" : "Want a different package?"} ${others.map((p, i) => html`${i ? " or " : ""}<a class="link" href="${link(p)}" data-link>${p.name} ($${p.price})</a>`)}${offer ? html`? Or a package for more shoots: ${PACKAGES.map((p, i) => html`${i ? ", " : ""}<a class="link" href="/app/buy/${p.id}" data-link>${p.name} ($${p.price})</a>`)}` : ""}.</p>
+          <p class="small muted">${offer ? (others.length ? "Rather have" : "") : "Want a different package?"} ${others.map((p, i) => html`${i ? " or " : ""}<a class="link" href="${link(p)}" data-link>${p.name} ($${p.price})</a>`)}${offer ? html`${others.length ? "? Or a" : "Or a"} package for more shoots: ${PACKAGES.map((p, i) => html`${i ? ", " : ""}<a class="link" href="/app/buy/${p.id}" data-link>${p.name} ($${p.price})</a>`)}` : ""}.</p>
         </section>
         <section class="checkout-pay" aria-label="Payment">
           <div class="checkout-frame light-island" id="checkout"><div class="checkout-loading">${spinner()}<span>Loading the secure payment form…</span></div></div>

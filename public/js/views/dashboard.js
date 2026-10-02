@@ -71,7 +71,7 @@ export async function confirmPurchase(sessionId) {
     if (res.granted) {
       // No Purchase event for a free (100%-off) order; the server sends none either.
       if (res.eventId) pixel("Purchase", { value: res.value, currency: "USD" }, res.eventId);
-      const what = res.added ? `${res.added} shoots added to your account.` : res.packageId === "keep-plus" ? "your headshots are yours to keep. Now pick your 2 extra looks." : "your headshots are yours to keep, in full resolution.";
+      const what = res.added ? `${res.added} shoots added to your account.` : res.packageId === "keep-plus" ? "every headshot is yours to keep. Now pick your 2 extra looks." : "your pick is yours to keep, in full resolution.";
       toast(`${res.eventId ? "Payment received" : "Order complete"}: ${what}`, "success", 7000);
     } else if (!res.paid) toast("Your payment is still processing. Your order will appear as soon as it clears.", "info", 7000);
     return res;

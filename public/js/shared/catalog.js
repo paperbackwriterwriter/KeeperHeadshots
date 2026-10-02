@@ -109,24 +109,25 @@ export const PACKAGES = [
   },
 ];
 
-// Offers on a free preview's results page (lib/preview.js): keep that
-// shoot's headshots at full resolution, or keep them and add more looks to
-// the same shoot (chosen after paying). Bought for one shoot, with its id.
+// Offers on a free preview's results page (lib/preview.js): keep the one
+// headshot you picked, or keep the whole shoot and add more looks to it
+// (chosen after paying). Bought for one shoot, with its id (and for "keep",
+// the headshot's id).
 export const PREVIEW_OFFERS = [
   {
     id: "keep",
-    name: "Keep your preview",
+    name: "Keep your pick",
     price: 8.99,
     looks: 0,
-    features: ["Every headshot from this shoot", "Full-resolution files", "LinkedIn, square, banner and email-signature sizes"],
+    features: ["The one headshot you picked", "Full-resolution file", "LinkedIn, square, banner and email-signature sizes"],
   },
   {
     id: "keep-plus",
-    name: "Preview + 2 more looks",
+    name: "Keep them all + 2 more looks",
     price: 14.99,
     looks: 2,
     popular: true,
-    features: ["Everything in Keep your preview", "2 more looks of your choice", `${2 * TAKES_PER_LOOK} more headshots, checked and graded`],
+    features: ["Every headshot from this shoot, full resolution", "2 more looks of your choice", `${2 * TAKES_PER_LOOK} more headshots, checked and graded`],
   },
 ];
 export const offerFor = (id) => PACKAGES.find((p) => p.id === id) || PREVIEW_OFFERS.find((p) => p.id === id) || null;

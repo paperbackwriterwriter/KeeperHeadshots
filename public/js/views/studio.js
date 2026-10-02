@@ -10,26 +10,42 @@ import { mountShare } from "./share.js";
 
 // A free shoot's headshots are watermarked previews until the account buys a
 // package (the server adds the watermark; lib/preview.js).
-const isLocked = (s) => !!s?.preview && !s.sample && !state.user?.purchased && state.user?.plan?.tier !== "owner";
+const isLocked = (s) => !!s?.preview && !s.sample && !state.user?.previewsUnlocked && state.user?.plan?.tier !== "owner";
+// A headshot bought on its own ("Keep your pick").
+const isKept = (s, shotId) => (state.user?.kept?.[s?.id] || []).includes(shotId);
 
 // Extra looks bought for this shoot ("Preview + 2 more looks") not added yet.
 const extraLooks = (s) => (s && !s.sample ? state.user?.extraLooks?.[s.id] || 0 : 0);
 
-// On a preview's results: keep it, keep it with 2 more looks, or a package.
-function keepPanel(s) {
+// On a preview's results: keep your pick, keep them all with 2 more looks,
+// or a package. `pick` is the headshot shown as the best pick (with its
+// frame number `n`).
+function keepPanel(s, pick) {
   const lowest = Math.min(...PACKAGES.map((p) => p.price));
+  const total = s.shots.filter((t) => t.status === "done").length;
+  const [one, all] = PREVIEW_OFFERS;
+  const frame = pick ? `Frame ${String(pick.n).padStart(2, "0")}` : "";
+  const owned = pick && isKept(s, pick.id);
   return html`<section class="keep-panel" aria-labelledby="keepTitle">
     <h2 class="keep-title" id="keepTitle">Keep your headshots</h2>
-    <p class="keep-sub">Love them? Make them yours: every headshot from this shoot in full resolution, in every size.</p>
-    <div class="keep-offers">${PREVIEW_OFFERS.map(
-      (o) => html`<a class="keep-offer ${o.popular ? "pop" : ""}" href="/app/buy/${o.id}?shoot=${encodeURIComponent(s.id)}" data-link>
-        ${o.popular ? html`<span class="keep-badge">Best value</span>` : ""}
-        <span class="keep-name">${o.name}</span>
-        <span class="keep-price"><strong class="tabular">$${o.price}</strong> one-time</span>
-        <span class="keep-what">${o.looks ? `Keep these, plus ${o.looks} new looks (${o.looks * TAKES_PER_LOOK} more headshots)` : "Every headshot from this shoot"}</span>
-        <span class="keep-go">${o.looks ? "Keep + add looks" : "Keep them"} ${icon("arrow-right")}</span>
-      </a>`,
-    )}</div>
+    <p class="keep-sub">Full resolution, in every size: LinkedIn, square, banner and email signature.</p>
+    <div class="keep-offers">
+      ${pick && !owned
+        ? html`<a class="keep-offer" href="/app/buy/${one.id}?shoot=${encodeURIComponent(s.id)}&shot=${encodeURIComponent(pick.id)}" data-link>
+            <span class="keep-name">${one.name}</span>
+            <span class="keep-price"><strong class="tabular">$${one.price}</strong> one-time</span>
+            <span class="keep-what">${frame} only. Make another headshot your pick to keep that one instead.</span>
+            <span class="keep-go">Keep ${frame} ${icon("arrow-right")}</span>
+          </a>`
+        : html`<div class="keep-offer kept"><span class="keep-name">${icon("check")} ${frame} is yours</span><span class="keep-what">Make another headshot your pick to keep that one too, or keep them all.</span></div>`}
+      <a class="keep-offer pop" href="/app/buy/${all.id}?shoot=${encodeURIComponent(s.id)}" data-link>
+        <span class="keep-badge">Best value</span>
+        <span class="keep-name">${all.name}</span>
+        <span class="keep-price"><strong class="tabular">$${all.price}</strong> one-time</span>
+        <span class="keep-what">All ${total} headshots, plus ${all.looks} new looks of your choice (${all.looks * TAKES_PER_LOOK} more headshots)</span>
+        <span class="keep-go">Keep all + add looks ${icon("arrow-right")}</span>
+      </a>
+    </div>
     <p class="keep-more">${icon("layers")}<span>Need more shoots? Packages from <b>$${lowest}</b> include this shoot too. <a class="link" href="#upgrade">See packages</a></span></p>
   </section>`;
 }
@@ -746,7 +762,7 @@ export async function renderStudio(ctx, id) {
           ${isMine && aiBest
             ? html`<p class="small muted" style="margin:-8px 0 20px">The retoucher's pick was frame ${String(aiBest.n).padStart(2, "0")}. <button class="link" id="resetPick" style="background:none;border:0;padding:0;cursor:pointer;font:inherit">Use the retoucher's pick</button></p>`
             : ""}
-          ${locked ? keepPanel(s) : ""}
+          ${locked ? keepPanel(s, best) : ""}
           <div class="fmt-row">
             <span class="fmt-label" id="fmtLabel">Download as</span>
             ${formatPicker(currentFormat())}

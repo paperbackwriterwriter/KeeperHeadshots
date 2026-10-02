@@ -32,8 +32,8 @@ async function account(email, name = "Pat Lee", verify = true) {
   else if (verify) await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email) }) });
   return f;
 }
-async function buy(f, packageId = "starter", shootId) {
-  const { j } = await f("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId, shootId }) });
+async function buy(f, packageId = "starter", shootId, shotId) {
+  const { j } = await f("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId, shootId, shotId }) });
   const id = new URL(j.url).pathname.split("/").pop();
   await fetch(`${M}/mock-pay/${id}?promo=FREE`, { redirect: "manual" });
   return (await f("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: id }) })).j;
@@ -175,9 +175,26 @@ let previewBytes = 0;
 
   const lee = await account(`lee${t}@x.com`, "Lee Ray");
   const leeShoot = await doneShoot(lee);
-  const k = await buy(lee, "keep", leeShoot.id);
-  ok("'Keep your preview' unlocks it with no looks to add", k.granted === true && k.user.purchased === true && !k.user.extraLooks[leeShoot.id], JSON.stringify(k.user?.extraLooks));
+  const [pick, other] = leeShoot.shots.filter((x) => x.status === "done");
+  const leeStart = (body) => lee("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "keep", shootId: leeShoot.id, ...body }) });
+  ok("'Keep your pick' needs the headshot", (await leeStart({})).status === 400);
+  ok("one from that shoot", (await leeStart({ shotId: shot.id })).status === 400);
+  ok("and costs $8.99", (await leeStart({ shotId: pick.id })).j?.value === 8.99);
+  const k = await buy(lee, "keep", leeShoot.id, pick.id);
+  ok("'Keep your pick' keeps just that headshot", k.granted === true && k.user.purchased === true && k.user.previewsUnlocked === false && JSON.stringify(k.user.kept[leeShoot.id]) === JSON.stringify([pick.id]) && !k.user.extraLooks[leeShoot.id], JSON.stringify({ kept: k.user?.kept, unlocked: k.user?.previewsUnlocked }));
+  const picked = await get(lee, `/media/${pick.file}`);
+  ok("the kept headshot is the original", picked.status === 200 && /immutable/.test(picked.cache), picked.cache);
+  const pickedSq = await get(lee, `/media/${pick.file}?square=1&download=1`);
+  ok("in every size", pickedSq.status === 200 && !/preview/.test(pickedSq.disp), pickedSq.disp);
+  const rest = await get(lee, `/media/${other.file}`);
+  ok("the other headshots stay previews", rest.status === 200 && /no-cache/.test(rest.cache) && Math.max(rest.meta.width, rest.meta.height) <= 1024, rest.cache);
+  ok("the same headshot can't be bought twice", (await leeStart({ shotId: pick.id })).status === 400);
+  ok("but another one can", (await leeStart({ shotId: other.id })).status === 200);
+  ok("and so can 'Keep them all'", (await lee("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "keep-plus", shootId: leeShoot.id }) })).status === 200);
+  ok("a kept headshot doesn't allow sharing the preview", (await lee("/api/showcase", { method: "POST", body: JSON.stringify({ shootId: leeShoot.id, shotId: pick.id, name: "Lee", consent: true }) })).status === 402);
   ok("and nothing to add", (await lee(`/api/shoots/${leeShoot.id}/more-looks`, { method: "POST", body: JSON.stringify({ looks: [{ backdrop: "glass-office", outfit: "navy-suit" }] }) })).status === 400);
+  const all = await buy(lee, "keep-plus", leeShoot.id);
+  ok("'Keep them all' after a pick unlocks the rest", all.granted === true && all.user.previewsUnlocked === true && /immutable/.test((await get(lee, `/media/${other.file}`)).cache));
 }
 
 // 5. A paid shoot is never a preview.
