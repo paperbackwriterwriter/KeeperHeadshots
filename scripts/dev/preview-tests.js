@@ -63,7 +63,7 @@ const t = Date.now();
 // 0. Email copy.
 {
   const e = reminderEmail({ kind: "buy", name: "Pat", link: "L", pricing: "P", unsubscribe: "U", preview: true });
-  ok("the 'buy' reminder for a preview offers to keep it, without mentioning a watermark", /\$8\.99/.test(e.subject + e.text) && /\$14\.99/.test(e.text) && !/watermark/i.test(e.subject + e.text + e.html));
+  ok("the 'buy' reminder for a preview offers to keep it, without mentioning a watermark", /\$9/.test(e.subject + e.text) && /\$15/.test(e.text) && !/watermark/i.test(e.subject + e.text + e.html));
   const o = offerEmail({ name: "Pat Lee", code: "KEEP30", discount: "30% off", until: "Sunday", link: "L", pricing: "P", usedFree: true, preview: true, unsubscribe: "U" });
   ok("the offer email has the code, the discount and the unsubscribe link", o.text.includes("KEEP30") && o.text.includes("30% off any package until Sunday") && o.text.includes("U") && o.html.includes("KEEP30"));
   ok("and doesn't mention a watermark", !/watermark/i.test(o.subject + o.text + o.html));
@@ -135,8 +135,8 @@ let previewBytes = 0;
   ok("buyers don't get offers, and show as bought", row?.bought === true && row.preview === false && count.eligible >= 0);
 }
 
-// 4. The preview offers: keep one shoot ($8.99), or keep it and add 2 looks
-// ($14.99). Bought for one finished preview of your own.
+// 4. The preview offers: keep one shoot ($9), or keep it and add 2 looks
+// ($15). Bought for one finished preview of your own.
 {
   const kim = await account(`kim${t}@x.com`, "Kim Park");
   const prev = await doneShoot(kim);
@@ -146,13 +146,13 @@ let previewBytes = 0;
   ok("not someone else's", (await start({ packageId: "keep", shootId: shoot.id })).status === 400);
   ok("not one that's already unlocked", (await pat("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "keep", shootId: shoot.id }) })).status === 400);
   const c = await start({ packageId: "keep-plus", shootId: prev.id });
-  ok("a preview offer starts checkout at its price", c.status === 200 && c.j.value === 14.99, JSON.stringify(c.j));
+  ok("a preview offer starts checkout at its price", c.status === 200 && c.j.value === 15, JSON.stringify(c.j));
   // Stripe sends the buyer back to the shoot.
   const sid = new URL(c.j.url).pathname.split("/").pop();
   const back = await fetch(`${M}/mock-pay/${sid}`, { redirect: "manual" });
   ok("and returns to that shoot", (back.headers.get("location") || "").includes(`/app/shoot/${prev.id}?checkout=success`), back.headers.get("location"));
   const conf = (await kim("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid }) })).j;
-  ok("paying unlocks it, with 2 looks to add, and no shoot credits", conf.granted === true && conf.added === 0 && conf.packageId === "keep-plus" && conf.value === 14.99 && conf.user.purchased === true && conf.user.extraLooks[prev.id] === 2 && conf.user.plan.credits === 0, JSON.stringify({ ...conf, user: { extraLooks: conf.user?.extraLooks, credits: conf.user?.plan?.credits } }));
+  ok("paying unlocks it, with 2 looks to add, and no shoot credits", conf.granted === true && conf.added === 0 && conf.packageId === "keep-plus" && conf.value === 15 && conf.user.purchased === true && conf.user.extraLooks[prev.id] === 2 && conf.user.plan.credits === 0, JSON.stringify({ ...conf, user: { extraLooks: conf.user?.extraLooks, credits: conf.user?.plan?.credits } }));
   const again = (await kim("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid }) })).j;
   ok("confirming twice grants once", again.granted === false && again.user.extraLooks[prev.id] === 2);
   const img = await get(kim, kimFile);

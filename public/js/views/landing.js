@@ -96,7 +96,7 @@ export function renderLanding({ root }) {
             ["3", "AI passes on every shoot"],
             ["4", "Looks per paid shoot"],
             ["< 15 min", "Typical turnaround"],
-            ["$29.99", "vs. $200+ at a studio"],
+            ["$29", "vs. $200+ at a studio"],
           ].map(([n, l], i) => html`<div class="stat" data-reveal style="--i:${i}"><div class="num">${n}</div><div class="lbl">${l}</div></div>`)}
         </div>
       </div>
@@ -187,7 +187,7 @@ export function renderLanding({ root }) {
           <div class="compare-col">
             <h3 class="h-4">Keeper Headshots</h3>
             <dl class="compare-list">
-            ${[["Cost", "From $29.99"], ["Turnaround", "Under 15 minutes"], ["Backdrops & outfits", "Up to 4 looks per shoot"], ["Number of photos", "Up to 8 per shoot"], ["Help choosing", "Every frame graded"]].map(
+            ${[["Cost", "From $29"], ["Turnaround", "Under 15 minutes"], ["Backdrops & outfits", "Up to 4 looks per shoot"], ["Number of photos", "Up to 8 per shoot"], ["Help choosing", "Every frame graded"]].map(
               ([k, v]) => html`<div class="compare-row"><dt>${k}</dt><dd class="hi">${v}</dd></div>`,
             )}
             </dl>

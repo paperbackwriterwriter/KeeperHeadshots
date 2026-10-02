@@ -61,7 +61,7 @@ export function renderRealEstate({ root }) {
           <div class="hero-proof" data-reveal style="--i:4">
             <div class="proof-item"><strong class="tabular">3:4 + 1:1</strong><span>portrait, square or both</span></div>
             <div class="proof-item"><strong class="tabular">Free</strong><span>first shoot</span></div>
-            <div class="proof-item"><strong class="tabular">From $29.99</strong><span>one-time, no subscription</span></div>
+            <div class="proof-item"><strong class="tabular">From $29</strong><span>one-time, no subscription</span></div>
           </div>
         </div>
         <div class="hero-visual" data-reveal style="--i:2">${agentKit("re-1")}</div>
@@ -179,7 +179,7 @@ export function renderRealEstate({ root }) {
       <div class="container">
         <div class="cta-band">
           <div>
-            <p class="eyebrow" style="color:#a9b1bd">Free preview shoot · from $29.99</p>
+            <p class="eyebrow" style="color:#a9b1bd">Free preview shoot · from $29</p>
             <h2 class="display h-1" style="margin-top:16px">Your next listing deserves a better headshot.</h2>
           </div>
           <a class="btn btn-flash btn-lg" href="${cta}" data-link>Create your agent headshot ${icon("arrow-right")}</a>
