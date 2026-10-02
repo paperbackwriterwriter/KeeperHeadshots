@@ -934,7 +934,7 @@ body:has(.develop-bar) .toasts { bottom: calc(96px + env(safe-area-inset-bottom)
 .shoots-table td, .shoots-table th { white-space: nowrap; }
 .offer-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--s-4); align-items: end; margin-top: var(--s-2); }
 .offer-form .btn-row, .offer-form #offerResult { grid-column: 1 / -1; }
-/* A preview's results: keep it ($9), keep it with more looks, or a package */
+/* A preview's results: keep it ($8.99), keep it with more looks, or a package */
 .keep-panel { margin: 0 0 var(--s-6); padding: var(--s-5); border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface-raised); box-shadow: var(--shadow-2); }
 .keep-title { font-size: var(--fs-lg); font-weight: 800; margin: 0; }
 .keep-sub { color: var(--text-muted); font-size: var(--fs-sm); margin: 4px 0 var(--s-4); }

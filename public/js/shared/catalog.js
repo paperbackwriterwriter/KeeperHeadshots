@@ -116,14 +116,14 @@ export const PREVIEW_OFFERS = [
   {
     id: "keep",
     name: "Keep your preview",
-    price: 9,
+    price: 8.99,
     looks: 0,
     features: ["Every headshot from this shoot", "Full-resolution files", "LinkedIn, square, banner and email-signature sizes"],
   },
   {
     id: "keep-plus",
     name: "Preview + 2 more looks",
-    price: 15,
+    price: 14.99,
     looks: 2,
     popular: true,
     features: ["Everything in Keep your preview", "2 more looks of your choice", `${2 * TAKES_PER_LOOK} more headshots, checked and graded`],
