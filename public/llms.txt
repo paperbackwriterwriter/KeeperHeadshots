@@ -1,6 +1,6 @@
 # Keeper Headshots
 
-> Keeper Headshots (keeperheadshots.com) is an online AI headshot studio. You upload a few selfies and get studio-quality professional headshots in a few minutes, for LinkedIn, résumés, company websites and print. Every photo is checked before rendering, every headshot is scored for likeness against your own photos, and the set is graded so you know which one to use. The first shoot is free; paid packages are one-time payments from $29, with no subscription.
+> Keeper Headshots (keeperheadshots.com) is an online AI headshot studio. You upload a few selfies and get studio-quality professional headshots in a few minutes, for LinkedIn, résumés, company websites and print. Every photo is checked before rendering, every headshot is scored for likeness against your own photos, and the set is graded so you know which one to use. The first shoot is a free preview (keep it for $8.99); paid packages are one-time payments from $29.99, with no subscription.
 
 ## How it works
 
