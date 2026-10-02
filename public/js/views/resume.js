@@ -61,7 +61,7 @@ export function renderResume({ root }) {
           <div class="hero-proof" data-reveal style="--i:4">
             <div class="proof-item"><strong class="tabular">Minutes</strong><span>from selfies to headshot</span></div>
             <div class="proof-item"><strong class="tabular">Free</strong><span>first shoot</span></div>
-            <div class="proof-item"><strong class="tabular">From $29</strong><span>one-time, no subscription</span></div>
+            <div class="proof-item"><strong class="tabular">From $8.99</strong><span>one-time, no subscription</span></div>
           </div>
         </div>
         <div class="hero-visual" data-reveal style="--i:2">${cvKit("cv-1")}</div>
@@ -174,7 +174,7 @@ export function renderResume({ root }) {
       <div class="container">
         <div class="cta-band">
           <div>
-            <p class="eyebrow" style="color:#a9b1bd">Free preview shoot · from $29</p>
+            <p class="eyebrow" style="color:#a9b1bd">Free preview · keep yours from $8.99</p>
             <h2 class="display h-1" style="margin-top:16px">Your next application deserves a better photo.</h2>
           </div>
           <a class="btn btn-flash btn-lg" href="${cta}" data-link><span>Create your <span class="nowrap">job-search</span> headshot</span> ${icon("arrow-right")}</a>

@@ -78,7 +78,7 @@ export async function api(path, { method = "GET", body, signal } = {}) {
    The page records which browser-code version it loaded (<meta name="app-build">)
    and every API response names the current one (lib/build.js). When they differ,
    a deploy happened since this tab loaded: the next in-app link does a full
-   page load (app.js), and a notice offers a reload. Nothing reloads by itself,
+   page load (app.js), and on /app pages a notice offers a reload. Nothing reloads by itself,
    so a half-filled form or an upload is never lost. */
 const LOADED_BUILD = document.querySelector('meta[name="app-build"]')?.content || null;
 let newBuild = false;
@@ -89,6 +89,9 @@ function noteBuild(build) {
   lastBuildCheck = Date.now();
   if (!LOADED_BUILD || !build || build === LOADED_BUILD || newBuild) return;
   newBuild = true;
+  // Public pages have nothing to lose: the next link loads the new version,
+  // so only signed-in pages (/app) show the notice.
+  if (!location.pathname.startsWith("/app")) return;
   const el = document.createElement("div");
   el.className = "toast update";
   el.innerHTML = `${icon("refresh-cw").v}<div>A new version of Keeper Headshots is ready.</div><button class="btn btn-sm btn-paper" type="button" data-reload>Reload</button><button class="toast-close" type="button" aria-label="Dismiss">${icon("x").v}</button>`;

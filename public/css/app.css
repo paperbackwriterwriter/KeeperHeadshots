@@ -480,6 +480,16 @@ p, li, dd, .lede, figcaption { text-wrap: pretty; }
 .quote-by span { font-size: var(--fs-xs); color: var(--text-muted); }
 
 /* Pricing */
+/* Homepage: the free preview and its two keep offers, above the packages */
+.start-free { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: var(--s-3); align-items: center; padding: var(--s-4); margin-bottom: var(--s-6); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); }
+.sf-step { display: flex; gap: 14px; align-items: center; padding: var(--s-3) var(--s-4); border-radius: var(--r-md); min-width: 0; }
+.sf-step.sf-pop { background: var(--night); color: var(--paper-100); }
+.sf-step.sf-pop span:not(.sf-amt) { color: var(--text-inverse-muted); }
+.sf-amt { font-family: var(--font-display); font-size: 2rem; line-height: 1; letter-spacing: -0.02em; flex: none; font-variant-numeric: lining-nums; }
+.sf-step b { display: block; font-size: var(--fs-sm); }
+.sf-step span:not(.sf-amt) { display: block; font-size: var(--fs-xs); color: var(--text-muted); }
+.pricing-or { margin: 0 0 var(--s-4); color: var(--text-muted); font-size: var(--fs-sm); }
+@media (max-width: 900px) { .start-free { grid-template-columns: 1fr; } .start-free .btn { justify-self: start; } }
 .pricing { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-4); align-items: stretch; }
 .plan { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--s-6); display: flex; flex-direction: column; gap: var(--s-5); transition: transform var(--dur-3) var(--ease-out), box-shadow var(--dur-3) var(--ease-out); }
 .plan:hover { transform: translateY(-4px); box-shadow: var(--shadow-2); }
