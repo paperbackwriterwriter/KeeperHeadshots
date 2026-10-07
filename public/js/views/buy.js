@@ -50,8 +50,12 @@ export function renderBuy({ root }, packageId) {
     (root.innerHTML = html`<main id="main" class="container app-main"><div class="empty view-enter" style="max-width:640px;margin:0 auto">${body}</div></main>`.v);
   const failed = (message) =>
     shell(html`<p class="eyebrow">Checkout</p><h1 class="display h-2">We couldn't start checkout.</h1><p class="lede">${message}</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><a class="btn btn-ink" href="${back}" data-link>${offer ? "Back to your shoot" : "Back to your shoots"}</a><a class="btn btn-ghost" href="/#pricing">Pricing</a></div>`);
-  if (!pkg || (offer && !shootId) || (pkg?.id === "keep" && !shotId)) {
+  if (!pkg) {
     shell(html`<p class="eyebrow">Checkout</p><h1 class="display h-2">That package doesn't exist.</h1><p class="lede">Pick one from the pricing section.</p><a class="btn btn-ink" href="/#pricing">See pricing</a>`);
+    return;
+  }
+  if (offer && (!shootId || (pkg.id === "keep" && !shotId))) {
+    shell(html`<p class="eyebrow">Checkout</p><h1 class="display h-2">Pick from your shoot first.</h1><p class="lede">${pkg.name} is chosen on your free preview's results page${pkg.id === "keep" ? ", for the headshot you pick there" : ""}.</p><a class="btn btn-ink" href="${shootId ? back : "/app"}" data-link>${shootId ? "Back to your shoot" : "Your shoots"}</a>`);
     return;
   }
 
@@ -68,7 +72,11 @@ export function renderBuy({ root }, packageId) {
       // this one, rather than here (which would send them straight back).
       if (!disposed) location.replace(url);
     } catch (err) {
-      if (!disposed) failed(err.message);
+      if (disposed) return;
+      // Already kept or unlocked (e.g. Back from Stripe after paying): the
+      // shoot itself is where to go.
+      if (offer && ["kept", "not_preview"].includes(err.data?.code)) return location.replace(back);
+      failed(err.message);
     }
   };
 

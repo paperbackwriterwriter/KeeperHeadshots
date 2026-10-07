@@ -483,7 +483,7 @@ p, li, dd, .lede, figcaption { text-wrap: pretty; }
 /* Homepage: the free preview and its two keep offers, above the packages */
 .start-free { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: var(--s-3); align-items: center; padding: var(--s-4); margin-bottom: var(--s-6); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); }
 .sf-step { display: flex; gap: 14px; align-items: center; padding: var(--s-3) var(--s-4); border-radius: var(--r-md); min-width: 0; }
-.sf-step.sf-pop { background: var(--night); color: var(--paper-100); }
+.sf-step.sf-pop { background: var(--night); color: var(--paper-100); box-shadow: inset 0 0 0 1px var(--flash-500), var(--shadow-3); }
 .sf-step.sf-pop span:not(.sf-amt) { color: var(--text-inverse-muted); }
 .sf-amt { font-family: var(--font-display); font-size: 2rem; line-height: 1; letter-spacing: -0.02em; flex: none; font-variant-numeric: lining-nums; }
 .sf-step b { display: block; font-size: var(--fs-sm); }
@@ -1363,6 +1363,7 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
 /* Account page */
 .account-page { max-width: 760px; }
 .account-card { display: flex; gap: var(--s-5); align-items: flex-start; }
+.avatar[data-initials]::before { content: attr(data-initials); }
 .avatar-lg { width: 56px; height: 56px; font-size: var(--fs-md); flex: none; }
 .account-facts { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4) var(--s-5); flex: 1; min-width: 0; }
 .account-facts dt { font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-subtle); }

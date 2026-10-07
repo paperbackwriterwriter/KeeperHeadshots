@@ -1,5 +1,6 @@
 import { html, icon, api, state, media, relTime, toast, example, spinner } from "../core.js";
 import { pixel } from "../pixel.js";
+import { PACKAGES } from "../shared/catalog.js";
 
 const STATUS = {
   draft: ["badge", "Photo check pending"],
@@ -68,12 +69,16 @@ export async function confirmPurchase(sessionId) {
   try {
     const res = await api("/api/billing/confirm", { method: "POST", body: { sessionId } });
     state.user = res.user;
-    if (res.granted) {
+    // Paid, whether this call granted it or Stripe's webhook got there first
+    // (it often does): say so either way.
+    if (res.granted || res.paid) {
       // No Purchase event for a free (100%-off) order; the server sends none either.
+      // Meta de-duplicates it with the server's event by its id.
       if (res.eventId) pixel("Purchase", { value: res.value, currency: "USD" }, res.eventId);
-      const what = res.added ? `${res.added} shoots added to your account.` : res.packageId === "keep-plus" ? "every headshot is yours to keep. Now pick your 2 extra looks." : "your pick is yours to keep, in full resolution.";
+      const pkg = PACKAGES.find((p) => p.id === res.packageId);
+      const what = res.added || pkg ? `${res.added || pkg.shoots} shoots added to your account.` : res.packageId === "keep-plus" ? "every headshot is yours to keep. Now pick your 2 extra looks." : "your pick is yours to keep, in full resolution.";
       toast(`${res.eventId ? "Payment received" : "Order complete"}: ${what}`, "success", 7000);
-    } else if (!res.paid) toast("Your payment is still processing. Your order will appear as soon as it clears.", "info", 7000);
+    } else toast("Your payment is still processing. Your order will appear as soon as it clears.", "info", 7000);
     return res;
   } catch (err) {
     toast(err.message, "error", 7000);

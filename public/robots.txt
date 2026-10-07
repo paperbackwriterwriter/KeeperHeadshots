@@ -5,6 +5,7 @@ Disallow: /app/
 Disallow: /api/
 Disallow: /media/
 Disallow: /verify
+Disallow: /ads/
 
 Sitemap: https://keeperheadshots.com/sitemap.xml
 Sitemap: https://keeperheadshots.com/blog/sitemap.xml

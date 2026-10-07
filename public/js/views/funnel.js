@@ -149,7 +149,7 @@ export function renderFunnel({ root, navigate }) {
     try {
       const r = await api("/api/owner/offer", { method: "POST", body: { ...f, send } });
       result.textContent = send
-        ? `Sent ${r.sent} email${r.sent === 1 ? "" : "s"}${r.failed ? `, ${r.failed} failed` : ""}${r.capped ? `. ${r.capped} more are left for another send (at most 60 at a time)` : ""}.`
+        ? `Sent ${r.sent} email${r.sent === 1 ? "" : "s"}${r.failed ? `, ${r.failed} failed` : ""}${r.capped ? `. ${r.capped} more are left for another send (at most 60 at a time)` : ""}${r.stopped ? `. Stopped early (${r.stopped === "rate_limited" ? "the email service asked us to slow down" : "time limit"}); send again in a few minutes to reach the rest` : ""}.`
         : `${r.eligible} ${r.eligible === 1 ? "person" : "people"} would get code ${f.code}${r.capped ? ` (60 now, ${r.capped} in a later send)` : ""}.`;
       if (send) toast("Offer sent.", "success");
       return r;

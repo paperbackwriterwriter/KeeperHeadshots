@@ -139,7 +139,7 @@ function appNav() {
         <a href="/app" data-link>Shoots</a><a href="/app/new" data-link>New shoot</a><a href="/#pricing">Pricing</a><a href="/contact" data-link>Contact</a><a href="/app/account" data-link>Account</a>
       </nav>
       <div class="nav-actions">
-        <a class="user-chip" href="/app/account" data-link title="Your account (${u.email})" aria-label="Your account"><span class="avatar" aria-hidden="true">${initials(u.name)}</span><span class="hide-m">${u.name.split(" ")[0]}</span></a>
+        <a class="user-chip" href="/app/account" data-link title="Your account (${u.email})" aria-label="Your account: ${u.name.split(" ")[0]}"><span class="avatar" data-initials="${initials(u.name)}" aria-hidden="true"></span><span class="hide-m">${u.name.split(" ")[0]}</span></a>
         <button class="btn btn-ghost btn-sm" id="signOut" aria-label="Sign out">${icon("log-out")}<span class="hide-m">Sign out</span></button>
         <button class="btn btn-ghost btn-icon nav-toggle" id="navToggle" aria-expanded="false" aria-controls="navSheet" aria-label="Open menu">${icon("menu")}</button>
       </div>

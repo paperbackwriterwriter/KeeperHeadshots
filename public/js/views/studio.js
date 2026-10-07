@@ -529,7 +529,10 @@ export async function renderStudio(ctx, id) {
         return sync();
       }
       const next = { ...looks[active], ...patch };
-      if (taken(next, active)) return toast(`“${lookName(next.backdrop, next.outfit)}” is already look ${looks.findIndex((l) => same(l, next)) + 1}.`, "info");
+      if (taken(next, active)) {
+        const at = looks.findIndex((l) => same(l, next));
+        return toast(at >= 0 ? `“${lookName(next.backdrop, next.outfit)}” is already look ${at + 1}.` : `This shoot already has “${lookName(next.backdrop, next.outfit)}”. Pick another backdrop or outfit.`, "info");
+      }
       looks[active] = next;
       sync();
     };
@@ -762,7 +765,7 @@ export async function renderStudio(ctx, id) {
           ${isMine && aiBest
             ? html`<p class="small muted" style="margin:-8px 0 20px">The retoucher's pick was frame ${String(aiBest.n).padStart(2, "0")}. <button class="link" id="resetPick" style="background:none;border:0;padding:0;cursor:pointer;font:inherit">Use the retoucher's pick</button></p>`
             : ""}
-          ${locked ? keepPanel(s, best) : ""}
+          ${locked && best ? keepPanel(s, best) : ""}
           <div class="fmt-row">
             <span class="fmt-label" id="fmtLabel">Download as</span>
             ${formatPicker(currentFormat())}

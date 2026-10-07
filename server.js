@@ -659,6 +659,7 @@ app.post("/api/shoots/:id/more-looks", requireUser, async (req, res) => {
   const looks = [...new Map(asked.map((l) => (l && typeof l === "object" ? lookFor(String(l.backdrop), String(l.outfit)) : null)).filter((l) => l && !existing.has(l.id)).map((l) => [l.id, l])).values()];
   if (!looks.length) return res.status(400).json({ error: "Pick a look this shoot doesn't have yet." });
   if (looks.length > have) return res.status(400).json({ error: `Pick up to ${have} look${have === 1 ? "" : "s"}.` });
+  if (existing.size + looks.length > MAX_LOOKS) return res.status(400).json({ error: `A shoot has at most ${MAX_LOOKS} looks. Pick ${Math.max(0, MAX_LOOKS - existing.size)} or fewer.` });
   let taken = false;
   await users.update(req.user.id, (u) => {
     taken = false;
@@ -960,7 +961,8 @@ app.post("/api/billing/checkout", requireUser, async (req, res) => {
   }
   const checkout = await createCheckout(req.user, packageId, origin, { gpc: gpc(req), embedded, shootId, shotId });
   // For the one "unfinished checkout" reminder (lib/reminders.js).
-  await users.update(req.user.id, (u) => void (u.lastCheckout = { packageId, at: new Date().toISOString() })).catch((err) => console.error("[checkout] record", err.message));
+  // (Packages only: an offer is reminded about by the preview's "buy" email.)
+  if (!shootId) await users.update(req.user.id, (u) => void (u.lastCheckout = { packageId, at: new Date().toISOString() })).catch((err) => console.error("[checkout] record", err.message));
   const eventId = `checkout_${checkout.id}`;
   trackMeta("InitiateCheckout", { eventId, user: req.user, req, value: checkout.value });
   res.json(embedded ? { clientSecret: checkout.clientSecret, eventId, value: checkout.value } : { url: checkout.url, eventId, value: checkout.value });
@@ -987,8 +989,8 @@ app.post("/api/billing/confirm", requireUser, async (req, res) => {
 
 app.post("/api/billing/sync", requireUser, async (req, res) => {
   if (!billingEnabled() || req.user.demo || !req.user.stripeCustomerId || (await overLimit("sync", req.user.id, 20))) return res.json({ added: 0, removed: 0, user: publicUser(req.user) });
-  const { added, removed } = await syncPurchases(req.user);
-  res.json({ added, removed, user: publicUser(added || removed ? await users.byId(req.user.id) : req.user) });
+  const { added, removed, revoked } = await syncPurchases(req.user);
+  res.json({ added, removed, user: publicUser(added || removed || revoked ? await users.byId(req.user.id) : req.user) });
 });
 
 /* ------------------------------ Contact ----------------------------- */
@@ -1094,6 +1096,8 @@ async function makeSize(size, sid, name, shot) {
   return null;
 }
 
+// Watermarked previews, most recently used last (see /media below).
+const previewCache = new Map();
 app.get("/media/:sid/:name", requireUser, async (req, res) => {
   const { sid, name } = req.params;
   if (!/^[\w-]+$/.test(sid) || !/^[\w-]+\.(jpg|png)$/.test(name)) return res.status(404).end();
@@ -1105,15 +1109,31 @@ app.get("/media/:sid/:name", requireUser, async (req, res) => {
   if (meta.userId !== req.user.id && !(await teams.adminMayView(req.user, meta, `${sid}/${name}`))) return res.status(404).end();
   const base = name.replace(/\.\w+$/, "");
   const shotFor = async () => (await shoots.get(sid))?.shots.find((s) => s.file === `${sid}/${name}`);
-  // A free preview's headshots (not its selfies) get the watermark, until the
-  // account buys a package (lib/preview.js). Not cached for long, so the
-  // clean copy shows as soon as they buy.
+  // A free preview's files get the watermark until the account buys
+  // (lib/preview.js): every file of the shoot except its selfies, including
+  // the cached squares and sizes (<base>-sq.jpg, -li.jpg…) and the widened
+  // square, whatever name they're asked for by. Only a headshot bought on its
+  // own ("Keep your pick") is served clean. Not cached for long, so the clean
+  // copy shows as soon as they buy.
   const owner = meta.preview ? (meta.userId === req.user.id ? req.user : await users.byId(meta.userId)) : null;
-  const previewShot = isPreview(meta, owner) ? await shotFor() : null;
-  const preview = !!previewShot && !isKept(owner, sid, previewShot.id);
+  let preview = false;
+  if (isPreview(meta, owner)) {
+    const full = await shoots.get(sid);
+    const path = `${sid}/${name}`;
+    if (!(full?.selfies || []).some((p) => p.file === path)) {
+      const stem = base.replace(/-(sq|li|banner|sig)$/, "");
+      const shot = full?.shots.find((t) => t.file === path || t.square === path || (derived && t.file?.replace(/\.\w+$/, "") === `${sid}/${stem}`));
+      preview = !shot || !isKept(owner, sid, shot.id);
+    }
+  }
   const send = async (buf, type, filename, cache) => {
     if (preview) {
-      buf = await watermark(buf, { png: type === "image/png", band: req.query.size !== "signature" });
+      // The same preview is asked for on every view; keep the last few.
+      const key = `${sid}/${name}|${req.query.square ? "sq" : ""}|${req.query.size || ""}|${buf.length}`;
+      buf = previewCache.get(key) || (await watermark(buf, { png: type === "image/png", band: req.query.size !== "signature" }));
+      previewCache.delete(key);
+      previewCache.set(key, buf);
+      if (previewCache.size > 60) previewCache.delete(previewCache.keys().next().value);
       res.set("Cache-Control", "private, no-cache");
       filename = filename?.replace(/^headshot-/, "headshot-preview-");
     } else res.set("Cache-Control", cache);
@@ -1204,7 +1224,8 @@ app.post("/api/showcase", requireUser, async (req, res) => {
   const shoot = await ownShoot(req, res);
   if (!shoot) return;
   if (shoot.sample) return res.status(400).json({ error: "Sample shoots can't be shared." });
-  if (isPreview(shoot, req.user)) return res.status(402).json({ error: "Buy any package to share a headshot from your free preview.", code: "preview" });
+  // A preview's headshot can be shared once it's bought on its own ("Keep your pick").
+  if (isPreview(shoot, req.user) && !isKept(req.user, shoot.id, String(req.body?.shotId || ""))) return res.status(402).json({ error: "Keep this headshot first to share it from your free preview.", code: "preview" });
   try {
     const { entry, first } = await showcase.submit(req.user, shoot, String(req.body?.shotId || ""), req.body || {});
     console.log("[showcase] offered", entry.id, req.user.id);

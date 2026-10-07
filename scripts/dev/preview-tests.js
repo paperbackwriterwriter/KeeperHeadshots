@@ -90,6 +90,18 @@ let previewBytes = 0;
   ok("the square is watermarked too", sq.status === 200 && sq.meta.width <= 1024 && /no-cache/.test(sq.cache));
   const sig = await get(pat, `${file}?size=signature`);
   ok("so is the email-signature size", sig.status === 200 && sig.meta.format === "png" && sig.meta.width === 256);
+  // The square and sizes are cached next to the headshot under their own
+  // names; asking for those names directly must not give a clean copy.
+  await get(pat, `${file}?size=linkedin`);
+  const stem = file.replace(/\.\w+$/, "");
+  const sqFile = await get(pat, `${stem}-sq.jpg`);
+  const liFile = await get(pat, `${stem}-li.jpg`);
+  ok("its cached square can't be fetched clean by name", sqFile.status === 200 && /no-cache/.test(sqFile.cache), `${sqFile.status} ${sqFile.cache}`);
+  ok("nor its cached LinkedIn size", liFile.status === 200 && /no-cache/.test(liFile.cache), `${liFile.status} ${liFile.cache}`);
+  if (shot.square) {
+    const wide = await get(pat, `/media/${shot.square}`);
+    ok("nor its widened square", wide.status === 200 && /no-cache/.test(wide.cache), wide.cache);
+  }
   const selfie = await get(pat, `/media/${shoot.selfies[0].file}`);
   ok("selfies are never watermarked", selfie.status === 200 && /immutable/.test(selfie.cache), selfie.cache);
   const share = await pat("/api/showcase", { method: "POST", body: JSON.stringify({ shootId: shoot.id, shotId: shot.id, name: "Pat", consent: true }) });
@@ -191,10 +203,34 @@ let previewBytes = 0;
   ok("the same headshot can't be bought twice", (await leeStart({ shotId: pick.id })).status === 400);
   ok("but another one can", (await leeStart({ shotId: other.id })).status === 200);
   ok("and so can 'Keep them all'", (await lee("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "keep-plus", shootId: leeShoot.id }) })).status === 200);
-  ok("a kept headshot doesn't allow sharing the preview", (await lee("/api/showcase", { method: "POST", body: JSON.stringify({ shootId: leeShoot.id, shotId: pick.id, name: "Lee", consent: true }) })).status === 402);
+  const pickStem = `/media/${pick.file}`.replace(/\.\w+$/, "");
+  const pickSq = await get(lee, `${pickStem}-sq.jpg`);
+  ok("the kept headshot's cached square is clean too", pickSq.status === 200 && !/no-cache/.test(pickSq.cache), pickSq.cache);
+  ok("the other headshots can't be shared", (await lee("/api/showcase", { method: "POST", body: JSON.stringify({ shootId: leeShoot.id, shotId: other.id, name: "Lee", consent: true }) })).status === 402);
+  ok("but the kept one can be offered", (await lee("/api/showcase", { method: "POST", body: JSON.stringify({ shootId: leeShoot.id, shotId: pick.id, name: "Lee", consent: true }) })).status !== 402);
   ok("and nothing to add", (await lee(`/api/shoots/${leeShoot.id}/more-looks`, { method: "POST", body: JSON.stringify({ looks: [{ backdrop: "glass-office", outfit: "navy-suit" }] }) })).status === 400);
   const all = await buy(lee, "keep-plus", leeShoot.id);
   ok("'Keep them all' after a pick unlocks the rest", all.granted === true && all.user.previewsUnlocked === true && /immutable/.test((await get(lee, `/media/${other.file}`)).cache));
+}
+
+// 4b. A refunded offer stops counting: the preview locks again and unused
+// extra looks are taken back.
+{
+  const ray = await account(`ray${t}@x.com`, "Ray Diaz");
+  const rayShoot = await doneShoot(ray);
+  const rayFile = `/media/${rayShoot.shots.find((x) => x.status === "done").file}`;
+  const { j } = await ray("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "keep-plus", shootId: rayShoot.id }) });
+  const sid = new URL(j.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${sid}`, { redirect: "manual" });
+  const paid = (await ray("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid }) })).j;
+  ok("before the refund it's unlocked with 2 looks to add", paid.user.previewsUnlocked === true && paid.user.extraLooks[rayShoot.id] === 2);
+  await fetch(`${M}/mock-refund/${sid}`);
+  const synced = (await ray("/api/billing/sync", { method: "POST", body: "{}" })).j;
+  ok("a refunded offer locks the preview again", synced.user.previewsUnlocked === false && synced.user.purchased === false, JSON.stringify({ unlocked: synced.user?.previewsUnlocked, purchased: synced.user?.purchased }));
+  ok("and takes back its unused extra looks", !synced.user.extraLooks[rayShoot.id], JSON.stringify(synced.user?.extraLooks));
+  ok("its headshots are previews again", /no-cache/.test((await get(ray, rayFile)).cache));
+  const again = (await ray("/api/billing/sync", { method: "POST", body: "{}" })).j;
+  ok("syncing again changes nothing", again.removed === 0 && again.user.previewsUnlocked === false);
 }
 
 // 5. A paid shoot is never a preview.
