@@ -8,14 +8,14 @@ export const LEGAL_UPDATED = "September 29, 2026";
 
 const mail = html`<a class="link" href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>`;
 
-function page({ eyebrow, title, lede, callout, body }) {
+function page({ eyebrow, title, lede, callout, body, updated = LEGAL_UPDATED }) {
   return html`
   <main id="main" class="container app-main view-enter policy-page">
     <article class="policy">
       <p class="eyebrow"><span class="dot"></span>${eyebrow}</p>
       <h1 class="display h-1" style="margin-top:12px">${title}</h1>
       <p class="lede">${lede}</p>
-      <p class="small muted">Last updated ${LEGAL_UPDATED}</p>
+      <p class="small muted">Last updated ${updated}</p>
       <div class="policy-callout">${icon("shield-check")}<div><b>The short version</b><span>${callout}</span></div></div>
       ${body}
     </article>
@@ -130,6 +130,7 @@ export function renderPrivacy({ root }) {
 export function renderTerms({ root }) {
   root.innerHTML = page({
     eyebrow: "Terms of service",
+    updated: "October 7, 2026",
     title: "Terms of service",
     lede: "The agreement between you and Keeper Headshots when you use the studio.",
     callout:
