@@ -169,6 +169,7 @@ const STATES = [
   { name: "shoot-developing", url: async () => `/app/shoot/${await shoot(owner, "developing")}`, who: owner },
   { name: "shoot-proofs", url: `/app/shoot/${mayaDone}`, who: maya },
   { name: "shoot-preview", url: `/app/shoot/${piaShoot}`, who: pia },
+  { name: "shoot-preview-lightbox", url: `/app/shoot/${piaShoot}`, who: pia, prep: async (p) => { await p.locator("#proofs img").nth(1).click(); await p.waitForTimeout(500); }, full: false },
   { name: "shoot-lightbox", url: `/app/shoot/${mayaDone}`, who: maya, prep: async (p) => { await p.locator("#proofs img").first().click(); await p.waitForTimeout(500); }, full: false },
   { name: "team-shoot-looks", url: `/app/shoot/${samShoot}`, who: sam },
   { name: "account", url: "/app/account", who: maya },

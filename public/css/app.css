@@ -952,27 +952,10 @@ body:has(.develop-bar) .toasts { bottom: calc(96px + env(safe-area-inset-bottom)
 .shoots-table td, .shoots-table th { white-space: nowrap; }
 .offer-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--s-4); align-items: end; margin-top: var(--s-2); }
 .offer-form .btn-row, .offer-form #offerResult { grid-column: 1 / -1; }
-/* A preview's results: keep it ($8.99), keep it with more looks, or a package */
-.keep-panel { margin: 0 0 var(--s-6); padding: var(--s-5); border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface-raised); box-shadow: var(--shadow-2); }
-.keep-title { font-size: var(--fs-lg); font-weight: 800; margin: 0; }
-.keep-sub { color: var(--text-muted); font-size: var(--fs-sm); margin: 4px 0 var(--s-4); }
-.keep-offers { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: var(--s-3); }
-.keep-offer { position: relative; display: flex; flex-direction: column; gap: 4px; padding: var(--s-4); border-radius: var(--r-md); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); text-decoration: none; transition: border-color var(--dur-2), transform var(--dur-2) var(--ease-out), background-color var(--dur-2); }
-.keep-offer:hover { border-color: var(--ink); transform: translateY(-2px); }
-.keep-offer.pop { background: var(--flash-500); border-color: var(--flash-500); color: #fff; box-shadow: 0 12px 28px -12px rgba(122, 46, 46, 0.8); }
-.keep-offer.pop:hover { background: var(--flash-600); }
-.keep-offer.kept { border-style: dashed; background: transparent; }
-.keep-offer.kept:hover { transform: none; border-color: var(--border-strong); }
-.keep-name svg { width: 16px; height: 16px; vertical-align: -2px; }
-.keep-name { font-weight: 800; }
-.keep-price { font-size: var(--fs-sm); opacity: 0.85; }
-.keep-price strong { font-size: var(--fs-xl); opacity: 1; margin-right: 4px; }
-.keep-what { font-size: var(--fs-xs); opacity: 0.85; }
-.keep-go { margin-top: auto; padding-top: 8px; display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: var(--fs-sm); }
-.keep-go svg { width: 16px; height: 16px; }
-.keep-badge { position: absolute; top: -10px; right: 12px; background: var(--ink-950); color: var(--paper-100); font-family: var(--font-mono); font-size: var(--fs-2xs); letter-spacing: var(--tracking-caps); text-transform: uppercase; padding: 3px 8px; border-radius: var(--r-pill); }
-.keep-more { display: flex; gap: 8px; align-items: flex-start; margin: var(--s-4) 0 0; font-size: var(--fs-sm); color: var(--text-muted); }
-.keep-more svg { width: 16px; height: 16px; flex: none; margin-top: 3px; }
+/* A preview's results: "Download this photo · $8.99" (the purchase), then
+   "Get all + 2 more looks". */
+.keep-cta { display: grid; gap: var(--s-3); margin: var(--s-2) 0 var(--s-4); }
+.keep-cta-note { margin: 0; text-align: center; font-size: var(--fs-sm); color: var(--text-muted); text-wrap: pretty; }
 .extra-banner { align-items: center; }
 .funnel { display: grid; gap: var(--s-4); }
 .funnel-row { display: grid; grid-template-columns: minmax(9rem, 13rem) 1fr 3.5rem 10rem; gap: var(--s-3); align-items: center; }

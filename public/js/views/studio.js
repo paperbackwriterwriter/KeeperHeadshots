@@ -17,36 +17,20 @@ const isKept = (s, shotId) => (state.user?.kept?.[s?.id] || []).includes(shotId)
 // Extra looks bought for this shoot ("Preview + 2 more looks") not added yet.
 const extraLooks = (s) => (s && !s.sample ? state.user?.extraLooks?.[s.id] || 0 : 0);
 
-// On a preview's results: keep your pick, keep them all with 2 more looks,
-// or a package. `pick` is the headshot shown as the best pick (with its
-// frame number `n`).
-function keepPanel(s, pick) {
-  const lowest = Math.min(...PACKAGES.map((p) => p.price));
-  const total = s.shots.filter((t) => t.status === "done").length;
-  const [one, all] = PREVIEW_OFFERS;
-  const frame = pick ? `Frame ${String(pick.n).padStart(2, "0")}` : "";
-  const owned = pick && isKept(s, pick.id);
-  return html`<section class="keep-panel" aria-labelledby="keepTitle">
-    <h2 class="keep-title" id="keepTitle">Keep your headshots</h2>
-    <p class="keep-sub">Full resolution, in every size: LinkedIn, square, banner and email signature.</p>
-    <div class="keep-offers">
-      ${pick && !owned
-        ? html`<a class="keep-offer" href="/app/buy/${one.id}?shoot=${encodeURIComponent(s.id)}&shot=${encodeURIComponent(pick.id)}" data-link>
-            <span class="keep-name">${one.name}</span>
-            <span class="keep-price"><strong class="tabular">$${one.price}</strong> one-time</span>
-            <span class="keep-what">${frame} only. Make another headshot your pick to keep that one instead.</span>
-            <span class="keep-go">Keep ${frame} ${icon("arrow-right")}</span>
-          </a>`
-        : html`<div class="keep-offer kept"><span class="keep-name">${icon("check")} ${frame} is yours</span><span class="keep-what">Make another headshot your pick to keep that one too, or keep them all.</span></div>`}
-      <a class="keep-offer pop" href="/app/buy/${all.id}?shoot=${encodeURIComponent(s.id)}" data-link>
-        <span class="keep-badge">Best value</span>
-        <span class="keep-name">${all.name}</span>
-        <span class="keep-price"><strong class="tabular">$${all.price}</strong> one-time</span>
-        <span class="keep-what">All ${total} headshots, plus ${all.looks} new looks of your choice (${all.looks * TAKES_PER_LOOK} more headshots)</span>
-        <span class="keep-go">Keep all + add looks ${icon("arrow-right")}</span>
-      </a>
-    </div>
-    <p class="keep-more">${icon("layers")}<span>Need more shoots? Packages from <b>$${lowest}</b> include this shoot too. <a class="link" href="#upgrade">See packages</a></span></p>
+// On a preview's results, downloading is the purchase: the pick's button is
+// "Download this photo · $8.99" (straight to the payment form), with keeping
+// them all plus 2 more looks as the second choice. Nothing else downloads
+// until something is bought.
+const [KEEP_ONE, KEEP_ALL] = PREVIEW_OFFERS;
+const keepHref = (s, shot) => `/app/buy/${KEEP_ONE.id}?shoot=${encodeURIComponent(s.id)}&shot=${encodeURIComponent(shot.id)}`;
+const keepAllHref = (s) => `/app/buy/${KEEP_ALL.id}?shoot=${encodeURIComponent(s.id)}`;
+const keepAllButton = (s, total) =>
+  html`<a class="btn btn-ghost btn-lg btn-block" href="${keepAllHref(s)}" data-link>Get all ${total} + ${KEEP_ALL.looks} more looks · $${KEEP_ALL.price}</a>`;
+function keepCta(s, pick, total) {
+  return html`<section class="keep-cta" aria-label="Keep your headshots">
+    <a class="btn btn-flash btn-lg btn-block" href="${keepHref(s, pick)}" data-link>${icon("download")} Download this photo · $${KEEP_ONE.price}</a>
+    <p class="keep-cta-note">Full resolution, no watermark, in every size (LinkedIn, square, banner, email signature). One-time.</p>
+    ${keepAllButton(s, total)}
   </section>`;
 }
 
@@ -728,6 +712,9 @@ export async function renderStudio(ctx, id) {
     const keepers = done.filter((t) => grade(t)?.grade === "keeper").length;
     // A free shoot is a watermarked preview until any package is bought (lib/preview.js).
     const locked = isLocked(s);
+    // A preview whose pick isn't bought yet: buying is the only way to download.
+    // Once the pick is kept, it (and only it) downloads as usual.
+    const gated = locked && !!best && !isKept(s, best.id);
     const avgLikeness = r ? (done.reduce((a, t) => a + (grade(t)?.likeness || 0), 0) / Math.max(1, done.length)).toFixed(1) : "—";
     const counts = { all: done.length, keeper: keepers, solid: done.filter((t) => grade(t)?.grade === "solid").length, retake: done.filter((t) => grade(t)?.grade === "retake").length };
     let filter = "all";
@@ -765,8 +752,9 @@ export async function renderStudio(ctx, id) {
           ${isMine && aiBest
             ? html`<p class="small muted" style="margin:-8px 0 20px">The retoucher's pick was frame ${String(aiBest.n).padStart(2, "0")}. <button class="link" id="resetPick" style="background:none;border:0;padding:0;cursor:pointer;font:inherit">Use the retoucher's pick</button></p>`
             : ""}
-          ${locked && best ? keepPanel(s, best) : ""}
-          <div class="fmt-row">
+          ${gated
+            ? keepCta(s, best, done.length)
+            : html`<div class="fmt-row">
             <span class="fmt-label" id="fmtLabel">Download as</span>
             ${formatPicker(currentFormat())}
           </div>
@@ -777,7 +765,8 @@ export async function renderStudio(ctx, id) {
                 <div class="kit-items">${PROFILE_KIT.map(([size, name, detail]) => html`<a class="kit-item" href="${sizeMedia(best.file, size)}" download><b>${icon("download")} ${name}</b><span>${detail}</span></a>`)}</div>
               </div>`
             : ""}
-          <p class="small muted" style="margin-top:14px;max-width:60ch">${locked ? "These are previews. Once you keep them, the same buttons give the full-resolution headshots. " : ""}Every headshot is ready to use as it is, in either shape: a full-resolution 3:4 portrait for websites, print and business cards, or a 1:1 square for LinkedIn, Microsoft Teams and social media, framed for round profile photos with your face centered and room around it. No cropping needed.</p>
+          ${locked ? html`<div class="keep-cta">${keepAllButton(s, done.length)}</div>` : ""}
+          <p class="small muted" style="margin-top:14px;max-width:60ch">Every headshot is ready to use as it is, in either shape: a full-resolution 3:4 portrait for websites, print and business cards, or a 1:1 square for LinkedIn, Microsoft Teams and social media, framed for round profile photos with your face centered and room around it. No cropping needed.</p>`}
         </div>
       </section>
 
@@ -814,16 +803,17 @@ export async function renderStudio(ctx, id) {
 
     // Download buttons follow the chosen format (portrait, square or both).
     const drawDl = () => {
+      if (!$("#dlRow")) return;
       const fmt = currentFormat();
       const n = done.length;
       const what = fmt === "both" ? "as portraits and squares" : fmt === "square" ? "as 1:1 squares" : "as 3:4 portraits";
       $("#dlRow").innerHTML = html`<div class="dl-buttons">
         ${best ? html`<button class="btn btn-flash btn-lg" id="dlBest">${icon("download")} Download ${isMine ? "your pick" : "best pick"}${fmt === "both" ? "" : ` · ${fmt === "square" ? "1:1" : "3:4"}`}</button>` : ""}
-        <button class="btn btn-ghost btn-lg" id="dlAll" aria-label="Download all ${plural(n, "headshot")}, ${what}">${icon("download")} All ${n}</button>
-        ${locked ? "" : html`<a class="btn btn-ghost btn-lg" href="#upgrade">${icon("sparkles")} More options</a>`}
+        ${locked ? "" : html`<button class="btn btn-ghost btn-lg" id="dlAll" aria-label="Download all ${plural(n, "headshot")}, ${what}">${icon("download")} All ${n}</button>
+        <a class="btn btn-ghost btn-lg" href="#upgrade">${icon("sparkles")} More options</a>`}
       </div>`.v;
       $("#dlBest")?.addEventListener("click", () => downloadAll(formatHrefs(best.file, fmt)));
-      $("#dlAll").addEventListener("click", async (e) => {
+      $("#dlAll")?.addEventListener("click", async (e) => {
         const restore = busy(e.currentTarget, "Downloading…");
         await downloadAll(ordered.flatMap((t) => formatHrefs(t.file, fmt)));
         restore();
@@ -902,14 +892,17 @@ export async function renderStudio(ctx, id) {
               <div class="bars">${[["Likeness", g.likeness], ["Polish", g.polish], ["Lighting", g.lighting]].map(([k, v]) => html`<div class="bar-row"><span>${k}</span><div class="meter-track"><div class="meter-fill" style="--v:${v};--mcol:${meterColor(v)}"></div></div><b>${v}</b></div>`)}</div>
               <p style="color:#a9b1bd">${g.note}</p><p class="small"><b>Best for:</b> ${g.best_for}</p>`
             : html`<p style="color:#a9b1bd">Not graded yet.</p>`}
-          ${(() => {
+          ${locked && !isKept(s, t.id)
+            ? html`<button class="btn btn-flash" type="button" data-keep="${t.id}">${icon("download")} Download this photo · $${KEEP_ONE.price}</button>
+              <p class="lb-sizes">Full resolution, no watermark, in every size. One-time.</p>`
+            : html`${(() => {
             // Both shapes are always offered; the chosen format goes first.
             const sq = currentFormat() === "square";
             const portrait = html`<a class="btn ${sq ? "btn-ghost-inverse" : "btn-flash"}" href="${media(t.file, true)}" download>${icon("download")} Download portrait (3:4)</a>`;
             const square = html`<a class="btn ${sq ? "btn-flash" : "btn-ghost-inverse"}" href="${squareMedia(t.file)}" download>${icon("focus")} Download square (1:1)</a>`;
             return sq ? html`${square}${portrait}` : html`${portrait}${square}`;
           })()}
-          <p class="lb-sizes">More sizes: ${PROFILE_KIT.map(([size, name], i) => html`${i ? " · " : ""}<a href="${sizeMedia(t.file, size)}" download>${name}</a>`)}</p>
+          <p class="lb-sizes">More sizes: ${PROFILE_KIT.map(([size, name], i) => html`${i ? " · " : ""}<a href="${sizeMedia(t.file, size)}" download>${name}</a>`)}</p>`}
           ${s.sample ? "" : t.id === best?.id
             ? html`<span class="chip" style="align-self:flex-start">${icon("crown")} ${isMine ? "Your pick" : "Best pick"}</span>`
             : html`<button class="btn btn-ghost-inverse" data-pick="${t.id}">${icon("crown")} Make this my pick</button>`}
@@ -956,6 +949,21 @@ export async function renderStudio(ctx, id) {
       if (b) setPick(b.dataset.pick, b);
     });
     // (The lightbox sits inside #main, so the listener above covers its pick button too.)
+    $("#main").addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-keep]");
+      if (!b || b.disabled) return;
+      const shot = s.shots.find((t) => t.id === b.dataset.keep);
+      if (!shot) return;
+      const restore = busy(b, "One moment…");
+      try {
+        if (shot.id !== best?.id) await api(`/api/shoots/${id}`, { method: "PATCH", body: { pickedShotId: shot.id } });
+        if (lb.open) lb.close();
+        ctx.navigate(keepHref(s, shot));
+      } catch (err) {
+        restore();
+        toast(err.message, "error");
+      }
+    });
     $("#resetPick")?.addEventListener("click", (e) => setPick(null, e.currentTarget));
 
     $$("#regrade, #regradeAll").forEach((el) => el.addEventListener("click", async (e) => {
