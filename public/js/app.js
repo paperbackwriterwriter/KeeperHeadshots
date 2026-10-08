@@ -357,7 +357,8 @@ document.addEventListener("click", (e) => {
   const a = e.target.closest("a[data-link], a[href^='/']");
   if (e.defaultPrevented || !a || a.target || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0 || a.hasAttribute("download")) return;
   const url = new URL(a.href, location.origin);
-  if (url.origin !== location.origin || url.pathname.startsWith("/media/")) return;
+  // Files and server routes (e.g. /api/auth/google, which redirects to Google) load for real.
+  if (url.origin !== location.origin || url.pathname.startsWith("/media/") || url.pathname.startsWith("/api/")) return;
   // The blog loads fresh: the server sends its articles (or allows Soro's
   // embed script there, which other pages don't).
   if (/^\/blog(\/|$)/.test(url.pathname) || /^\/blog(\/|$)/.test(location.pathname)) return;
