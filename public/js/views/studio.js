@@ -282,7 +282,28 @@ export async function renderStudio(ctx, id) {
   }
 
   function checkPending(s, checking) {
-    const phrases = ["Measuring light on your face…", "Checking focus and sharpness…", "Looking for sunglasses, hats and filters…", "Comparing angles across your set…"];
+    // Shown one after another while the check runs (about 2.5 s each), so a
+    // typical check never sees the same line twice.
+    const phrases = [
+      "Finding your face in each photo…",
+      "Measuring light on your face…",
+      "Checking focus and sharpness…",
+      "Looking for motion blur…",
+      "Checking for shadows across your eyes…",
+      "Checking the light is even…",
+      "Checking that your whole face is visible…",
+      "Looking for sunglasses, hats and filters…",
+      "Spotting anything covering your face…",
+      "Making sure each photo is just you…",
+      "Checking your eyes are open…",
+      "Reading your expression…",
+      "Checking your face is big enough in the frame…",
+      "Comparing angles across your set…",
+      "Noting your features for likeness…",
+      "Scoring each photo…",
+      "Picking your strongest references…",
+      "Writing tips for any photo worth retaking…",
+    ];
     if (checking) {
       setTimeout(() => {
         const el = $("#phrase");
@@ -292,7 +313,7 @@ export async function renderStudio(ctx, id) {
           if (!document.body.contains(el)) return clearInterval(t);
           i = (i + 1) % phrases.length;
           el.textContent = phrases[i];
-        }, 2200);
+        }, 2500);
       });
     }
     return html`<div class="page-head">
