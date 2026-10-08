@@ -26,6 +26,7 @@ function page({ eyebrow, title, lede, callout, body, updated = LEGAL_UPDATED }) 
 export function renderPrivacy({ root }) {
   root.innerHTML = page({
     eyebrow: "Privacy policy",
+    updated: "October 8, 2026",
     title: "Your privacy",
     lede: "What we collect, why we collect it, who helps us run the service, and the choices you have.",
     callout:
@@ -35,7 +36,7 @@ export function renderPrivacy({ root }) {
 
       <h2 class="h-3">What we collect</h2>
       <ul>
-        <li><b>Account details:</b> your name, email address and password. We store passwords only as a one-way scrambled hash, never as the password itself.</li>
+        <li><b>Account details:</b> your name, email address and password. We store passwords only as a one-way scrambled hash, never as the password itself. If you continue with Google, Google tells us your name, your email address (and that Google has confirmed it) and an account number that links your Google sign-in to your Keeper account. We don't get your Google password, contacts or anything else.</li>
         <li><b>Your photos:</b> the selfies you upload, the headshots we create from them, the looks you choose, and the results of our AI photo checks and grading.</li>
         <li><b>Purchases:</b> which package you bought, the amount, the date and your Stripe customer reference. Payments are handled by Stripe. We never see or store your full card number.</li>
         <li><b>Messages:</b> when you use the contact form, we keep your name, email, message and IP address (the IP address helps us stop spam).</li>
@@ -68,6 +69,7 @@ export function renderPrivacy({ root }) {
         <li><b>Vercel</b>: hosts the website and stores your account, photos and headshots (in the United States).</li>
         <li><b>Anthropic</b> and <b>Google</b>: AI processing, as described above.</li>
         <li><b>Stripe</b>: payments and refunds.</li>
+        <li><b>Google</b>: signing you in, if you choose "Continue with Google".</li>
         <li><b>Cloudflare</b>: the Turnstile security check on the sign-up form, which checks that you're a person and not a bot. It looks at technical signals from your browser and isn't used for advertising.</li>
         <li><b>ImprovMX</b> and <b>Google (Gmail)</b>: delivering emails and contact-form messages.</li>
         <li><b>Meta</b> (Facebook and Instagram): advertising measurement, as described below.</li>

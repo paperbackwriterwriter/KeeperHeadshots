@@ -14,6 +14,7 @@ import { CONTACT_TO } from "./lib/contact.js";
 import { hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailCode, checkEmailCode, emailVerified, ownsMailbox, resetToken, checkResetToken } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
+import * as google from "./lib/google.js";
 import { pageFor, blogPostPage, blogIndexPage, blogArticlePage, blogNotFoundPage, blogSitemap, isCanonicalHost } from "./lib/seo.js";
 import { blogIndex, blogPost, blogImage, syncBlog } from "./lib/blog.js";
 import { isPreview, isKept, watermark } from "./lib/preview.js";
@@ -177,6 +178,85 @@ app.post("/api/auth/signin", async (req, res) => {
   }
   setSession(res, user);
   res.json({ user: publicUser(user) });
+});
+
+// "Continue with Google" (lib/google.js). Google has confirmed the address, so
+// the account counts as confirmed straight away. An existing account with the
+// same address is signed in (and linked). If that account was never confirmed,
+// whoever made it never proved the inbox was theirs, so its password is
+// removed and its other sessions end: the inbox's owner takes it over.
+const safeNextPath = (next) => (typeof next === "string" && /^\/(app(\/|$|\?)|join$)/.test(next) ? next : null);
+const googleRedirectUri = (req) => `${appOrigin(req)}/api/auth/google/callback`;
+const nameOk = (s) => typeof s === "string" && s.trim().length >= 2 && s.trim().length <= 80 && !/https?:|www\.|[<>\u0000-\u001f]/i.test(s);
+const googleCookie = { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" || !!process.env.VERCEL, path: "/api/auth/google" };
+
+app.get("/api/auth/google", (req, res) => {
+  if (!google.googleEnabled()) return res.status(404).end();
+  const { url, cookie } = google.begin({ redirectUri: googleRedirectUri(req), next: safeNextPath(req.query.next), signup: req.query.mode === "signup" });
+  res.cookie(google.STATE_COOKIE, cookie, { ...googleCookie, maxAge: google.STATE_MAX_AGE_MS });
+  res.set("Cache-Control", "no-store").redirect(302, url);
+});
+
+app.get("/api/auth/google/callback", async (req, res) => {
+  if (!google.googleEnabled()) return res.status(404).end();
+  const flow = google.readFlow(req.cookies?.[google.STATE_COOKIE]);
+  res.clearCookie(google.STATE_COOKIE, googleCookie);
+  res.set("Cache-Control", "no-store");
+  const back = (code) => res.redirect(302, `${flow?.signup ? "/signup" : "/signin"}?google=${code}${flow?.next ? `&next=${encodeURIComponent(flow.next)}` : ""}`);
+  // Pressing Cancel on Google's page comes back with error=access_denied.
+  if (req.query.error) return back("cancelled");
+  if (!flow || !google.stateMatches(flow, req.query.state)) return back("expired");
+  let profile;
+  try {
+    profile = await google.finish({ code: req.query.code, flow, redirectUri: googleRedirectUri(req) });
+  } catch (err) {
+    console.warn("[google]", err instanceof google.GoogleError ? err.message : err);
+    return back("failed");
+  }
+  if (profile.email === DEMO.email) return back("failed");
+  const now = new Date().toISOString();
+  let user = await users.byEmail(profile.email);
+  let created = false;
+  let newlyVerified = false;
+  if (!user) {
+    const local = profile.email.split("@")[0].replace(/[^\p{L}\p{N} ._'-]/gu, " ").trim();
+    const name = [profile.name, profile.givenName, local].find(nameOk)?.trim() || "Keeper member";
+    user = await users.create({ id: id("usr"), name, email: profile.email, googleSub: profile.sub, createdAt: now, emailVerified: true, emailVerifiedAt: now, signupMethod: "google" });
+    if (user) created = newlyVerified = true;
+    else user = await users.byEmail(profile.email); // the same address signed up a moment ago
+    if (!user) return back("failed");
+  }
+  if (!created) {
+    user = await users.update(user.id, (u) => {
+      newlyVerified = false;
+      if (u.googleSub === profile.sub && ownsMailbox(u)) return UNCHANGED;
+      u.googleSub = profile.sub;
+      if (u.emailVerified === false) {
+        newlyVerified = true;
+        if (u.password) {
+          delete u.password;
+          u.sessionVersion = (u.sessionVersion || 0) + 1;
+          u.revokedSessions = [];
+        }
+      }
+      if (!ownsMailbox(u)) {
+        u.emailVerified = true;
+        u.emailVerifiedAt = now;
+        delete u.emailVerifiedVia;
+      }
+    });
+  }
+  if (created) background(recordStep("signup", user).catch(noteStats));
+  if (newlyVerified) {
+    trackMeta("CompleteRegistration", { eventId: `reg_${user.id}`, user, req });
+    background(recordStep("verified", user).catch(noteStats));
+  }
+  setSession(res, user);
+  console.log("[google]", created ? "signed up" : "signed in", user.id);
+  // The page shows a welcome and, for a newly confirmed account, sends the
+  // Pixel's CompleteRegistration with the server's event id (deduplicated).
+  const dest = flow.next || (created ? "/app/new" : "/app");
+  res.redirect(302, `${dest}${dest.includes("?") ? "&" : "?"}auth=${created ? "google-new" : newlyVerified ? "google-verified" : "google"}`);
 });
 
 app.post("/api/auth/verify", async (req, res) => {
@@ -353,7 +433,7 @@ app.post("/api/auth/signout-all", requireUser, async (req, res) => {
 app.get("/api/me", async (req, res) => {
   const user = await currentUser(req);
   const { vision, imaging } = aiStatus();
-  res.json({ user: user ? publicUser(user) : null, ai: { vision, imaging }, meta: { pixelId: metaPixelId() }, turnstile: { siteKey: turnstileSiteKey() }, stripe: { publishableKey: stripePublishableKey(), mode: stripeMode() } });
+  res.json({ user: user ? publicUser(user) : null, ai: { vision, imaging }, meta: { pixelId: metaPixelId() }, turnstile: { siteKey: turnstileSiteKey() }, google: google.googleEnabled(), stripe: { publishableKey: stripePublishableKey(), mode: stripeMode() } });
 });
 
 /* ------------------------------ Shoots ------------------------------ */
@@ -877,9 +957,14 @@ app.post("/api/join/:token", requireUser, async (req, res) => {
 
 app.post("/api/account/delete", requireUser, async (req, res) => {
   if (req.user.demo) return res.status(403).json({ error: DEMO_READ_ONLY, code: "demo_read_only" });
-  const password = String(req.body?.password || "");
-  if (!password || !(await verifyPassword(password, req.user.password))) {
-    return res.status(401).json({ error: "That password isn't right.", fields: { password: "That password isn't right." } });
+  // An account made with Google has no password: typing its email confirms.
+  if (!req.user.password) {
+    if (String(req.body?.email || "").toLowerCase().trim() !== req.user.email) return res.status(401).json({ error: "That email doesn't match this account.", fields: { password: "That email doesn't match this account." } });
+  } else {
+    const password = String(req.body?.password || "");
+    if (!password || !(await verifyPassword(password, req.user.password))) {
+      return res.status(401).json({ error: "That password isn't right.", fields: { password: "That password isn't right." } });
+    }
   }
   const list = await shoots.forUser(req.user.id);
   if (list.some((s) => LIVE.includes(s.status))) {

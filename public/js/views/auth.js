@@ -1,8 +1,19 @@
-import { $, $$, html, icon, logoMark, wordmark, api, state, toast, busy, example, safeNext } from "../core.js";
+import { $, $$, html, raw, icon, logoMark, wordmark, api, state, toast, busy, example, safeNext } from "../core.js";
 
 import { mountTurnstile } from "../turnstile.js";
 
 const DEMO = { email: "demo@keeperheadshots.com", password: "studio-demo" };
+
+// Google refuses sign-in inside apps' built-in browsers (Facebook, Instagram,
+// TikTok…), so the button only shows in a real browser.
+const IN_APP = /FBAN|FBAV|FB_IAB|FBIOS|Instagram|Line\/|MicroMessenger|TikTok|musical_ly|BytedanceWebview|Snapchat|LinkedInApp|; wv\)/i;
+const GOOGLE_G = raw(`<svg class="google-g" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>`);
+// What /api/auth/google/callback sends back with when it couldn't sign in.
+const GOOGLE_ERRORS = {
+  cancelled: "Google sign-in was cancelled. Try again, or use your email below.",
+  expired: "That took too long, or Google opened in a different browser. Please try again.",
+  failed: "We couldn't sign you in with Google. Please try again, or use your email below.",
+};
 
 export function renderAuth({ root, navigate }, mode) {
   const isUp = mode === "signup";
@@ -11,6 +22,13 @@ export function renderAuth({ root, navigate }, mode) {
   const dest = next || (isUp ? "/app/new" : "/app");
   // A team invitation links here with the invited address filled in.
   const prefill = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(params.get("email") || "") ? params.get("email") : "";
+  const showGoogle = state.google && !IN_APP.test(navigator.userAgent);
+  const googleError = GOOGLE_ERRORS[params.get("google")];
+  if (params.has("google")) {
+    params.delete("google");
+    history.replaceState(history.state, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
+  }
+  const googleHref = `/api/auth/google?mode=${isUp ? "signup" : "signin"}${next ? `&next=${encodeURIComponent(next)}` : ""}`;
 
   const mosaic = ["strip-1", "hero-2", "strip-2", "rv-2", "strip-3", "hero-4", "strip-4", "rv-3", "hero-7", "strip-5", "hero-1", "strip-6", "rv-1", "strip-7", "hero-6", "hero-9"].map((id) => example(id, 360));
 
@@ -22,8 +40,12 @@ export function renderAuth({ root, navigate }, mode) {
         <p class="eyebrow"><span class="dot"></span>${isUp ? "Step 1 of 3" : "Welcome back"}</p>
         <h1 class="display h-2">${isUp ? "Create your account" : "Sign in to your studio"}</h1>
         <p class="muted">${isUp ? "Your shoots, photo checks and proofs are saved here." : "Pick up where you left off — your proofs are waiting."}</p>
+        ${showGoogle
+          ? html`<a class="btn btn-google btn-lg btn-block" href="${googleHref}" id="googleBtn">${GOOGLE_G} Continue with Google</a>
+        <div class="auth-or" role="separator"><span>or use your email</span></div>`
+          : ""}
         <form class="form" id="authForm" novalidate>
-          <div class="form-alert" id="formAlert" role="alert" hidden></div>
+          <div class="form-alert" id="formAlert" role="alert" ${googleError ? "" : raw("hidden")}>${googleError ? html`${icon("circle-alert")}<span>${googleError}</span>` : ""}</div>
           ${isUp
             ? html`<div class="field"><label for="name">Full name</label><input class="input" id="name" name="name" autocomplete="name" placeholder="Maya Okafor" required /><span class="field-error" id="err-name" hidden></span></div>`
             : ""}

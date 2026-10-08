@@ -435,6 +435,18 @@ function loadAnalytics() {
   }
 }
 
+// Coming back from "Continue with Google" (/api/auth/google/callback): the
+// marker leaves the address bar, and a new or newly confirmed account sends
+// the Pixel's CompleteRegistration with the server's event id.
+const googleReturn = (() => {
+  const params = new URLSearchParams(location.search);
+  const kind = params.get("auth");
+  if (!/^google(-new|-verified)?$/.test(kind || "")) return null;
+  params.delete("auth");
+  history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
+  return kind;
+})();
+
 loadSession()
   .catch(() => {})
   .finally(() => {
@@ -442,4 +454,12 @@ loadSession()
     if (location.pathname !== "/reset") initPixel();
     render();
     loadAnalytics();
+    if (googleReturn && state.user) {
+      const first = state.user.name.split(" ")[0];
+      if (googleReturn === "google") toast(`Welcome back, ${first}.`, "success");
+      else {
+        pixel("CompleteRegistration", {}, `reg_${state.user.id}`);
+        toast(googleReturn === "google-new" ? `Welcome, ${first}. Let's make some headshots.` : `Welcome back, ${first}. Your email is confirmed.`, "success", 6000);
+      }
+    }
   });

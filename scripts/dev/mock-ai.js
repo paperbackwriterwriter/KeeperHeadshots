@@ -14,6 +14,7 @@
 // (RESEND_API_KEY=test RESEND_BASE_URL=http://localhost:4010) that keeps them
 // in the same list; GET /mock-mail lists them.
 
+import crypto from "node:crypto";
 import http from "node:http";
 import net from "node:net";
 import sharp from "sharp";
@@ -214,6 +215,26 @@ http
     const raw = await readBody(req);
     if (req.url.startsWith("/v1/customers") || req.url.startsWith("/v1/checkout") || req.url.startsWith("/mock-pay") || req.url.startsWith("/mock-refund")) return stripe(req, res, raw);
     if (/^\/v\d+\.\d+\/\d+\/events/.test(req.url)) return meta(req, res, raw);
+    // Google's token endpoint. The test makes up the "code": base64url JSON
+    // with the claims it wants in the ID token, plus the PKCE challenge from
+    // the sign-in URL, which the verifier sent here must match.
+    if (req.url === "/google/token" && req.method === "POST") {
+      const form = Object.fromEntries(new URLSearchParams(raw));
+      const send = (code, body) => (res.writeHead(code, { "content-type": "application/json" }), res.end(JSON.stringify(body)));
+      let c;
+      try {
+        c = JSON.parse(Buffer.from(form.code || "", "base64url").toString());
+      } catch {
+        return send(400, { error: "invalid_grant" });
+      }
+      const challenge = crypto.createHash("sha256").update(form.code_verifier || "").digest("base64url");
+      if (form.grant_type !== "authorization_code" || !form.client_secret || challenge !== c.challenge || !form.redirect_uri?.endsWith("/api/auth/google/callback")) return send(400, { error: "invalid_grant" });
+      const { challenge: _, ...claims } = c;
+      const enc = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+      const id_token = `${enc({ alg: "RS256" })}.${enc({ iss: "https://accounts.google.com", aud: form.client_id, exp: Math.floor(Date.now() / 1000) + 3600, email_verified: true, ...claims })}.sig`;
+      console.log(`[mock] google token for ${claims.email}`);
+      return send(200, { access_token: "ya29.mock", id_token, token_type: "Bearer", expires_in: 3599 });
+    }
     if (req.url === "/turnstile/v0/siteverify") {
       const t = JSON.parse(raw || "{}");
       const ok = t.response && t.response !== "fail-token";
@@ -233,6 +254,7 @@ http
     }
     // Image calls in flight right now (render-race waits for 0 before it measures).
     if (req.url === "/mock-inflight") return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify({ inflight, renders: rendersInflight }));
+    if (req.url === "/mock-meta") return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify(metaEvents));
     if (req.url === "/mock-mail") return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify(mail));
     const body = raw ? JSON.parse(raw) : {};
     try {

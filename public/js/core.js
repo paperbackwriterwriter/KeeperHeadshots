@@ -107,7 +107,7 @@ document.addEventListener("visibilitychange", () => {
   fetch("/api/version", { credentials: "same-origin" }).then((r) => noteBuild(r.headers.get("x-app-build"))).catch(() => {});
 });
 
-export const state = { user: null, ai: { vision: false, imaging: false }, meta: {}, turnstile: {}, stripe: {} };
+export const state = { user: null, ai: { vision: false, imaging: false }, meta: {}, turnstile: {}, stripe: {}, google: false };
 
 export async function loadSession() {
   const data = await api("/api/me");
@@ -116,6 +116,7 @@ export async function loadSession() {
   state.meta = data.meta || {};
   state.turnstile = data.turnstile || {};
   state.stripe = data.stripe || {};
+  state.google = !!data.google;
   return data;
 }
 

@@ -1,0 +1,190 @@
+// DEV/QA ONLY — "Continue with Google" (lib/google.js, /api/auth/google*):
+// the redirect to Google, the checks on the way back (state, PKCE, nonce,
+// audience, expiry, confirmed email), new accounts, linking to an existing
+// account, and an unconfirmed account being taken over by the inbox's owner.
+// Run against a local server wired to scripts/dev/mock-ai.js, with
+// GOOGLE_CLIENT_ID/SECRET set and GOOGLE_AUTH_URL/GOOGLE_TOKEN_URL pointing at
+// the mock (see scripts/dev/ci.sh):
+//   node scripts/dev/google-tests.js
+const B = process.env.BASE || "http://localhost:3100", M = process.env.MOCK || "http://localhost:4010";
+const results = [];
+const ok = (name, cond, extra = "") => (results.push(!!cond), console.log(cond ? "PASS" : "FAIL", name, extra));
+const run = Date.now().toString(36);
+
+function client() {
+  const jar = new Map();
+  const f = async (p, o = {}) => {
+    const cookie = [...jar].map(([k, v]) => `${k}=${v}`).join("; ");
+    const r = await fetch(p.startsWith("http") ? p : B + p, { redirect: "manual", ...o, headers: { "content-type": "application/json", cookie, ...(o.headers || {}) } });
+    for (const sc of r.headers.getSetCookie()) {
+      const [kv] = sc.split(";");
+      const i = kv.indexOf("=");
+      const [k, v] = [kv.slice(0, i), kv.slice(i + 1)];
+      if (!v || /expires=Thu, 01 Jan 1970/i.test(sc)) jar.delete(k);
+      else jar.set(k, v);
+    }
+    let j = null;
+    try { j = await r.clone().json(); } catch {}
+    return { status: r.status, j, r, location: r.headers.get("location"), setCookie: r.headers.getSetCookie() };
+  };
+  f.jar = jar;
+  return f;
+}
+const code = (claims) => Buffer.from(JSON.stringify(claims)).toString("base64url");
+// Starts the flow and returns what Google would hand back for these claims.
+async function google(f, claims, { mode = "signin", next } = {}) {
+  const start = await f(`/api/auth/google?mode=${mode}${next ? `&next=${encodeURIComponent(next)}` : ""}`);
+  const to = new URL(start.location);
+  const q = to.searchParams;
+  const back = (extra = {}) => `/api/auth/google/callback?${new URLSearchParams({ state: q.get("state"), code: code({ nonce: q.get("nonce"), challenge: q.get("code_challenge"), ...claims }), ...extra })}`;
+  return { start, to, back };
+}
+const mails = () => fetch(`${M}/mock-mail`).then((r) => r.json());
+const metaEvents = () => fetch(`${M}/mock-meta`).then((r) => r.json());
+const verifyToken = async (email) => new URL((await mails()).filter((m) => m.to.includes(email)).flatMap((m) => m.links).findLast((l) => l.includes("/verify?token="))).searchParams.get("token");
+
+// 1. Advertised, and the redirect to Google carries everything it needs.
+{
+  const f = client();
+  const me = await f("/api/me");
+  ok("/api/me says Google sign-in is on", me.j.google === true);
+  const { start, to } = await google(f, {}, { mode: "signup", next: "/app/new" });
+  const q = to.searchParams;
+  ok("redirects to Google's sign-in page", start.status === 302 && to.href.startsWith(`${M}/google/auth`), start.location);
+  ok("asks for openid, email and profile", q.get("scope") === "openid email profile" && q.get("response_type") === "code");
+  ok("sends our client id and callback", q.get("client_id") === "ci-client.apps.googleusercontent.com" && q.get("redirect_uri") === `${B}/api/auth/google/callback`);
+  ok("uses PKCE (S256), a state and a nonce", q.get("code_challenge_method") === "S256" && q.get("code_challenge")?.length >= 43 && q.get("state")?.length >= 20 && q.get("nonce")?.length >= 20);
+  const sc = start.setCookie.find((c) => c.startsWith("kh_google="));
+  ok("the flow cookie is HttpOnly, Lax and scoped to the callback path", /HttpOnly/i.test(sc) && /SameSite=Lax/i.test(sc) && /Path=\/api\/auth\/google/.test(sc), sc);
+  ok("the redirect isn't cached", /no-store/.test(start.r.headers.get("cache-control") || ""));
+}
+
+// 2. A new account: confirmed straight away, no password, Pixel/CAPI event.
+const newEmail = `gina-${run}@example.com`;
+let gina;
+{
+  const f = client();
+  const { back } = await google(f, { sub: `g-gina-${run}`, email: newEmail.toUpperCase(), name: "Gina Google", given_name: "Gina" }, { mode: "signup" });
+  const cb = await f(back());
+  ok("new account lands on /app/new with the welcome marker", cb.status === 302 && cb.location === "/app/new?auth=google-new", cb.location);
+  ok("the flow cookie is cleared", !f.jar.has("kh_google"));
+  const me = (await f("/api/me")).j.user;
+  gina = me;
+  ok("signed in as the Google account (address lowercased)", me?.email === newEmail && me?.name === "Gina Google");
+  ok("the address counts as confirmed", me?.emailVerified === true && me?.plan && !me.plan.needsEmail, JSON.stringify(me?.plan));
+  ok("no password, linked to Google", me?.hasPassword === false && me?.google === true);
+  ok("no confirmation email was sent", !(await mails()).some((m) => m.to.includes(newEmail)));
+  await new Promise((r) => setTimeout(r, 300));
+  ok("Meta CompleteRegistration sent with the account's event id", (await metaEvents()).some((e) => e.event_name === "CompleteRegistration" && e.event_id === `reg_${me.id}`));
+  const pw = await client()("/api/auth/signin", { method: "POST", body: JSON.stringify({ email: newEmail, password: "anything-at-all" }) });
+  ok("password sign-in doesn't work for a Google-only account", pw.status === 401);
+  // Signing in again with Google: same account, plain welcome back.
+  const g = client();
+  const again = await google(g, { sub: `g-gina-${run}`, email: newEmail, name: "Gina Google" });
+  const cb2 = await g(again.back());
+  ok("returning Google sign-in lands on /app", cb2.location === "/app?auth=google", cb2.location);
+  ok("…in the same account", (await g("/api/me")).j.user?.id === gina.id);
+}
+
+// 3. The checks on the way back.
+{
+  const claims = { sub: `g-x-${run}`, email: `x-${run}@example.com`, name: "Xan Test" };
+  const f = client();
+  const { back } = await google(f, claims, { mode: "signup" });
+  const noCookie = await client()(back());
+  ok("without the flow cookie: back to sign-in, 'expired'", noCookie.location === "/signin?google=expired", noCookie.location);
+  const badState = await f(back().replace(/state=[^&]+/, "state=forged-state-value-forged"));
+  ok("with a different state: 'expired' (back to sign-up)", badState.location === "/signup?google=expired", badState.location);
+
+  const cases = [
+    ["a different nonce", { nonce: "not-the-nonce" }],
+    ["another app's audience", { aud: "someone-else.apps.googleusercontent.com" }],
+    ["an expired ID token", { exp: Math.floor(Date.now() / 1000) - 60 }],
+    ["an unconfirmed Google address", { email_verified: false }],
+    ["a different issuer", { iss: "https://evil.example.com" }],
+    ["the wrong PKCE challenge", { challenge: "A".repeat(43) }],
+    ["the demo account's address", { email: "demo@keeperheadshots.com" }],
+  ];
+  for (const [label, extra] of cases) {
+    const g = client();
+    const { back: b } = await google(g, { ...claims, ...extra });
+    const cb = await g(b());
+    ok(`refused: ${label}`, cb.location === "/signin?google=failed" && !(await g("/api/me")).j.user, cb.location);
+  }
+  const g = client();
+  const { back: b } = await google(g, claims, { mode: "signup", next: "/app/new" });
+  const cancel = await g(`/api/auth/google/callback?error=access_denied&state=x`);
+  ok("Cancel on Google's page: back to sign-up with the destination kept", cancel.location === "/signup?google=cancelled&next=%2Fapp%2Fnew", cancel.location);
+  ok("nobody was signed in by any of that", !(await g("/api/me")).j.user);
+  // Only /app… and /join can be the destination.
+  const h = client();
+  const evil = await google(h, { ...claims, sub: `g-y-${run}`, email: `y-${run}@example.com` }, { next: "https://evil.example.com/" });
+  const cb = await h(evil.back());
+  ok("an outside 'next' is ignored", cb.location === "/app/new?auth=google-new", cb.location);
+  const k = client();
+  const deep = await google(k, { ...claims, sub: `g-y-${run}`, email: `y-${run}@example.com` }, { next: "/app/account" });
+  ok("an /app 'next' is honored", (await k(deep.back())).location === "/app/account?auth=google", "");
+}
+
+// 4. An existing, confirmed password account is linked, password kept.
+{
+  const email = `pat-${run}@example.com`;
+  const f = client();
+  await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Pat Lee", email, password: "password123" }) });
+  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email) }) });
+  const before = (await f("/api/me")).j.user;
+  const g = client();
+  const { back } = await google(g, { sub: `g-pat-${run}`, email, name: "Patricia Lee" });
+  const cb = await g(back());
+  const me = (await g("/api/me")).j.user;
+  ok("existing confirmed account: plain sign-in", cb.location === "/app?auth=google" && me?.id === before.id, cb.location);
+  ok("…now linked, password kept, name unchanged", me.google === true && me.hasPassword === true && me.name === "Pat Lee");
+  ok("…the other session still works", (await f("/api/me")).j.user?.id === before.id);
+  const pw = await client()("/api/auth/signin", { method: "POST", body: JSON.stringify({ email, password: "password123" }) });
+  ok("…and so does the password", pw.status === 200);
+}
+
+// 5. An unconfirmed account made by someone else with this address: the
+// inbox's owner takes it over; the stranger's session and password stop working.
+{
+  const email = `victim-${run}@example.com`;
+  const stranger = client();
+  const up = await stranger("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Not Them", email, password: "stranger-password" }) });
+  ok("a stranger signs up with someone else's address (unconfirmed)", up.status === 201 && up.j.user.emailVerified === false);
+  const owner = client();
+  const { back } = await google(owner, { sub: `g-victim-${run}`, email, name: "Real Owner" });
+  const cb = await owner(back());
+  const me = (await owner("/api/me")).j.user;
+  ok("the owner signs in with Google: confirmed", cb.location === "/app?auth=google-verified" && me?.emailVerified === true, cb.location);
+  ok("…the stranger's password is gone", me.hasPassword === false);
+  ok("…the stranger's session ended", !(await stranger("/api/me")).j.user);
+  const pw = await client()("/api/auth/signin", { method: "POST", body: JSON.stringify({ email, password: "stranger-password" }) });
+  ok("…and their password no longer signs in", pw.status === 401);
+}
+
+// 6. Deleting a Google-only account: typing its email confirms.
+{
+  const f = client();
+  const { back } = await google(f, { sub: `g-del-${run}`, email: `del-${run}@example.com`, name: "Dee Lete" });
+  await f(back());
+  const wrong = await f("/api/account/delete", { method: "POST", body: JSON.stringify({ email: "someone-else@example.com" }) });
+  ok("delete refuses the wrong email", wrong.status === 401);
+  const right = await f("/api/account/delete", { method: "POST", body: JSON.stringify({ email: `DEL-${run}@example.com ` }) });
+  ok("delete accepts the account's email", right.status === 200 && !(await f("/api/me")).j.user);
+}
+
+// 7. A name that isn't a name falls back to the given name, then the address.
+{
+  const f = client();
+  const { back } = await google(f, { sub: `g-n-${run}`, email: `sam.k-${run}@example.com`, name: "Visit www.spam.example", given_name: "Sam" });
+  await f(back());
+  ok("a link in the name falls back to the given name", (await f("/api/me")).j.user?.name === "Sam");
+  const g = client();
+  const { back: b } = await google(g, { sub: `g-m-${run}`, email: `jo.ann-${run}@example.com`, name: "<b>", given_name: "" });
+  await g(b());
+  ok("…and then to the address", (await g("/api/me")).j.user?.name === `jo.ann-${run}`);
+}
+
+const passed = results.filter(Boolean).length;
+console.log(`${passed}/${results.length} passed`);
+process.exit(passed === results.length ? 0 : 1);

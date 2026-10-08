@@ -539,6 +539,14 @@ p, li, dd, .lede, figcaption { text-wrap: pretty; }
 .auth-side::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 20%, color-mix(in srgb, var(--night) 90%, transparent) 60%, var(--night) 80%); z-index: 1; }
 .auth-side > *:not(.auth-mosaic) { position: relative; z-index: 2; }
 .form { display: grid; gap: var(--s-4); margin-top: var(--s-6); }
+/* "Continue with Google": Google's light button (white, gray border) in light
+   mode and its dark button in dark mode, per Google's branding rules. */
+.btn-google { --btn-bg: #ffffff; --btn-fg: #1f1f1f; --btn-bd: #747775; margin-top: var(--s-6); gap: 12px; font-weight: 600; }
+.btn-google:hover { --btn-bg: #f7f8f8; --btn-bd: #1f1f1f; }
+.google-g { width: 20px; height: 20px; flex: none; }
+.auth-or { display: flex; align-items: center; gap: var(--s-3); margin-top: var(--s-5); color: var(--text-muted); font-size: var(--fs-sm); }
+.auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.auth-or + .form { margin-top: var(--s-4); }
 .field { display: grid; gap: 6px; }
 .field label { font-size: var(--fs-sm); font-weight: 600; }
 .input-wrap { position: relative; }
@@ -1702,3 +1710,7 @@ textarea.input.share-quote { min-height: 96px; }
 .verify-code .input { flex: 1 1 8em; max-width: 12em; }
 .verify-resend { margin-top: 8px; font-size: var(--fs-sm); }
 .link-btn { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+@media (prefers-color-scheme: dark) {
+  .btn-google { --btn-bg: #131314; --btn-fg: #e3e3e3; --btn-bd: #8e918f; }
+  .btn-google:hover { --btn-bg: #1f1f20; --btn-bd: #e3e3e3; }
+}

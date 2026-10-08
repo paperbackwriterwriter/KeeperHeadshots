@@ -68,9 +68,13 @@ export function renderAccount({ root, navigate }) {
       ? ""
       : html`<section class="panel prefs" aria-labelledby="security-title">
       <h2 class="h-3" id="security-title">Password and sign-in</h2>
-      <p class="muted">To change your password, we'll email you a link to choose a new one. If you signed in on a shared or lost device, sign out of it from here.</p>
+      <p class="muted">${u.hasPassword === false
+        ? "You sign in with Google. To also sign in with a password, we'll email you a link to choose one."
+        : u.google
+          ? "You can sign in with Google or your password. To change your password, we'll email you a link to choose a new one."
+          : "To change your password, we'll email you a link to choose a new one."} If you signed in on a shared or lost device, sign out of it from here.</p>
       <div class="security-actions">
-        <a class="btn btn-ghost" href="/forgot-password" data-link>${icon("mail")} Email me a password link</a>
+        <a class="btn btn-ghost" href="/forgot-password?email=${encodeURIComponent(u.email)}" data-link>${icon("mail")} ${u.hasPassword === false ? "Email me a link to set a password" : "Email me a password link"}</a>
         <button class="btn btn-ghost" id="signoutAll" type="button">${icon("log-out")} Sign out of other devices</button>
       </div>
     </section>`}
@@ -87,8 +91,11 @@ export function renderAccount({ root, navigate }) {
       <button class="btn btn-danger" id="startDelete" type="button">${icon("trash-2")} Delete my account</button>
       <form id="deleteForm" class="delete-form" hidden novalidate>
         <div class="field">
-          <label for="delPassword">Enter your password to confirm</label>
-          <input class="input" id="delPassword" name="password" type="password" autocomplete="current-password" aria-describedby="err-delPassword" required />
+          ${u.hasPassword === false
+            ? html`<label for="delPassword">Type your email address (${u.email}) to confirm</label>
+          <input class="input" id="delPassword" name="email" type="email" autocomplete="off" aria-describedby="err-delPassword" required />`
+            : html`<label for="delPassword">Enter your password to confirm</label>
+          <input class="input" id="delPassword" name="password" type="password" autocomplete="current-password" aria-describedby="err-delPassword" required />`}
           <span class="field-error" id="err-delPassword" role="alert" hidden></span>
         </div>
         <label class="check"><input type="checkbox" id="delConfirm" /> <span>I understand my shoots and headshots will be deleted for good.</span></label>
@@ -183,7 +190,7 @@ export function renderAccount({ root, navigate }) {
     if (go.disabled) return;
     const done = busy(go, "Deleting…");
     try {
-      await api("/api/account/delete", { method: "POST", body: { password: pw.value } });
+      await api("/api/account/delete", { method: "POST", body: u.hasPassword === false ? { email: pw.value } : { password: pw.value } });
       state.user = null;
       toast("Your account and all your photos have been deleted.", "success", 7000);
       navigate("/");
