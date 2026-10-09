@@ -47,7 +47,7 @@ export function renderPrivacy({ root }) {
       <ul>
         <li>To run the studio: check your photos, create your headshots, run our quality check on every headshot, and show you the results.</li>
         <li>To manage your account and purchases, including refunds, and to send account emails such as the link that confirms your email address and a note when your headshots are ready.</li>
-        <li>To send at most two reminder emails: one if your photos pass the check but you haven't developed them, and one after your free shoot or if you start a checkout and don't finish it. Every reminder has a link to stop them, and you can turn them off on your <a class="link" href="/app/account" data-link>Account page</a>.</li>
+        <li>To send at most two reminder emails: one if your photos pass the check but you haven't developed them, and one after your free shoot or if you start a checkout and don't finish it. Every reminder has a link to stop them, and you can turn them off on your <a class="link" href="/app/account" data-link>Account page</a>. Now and then we may also email people who signed up but haven't bought an offer, such as a discount code; the same link and setting stop those too.</li>
         <li>To answer your messages and help with your shoots.</li>
         <li>To keep the service secure and prevent fraud and abuse, including misuse of the free shoot.</li>
         <li>To measure how well our ads work (see "Advertising and cookies" below).</li>
@@ -71,7 +71,8 @@ export function renderPrivacy({ root }) {
         <li><b>Stripe</b>: payments and refunds.</li>
         <li><b>Google</b>: signing you in, if you choose "Continue with Google".</li>
         <li><b>Cloudflare</b>: the Turnstile security check on the sign-up, contact and password-reset forms, which checks that you're a person and not a bot. It looks at technical signals from your browser and isn't used for advertising.</li>
-        <li><b>ImprovMX</b> and <b>Google (Gmail)</b>: delivering emails and contact-form messages.</li>
+        <li><b>Resend</b>: sending our emails (confirmation codes, receipts, reminders and copies of contact-form messages).</li>
+        <li><b>ImprovMX</b> and <b>Google (Gmail)</b>: receiving and answering the messages you send us.</li>
         <li><b>Meta</b> (Facebook and Instagram): advertising measurement, as described below.</li>
       </ul>
       <p><b>Team headshots:</b> if a colleague invites you to their team, they see your name, email address and the progress of your shoot, and can view and download your finished headshots. They never see your selfies. If you invite people, we email each of them your invitation with your name and email address as the reply-to.</p>
@@ -80,8 +81,9 @@ export function renderPrivacy({ root }) {
       <h2 class="h-3">Advertising and cookies</h2>
       <ul>
         <li><b>Sign-in cookie:</b> keeps you signed in for up to 30 days. The site can't work without it.</li>
+        <li><b>Known-browser cookie:</b> set when you sign in and kept for up to a year, it tells us this browser has signed in to your account before, so strangers guessing passwords from elsewhere can't lock you out. It holds only your account's ID, signed by us.</li>
         <li><b>Site analytics:</b> we use Vercel Web Analytics to count visits and see which pages are viewed. It doesn't use cookies and doesn't identify you.</li>
-        <li><b>Session storage:</b> the studio saves one small setting in your browser while a shoot is being set up.</li>
+        <li><b>Session storage:</b> the studio saves a couple of small settings in your browser while a shoot is being set up (whether to check photos automatically, and a team invitation you're accepting).</li>
         <li><b>Meta Pixel:</b> we use Meta's advertising tools to find out whether our Facebook and Instagram ads lead to sign-ups and purchases. The Meta Pixel sets cookies in your browser, and our server also tells Meta when you create an account, start a checkout or buy a package. It sends a scrambled (hashed) version of your email address and account ID, your IP address and browser details. Meta uses this to measure and improve our ads, and may use it to show you ads.</li>
       </ul>
       <p>Under some US state privacy laws, this use of Meta's tools may count as "sharing" personal information or "targeted advertising." You can opt out in any of these ways:</p>
@@ -95,7 +97,7 @@ export function renderPrivacy({ root }) {
       <ul>
         <li><b>Photos and headshots:</b> until you delete the shoot, or until your account is deleted. Deleting a shoot removes its selfies and headshots from our storage straight away.</li>
         <li><b>Unfinished shoots:</b> a shoot that was never developed, and hasn't been changed for 90 days, is deleted automatically with its selfies.</li>
-        <li><b>Account details:</b> while your account is open. You can delete your account at any time on your <a class="link" href="/app/account" data-link>Account page</a>. That removes your account and all your shoots, selfies and headshots straight away. If you email us instead, we'll do it within 30 days.</li>
+        <li><b>Account details:</b> while your account is open. You can delete your account at any time on your <a class="link" href="/app/account" data-link>Account page</a>. That removes your account and all your shoots, selfies and headshots straight away. If you email us instead, we'll do it within 30 days. Our nightly backups hold account and shoot records (never photos or headshots) for 30 days, so a deleted record can remain in a backup for up to 30 days.</li>
         <li><b>Free-shoot record:</b> if you used your free shoot, we keep a scrambled (hashed) copy of your email address after your account is deleted, with a note that the free shoot was used. That stops the free shoot being claimed twice. It doesn't include your name, photos or anything else. The count of free photo checks used by an email inbox is kept the same way, so that variations of one address (like name+1@…) share the free checks.</li>
         <li><b>Shared headshots:</b> if you shared a headshot for our home page, until you take it down, delete that shoot or delete your account.</li>
         <li><b>Purchase records:</b> as long as tax and accounting rules require, usually up to 7 years.</li>
@@ -132,7 +134,7 @@ export function renderPrivacy({ root }) {
 export function renderTerms({ root }) {
   root.innerHTML = page({
     eyebrow: "Terms of service",
-    updated: "October 7, 2026",
+    updated: "October 9, 2026",
     title: "Terms of service",
     lede: "The agreement between you and Keeper Headshots when you use the studio.",
     callout:
@@ -147,7 +149,7 @@ export function renderTerms({ root }) {
       <h2 class="h-3">3. Your account</h2>
       <ul>
         <li>Give accurate information and keep your password private. You're responsible for what happens in your account.</li>
-        <li>The free shoot is a preview: its headshots carry a watermark and are provided at a reduced size. Keeping your pick ($8.99) unlocks that one headshot at full resolution; keeping them all ($14.99) or buying any package unlocks every headshot from the preview. It is limited to one per person. Please don't create extra accounts to get more free shoots.</li>
+        <li>The free shoot is a preview: its headshots carry a watermark and are provided at a reduced size. Keeping your pick ($8.99) unlocks that one headshot at full resolution; keeping them all ($14.99) or buying any package unlocks every headshot from the preview. The free shoot is limited to one per person. Please don't create extra accounts to get more free shoots.</li>
         <li>Tell us straight away at ${mail} if you think someone else has used your account.</li>
       </ul>
 

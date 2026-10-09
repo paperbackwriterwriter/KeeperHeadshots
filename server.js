@@ -631,7 +631,10 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   // A team shoot can go ahead on the invitation alone (lib/teams.js).
   if (plan.needsEmail && !(meta.team && emailVerified(req.user))) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
   const limitMsg = `Free accounts include ${FREE.checks} photo checks, and you've used them. Buy a package to keep going.`;
-  if (plan.checksLeft === 0) throw new PlanError(limitMsg);
+  // A team seat was paid for by the admin (lib/teams.js), so the member's
+  // free allowance neither gates it nor is spent on it; only the daily cap applies.
+  const teamSeat = !!meta.team && meta.paidWith === "team";
+  if (plan.checksLeft === 0 && !teamSeat) throw new PlanError(limitMsg);
   // One check at a time per shoot: a double-click doesn't run (or count) twice.
   const startedAt = await beginCheck(meta.id);
   if (!startedAt) return res.status(409).json({ error: "A photo check is already running for this shoot." });
@@ -641,7 +644,7 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   // paid AI call, and a package alone shouldn't make them unlimited).
   const counted = plan.tier !== "owner";
   // Free checks are shared by every address for the same mailbox.
-  const perMailbox = plan.checksLeft != null;
+  const perMailbox = plan.checksLeft != null && !teamSeat;
   let mailboxReserved = false;
   let mailboxTotal = 0;
   const today = new Date().toISOString().slice(0, 10);
@@ -658,11 +661,11 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
     }
     if (counted) {
       await users.update(req.user.id, (u) => {
-        if (planFor(u).checksLeft === 0) throw new PlanError(limitMsg);
+        if (!teamSeat && planFor(u).checksLeft === 0) throw new PlanError(limitMsg);
         const day = u.usage?.checkDay?.date === today ? u.usage.checkDay.n : 0;
         if (day >= DAILY_CHECKS) throw new PlanError(dayMsg, "daily_checks", 429);
         // Shows what's left for the whole mailbox, not just this address.
-        u.usage = { ...u.usage, checks: Math.max((u.usage?.checks || 0) + 1, mailboxTotal), checkDay: { date: today, n: day + 1 } };
+        u.usage = { ...u.usage, ...(teamSeat ? {} : { checks: Math.max((u.usage?.checks || 0) + 1, mailboxTotal) }), checkDay: { date: today, n: day + 1 } };
       });
     }
   } catch (err) {
@@ -898,7 +901,7 @@ app.delete("/api/shoots/:id", requireUser, async (req, res) => {
 // Team orders (lib/teams.js): an admin buys shoots and invites colleagues.
 const lookNames = (looks) => looks.map((l) => {
   const x = lookFor(l.backdrop, l.outfit);
-  return x ? `${x.backdrop.name}, ${x.outfit.name}` : "";
+  return x ? `${x.backdrop.name} · ${x.outfit.name}` : "";
 });
 
 function teamAdminOnly(req, res) {

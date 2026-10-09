@@ -365,6 +365,17 @@ if (process.env.DATA_DIR) {
   ok("landing page offers start at the preview price", agg?.lowPrice === "8.99" && agg?.highPrice === "49" && agg?.offerCount === "5", JSON.stringify(agg));
 }
 
+// 23. Email copy for edge counts and several team looks.
+{
+  const mail = await import("../../lib/mail.js");
+  const one = mail.readyEmail({ name: "Sam", shootName: "Monday", count: 1, link: "https://x/app" });
+  ok("the ready email reads right for a single headshot", /1 headshot, checked for likeness and graded\./.test(one.text) && !/each/.test(one.text), one.text.split("\n")[2]);
+  const inv = mail.teamInviteEmail({ ownerName: "Ada", teamName: "Acme", link: "https://x/join/t", looks: ["Glass Office · Navy Suit", "Studio Gray · White Shirt"] });
+  ok("the invite email says looks when there are several", /team's looks \(Glass Office · Navy Suit and Studio Gray · White Shirt\)/.test(inv.text), inv.text.split("\n")[2]);
+  const v = mail.verificationEmail({ name: "Sam", link: "https://x/verify?token=t", code: "123456" });
+  ok("the confirmation email calls it a preview shoot", /free preview shoot/.test(v.text) && !/free headshot shoot/.test(v.html));
+}
+
 const passed = results.filter((r) => r[1]).length;
 console.log(`\n${passed}/${results.length} passed`);
 process.exit(passed === results.length ? 0 : 1);

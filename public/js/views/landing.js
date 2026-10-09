@@ -59,7 +59,7 @@ export function renderLanding({ root }) {
           <div class="hero-proof" data-reveal style="--i:4">
             <div class="proof-item"><strong class="tabular">&lt; 15 min</strong><span>typical turnaround</span></div>
             <div class="proof-item"><strong>Free</strong><span>preview, keep yours from $${PREVIEW_OFFERS[0].price}</span></div>
-            <div class="proof-item"><strong class="tabular">Money-back</strong><span>guarantee on packages</span></div>
+            <div class="proof-item"><strong class="tabular">Money-back</strong><span>guarantee on your first package</span></div>
           </div>
         </div>
 

@@ -183,6 +183,59 @@ let final;
   ok("an admin deleting their account closes the team's links", del.status === 200 && (await client()(`/api/join/${tokenOf(eveLink)}`)).status === 404);
 }
 
+// 9. A refund after the seats were spent: cancelling those invites can't
+// hand the refunded credits back.
+{
+  const admin2 = await account(`refund-admin${t}@x.com`);
+  const { j } = await admin2("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  const sid = new URL(j.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${sid}`, { redirect: "manual" }); // paid in full, so it can be refunded
+  await admin2("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid }) });
+  await admin2("/api/team", { method: "POST", body: JSON.stringify({ name: "Refunders", looks: LOOKS }) });
+  const sent = (await admin2("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: [1, 2, 3].map((i) => `r${i}.${t}@x.com`).join(", ") }) })).j;
+  ok("three seats spend the package", sent.results.filter((x) => x.ok).length === 3 && (await credits(admin2)) === 0, JSON.stringify(sent.results));
+  await fetch(`${M}/mock-refund/${sid}`);
+  const synced = (await admin2("/api/billing/sync", { method: "POST", body: "{}" })).j;
+  ok("the refund finds nothing left to take back", synced.removed === 3 && (await credits(admin2)) === 0, JSON.stringify(synced));
+  const ids = (await admin2("/api/team")).j.team.members.map((m) => m.id);
+  await admin2(`/api/team/invites/${ids[0]}`, { method: "DELETE" });
+  await admin2(`/api/team/invites/${ids[1]}`, { method: "DELETE" });
+  ok("cancelled invites don't hand refunded credits back", (await credits(admin2)) === 0, String(await credits(admin2)));
+}
+
+// 10. A team seat is paid for by the admin: the member's free photo checks
+// don't gate it and aren't spent on it.
+{
+  const admin3 = await account(`seat-admin${t}@x.com`);
+  await buy(admin3, "starter");
+  await admin3("/api/team", { method: "POST", body: JSON.stringify({ name: "Seaters", looks: LOOKS }) });
+  const dana = `dana${t}@x.com`;
+  const member = await account(dana);
+  const checksLeft = async () => (await member("/api/me")).j.user.plan.checksLeft;
+  const settled = async (id) => { for (let w = 0; w < 60 && (await member(`/api/shoots/${id}`)).j.shoot.status === "checking"; w++) await new Promise((r) => setTimeout(r, 250)); };
+  await admin3("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: dana }) });
+  const inv = (await admin3("/api/team")).j.team.members.find((m) => m.email === dana);
+  const link = (await admin3(`/api/team/invites/${inv.id}/link`)).j.link;
+  const seat = (await member(`/api/join/${tokenOf(link)}`, { method: "POST" })).j.shootId;
+  await member(`/api/shoots/${seat}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(22) }) });
+  const before = await checksLeft();
+  const first = await member(`/api/shoots/${seat}/check`, { method: "POST", body: "{}" });
+  await settled(seat);
+  ok("checking a paid team seat doesn't spend the member's free checks", [200, 202].includes(first.status) && (await checksLeft()) === before, `${first.status} ${before} -> ${await checksLeft()}`);
+  // Dana then uses up her free checks on a draft of her own.
+  const own = (await member("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;
+  await member(`/api/shoots/${own}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(21) }) });
+  let last;
+  for (let i = 0; i < 7; i++) {
+    last = await member(`/api/shoots/${own}/check`, { method: "POST", body: "{}" });
+    await settled(own);
+  }
+  ok("her own seventh check is refused", last.status === 402 && (await checksLeft()) === 0, `${last.status} ${JSON.stringify(last.j)}`);
+  const again = await member(`/api/shoots/${seat}/check`, { method: "POST", body: "{}" });
+  await settled(seat);
+  ok("the paid team seat can still be checked", [200, 202].includes(again.status), `${again.status} ${JSON.stringify(again.j)}`);
+}
+
 const passed = results.filter(Boolean).length;
 console.log(`\n${passed}/${results.length} passed`);
 process.exit(passed === results.length ? 0 : 1);

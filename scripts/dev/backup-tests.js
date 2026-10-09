@@ -20,6 +20,9 @@ await storage.putJSON("users/email/a@x.com.json", { id: "usr_a" });
 await storage.putJSON("payments/cs_1.json", { sessionId: "cs_1", amount: 2900 });
 await storage.putJSON("shoots/sht_1.json", { id: "sht_1", userId: "usr_a" });
 await storage.putJSON("idx/usr_a/sht_1", { createdAt: "2026-09-28T00:00:00Z" });
+await storage.putJSON("showcase/shc_1.json", { id: "shc_1", userId: "usr_a", status: "pending" });
+await storage.putFile("showcase/shc_1.jpg", Buffer.from("jpg"), "image/jpeg");
+await storage.putJSON("stats/seen/usr_a/signup.json", { at: "2026-09-28T00:00:00Z" });
 await storage.putJSON("shots/sht_1/shot_1.json", { id: "shot_1", status: "done" });
 await storage.putJSON("stats/days/2026-09-28.json", { signup: 1 });
 await storage.putJSON("ratelimit/contact/abc/2026-09-28T10.json", { n: 1 });
@@ -30,6 +33,16 @@ const snap = await readBackup();
 const keys = Object.keys(snap.records);
 ok("backup holds accounts, their shoot index, payments, shoots, frames and funnel counts", ["users/id/usr_a.json", "users/email/a@x.com.json", "payments/cs_1.json", "shoots/sht_1.json", "shots/sht_1/shot_1.json", "idx/usr_a/sht_1", "stats/days/2026-09-28.json"].every((k) => keys.includes(k)) && snap.records["users/id/usr_a.json"].credits === 3, JSON.stringify(r));
 ok("backup leaves out photos and rate-limit counters", !keys.some((k) => k.startsWith("media/") || k.startsWith("ratelimit/")) && snap.complete === true);
+ok("backup holds showcase entries (not their image copies) and funnel markers", keys.includes("showcase/shc_1.json") && !keys.includes("showcase/shc_1.jpg") && keys.includes("stats/seen/usr_a/signup.json"));
+{
+  // Deleting a shoot takes its develop claim with it (lib/store.js).
+  const { shoots } = await import("../../lib/store.js");
+  await storage.putJSON("shoots/sht_2.json", { id: "sht_2", userId: "usr_a" });
+  await storage.putJSON("idx/usr_a/sht_2", { createdAt: "2026-09-28T00:00:00Z" });
+  await storage.putJSON("claims/develop/sht_2.json", { userId: "usr_a" });
+  await shoots.remove({ id: "sht_2", userId: "usr_a" });
+  ok("deleting a shoot removes its develop claim", !(await storage.getJSON("claims/develop/sht_2.json")) && !(await storage.getJSON("shoots/sht_2.json")));
+}
 
 // Only the newest KEEP_DAYS snapshots are kept.
 for (let i = 1; i <= KEEP_DAYS + 5; i++) await storage.putFile(`backups/2025-01-${String(i).padStart(2, "0")}.json.gz`, Buffer.from("old"), "application/gzip");
