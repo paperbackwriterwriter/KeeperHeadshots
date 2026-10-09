@@ -852,6 +852,12 @@ app.delete("/api/shoots/:id", requireUser, async (req, res) => {
   if (meta.sample) return res.status(400).json({ error: "Sample shoots are read-only." });
   if (LIVE.includes(meta.status)) return res.status(409).json({ error: "Wait for the shoot to finish before deleting it." });
   await shoots.remove(meta);
+  // Headshots kept from it and unused extra looks for it go with it.
+  await users.update(req.user.id, (u) => {
+    if (!u.kept?.[meta.id] && !u.extraLooks?.[meta.id]) return UNCHANGED;
+    if (u.kept) delete u.kept[meta.id];
+    if (u.extraLooks) delete u.extraLooks[meta.id];
+  }).catch((err) => console.error("[shoot] delete cleanup", meta.id, err.message));
   await showcase.removeForShoot(meta.id).catch((err) => console.error("[showcase] remove", meta.id, err.message));
   // A team shoot deleted before developing gives the shoot back to the admin.
   if (meta.team && !(meta.shots || []).length) await teams.returnSeat(meta).catch((err) => console.error("[team] return seat", meta.id, err.message));

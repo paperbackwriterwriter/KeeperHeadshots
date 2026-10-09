@@ -457,7 +457,7 @@ export async function renderStudio(ctx, id) {
         : html`<div class="page-head"><div><p class="eyebrow">${s.name}</p><h1 class="display h-1" style="margin-top:8px">Dress the set.</h1><p class="lede" style="margin-top:12px">Up to ${MAX_LOOKS} looks, ${TAKES_PER_LOOK} takes each. Tap a look to change its backdrop or outfit, or tap an empty slot to add one.</p></div></div>`}
 
       ${trial ? html`<div class="banner banner-info">${icon("sparkles")}<div><b>Your free preview shoot.</b>Up to ${MAX_LOOKS} looks (${MAX_LOOKS * TAKES_PER_LOOK} preview headshots). Paid packages unlock up to ${MAX_LOOKS_ALL} looks per shoot.</div></div>` : ""}
-      ${plan && !plan.canDevelop ? planBanner() : ""}
+      ${plan && !plan.canDevelop ? planBanner("blocked") : ""}
       <section aria-labelledby="looksTitle">
         <div class="looks-head">
           <h2 class="h-4" id="looksTitle">Your looks <span class="mono muted" id="lookCount"></span></h2>
@@ -688,7 +688,7 @@ export async function renderStudio(ctx, id) {
   function upgradeBand(s, doneCount) {
     const plan = state.user?.plan;
     const perks = [
-      [icon("layers"), `${MAX_LOOKS_ALL} looks per shoot`, `${MAX_LOOKS_ALL * TAKES_PER_LOOK} headshots instead of ${doneCount}`],
+      [icon("layers"), `${MAX_LOOKS_ALL} looks per shoot`, doneCount < MAX_LOOKS_ALL * TAKES_PER_LOOK ? `${MAX_LOOKS_ALL * TAKES_PER_LOOK} headshots instead of ${doneCount}` : `${MAX_LOOKS_ALL * TAKES_PER_LOOK} headshots in every shoot`],
       [icon("briefcase"), "Mix more backdrops & outfits", "Studio, office, rooftop and library looks in one shoot"],
       [icon("badge-check"), "Every shot checked & graded", "The same AI retoucher on every shoot"],
     ];
@@ -703,7 +703,7 @@ export async function renderStudio(ctx, id) {
 
     if (s.sample || plan?.tier === "demo") {
       return html`<section class="upsell" id="upgrade" aria-labelledby="upsellTitle">
-        <div><p class="eyebrow">Your turn</p><h2 class="display h-2" id="upsellTitle">Make headshots like these from your own selfies.</h2><p class="upsell-sub">Your first shoot is free: 2 looks, 4 headshots, checked and graded by AI.</p></div>
+        <div><p class="eyebrow">Your turn</p><h2 class="display h-2" id="upsellTitle">Make headshots like these from your own selfies.</h2><p class="upsell-sub">Your first shoot is a free preview: 2 looks, 4 headshots, checked and graded by AI.</p></div>
         <div class="upsell-actions"><a class="btn btn-flash btn-lg" href="/signup" data-link>Create free account ${icon("arrow-right")}</a></div>
       </section>`;
     }
@@ -1121,7 +1121,7 @@ function renderUpload({ root, navigate }) {
     const plan = state.user?.plan || {};
     if (plan.tier === "demo") return "The demo account is read-only. Create a free account to try it with your own photos.";
     if (plan.needsEmail) return "Confirm your email first: enter the 6-digit code from our email in the box at the top of this page.";
-    return "You've used your free shoot. Buy a package to start another.";
+    return state.user?.purchased ? "You're out of shoots. Buy a package to start another." : "You've used your free shoot. Buy a package to start another.";
   };
 
   const draw = () => {

@@ -293,6 +293,51 @@ function wireChrome() {
   });
 }
 
+// The account changed under an open page (email confirmed by code here or by
+// link in another tab, a purchase elsewhere): plan banners are swapped in
+// place and open pages re-check what the account can do, so nothing being
+// worked on (photos picked, looks chosen) is lost to a re-render.
+async function accountChanged() {
+  const { planBanner } = await import("./views/dashboard.js");
+  document.querySelectorAll("[data-plan-banner]").forEach((el) => {
+    const next = planBanner(el.dataset.planBanner);
+    el.outerHTML = next ? next.v : "";
+  });
+  document.dispatchEvent(new CustomEvent("ahg:user-changed"));
+}
+const accountSig = (u) => JSON.stringify(u ? [u.id, u.emailVerified, u.plan, u.previewsUnlocked, u.kept, u.extraLooks] : null);
+let lastAccountSync = 0;
+async function syncAccount() {
+  if (!state.user || document.visibilityState !== "visible" || Date.now() - lastAccountSync < 4000) return;
+  lastAccountSync = Date.now();
+  let data;
+  try {
+    data = await api("/api/me");
+  } catch {
+    return;
+  }
+  if (!data.user) return signedOut();
+  if (accountSig(data.user) === accountSig(state.user)) return;
+  state.user = data.user;
+  accountChanged();
+}
+// Coming back to the tab (after confirming the email in another one, paying
+// on a phone…) checks the account again.
+document.addEventListener("visibilitychange", syncAccount);
+window.addEventListener("focus", syncAccount);
+
+let signingOut = false;
+function signedOut() {
+  if (!state.user || signingOut) return;
+  state.user = null;
+  if (!location.pathname.startsWith("/app")) return render();
+  signingOut = true;
+  toast("You've been signed out. Sign in again to continue.", "info", 6000);
+  navigate(`/signin?next=${encodeURIComponent(location.pathname + location.search)}`);
+  setTimeout(() => (signingOut = false), 2000);
+}
+document.addEventListener("ahg:signed-out", signedOut);
+
 // "Resend email" buttons (dashboard banner, verify page) for email confirmation.
 document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-resend-verify]");
@@ -304,7 +349,8 @@ document.addEventListener("click", async (e) => {
       state.user = res.user;
       toast("Your email is already confirmed. Your free shoot is ready.", "success");
       // On the verify page itself, re-running it would show "couldn't confirm".
-      return location.pathname === "/verify" ? navigate("/app") : render();
+      if (location.pathname === "/verify") return navigate("/app");
+      return accountChanged();
     }
     toast(`Sent. Check ${res.email} for a code and link from hello@keeperheadshots.com.`, "success", 7000);
     btn.textContent = "Email sent";
@@ -335,18 +381,11 @@ document.addEventListener("submit", async (e) => {
   try {
     const res = await api("/api/auth/verify/code", { method: "POST", body: { code } });
     state.user = res.user;
-    // Pages already open (photos being picked, looks being chosen) re-check
-    // what the account can do now (views/studio.js).
-    document.dispatchEvent(new CustomEvent("ahg:user-changed"));
     if (res.status === "verified") pixel("CompleteRegistration", {}, res.eventId);
     toast("Email confirmed. Your free shoot is ready.", "success", 6000);
-    // Swap just the banner, so a page in progress (photos being picked on
+    // Swaps just the banners, so a page in progress (photos being picked on
     // /app/new) keeps its state.
-    const { planBanner } = await import("./views/dashboard.js");
-    const banner = form.closest(".banner");
-    const next = planBanner();
-    if (banner) banner.outerHTML = next ? next.v : "";
-    else render();
+    await accountChanged();
   } catch (e2) {
     restore();
     if (e2.status === 401) return navigate(`/signin?next=${encodeURIComponent(location.pathname)}`);

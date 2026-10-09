@@ -1,6 +1,7 @@
 import { $, $$, html, raw, icon, api, state, toast, busy, media, squareMedia, sizeMedia } from "../core.js";
 import { BACKDROPS, OUTFITS, MAX_LOOKS, PACKAGES } from "../shared/catalog.js";
 import { downloadAll } from "./format.js";
+import { planBanner } from "./dashboard.js";
 
 // /app/team: a team admin sets the team's look, invites colleagues by email
 // (each invite uses one of their shoots) and collects everyone's headshots.
@@ -33,14 +34,19 @@ export async function renderTeamAdmin({ root, navigate }) {
   if (disposed) return;
 
   const u = state.user;
-  const locked = u.demo ? "The demo account can't order for a team. Create a free account to try it." : u.plan?.needsEmail ? "Confirm your email address first; the link is in your inbox." : "";
+  // Read fresh: confirming the email on this page (the code box) or in another
+  // tab unlocks it without a reload (app.js "ahg:user-changed").
+  const lockedNow = () => (state.user?.demo ? "The demo account can't order for a team. Create a free account to try it." : state.user?.plan?.needsEmail ? "email" : "");
+  const locked = lockedNow();
+  // An unconfirmed email gets the banner with the 6-digit code box.
+  const lockBanner = () => (locked === "email" ? planBanner("blocked") : locked ? html`<div class="banner banner-warn">${icon("info")}<div>${locked}</div></div>` : "");
 
   function paintSetup(team) {
     let looks = team?.looks?.length ? team.looks.map((l) => ({ ...l })) : [{ backdrop: "glass-office", outfit: "navy-suit" }];
     root.innerHTML = html`<main id="main" class="container app-main view-enter team-admin">
       <div class="page-head"><div><p class="eyebrow">Team headshots</p><h1 class="display h-1" style="margin-top:8px">${team ? "Team settings" : "Set up your team"}</h1>
       <p class="lede" style="margin-top:12px">Choose the look everyone gets, so your team page matches. Then invite people by email: each invite uses one of your shoots, and each person uploads their own selfies.</p></div></div>
-      ${locked ? html`<div class="banner banner-warn">${icon("info")}<div>${locked}</div></div>` : ""}
+      ${lockBanner()}
       <form class="panel team-form" id="teamForm" novalidate>
         <div class="field"><label for="teamName">Team name</label><input class="input" id="teamName" name="name" maxlength="60" required value="${team?.name || ""}" placeholder="Acme Inc." /><span class="field-hint">Shown in the invitation email.</span></div>
         <fieldset class="field"><legend>Team look${MAX_LOOKS > 1 ? html` <span class="muted">(up to ${MAX_LOOKS}; each person gets 2 headshots per look)</span>` : ""}</legend>
@@ -104,7 +110,7 @@ export async function renderTeamAdmin({ root, navigate }) {
         <p class="lede" style="margin-top:12px">Everyone gets ${t.looks.map(lookLabel).join("; ")}. <button type="button" class="link" id="editTeam" style="background:none;border:0;padding:0;font:inherit;cursor:pointer">Change</button></p></div>
         ${ready.length ? html`<button class="btn btn-flash btn-lg" id="dlTeam">${icon("download")} Download ${ready.length} headshot${ready.length === 1 ? "" : "s"}</button>` : ""}
       </div>
-      ${locked ? html`<div class="banner banner-warn">${icon("info")}<div>${locked}</div></div>` : ""}
+      ${lockBanner()}
 
       <section class="panel team-invite" aria-labelledby="inviteTitle">
         <div class="team-invite-head"><h2 class="h-4" id="inviteTitle">Invite people</h2><span class="chip">${icon("ticket")} ${credits} shoot${credits === "1" ? "" : "s"} to give</span></div>
@@ -212,7 +218,13 @@ export async function renderTeamAdmin({ root, navigate }) {
       if (!disposed && data.team && !$("#teamForm")) paintTeam();
     } catch {}
   }, 30_000);
+  const onUser = () => {
+    if (lockedNow()) return;
+    for (const id of ["#saveTeam", "#sendInvites"]) $(id)?.removeAttribute("disabled");
+  };
+  document.addEventListener("ahg:user-changed", onUser);
   return () => {
+    document.removeEventListener("ahg:user-changed", onUser);
     disposed = true;
     clearInterval(timer);
   };

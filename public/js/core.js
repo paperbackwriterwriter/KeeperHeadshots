@@ -70,6 +70,9 @@ export async function api(path, { method = "GET", body, signal } = {}) {
   }
   noteBuild(res.headers.get("x-app-build"));
   const data = await res.json().catch(() => ({}));
+  // The session ended (signed out elsewhere, "sign out other devices"):
+  // app.js takes the person to sign in instead of leaving dead-end errors.
+  if (res.status === 401 && data.code === "signed_out") document.dispatchEvent(new CustomEvent("ahg:signed-out"));
   if (!res.ok) throw new ApiError(data.error || `Something went wrong (${res.status}).`, res.status, data);
   return data;
 }

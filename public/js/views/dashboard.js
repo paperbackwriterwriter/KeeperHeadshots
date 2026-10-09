@@ -19,13 +19,16 @@ export function aiBanner() {
 }
 
 // Explains what the account can do right now (free shoot, demo, credits).
-export function planBanner() {
+// `mode` "blocked": only while the account can't develop (the banner goes
+// once it can). Marked data-plan-banner so app.js can swap it in place when
+// the account changes (email confirmed in another tab, a purchase).
+export function planBanner(mode = "always") {
   const plan = state.user?.plan;
-  if (!plan) return "";
+  if (!plan || (mode === "blocked" && plan.canDevelop)) return "";
   if (plan.tier === "demo")
-    return html`<div class="banner banner-info">${icon("info")}<div><b>You're exploring the demo account.</b>It's read-only, so you can browse the sample shoots. Create a free account to try it with your own photos; your first shoot is free.</div><a class="btn btn-sm btn-flash" href="/signup" data-link id="demoSignup">Create free account</a></div>`;
+    return html`<div class="banner banner-info" data-plan-banner="${mode}">${icon("info")}<div><b>You're exploring the demo account.</b>It's read-only, so you can browse the sample shoots. Create a free account to try it with your own photos; your first shoot is a free preview.</div><a class="btn btn-sm btn-flash" href="/signup" data-link id="demoSignup">Create free account</a></div>`;
   if (plan.needsEmail)
-    return html`<div class="banner banner-warn verify-banner">${icon("mail")}<div><b>Confirm your email to unlock your free shoot.</b>We emailed a 6-digit code to ${state.user.email}. Enter it here, or click the link in the email. Can't find it? Check your spam folder.
+    return html`<div class="banner banner-warn verify-banner" data-plan-banner="${mode}">${icon("mail")}<div><b>Confirm your email to unlock your free shoot.</b>We emailed a 6-digit code to ${state.user.email}. Enter it here, or click the link in the email. Can't find it? Check your spam folder.
       <form class="verify-code" data-verify-code novalidate>
         <label class="sr-only" for="verifyCode">6-digit code</label>
         <input class="input" id="verifyCode" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" placeholder="123 456" aria-describedby="verifyCodeErr" />
@@ -34,11 +37,11 @@ export function planBanner() {
       </form>
       <p class="verify-resend">Didn't get it? <button class="link-btn" type="button" data-resend-verify>Resend email</button></p></div></div>`;
   if (plan.tier === "trial")
-    return html`<div class="banner banner-info">${icon("sparkles")}<div><b>Your first shoot is a free preview.</b>Up to 2 looks, which makes 4 headshots, each checked and graded by AI.</div></div>`;
+    return html`<div class="banner banner-info" data-plan-banner="${mode}">${icon("sparkles")}<div><b>Your first shoot is a free preview.</b>Up to 2 looks, which makes 4 headshots, each checked and graded by AI.</div></div>`;
   if (plan.tier === "none")
-    return html`<div class="banner banner-warn">${icon("circle-alert")}<div><b>You're out of shoots.</b>Buy a package to develop more. Your existing shoots and downloads stay available.</div><a class="btn btn-sm btn-flash" href="/#pricing">Buy shoots</a></div>`;
+    return html`<div class="banner banner-warn" data-plan-banner="${mode}">${icon("circle-alert")}<div><b>You're out of shoots.</b>Buy a package to develop more. Your shoots stay in your account.</div><a class="btn btn-sm btn-flash" href="/#pricing">Buy shoots</a></div>`;
   if (plan.tier === "paid")
-    return html`<div class="banner banner-info">${icon("check-circle-2")}<div><b>${plan.credits} shoot${plan.credits === 1 ? "" : "s"} available.</b>Each developed shoot uses one, with up to 4 looks (8 headshots).</div><a class="btn btn-sm btn-ghost" href="/#pricing">Buy more</a></div>`;
+    return html`<div class="banner banner-info" data-plan-banner="${mode}">${icon("check-circle-2")}<div><b>${plan.credits} shoot${plan.credits === 1 ? "" : "s"} available.</b>Each developed shoot uses one, with up to 4 looks (8 headshots).</div><a class="btn btn-sm btn-ghost" href="/#pricing">Buy more</a></div>`;
   return "";
 }
 
