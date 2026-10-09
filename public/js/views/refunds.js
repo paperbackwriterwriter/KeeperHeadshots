@@ -38,7 +38,7 @@ export function renderRefunds({ root }) {
       <ul>
         <li>We refund the original payment method through Stripe, our payment provider. Most banks show it within 5–10 business days.</li>
         <li>Any shoots left from the refunded package are removed from your account.</li>
-        <li>Please don't use headshots from a refunded shoot. If you shared one for our home page, it comes down with the refund.</li>
+        <li>Please don't use headshots from a refunded shoot. If you shared one for our home page, it comes down with the refund; so does a colleague's from a team shoot the refunded package paid for.</li>
       </ul>
 
       <h2 class="h-3">Before you ask</h2>

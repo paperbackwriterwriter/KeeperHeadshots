@@ -311,4 +311,4 @@ net
     });
     sock.on("error", () => {});
   })
-  .listen(Number(process.env.MOCK_SMTP_PORT || 2525), () => console.log("[mock] SMTP sink on :2525"));
+  .listen(Number(process.env.MOCK_SMTP_PORT || 2525), function () { console.log(`[mock] SMTP sink on :${this.address().port}`); });

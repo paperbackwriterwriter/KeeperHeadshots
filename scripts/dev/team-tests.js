@@ -219,7 +219,24 @@ let final;
   await admin4("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid }) });
   await admin4("/api/team", { method: "POST", body: JSON.stringify({ name: "Debtors", looks: LOOKS }) });
   const eve = `eve${t}@x.com`;
-  const sent = (await admin4("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: `${eve}, spare.${t}@x.com, spare2.${t}@x.com` }) })).j;
+  const fay = `fay${t}@x.com`;
+  const sent = (await admin4("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: `${eve}, ${fay}, spare2.${t}@x.com` }) })).j;
+  // Fay develops her seat and shares a headshot before the refund.
+  const fayC = await account(fay);
+  const faySeat = (await fayC(`/api/join/${tokenOf(sent.results.find((r) => r.email === fay).link)}`, { method: "POST" })).j.shootId;
+  for (let i = 0; i < 2; i++) await fayC(`/api/shoots/${faySeat}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(40 + i) }) });
+  await fayC(`/api/shoots/${faySeat}/check`, { method: "POST", body: "{}" });
+  for (let w = 0; w < 60 && (await fayC(`/api/shoots/${faySeat}`)).j.shoot.status === "checking"; w++) await new Promise((r) => setTimeout(r, 250));
+  await fayC(`/api/shoots/${faySeat}/generate`, { method: "POST", body: JSON.stringify({ looks: LOOKS }) });
+  let fayShoot;
+  for (let w = 0; w < 80; w++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    fayShoot = (await fayC(`/api/shoots/${faySeat}`)).j.shoot;
+    if (!["generating", "reviewing", "checking"].includes(fayShoot.status)) break;
+  }
+  const fayShot = (fayShoot?.shots || []).find((x) => x.status === "done");
+  const shared = await fayC("/api/showcase", { method: "POST", body: JSON.stringify({ shootId: faySeat, shotId: fayShot?.id, name: "Fay", role: "Analyst", quote: "Great.", consent: true }) });
+  ok("a colleague can share a headshot from a developed team seat", fayShoot?.status === "done" && shared.status === 200, `${fayShoot?.status} ${shared.status} ${JSON.stringify(shared.j)}`);
   const member = await account(eve);
   const seat = (await member(`/api/join/${tokenOf(sent.results.find((r) => r.email === eve).link)}`, { method: "POST" })).j.shootId;
   await member(`/api/shoots/${seat}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(31) }) });
@@ -228,7 +245,8 @@ let final;
   await fetch(`${M}/mock-refund/${sid}`);
   await admin4("/api/billing/sync", { method: "POST", body: "{}" });
   const after = (await admin4("/api/team")).j.team.members;
-  ok("the two open invitations are withdrawn, the taken seat stays listed", after.filter((m) => m.status === "invited").length === 0 && after.some((m) => m.email === eve && m.status === "joined"), JSON.stringify(after.map((m) => [m.email === eve, m.status])));
+  ok("the open invitation is withdrawn, the taken seats stay listed", after.filter((m) => m.status === "invited").length === 0 && after.some((m) => m.email === eve && m.status === "joined"), JSON.stringify(after.map((m) => [m.email === eve, m.status])));
+  ok("the colleague's shared headshot comes down with the admin's refund", (await fayC("/api/showcase/mine")).j.entry === null && (await fayC(`/showcase/${shared.j?.entry?.id}.webp`)).status === 404, JSON.stringify((await fayC("/api/showcase/mine")).j));
   const dev = await member(`/api/shoots/${seat}/generate`, { method: "POST", body: JSON.stringify({ looks: LOOKS }) });
   ok("the taken seat can't develop while the refund debt stands", dev.status === 402 && dev.j?.code === "team_unpaid", `${dev.status} ${JSON.stringify(dev.j)}`);
   const buy2 = await admin4("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
