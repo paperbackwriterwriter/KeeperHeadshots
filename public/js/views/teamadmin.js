@@ -12,6 +12,7 @@ const STATUS = {
   joined: ["Joined", "badge badge-info"],
   returned: ["Shoot returned", "badge badge-muted"],
   deleted: ["Shoot deleted", "badge badge-muted"],
+  expired: ["Expired", "badge badge-muted"],
 };
 const shootLabel = (m) => {
   if (m.status !== "joined") return STATUS[m.status] || [m.status, "badge"];

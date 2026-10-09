@@ -12,6 +12,7 @@ delete process.env.BLOB_READ_WRITE_TOKEN;
 delete process.env.BLOB_STORE_ID;
 const storage = await import("../../lib/storage.js");
 const { shoots, saveMedia } = await import("../../lib/store.js");
+const { INVITE_TTL_DAYS } = await import("../../lib/teams.js");
 const { runCleanup } = await import("../../lib/cleanup.js");
 
 const results = [];
@@ -37,6 +38,14 @@ await storage.putJSON(`contact/${ago(400).replace(/[:.]/g, "-")}-aaaa.json`, { o
 await storage.putJSON(`contact/${ago(5).replace(/[:.]/g, "-")}-bbbb.json`, { old: false });
 await storage.putJSON(`ratelimit/contact/abc/${ago(3).slice(0, 13)}.json`, { n: 1 });
 await storage.putJSON(`ratelimit/contact/abc/${new Date().toISOString().slice(0, 13)}.json`, { n: 1 });
+// A team with one invitation past its 90 days and one fresh.
+await storage.putJSON("users/id/usr_teamadm.json", { id: "usr_teamadm", email: "adm@x.com", credits: 0 });
+await storage.putJSON("teams/tm_clean1.json", { id: "tm_clean1", ownerId: "usr_teamadm", ownerName: "Adm", name: "Cleaners", looks: [], invites: {
+  inv_old: { id: "inv_old", email: "old@x.com", token: "tokOLDtokOLDtokOLDtokOLD", status: "invited", invitedAt: ago(INVITE_TTL_DAYS + 5), sentAt: null, charged: true },
+  inv_new: { id: "inv_new", email: "new@x.com", token: "tokNEWtokNEWtokNEWtokNEW", status: "invited", invitedAt: ago(5), sentAt: null, charged: true },
+} });
+await storage.putJSON("invites/tokOLDtokOLDtokOLDtokOLD.json", { teamId: "tm_clean1", inviteId: "inv_old" });
+await storage.putJSON("invites/tokNEWtokNEWtokNEWtokNEW.json", { teamId: "tm_clean1", inviteId: "inv_new" });
 
 const r = await runCleanup();
 ok("old undeveloped draft deleted, with its photos", !(await exists("sht_oldDraft01")) && (await storage.list("media/sht_oldDraft01/")).length === 0, JSON.stringify(r));
@@ -47,6 +56,11 @@ ok("orphaned files deleted", (await storage.list("media/sht_orphan0001/")).lengt
 ok("old contact message deleted, recent kept", (await storage.list("contact/")).length === 1 && r.contactDeleted === 1);
 ok("old rate-limit counter deleted, current kept", (await storage.list("ratelimit/")).length === 1 && r.rateLimitDeleted === 1);
 ok("full run reports finished", r.finished === true);
+{
+  const team = await storage.getJSON("teams/tm_clean1.json");
+  const adm = await storage.getJSON("users/id/usr_teamadm.json");
+  ok("an invitation older than 90 days lapses and gives the shoot back", r.invitesExpired === 1 && team.invites.inv_old.status === "expired" && team.invites.inv_new.status === "invited" && adm.credits === 1 && !(await storage.getJSON("invites/tokOLDtokOLDtokOLDtokOLD.json")) && !!(await storage.getJSON("invites/tokNEWtokNEWtokNEWtokNEW.json")), JSON.stringify({ expired: r.invitesExpired, credits: adm.credits }));
+}
 
 // A run out of time stops early and the next one resumes.
 for (let i = 0; i < 30; i++) await shoot(`sht_bulk${String(i).padStart(4, "0")}`, { days: 100 });

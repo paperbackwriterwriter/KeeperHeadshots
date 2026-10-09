@@ -154,6 +154,22 @@ let entry;
   ok("the public list is back as it was", JSON.stringify(await shown()) === JSON.stringify(before));
 }
 
+// 5b. A refunded package takes down a headshot from a shoot it paid for.
+{
+  const rae = await account(`rae${t}@x.com`, "Rae Kim");
+  const { j } = await rae("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  const sid = new URL(j.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${sid}`, { redirect: "manual" }); // paid in full, so it can be refunded
+  await rae("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid }) });
+  await doneShoot(rae); // the free preview goes first
+  const paid = await doneShoot(rae); // then a shoot from the package
+  const r = await offer(rae, paid, paid.shots.find((x) => x.status === "done"), { name: "Rae" });
+  ok("a headshot from a paid shoot can be offered", r.status === 200 && paid.paidWith === "credit", `${r.status} ${paid.paidWith}`);
+  await fetch(`${M}/mock-refund/${sid}`);
+  const synced = (await rae("/api/billing/sync", { method: "POST", body: "{}" })).j;
+  ok("refunding the package takes it down", synced.user.purchased === false && (await rae("/api/showcase/mine")).j.entry === null && (await rae(`/showcase/${r.j.entry.id}.webp`)).status === 404, JSON.stringify({ purchased: synced.user?.purchased }));
+}
+
 // 6. The demo account can't offer anything.
 {
   const demo = client();
