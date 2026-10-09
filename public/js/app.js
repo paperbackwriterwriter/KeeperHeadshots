@@ -335,6 +335,9 @@ document.addEventListener("submit", async (e) => {
   try {
     const res = await api("/api/auth/verify/code", { method: "POST", body: { code } });
     state.user = res.user;
+    // Pages already open (photos being picked, looks being chosen) re-check
+    // what the account can do now (views/studio.js).
+    document.dispatchEvent(new CustomEvent("ahg:user-changed"));
     if (res.status === "verified") pixel("CompleteRegistration", {}, res.eventId);
     toast("Email confirmed. Your free shoot is ready.", "success", 6000);
     // Swap just the banner, so a page in progress (photos being picked on

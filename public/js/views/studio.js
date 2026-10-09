@@ -433,6 +433,7 @@ export async function renderStudio(ctx, id) {
   function paintLooks(s, extra = 0) {
     if (s.team && !extra) return paintTeamLooks(s);
     const plan = extra ? null : state.user?.plan;
+    const planNow = () => (extra ? null : state.user?.plan);
     const MAX_LOOKS = extra || plan?.maxLooks || MAX_LOOKS_ALL;
     const trial = plan?.tier === "trial";
     const same = (a, b) => a.backdrop === b.backdrop && a.outfit === b.outfit;
@@ -513,8 +514,11 @@ export async function renderStudio(ctx, id) {
       $$("#outfits .pill-opt").forEach((b) => b.setAttribute("aria-pressed", String(!!cur && b.dataset.outfit === cur.outfit)));
       $("#tally").textContent = looks.length * TAKES_PER_LOOK;
       $("#tallySub").innerHTML = html`headshots<span class="hide-s"> · ${looks.length} look${looks.length === 1 ? "" : "s"} × ${TAKES_PER_LOOK}</span>`.v;
-      $("#develop").disabled = !looks.length || (plan && !plan.canDevelop);
+      $("#develop").disabled = !looks.length || (planNow() && !planNow().canDevelop);
     };
+    // Confirming the email on this page (banner code box) unlocks Develop.
+    const onUser = () => (document.body.contains($("#develop")) ? sync() : document.removeEventListener("ahg:user-changed", onUser));
+    document.addEventListener("ahg:user-changed", onUser);
 
     const addLook = () => {
       if (looks.length >= MAX_LOOKS) return;
@@ -1109,15 +1113,23 @@ function renderUpload({ root, navigate }) {
   const input = $("#file");
   const thumbs = $("#thumbs");
   const go = $("#go");
-  // Demo accounts and accounts without a shoot left can't start one.
-  const canStart = state.user?.plan?.canDevelop !== false;
+  // Demo accounts, unconfirmed emails and accounts without a shoot left can't
+  // start one. Read fresh each time: confirming the email on this page (the
+  // code box in the banner) changes the answer without reloading.
+  const canStart = () => state.user?.plan?.canDevelop !== false;
+  const whyNot = () => {
+    const plan = state.user?.plan || {};
+    if (plan.tier === "demo") return "The demo account is read-only. Create a free account to try it with your own photos.";
+    if (plan.needsEmail) return "Confirm your email first: enter the 6-digit code from our email in the box at the top of this page.";
+    return "You've used your free shoot. Buy a package to start another.";
+  };
 
   const draw = () => {
     thumbs.innerHTML = html`${photos.map(
       (p, i) => html`<div class="thumb"><img src="${p.url}" alt="Photo ${i + 1}: ${p.name}" /><span class="idx">${String(i + 1).padStart(2, "0")}</span><button class="rm" data-rm="${i}" aria-label="Remove photo ${i + 1}">${icon("x")}</button></div>`,
     )}`.v;
     $("#count").textContent = `${photos.length} / ${MAX_SELFIES} PHOTOS`;
-    go.disabled = !photos.length || !canStart;
+    go.disabled = !photos.length;
     dz.classList.toggle("dz-compact", photos.length > 0);
   };
 
@@ -1148,6 +1160,7 @@ function renderUpload({ root, navigate }) {
     if (b) photos.splice(Number(b.dataset.rm), 1), draw();
   });
   go.addEventListener("click", async () => {
+    if (!canStart()) return toast(whyNot(), "info", 8000);
     const restore = busy(go, "Uploading…");
     const label = go.querySelector("span");
     let shootId = null;
@@ -1170,5 +1183,10 @@ function renderUpload({ root, navigate }) {
       toast(err.message, "error", 6000);
     }
   });
-  return () => aborter.abort();
+  const onUser = () => draw();
+  document.addEventListener("ahg:user-changed", onUser);
+  return () => {
+    aborter.abort();
+    document.removeEventListener("ahg:user-changed", onUser);
+  };
 }
