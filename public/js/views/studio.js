@@ -1068,6 +1068,7 @@ async function toJpegDataURL(file) {
 
 function renderUpload({ root, navigate }) {
   const photos = [];
+  let uploading = false; // the button stays busy even if the account changes meanwhile
   // Leaving mid-upload cancels the rest (and removes the half-made shoot).
   const aborter = new AbortController();
   const signal = aborter.signal;
@@ -1129,7 +1130,7 @@ function renderUpload({ root, navigate }) {
       (p, i) => html`<div class="thumb"><img src="${p.url}" alt="Photo ${i + 1}: ${p.name}" /><span class="idx">${String(i + 1).padStart(2, "0")}</span><button class="rm" data-rm="${i}" aria-label="Remove photo ${i + 1}">${icon("x")}</button></div>`,
     )}`.v;
     $("#count").textContent = `${photos.length} / ${MAX_SELFIES} PHOTOS`;
-    go.disabled = !photos.length;
+    if (!uploading) go.disabled = !photos.length;
     dz.classList.toggle("dz-compact", photos.length > 0);
   };
 
@@ -1160,7 +1161,9 @@ function renderUpload({ root, navigate }) {
     if (b) photos.splice(Number(b.dataset.rm), 1), draw();
   });
   go.addEventListener("click", async () => {
+    if (uploading) return;
     if (!canStart()) return toast(whyNot(), "info", 8000);
+    uploading = true;
     const restore = busy(go, "Uploading…");
     const label = go.querySelector("span");
     let shootId = null;
@@ -1178,6 +1181,7 @@ function renderUpload({ root, navigate }) {
     } catch (err) {
       // Don't leave a half-uploaded shoot behind.
       if (shootId) api(`/api/shoots/${shootId}`, { method: "DELETE" }).catch(() => {});
+      uploading = false;
       if (signal.aborted) return;
       restore();
       toast(err.message, "error", 6000);

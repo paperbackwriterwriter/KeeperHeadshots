@@ -11,7 +11,7 @@ import { runReminders, checkUnsubscribeToken } from "./lib/reminders.js";
 import { ogImage } from "./lib/og.js";
 import * as showcase from "./lib/showcase.js";
 import { CONTACT_TO } from "./lib/contact.js";
-import { hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailCode, checkEmailCode, emailVerified, ownsMailbox, resetToken, checkResetToken } from "./lib/auth.js";
+import { knownDevice, hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailCode, checkEmailCode, emailVerified, ownsMailbox, resetToken, checkResetToken } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import * as google from "./lib/google.js";
@@ -43,7 +43,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 app.disable("x-powered-by");
-app.set("trust proxy", true);
+// One hop: Vercel's proxy sets the client address; anything a client adds
+// to X-Forwarded-For before that isn't trusted.
+app.set("trust proxy", 1);
 app.use(cookieParser());
 
 // Stripe webhook needs the raw body for signature checks, so it's registered
@@ -78,7 +80,8 @@ const appOrigin = (req) => process.env.APP_ORIGIN || (process.env.VERCEL_ENV ===
 
 const SIGNIN_WINDOW_MS = 15 * 60 * 1000;
 const SIGNIN_MAX_FAILS = 10; // per network (IP)
-const SIGNIN_MAX_TOTAL = 100; // from everywhere
+const SIGNIN_MAX_TOTAL = 100; // from everywhere (not for a browser that signed in to it before)
+const SIGNIN_MAX_PER_IP = 60; // wrong passwords on any addresses from one network
 const DUMMY_HASH = await hashPassword("not-a-real-password");
 
 const LIVE = ["checking", "generating", "reviewing"];
@@ -138,8 +141,14 @@ app.post("/api/auth/signup", async (req, res) => {
 
 app.post("/api/auth/signin", async (req, res) => {
   const { email, password } = req.body || {};
+  // One network failing on many addresses (credential stuffing) is stopped
+  // before anything else is looked up or written.
+  const netKey = hashId(req.ip || "unknown").slice(0, 16);
+  const netFails = await readCounter("signinnet", netKey, SIGNIN_WINDOW_MS).catch(() => ({}));
+  if ((netFails.n || 0) >= SIGNIN_MAX_PER_IP) return res.status(429).json({ error: "Too many attempts. Wait 15 minutes and try again, or reset your password." });
   if (isEmail(email) && email.toLowerCase().trim() === DEMO.email) await seed();
   const user = isEmail(email) ? await users.byEmail(email) : null;
+  const known = knownDevice(req, user);
   // Slow down password guessing without letting a stranger lock someone out:
   // per email address, 10 wrong passwords from one network (IP) refuse that
   // network, and 100 from everywhere refuse all sign-ins, counting the
@@ -157,7 +166,7 @@ app.post("/api/auth/signin", async (req, res) => {
     const prev = await readCounter("signin", addr, SIGNIN_WINDOW_MS, 1).catch(() => ({}));
     locked = await withCounter("signin", addr, SIGNIN_WINDOW_MS, (r) => {
       const fromHere = r.ips?.[net] || 0;
-      if (fromHere + (prev.ips?.[net] || 0) >= SIGNIN_MAX_FAILS || (r.total || 0) + (prev.total || 0) >= SIGNIN_MAX_TOTAL) return true;
+      if (fromHere + (prev.ips?.[net] || 0) >= SIGNIN_MAX_FAILS || (!known && (r.total || 0) + (prev.total || 0) >= SIGNIN_MAX_TOTAL)) return true;
       r.ips = { ...r.ips, [net]: fromHere + 1 };
       r.total = (r.total || 0) + 1;
       return false;
@@ -169,7 +178,10 @@ app.post("/api/auth/signin", async (req, res) => {
   // An account made with Google (or taken over by its inbox's owner) has no
   // password: the dummy hash only keeps the timing the same, it never matches.
   const ok = (await verifyPassword(String(password || "").slice(0, 1000), user?.password || DUMMY_HASH)) && !!user?.password;
-  if (!user || !password || !ok) return res.status(401).json({ error: "That email and password don't match an account." });
+  if (!user || !password || !ok) {
+    await withCounter("signinnet", netKey, SIGNIN_WINDOW_MS, (r) => void (r.n = (r.n || 0) + 1)).catch(() => {});
+    return res.status(401).json({ error: "That email and password don't match an account." });
+  }
   if (counted) {
     const forgive = (r) => {
       if (!r.ips?.[net]) return;
@@ -264,8 +276,9 @@ app.get("/api/auth/google/callback", async (req, res) => {
   }
   setSession(res, user);
   console.log("[google]", created ? "signed up" : "signed in", user.id);
-  // The page shows a welcome and, for a newly confirmed account, sends the
-  // Pixel's CompleteRegistration with the server's event id (deduplicated).
+  // The page shows a welcome and, for a new account, sends the Pixel's
+  // CompleteRegistration with the server's event id (deduplicated); an
+  // existing account confirmed this way is counted by the server's event.
   const dest = next || (created ? "/app/new" : "/app");
   res.redirect(302, `${dest}${dest.includes("?") ? "&" : "?"}auth=${created ? "google-new" : newlyVerified ? "google-verified" : "google"}`);
 });
@@ -302,7 +315,7 @@ app.post("/api/auth/verify/code", requireUser, async (req, res) => {
   // Guessing limits: a few tries an hour per account and per connection, and
   // 20 in all per account, after which only the emailed link works.
   const tooMany = { error: "Too many tries. Use the link in the email instead, or wait a while.", code: "rate_limited" };
-  if ((await overLimit("verifycode", req.user.id, 8)) || (await overLimit("verifycodeip", req.ip || "unknown", 30))) return res.status(429).json(tooMany);
+  if ((await overLimit("verifycode", req.user.id, 8)) || (await overLimit("verifycodeaddr", hashId(req.user.email), 8)) || (await overLimit("verifycodeip", req.ip || "unknown", 30))) return res.status(429).json(tooMany);
   let spent = false;
   await users.update(req.user.id, (u) => {
     spent = (u.verifyCodeTries || 0) >= 20;
@@ -417,6 +430,7 @@ app.post("/api/auth/password/reset", async (req, res) => {
       u.emailVerified = true;
       u.emailVerifiedAt = at;
     }
+    delete u.emailVerifiedVia;
   });
   if (used) return invalid();
   // Proving they own the inbox lifts any sign-in lock on the address.
@@ -506,7 +520,7 @@ app.post("/api/shoots", requireUser, async (req, res) => {
   const shoot = await shoots.create({
     id: id("sht"),
     userId: req.user.id,
-    name: (req.body?.name && String(req.body.name).slice(0, 60)) || `Shoot No. ${String(count).padStart(2, "0")}`,
+    name: (req.body?.name && String(req.body.name).replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 60)) || `Shoot No. ${String(count).padStart(2, "0")}`,
     status: "draft",
     createdAt: now,
     selfies: [],
@@ -698,7 +712,9 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
     if (plan.tier !== "owner" && !meta.team) {
       if (plan.needsEmail && !plan.credits) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
       // One free shoot per mailbox, however the address is written.
-      const wantsFree = plan.freeShootAvailable && !plan.needsEmail && unique.length <= FREE.looks;
+      // Only a mailbox its owner confirmed can claim it (a paid but unconfirmed
+      // account develops from its credits instead).
+      const wantsFree = plan.freeShootAvailable && ownsMailbox(req.user) && unique.length <= FREE.looks;
       let freeOk = false;
       if (wantsFree) {
         const key = freeClaimKey(req.user.email);
@@ -706,7 +722,7 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
       }
       await users.update(req.user.id, (u) => {
         const p = planFor(u);
-        if (freeOk && p.freeShootAvailable) {
+        if (freeOk && p.freeShootAvailable && ownsMailbox(u)) {
           u.usage = { ...u.usage, freeShootUsed: meta.id };
           charged = "free";
         } else if (p.credits > 0) {
@@ -822,7 +838,7 @@ app.patch("/api/shoots/:id", requireUser, async (req, res) => {
   const body = req.body || {};
   let name;
   if ("name" in body) {
-    name = String(body.name || "").trim().slice(0, 60);
+    name = String(body.name || "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 60);
     if (!name) return res.status(400).json({ error: "Give the shoot a name." });
   }
   let pick;

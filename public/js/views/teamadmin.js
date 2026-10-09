@@ -37,9 +37,11 @@ export async function renderTeamAdmin({ root, navigate }) {
   // Read fresh: confirming the email on this page (the code box) or in another
   // tab unlocks it without a reload (app.js "ahg:user-changed").
   const lockedNow = () => (state.user?.demo ? "The demo account can't order for a team. Create a free account to try it." : state.user?.plan?.needsEmail ? "email" : "");
-  const locked = lockedNow();
   // An unconfirmed email gets the banner with the 6-digit code box.
-  const lockBanner = () => (locked === "email" ? planBanner("blocked") : locked ? html`<div class="banner banner-warn">${icon("info")}<div>${locked}</div></div>` : "");
+  const lockBanner = () => {
+    const locked = lockedNow();
+    return locked === "email" ? planBanner("blocked") : locked ? html`<div class="banner banner-warn">${icon("info")}<div>${locked}</div></div>` : "";
+  };
 
   function paintSetup(team) {
     let looks = team?.looks?.length ? team.looks.map((l) => ({ ...l })) : [{ backdrop: "glass-office", outfit: "navy-suit" }];
@@ -53,7 +55,7 @@ export async function renderTeamAdmin({ root, navigate }) {
           <ol class="team-looks" id="looks"></ol>
           <button type="button" class="btn btn-ghost btn-sm" id="addLook">${icon("plus")} Add a look</button>
         </fieldset>
-        <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-flash" id="saveTeam" ${locked ? raw("disabled") : ""}>${team ? "Save" : "Create team"} ${icon("arrow-right")}</button>${team ? html`<button type="button" class="btn btn-ghost" id="cancelSetup">Cancel</button>` : ""}</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-flash" id="saveTeam" ${lockedNow() ? raw("disabled") : ""}>${team ? "Save" : "Create team"} ${icon("arrow-right")}</button>${team ? html`<button type="button" class="btn btn-ghost" id="cancelSetup">Cancel</button>` : ""}</div>
       </form>
     </main>`.v;
     const drawLooks = () => {
@@ -118,7 +120,7 @@ export async function renderTeamAdmin({ root, navigate }) {
         <form id="inviteForm" class="team-invite-form" novalidate>
           <label class="sr-only" for="emails">Email addresses</label>
           <textarea class="input" id="emails" rows="2" placeholder="alex@company.com, sam@company.com"></textarea>
-          <button class="btn btn-ink" id="sendInvites" ${locked ? raw("disabled") : ""}>${icon("send")} Send invites</button>
+          <button class="btn btn-ink" id="sendInvites" ${lockedNow() ? raw("disabled") : ""}>${icon("send")} Send invites</button>
         </form>
         ${credits === "0" ? html`<p class="small">No shoots left to give. <a class="link" href="/app/buy/${PACKAGES[PACKAGES.length - 1].id}" data-link>Buy ${PACKAGES[PACKAGES.length - 1].name} (${PACKAGES[PACKAGES.length - 1].shoots} shoots)</a> or <a class="link" href="/#pricing">see all packages</a>.</p>` : ""}
       </section>

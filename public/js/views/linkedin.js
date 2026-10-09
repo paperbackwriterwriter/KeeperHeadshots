@@ -43,7 +43,7 @@ export function renderLinkedIn({ root }) {
           </div>
           <div class="hero-proof" data-reveal style="--i:4">
             <div class="proof-item"><strong class="tabular">1:1</strong><span>square for LinkedIn &amp; Teams</span></div>
-            <div class="proof-item"><strong class="tabular">Free</strong><span>first shoot</span></div>
+            <div class="proof-item"><strong class="tabular">Free</strong><span>preview shoot</span></div>
             <div class="proof-item"><strong class="tabular">From $8.99</strong><span>one-time, no subscription</span></div>
           </div>
         </div>

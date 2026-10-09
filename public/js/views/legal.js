@@ -26,7 +26,7 @@ function page({ eyebrow, title, lede, callout, body, updated = LEGAL_UPDATED }) 
 export function renderPrivacy({ root }) {
   root.innerHTML = page({
     eyebrow: "Privacy policy",
-    updated: "October 8, 2026",
+    updated: "October 9, 2026",
     title: "Your privacy",
     lede: "What we collect, why we collect it, who helps us run the service, and the choices you have.",
     callout:
@@ -70,7 +70,7 @@ export function renderPrivacy({ root }) {
         <li><b>Anthropic</b> and <b>Google</b>: AI processing, as described above.</li>
         <li><b>Stripe</b>: payments and refunds.</li>
         <li><b>Google</b>: signing you in, if you choose "Continue with Google".</li>
-        <li><b>Cloudflare</b>: the Turnstile security check on the sign-up form, which checks that you're a person and not a bot. It looks at technical signals from your browser and isn't used for advertising.</li>
+        <li><b>Cloudflare</b>: the Turnstile security check on the sign-up, contact and password-reset forms, which checks that you're a person and not a bot. It looks at technical signals from your browser and isn't used for advertising.</li>
         <li><b>ImprovMX</b> and <b>Google (Gmail)</b>: delivering emails and contact-form messages.</li>
         <li><b>Meta</b> (Facebook and Instagram): advertising measurement, as described below.</li>
       </ul>

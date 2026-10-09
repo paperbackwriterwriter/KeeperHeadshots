@@ -59,7 +59,7 @@ export function renderLanding({ root }) {
           <div class="hero-proof" data-reveal style="--i:4">
             <div class="proof-item"><strong class="tabular">&lt; 15 min</strong><span>typical turnaround</span></div>
             <div class="proof-item"><strong>Free</strong><span>preview, keep yours from $${PREVIEW_OFFERS[0].price}</span></div>
-            <div class="proof-item"><strong class="tabular">Refund</strong><span>if none are usable</span></div>
+            <div class="proof-item"><strong class="tabular">Money-back</strong><span>guarantee on packages</span></div>
           </div>
         </div>
 
@@ -223,7 +223,7 @@ export function renderLanding({ root }) {
             <p class="eyebrow" data-reveal>Pricing</p>
             <h2 class="display h-1" data-reveal style="--i:1;margin-top:16px">One payment. <em>No</em> subscription.</h2>
           </div>
-          <p class="lede" data-reveal style="--i:2">Start with a free preview and keep only what you like, or pick a package. Covered by our <a class="link" href="/refunds" data-link><span class="nowrap">money-back</span> guarantee</a>.</p>
+          <p class="lede" data-reveal style="--i:2">Start with a free preview and keep only what you like, or pick a package. Packages are covered by our <a class="link" href="/refunds" data-link><span class="nowrap">money-back</span> guarantee</a>.</p>
         </div>
         <div class="start-free" data-reveal>
           <div class="sf-step"><span class="sf-amt">$0</span><div><b>Free preview</b><span>2 looks, 4 headshots. No card needed.</span></div></div>

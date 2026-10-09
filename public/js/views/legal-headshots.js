@@ -62,7 +62,7 @@ export function renderLegal({ root }) {
           </div>
           <div class="hero-proof" data-reveal style="--i:4">
             <div class="proof-item"><strong class="tabular">&lt; 15 min</strong><span>from selfies to headshot</span></div>
-            <div class="proof-item"><strong class="tabular">Free</strong><span>first shoot</span></div>
+            <div class="proof-item"><strong class="tabular">Free</strong><span>preview shoot</span></div>
             <div class="proof-item"><strong class="tabular">From $8.99</strong><span>one-time, no subscription</span></div>
           </div>
         </div>
@@ -99,7 +99,7 @@ export function renderLegal({ root }) {
             <p class="eyebrow" data-reveal>Looks for law firms</p>
             <h2 class="display h-1" data-reveal style="--i:1;margin-top:16px">From the law library to <em>the modern firm.</em></h2>
           </div>
-          <p class="lede" data-reveal style="--i:2">Choose Suit &amp; Tie, Navy Suit or Charcoal Blazer, with a Library, Studio Gray or Glass Office backdrop. Try up to four looks in one shoot.</p>
+          <p class="lede" data-reveal style="--i:2">Choose Suit &amp; Tie, Navy Suit or Charcoal Blazer, with a Library, Studio Gray, Studio White or Glass Office backdrop. Try up to four looks in one shoot.</p>
         </div>
         <div class="re-looks">
           ${LOOKS.map(

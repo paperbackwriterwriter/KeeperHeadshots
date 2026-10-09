@@ -3,7 +3,7 @@ import { footer } from "./landing.js";
 import { CONTACT_EMAIL } from "./contact.js";
 
 // The written terms behind the "money-back guarantee" shown on the site.
-export const POLICY_UPDATED = "September 28, 2026";
+export const POLICY_UPDATED = "October 2, 2026";
 
 export function renderRefunds({ root }) {
   root.innerHTML = html`

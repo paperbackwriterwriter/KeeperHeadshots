@@ -52,7 +52,7 @@ export function renderTeam({ root }) {
           </div>
           <div class="hero-proof" data-reveal style="--i:4">
             <div class="proof-item"><strong class="tabular">~$4</strong><span>per person with ${exec.name}</span></div>
-            <div class="proof-item"><strong class="tabular">1 look</strong><span>for the whole team</span></div>
+            <div class="proof-item"><strong class="tabular">Same</strong><span>looks for the whole team</span></div>
             <div class="proof-item"><strong class="tabular">0</strong><span>photo days to schedule</span></div>
           </div>
         </div>
@@ -65,7 +65,7 @@ export function renderTeam({ root }) {
         <div class="section-head">
           <div>
             <p class="eyebrow" data-reveal>Why teams use Keeper</p>
-            <h2 class="display h-1" data-reveal style="--i:1;margin-top:16px">One look. <em>Everyone</em> in it.</h2>
+            <h2 class="display h-1" data-reveal style="--i:1;margin-top:16px">One style. <em>Everyone</em> in it.</h2>
           </div>
           <p class="lede" data-reveal style="--i:2">A photographer's visit means one day, one office and whoever happens to be in. Keeper works from the photos people already have, wherever they are.</p>
         </div>

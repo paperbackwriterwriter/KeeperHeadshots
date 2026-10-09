@@ -257,6 +257,7 @@ function wireChrome() {
     sheet.classList.toggle("open", open);
     toggle.setAttribute("aria-expanded", String(open));
     toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+    toggle.innerHTML = icon(open ? "x" : "menu").v;
   };
   toggle?.addEventListener("click", () => {
     const open = !sheet.classList.contains("open");
@@ -269,7 +270,9 @@ function wireChrome() {
     // keyboard focus moves past it (onto the page it covers).
     const inside = (el) => el && (sheet.contains(el) || toggle.contains(el));
     const isOpen = () => sheet.classList.contains("open");
-    const onClick = (e) => isOpen() && !inside(e.target) && setOpen(false);
+    // The path the click took, not just its target: the toggle's icon is
+    // replaced while the click is still on its way up (open ↔ close icon).
+    const onClick = (e) => isOpen() && !e.composedPath().some((el) => el === sheet || el === toggle) && setOpen(false);
     const onKey = (e) => {
       if (e.key !== "Escape" || !isOpen()) return;
       setOpen(false);
@@ -318,6 +321,12 @@ async function syncAccount() {
   }
   if (!data.user) return signedOut();
   if (accountSig(data.user) === accountSig(state.user)) return;
+  // A different account signed in from another tab: nothing on this page is
+  // theirs, so start over at their shoots.
+  if (data.user.id !== state.user.id) {
+    state.user = data.user;
+    return location.pathname === "/app" ? render() : navigate("/app");
+  }
   state.user = data.user;
   accountChanged();
 }
@@ -330,7 +339,14 @@ let signingOut = false;
 function signedOut() {
   if (!state.user || signingOut) return;
   state.user = null;
-  if (!location.pathname.startsWith("/app")) return render();
+  // Public pages only swap the nav (its sign-in buttons), so the reader's
+  // place and the page itself stay as they are.
+  if (!location.pathname.startsWith("/app")) {
+    const nav = $("#nav");
+    if (!nav) return render({ restoreY: window.scrollY });
+    nav.outerHTML = marketingNav().v;
+    return wireChrome();
+  }
   signingOut = true;
   toast("You've been signed out. Sign in again to continue.", "info", 6000);
   navigate(`/signin?next=${encodeURIComponent(location.pathname + location.search)}`);
