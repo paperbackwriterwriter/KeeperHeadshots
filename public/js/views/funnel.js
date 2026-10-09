@@ -80,7 +80,7 @@ export function renderFunnel({ root, navigate }) {
           <div><b>${t.purchases ? money(Math.round(t.revenue / t.purchases)) : "—"}</b><span>average order</span></div>
         </div>
       </section>
-      <p class="small muted funnel-note">Each person is counted once per step, on the day they reach it, so a period's steps can include people who signed up before it. Demo and owner accounts aren't counted. Days with no activity aren't listed. Counting started on 28 Sep 2026. Visitors are in <a class="link" href="https://vercel.com/christianswebsites/keeperheadshots/analytics" target="_blank" rel="noopener">Vercel Analytics</a>.</p>
+      <p class="small muted funnel-note">Each person is counted once per step, on the day (Central time) they reach it, so a period's steps can include people who signed up before it. Demo and owner accounts aren't counted. Days with no activity aren't listed. Counting started on 28 Sep 2026. Visitors are in <a class="link" href="https://vercel.com/christianswebsites/keeperheadshots/analytics" target="_blank" rel="noopener">Vercel Analytics</a>.</p>
       <p class="small muted funnel-scroll-hint">Swipe the table sideways to see every column.</p>
       <div class="panel funnel-table-wrap">
         <table class="funnel-table">

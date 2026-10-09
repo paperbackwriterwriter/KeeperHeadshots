@@ -149,7 +149,7 @@ let previewBytes = 0;
   ok("the account has bought", (await pat("/api/me")).j?.user?.purchased === true);
   const img = await get(pat, file);
   ok("the headshot is now the original, not the preview", img.status === 200 && img.buf.length !== previewBytes, `${img.meta?.width}x${img.meta?.height}`);
-  ok("and cached normally", /immutable/.test(img.cache), img.cache);
+  ok("and cached normally", /max-age=3600/.test(img.cache) && !/no-cache/.test(img.cache), img.cache);
   const dl = await get(pat, `${file}?download=1`);
   ok("downloads drop the preview name", !/preview/.test(dl.disp), dl.disp);
   const count = (await owner("/api/owner/offer", { method: "POST", body: JSON.stringify({ code: `NEW${String(t).slice(-6)}` }) })).j;
@@ -178,7 +178,7 @@ let previewBytes = 0;
   const again = (await kim("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid }) })).j;
   ok("confirming twice grants once", again.granted === false && again.user.extraLooks[prev.id] === 2);
   const img = await get(kim, kimFile);
-  ok("the headshots are now the originals", img.status === 200 && /immutable/.test(img.cache));
+  ok("the headshots are now the originals", img.status === 200 && !/no-cache/.test(img.cache), img.cache);
   ok("the shoot can't be kept twice", (await start({ packageId: "keep", shootId: prev.id })).status === 400);
   const add = (looks) => kim(`/api/shoots/${prev.id}/more-looks`, { method: "POST", body: JSON.stringify({ looks }) });
   ok("extra looks can't repeat one the shoot has", (await add([{ backdrop: "studio-gray", outfit: "navy-suit" }])).status === 400);
@@ -205,7 +205,7 @@ let previewBytes = 0;
   const k = await buy(lee, "keep", leeShoot.id, pick.id);
   ok("'Keep your pick' keeps just that headshot", k.granted === true && k.user.purchased === true && k.user.previewsUnlocked === false && JSON.stringify(k.user.kept[leeShoot.id]) === JSON.stringify([pick.id]) && !k.user.extraLooks[leeShoot.id], JSON.stringify({ kept: k.user?.kept, unlocked: k.user?.previewsUnlocked }));
   const picked = await get(lee, `/media/${pick.file}`);
-  ok("the kept headshot is the original", picked.status === 200 && /immutable/.test(picked.cache), picked.cache);
+  ok("the kept headshot is the original", picked.status === 200 && !/no-cache/.test(picked.cache), picked.cache);
   const pickedSq = await get(lee, `/media/${pick.file}?square=1&download=1`);
   ok("in every size", pickedSq.status === 200 && !/preview/.test(pickedSq.disp), pickedSq.disp);
   const rest = await get(lee, `/media/${other.file}`);
@@ -220,7 +220,7 @@ let previewBytes = 0;
   ok("but the kept one can be offered", (await lee("/api/showcase", { method: "POST", body: JSON.stringify({ shootId: leeShoot.id, shotId: pick.id, name: "Lee", consent: true }) })).status !== 402);
   ok("and nothing to add", (await lee(`/api/shoots/${leeShoot.id}/more-looks`, { method: "POST", body: JSON.stringify({ looks: [{ backdrop: "glass-office", outfit: "navy-suit" }] }) })).status === 400);
   const all = await buy(lee, "keep-plus", leeShoot.id);
-  ok("'Keep them all' after a pick unlocks the rest", all.granted === true && all.user.previewsUnlocked === true && /immutable/.test((await get(lee, `/media/${other.file}`)).cache));
+  ok("'Keep them all' after a pick unlocks the rest", all.granted === true && all.user.previewsUnlocked === true && !/no-cache/.test((await get(lee, `/media/${other.file}`)).cache));
 }
 
 // 4b. A refunded offer stops counting: the preview locks again and unused
@@ -270,6 +270,14 @@ let previewBytes = 0;
   await fetch(`${M}/mock-pay/${sid2}?promo=FREE`, { redirect: "manual" });
   const bought = (await kim("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid2 }) })).j;
   ok("a package bought afterwards is all credits", bought.user.plan.credits === 3, String(bought.user?.plan?.credits));
+}
+
+// 4d. A preview's headshot can turn back into the watermark (a refunded
+// keep), so the browser isn't told to keep it for a year.
+{
+  const file = shoot.shots.find((x) => x.status === "done").file;
+  const cc = (await pat(`/media/${file}`)).r.headers.get("cache-control") || "";
+  ok("a preview's headshot isn't cached for a year", /max-age=3600/.test(cc) && !/immutable/.test(cc), cc);
 }
 
 // 5. A paid shoot is never a preview.

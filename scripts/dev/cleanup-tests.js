@@ -47,7 +47,16 @@ await storage.putJSON("teams/tm_clean1.json", { id: "tm_clean1", ownerId: "usr_t
 await storage.putJSON("invites/tokOLDtokOLDtokOLDtokOLD.json", { teamId: "tm_clean1", inviteId: "inv_old" });
 await storage.putJSON("invites/tokNEWtokNEWtokNEWtokNEW.json", { teamId: "tm_clean1", inviteId: "inv_new" });
 
+// A shoot whose render worker died with nobody polling the page.
+await shoots.create({ id: "sht_stuckGen01", userId: "usr_test", name: "stuck", status: "generating", createdAt: ago(1), selfies: [], shots: [{ id: "shot_s1", lookId: "x", backdrop: "studio-gray", outfit: "navy-suit", take: 0 }] });
+await storage.putJSON("shots/sht_stuckGen01/shot_s1.json", { id: "shot_s1", lookId: "x", backdrop: "studio-gray", outfit: "navy-suit", take: 0, status: "rendering", startedAt: ago(1), claim: "dead-worker" });
+await storage.putJSON("shoots/sht_stuckGen01.json", { ...(await shoots.getMeta("sht_stuckGen01")), updatedAt: ago(1) });
+
 const r = await runCleanup();
+{
+  const stuck = await shoots.getMeta("sht_stuckGen01");
+  ok("a shoot left 'generating' by a dead worker is moved on", stuck && stuck.status !== "generating" && r.stuckAdvanced === 1, `${stuck?.status} advanced=${r.stuckAdvanced}`);
+}
 ok("old undeveloped draft deleted, with its photos", !(await exists("sht_oldDraft01")) && (await storage.list("media/sht_oldDraft01/")).length === 0, JSON.stringify(r));
 ok("recent draft kept", await exists("sht_newDraft01"));
 ok("old developed shoot kept", await exists("sht_oldDone001"));

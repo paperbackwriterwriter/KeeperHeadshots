@@ -30,8 +30,23 @@ export async function saveFormat(id) {
 export const formatHrefs = (file, id = currentFormat()) =>
   id === "portrait" ? [media(file, true)] : id === "square" ? [squareMedia(file)] : [media(file, true), squareMedia(file)];
 
+// Whether a download may go ahead: a link clicked after the session ended
+// would otherwise save the sign-in page as a file. Asks the server first and,
+// if signed out, hands over to the usual sign-in flow.
+export async function canDownload(href) {
+  try {
+    const res = await fetch(href, { method: "HEAD", credentials: "same-origin", redirect: "manual" });
+    if (res.status === 401 || res.type === "opaqueredirect") {
+      document.dispatchEvent(new CustomEvent("ahg:signed-out"));
+      return false;
+    }
+  } catch {}
+  return true;
+}
+
 // Browsers allow several downloads from one click when they're spaced out a little.
 export async function downloadAll(hrefs) {
+  if (!hrefs.length || !(await canDownload(hrefs[0]))) return;
   for (const [i, href] of hrefs.entries()) {
     if (i) await new Promise((r) => setTimeout(r, 350));
     const a = document.createElement("a");
@@ -41,4 +56,19 @@ export async function downloadAll(hrefs) {
     a.click();
     a.remove();
   }
+}
+
+// Download links (<a download>) check the session first, then download as usual.
+export function guardDownloadLinks(root) {
+  root.addEventListener("click", (e) => {
+    const a = e.target.closest("a[download]");
+    if (!a || a.dataset.checked) return;
+    e.preventDefault();
+    canDownload(a.href).then((okay) => {
+      if (!okay) return;
+      a.dataset.checked = "1";
+      a.click();
+      delete a.dataset.checked;
+    });
+  });
 }

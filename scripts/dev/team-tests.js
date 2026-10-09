@@ -258,6 +258,24 @@ let final;
   ok("and the seat develops again", dev2.status === 202, `${dev2.status} ${JSON.stringify(dev2.j)}`);
 }
 
+// 9c. An admin who deletes their account leaves colleagues' seats paid for:
+// the credit went when the invitation was sent.
+{
+  const adm = await account(`gone-admin${t}@x.com`);
+  await buy(adm, "starter");
+  await adm("/api/team", { method: "POST", body: JSON.stringify({ name: "Leavers", looks: LOOKS }) });
+  const gil = `gil${t}@x.com`;
+  const sent = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: gil }) })).j;
+  const gilC = await account(gil);
+  const seat = (await gilC(`/api/join/${tokenOf(sent.results[0].link)}`, { method: "POST" })).j.shootId;
+  await gilC(`/api/shoots/${seat}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(50) }) });
+  await gilC(`/api/shoots/${seat}/check`, { method: "POST", body: "{}" });
+  for (let w = 0; w < 60 && (await gilC(`/api/shoots/${seat}`)).j.shoot.status === "checking"; w++) await new Promise((r) => setTimeout(r, 250));
+  const del = await adm("/api/account/delete", { method: "POST", body: JSON.stringify({ password: "password123" }) });
+  const dev = await gilC(`/api/shoots/${seat}/generate`, { method: "POST", body: JSON.stringify({ looks: LOOKS }) });
+  ok("a colleague's checked seat still develops after the admin deletes their account", del.status === 200 && dev.status === 202, `${del.status} ${dev.status} ${JSON.stringify(dev.j?.error)}`);
+}
+
 // 10. A team seat is paid for by the admin: the member's free photo checks
 // don't gate it and aren't spent on it.
 {

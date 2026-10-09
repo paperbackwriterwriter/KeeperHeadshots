@@ -52,6 +52,10 @@ const freeShoot = await shoot(buyer, { days: 5, status: "done", developed: true 
 await users.update(buyer.id, (u) => void (u.usage = { freeShootUsed: freeShoot }));
 {
   ok("checked but not developed → develop reminder", (await dueReminder(await fresh(dev)))?.kind === "develop");
+  const retake = await person("retake");
+  const retakeShoot = await shoot(retake, { days: 3 });
+  await storage.putJSON(`shoots/${retakeShoot}.json`, { ...(await shoots.getMeta(retakeShoot)), check: { at: ago(3), ok: false, verdict: "retake" }, updatedAt: ago(3) });
+  ok("photos that need a retake get no 'ready to develop' nudge", !(await dueReminder(await fresh(retake))));
   ok("free shoot done, nothing bought → buy reminder", (await dueReminder(await fresh(buyer)))?.kind === "buy");
 
   const tooSoon = await person("soon");

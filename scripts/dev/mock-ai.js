@@ -207,13 +207,20 @@ function stripe(req, res, raw) {
     res.writeHead(302, { location: cancel ? s.cancel_url : s.success_url.replace("{CHECKOUT_SESSION_ID}", s.id) });
     return res.end();
   }
+  // Promotion codes: any code is active except ones containing NOPE (so a
+  // wrong code can be tested); FREE is 100% off, HALF 50%, others 20%.
+  if (req.method === "GET" && url.pathname === "/v1/promotion_codes") {
+    const code = String(url.searchParams.get("code") || "");
+    const data = code && !/NOPE/.test(code) ? [{ id: `promo_${code}`, object: "promotion_code", code, active: true, expires_at: null, coupon: { id: `coupon_${code}`, percent_off: code === "FREE" ? 100 : code === "HALF" ? 50 : 20, amount_off: null } }] : [];
+    return json({ object: "list", data, has_more: false, url: "/v1/promotion_codes" });
+  }
   return json({ error: { type: "invalid_request_error", message: "mock: not found" } }, 404);
 }
 
 http
   .createServer(async (req, res) => {
     const raw = await readBody(req);
-    if (req.url.startsWith("/v1/customers") || req.url.startsWith("/v1/checkout") || req.url.startsWith("/mock-pay") || req.url.startsWith("/mock-refund")) return stripe(req, res, raw);
+    if (req.url.startsWith("/v1/customers") || req.url.startsWith("/v1/checkout") || req.url.startsWith("/v1/promotion_codes") || req.url.startsWith("/mock-pay") || req.url.startsWith("/mock-refund")) return stripe(req, res, raw);
     if (/^\/v\d+\.\d+\/\d+\/events/.test(req.url)) return meta(req, res, raw);
     // Google's token endpoint. The test makes up the "code": base64url JSON
     // with the claims it wants in the ID token, plus the PKCE challenge from

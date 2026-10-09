@@ -5,7 +5,7 @@ import { $, $$, html, raw, icon, api, state, toast, media, squareMedia, sizeMedi
 import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, MAX_RESUMES, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, PREVIEW_OFFERS, lookFor } from "../shared/catalog.js";
 import { portraitDataURL } from "../shared/portrait.js";
 import { aiBanner, planBanner, confirmPurchase } from "./dashboard.js";
-import { currentFormat, formatPicker, formatHrefs, formatName, saveFormat, downloadAll } from "./format.js";
+import { currentFormat, formatPicker, formatHrefs, formatName, saveFormat, downloadAll, guardDownloadLinks } from "./format.js";
 import { mountShare } from "./share.js";
 
 // A free shoot's headshots are watermarked previews until the account buys a
@@ -66,6 +66,7 @@ export async function renderStudio(ctx, id) {
   // completes them either way.
   const aborter = new AbortController();
   const signal = aborter.signal;
+  guardDownloadLinks(root);
 
   const stop = () => {
     clearTimeout(timer);
@@ -205,8 +206,8 @@ export async function renderStudio(ctx, id) {
 
   async function runCheck(e) {
     const restore = e?.currentTarget ? busy(e.currentTarget, "Checking…") : () => {};
-    shoot.status = "checking";
-    shoot.error = null;
+    const before = shoot;
+    shoot = { ...shoot, status: "checking", error: null };
     paintCheck(shoot);
     try {
       const data = await api(`/api/shoots/${id}/check`, { method: "POST" });
@@ -218,7 +219,11 @@ export async function renderStudio(ctx, id) {
     } catch (err) {
       restore();
       if (disposed) return;
+      // Back to what the server says; if it can't be reached either, back to
+      // the page as it was rather than a check that isn't running.
+      shoot = before;
       await refresh();
+      if (shoot === before) paintCheck(shoot);
       if (err.data?.code !== "ai_not_configured") toast(err.message, "error");
       else toast(err.message, "error", 7000);
     }
@@ -621,6 +626,16 @@ export async function renderStudio(ctx, id) {
       } catch (err) {
         restore();
         toast(err.message, "error", 7000);
+        // The shoot may have changed in another tab (photos added, check gone):
+        // re-read it, and leave the looks page if it's no longer ready to develop.
+        if (err.status === 409 || err.status === 400) {
+          const was = shoot;
+          await refresh();
+          if (!disposed && shoot !== was && shoot.status !== "checked") {
+            view = "check";
+            paintCheck(shoot);
+          }
+        }
       }
     });
     sync();
@@ -1205,7 +1220,9 @@ function renderUpload({ root, navigate }) {
   dz.addEventListener("drop", (e) => add(e.dataTransfer.files));
   thumbs.addEventListener("click", (e) => {
     const b = e.target.closest("[data-rm]");
-    if (b) photos.splice(Number(b.dataset.rm), 1), draw();
+    if (!b) return;
+    if (uploading) return toast("Hold on: your photos are uploading.", "info");
+    photos.splice(Number(b.dataset.rm), 1), draw();
   });
   go.addEventListener("click", async () => {
     if (uploading) return;
@@ -1216,11 +1233,13 @@ function renderUpload({ root, navigate }) {
     let shootId = null;
     try {
       ({ shoot: { id: shootId } } = await api("/api/shoots", { method: "POST", body: {} }));
-      // One photo per request keeps each upload small and reliable.
-      for (let i = 0; i < photos.length; i++) {
+      // One photo per request keeps each upload small and reliable. The batch
+      // is fixed here, so nothing added or removed meanwhile changes what's sent.
+      const batch = photos.slice();
+      for (let i = 0; i < batch.length; i++) {
         signal.throwIfAborted();
-        if (label) label.textContent = `Uploading ${i + 1} of ${photos.length}…`;
-        await api(`/api/shoots/${shootId}/selfies`, { method: "POST", body: { photo: photos[i].url }, signal });
+        if (label) label.textContent = `Uploading ${i + 1} of ${batch.length}…`;
+        await api(`/api/shoots/${shootId}/selfies`, { method: "POST", body: { photo: batch[i].url }, signal });
       }
       signal.throwIfAborted();
       sessionStorage.setItem("ahg-autocheck", shootId);

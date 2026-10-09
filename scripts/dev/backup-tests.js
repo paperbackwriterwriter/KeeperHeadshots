@@ -49,6 +49,11 @@ for (let i = 1; i <= KEEP_DAYS + 5; i++) await storage.putFile(`backups/2025-01-
 await runBackup();
 const left = (await storage.list("backups/")).filter((k) => k.endsWith(".json.gz"));
 ok(`keeps the newest ${KEEP_DAYS}`, left.length === KEEP_DAYS && left.includes(r.key), `${left.length} kept`);
+for (let i = 1; i <= 3; i++) await storage.putFile(`backups/2024-12-${String(i).padStart(2, "0")}.json.gz`, Buffer.from("old"), "application/gzip");
+const short = await runBackup({ budgetMs: 0, now: Date.parse("2024-11-30T12:00:00Z") });
+const leftAfterShort = (await storage.list("backups/")).filter((k) => k.endsWith(".json.gz"));
+ok("an incomplete backup prunes nothing, so the last complete one stays", short.complete === false && short.pruned === 0 && leftAfterShort.length === KEEP_DAYS + 4, `complete=${short.complete} pruned=${short.pruned} left=${leftAfterShort.length}`);
+await storage.del(leftAfterShort.filter((k) => k.includes("2024-1")));
 
 // Restore: a deleted account comes back; an existing record isn't overwritten with --missing.
 await storage.del(["users/id/usr_a.json"]);

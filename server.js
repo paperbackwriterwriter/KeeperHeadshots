@@ -23,7 +23,7 @@ import { aiStatus, AIError } from "./lib/ai.js";
 import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, advance, startGeneration, retryFailed, startReview, addLooks } from "./lib/pipeline.js";
 import { lookFor, MAX_LOOKS, MAX_SELFIES, MAX_RESUMES, PHOTO_FORMATS, isPreviewOffer } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
-import { planFor, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, EMAIL_UNCONFIRMED } from "./lib/plan.js";
+import { planFor, ownerEmail, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, EMAIL_UNCONFIRMED } from "./lib/plan.js";
 import { gpc, metaPixelId, track as trackMeta } from "./lib/meta.js";
 import { runCleanup } from "./lib/cleanup.js";
 import { runBackup } from "./lib/backup.js";
@@ -63,6 +63,15 @@ app.post("/api/billing/webhook", express.raw({ type: "application/json" }), asyn
 // Photos are uploaded one per request, which keeps every body well under
 // Vercel's 4.5 MB request limit.
 app.use(express.json({ limit: "4mb" }));
+// A body value that is an object with its own toString/valueOf (or a prototype
+// key) would make String() throw deep in a route; refuse it up front.
+const BAD_KEYS = ["toString", "valueOf", "__proto__", "constructor", "prototype"];
+function tainted(v, depth = 0) {
+  if (!v || typeof v !== "object" || depth > 6) return false;
+  if (!Array.isArray(v) && BAD_KEYS.some((k) => Object.prototype.hasOwnProperty.call(v, k))) return true;
+  return (Array.isArray(v) ? v : Object.values(v)).some((x) => tainted(x, depth + 1));
+}
+app.use((req, res, next) => (tainted(req.body) ? res.status(400).json({ error: "That request isn't valid." }) : next()));
 
 // Every API response names the browser-code version, so tabs opened before a
 // deploy notice and offer a reload (lib/build.js, public/js/core.js).
@@ -110,7 +119,7 @@ app.post("/api/auth/signup", async (req, res) => {
   const { name, email, password } = req.body || {};
   const errors = {};
   if (!name || String(name).trim().length < 2) errors.name = "Tell us what to call you.";
-  else if (String(name).trim().length > 80 || /https?:|www\.|[<>\u0000-\u001f]/i.test(String(name))) errors.name = "Use just your name (up to 80 characters, no links).";
+  else if (String(name).trim().length > 80 || /https?:|www\.|[<>\u0000-\u001f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/i.test(String(name))) errors.name = "Use just your name (up to 80 characters, no links).";
   if (!isEmail(email)) errors.email = "Enter a valid email address.";
   if (!password || String(password).length < 8) errors.password = "Use at least 8 characters.";
   else if (String(password).length > 200) errors.password = "Use 200 characters or fewer.";
@@ -140,7 +149,7 @@ app.post("/api/auth/signup", async (req, res) => {
     console.error("[verify] send failed", user.id, err.message);
     return false;
   });
-  background(recordStep("signup", user).catch(noteStats));
+  if (!ownerEmail(user.email)) background(recordStep("signup", user).catch(noteStats));
   res.status(201).json({ user: publicUser(user), verificationSent });
 });
 
@@ -206,7 +215,7 @@ app.post("/api/auth/signin", async (req, res) => {
 // removed and its other sessions end: the inbox's owner takes it over.
 const safeNextPath = (next) => (typeof next === "string" && /^\/(app(\/|$|\?)|join$)/.test(next) ? next : null);
 const googleRedirectUri = (req) => `${appOrigin(req)}/api/auth/google/callback`;
-const nameOk = (s) => typeof s === "string" && s.trim().length >= 2 && s.trim().length <= 80 && !/https?:|www\.|[<>\u0000-\u001f]/i.test(s);
+const nameOk = (s) => typeof s === "string" && s.trim().length >= 2 && s.trim().length <= 80 && !/https?:|www\.|[<>\u0000-\u001f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/i.test(s);
 const googleCookie = { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" || !!process.env.VERCEL, path: "/api/auth/google" };
 
 app.get("/api/auth/google", (req, res) => {
@@ -619,11 +628,16 @@ function requireAI(kind, res) {
   return true;
 }
 
+// A develop claim older than this with nothing developed is one a crashed
+// instance left behind (see the generate route).
+const STALE_CLAIM_MS = Number(process.env.STALE_CLAIM_MS || 2 * 60 * 1000);
+
 app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   const meta = await ownShoot(req, res, { full: false });
   if (!meta || !requireAI("vision", res)) return;
   if (meta.sample) return res.status(400).json({ error: "Sample shoots are read-only. Start a new shoot to use your own photos." });
   if (!meta.selfies.length) return res.status(400).json({ error: "Add at least one photo first." });
+  if (meta.status === "checking") return res.status(409).json({ error: "A photo check is already running for this shoot." });
   if (!canEditPhotos(meta)) return res.status(409).json({ error: "This shoot has already been developed. Start a new shoot to check new photos." });
   const plan = planFor(req.user);
   if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
@@ -712,7 +726,13 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
   if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
   const claimKey = `claims/develop/${meta.id}.json`;
   if (!(await createJSON(claimKey, { userId: req.user.id, at: new Date().toISOString() }))) {
-    return res.status(409).json({ error: "This shoot is already in progress." });
+    // A claim left behind by a develop that died between charging and writing
+    // the plan (the shoot is still "checked" with nothing developed) is taken
+    // over after a couple of minutes; the charge it made is reused below.
+    const left = await getJSON(claimKey).catch(() => null);
+    const stale = left && left.userId === req.user.id && Date.now() - Date.parse(left.at || 0) > STALE_CLAIM_MS;
+    if (!stale) return res.status(409).json({ error: "This shoot is already in progress." });
+    await putJSON(claimKey, { userId: req.user.id, at: new Date().toISOString(), retaken: true });
   }
   let charged = null;
   try {
@@ -732,6 +752,12 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
       await users.update(req.user.id, (u) => {
         charged = null; // the callback may run again after a write conflict
         const p = planFor(u);
+        // Charged by an earlier try that died before the plan was written: don't charge again.
+        const before = u.developing?.[meta.id];
+        if (before === "free" || before === "credit") {
+          charged = before;
+          return UNCHANGED;
+        }
         if (freeOk && p.freeShootAvailable && ownsMailbox(u)) {
           u.usage = { ...u.usage, freeShootUsed: meta.id };
           charged = "free";
@@ -745,16 +771,19 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
         } else {
           throw new PlanError(NO_SHOOTS_LEFT);
         }
+        u.developing = { ...u.developing, [meta.id]: charged };
       });
       meta.paidWith = charged;
       // The free shoot is a watermarked preview until a package is bought (lib/preview.js).
       if (charged === "free") meta.preview = true;
     }
     const started = await startGeneration(meta, unique);
+    if (charged) await users.update(req.user.id, (u) => (u.developing?.[meta.id] ? void delete u.developing[meta.id] : UNCHANGED)).catch(() => {});
     background(recordStep("developed", req.user).catch(noteStats));
     res.status(202).json({ shoot: started });
   } catch (err) {
     // Nothing was developed: give back whatever was charged and release the claim.
+    if (charged) await users.update(req.user.id, (u) => (u.developing?.[meta.id] ? void delete u.developing[meta.id] : UNCHANGED)).catch(() => {});
     if (charged === "credit") await users.update(req.user.id, teams.giveBack).catch((e) => console.error("[generate] refund credit", e.message));
     if (charged === "free") {
       // Only this shoot's charge comes back, and the mailbox's claim with it.
@@ -1238,7 +1267,22 @@ async function makeSize(size, sid, name, shot) {
 
 // Watermarked previews, most recently used last (see /media below).
 const previewCache = new Map();
-app.get("/media/:sid/:name", requireUser, async (req, res) => {
+// A download link opened after signing out is a page navigation, so it goes
+// to the sign-in page (and back to the shoot) instead of saving an error as a file.
+async function mediaUser(req, res, next) {
+  try {
+    const user = await currentUser(req);
+    if (user) {
+      req.user = user;
+      return next();
+    }
+    if (req.method === "GET" && (req.query.download || /text\/html/.test(req.headers.accept || ""))) return res.redirect(302, `/signin?next=${encodeURIComponent(`/app/shoot/${req.params.sid}`)}`);
+    res.status(401).json({ error: "Please sign in to continue.", code: "signed_out" });
+  } catch (err) {
+    next(err);
+  }
+}
+app.get("/media/:sid/:name", mediaUser, async (req, res) => {
   const { sid, name } = req.params;
   if (!/^[\w-]+$/.test(sid) || !/^[\w-]+\.(jpg|png)$/.test(name)) return res.status(404).end();
   const derived = /-(sq|li|banner|sig)\.(jpg|png)$/.test(name);
@@ -1305,7 +1349,10 @@ app.get("/media/:sid/:name", requireUser, async (req, res) => {
   }
   const buf = await readMedia(`${sid}/${name}`);
   if (!buf) return res.status(404).end();
-  return send(buf, name.endsWith(".png") ? "image/png" : "image/jpeg", `headshot-${base}.${name.split(".").pop()}`, "private, max-age=31536000, immutable");
+  // A preview's clean headshot can go back to the watermark (a refunded keep
+  // or package), so it's cached for an hour rather than a year.
+  const revertible = meta.preview && !(meta.selfies || []).some((p) => p.file === `${sid}/${name}`);
+  return send(buf, name.endsWith(".png") ? "image/png" : "image/jpeg", `headshot-${base}.${name.split(".").pop()}`, revertible ? "private, max-age=3600" : "private, max-age=31536000, immutable");
 });
 
 /* ----------------------------- Examples ----------------------------- */

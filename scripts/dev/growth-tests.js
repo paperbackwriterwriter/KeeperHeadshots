@@ -63,6 +63,7 @@ const t = Date.now();
 {
   const owner = await account(OWNER);
   const before = (await owner("/api/owner/funnel?days=7")).j;
+  await account("funnel-owner2@example.com"); // an owner signing up isn't a sign-up in the funnel
   const email = `funnel${t}@x.com`;
   const f = await account(email);
   const photo = "data:image/jpeg;base64," + (await sharp(Buffer.from(portraitSVG("g", { outfit: "white-shirt" }))).resize(900, 1125).jpeg().toBuffer()).toString("base64");
@@ -79,7 +80,11 @@ const t = Date.now();
   const d = (k) => after.totals[k] - before.totals[k];
   const deltas = { signup: d("signup"), verified: d("verified"), checked: d("checked"), developed: d("developed"), buyer: d("buyer"), purchases: d("purchases"), revenue: d("revenue") };
   ok("funnel counts each step once per person, and free orders aren't sales", dev.status === 202 && deltas.signup === 1 && deltas.verified === 1 && deltas.checked === 1 && deltas.developed === 1 && deltas.buyer === 1 && deltas.purchases === 2 && deltas.revenue === 3900 + 1450, JSON.stringify(deltas));
-  ok("funnel report has one row per day", after.rows.length === 7 && after.rows[0].date === new Date().toISOString().slice(0, 10));
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" });
+  ok("funnel report has one row per day, in Central time", after.rows.length === 7 && after.rows[0].date === today, `${after.rows[0].date} vs ${today}`);
+  const bad = await owner("/api/owner/offer", { method: "POST", body: JSON.stringify({ code: "NOPE-20", discount: "20% off", until: "Sunday" }) });
+  const good = await owner("/api/owner/offer", { method: "POST", body: JSON.stringify({ code: "KEEP20", discount: "20% off", until: "Sunday" }) });
+  ok("an offer code is checked with Stripe before anyone is counted or emailed", bad.status === 400 && /no active promotion code/.test(bad.j?.error || "") && good.status === 200 && good.j.promo?.percentOff === 20, `${bad.status} ${bad.j?.error} / ${good.status} ${JSON.stringify(good.j?.promo)}`);
   const stranger = await f("/api/owner/funnel");
   ok("only owners can see the funnel", stranger.status === 404, String(stranger.status));
 }

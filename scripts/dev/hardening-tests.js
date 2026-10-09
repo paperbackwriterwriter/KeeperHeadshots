@@ -381,6 +381,69 @@ if (process.env.DATA_DIR) {
   ok("reminder and offer emails carry the postal address", addr.test(rem.text) && addr.test(rem.html) && addr.test(off.text) && addr.test(off.html) && !addr.test(v.html));
 }
 
+// 24. A develop claim left by an instance that died between charging and
+// writing the plan is taken over after two minutes, and its charge isn't repeated.
+if (process.env.DATA_DIR) {
+  const f = await account(`claim${t}@x.com`);
+  const uid = (await f("/api/me")).j.user.id;
+  const LOOK = { looks: [{ backdrop: "studio-gray", outfit: "navy-suit" }] };
+  const checked = async () => {
+    const sid = (await f("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;
+    await f(`/api/shoots/${sid}/selfies`, { method: "POST", body: JSON.stringify({ photo }) });
+    await f(`/api/shoots/${sid}/check`, { method: "POST", body: "{}" });
+    for (let w = 0; w < 80 && (await f(`/api/shoots/${sid}`)).j.shoot.status === "checking"; w++) await new Promise((r) => setTimeout(r, 250));
+    return sid;
+  };
+  const claim = (sid, minutesAgo) => {
+    const file = `${process.env.DATA_DIR}/claims/develop/${sid}.json`;
+    fs.mkdirSync(file.replace(/\/[^/]+$/, ""), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify({ userId: uid, at: new Date(Date.now() - minutesAgo * 60_000).toISOString() }));
+  };
+  const s1 = await checked();
+  claim(s1, 1);
+  const fresh = await f(`/api/shoots/${s1}/generate`, { method: "POST", body: JSON.stringify(LOOK) });
+  claim(s1, 3);
+  const taken = await f(`/api/shoots/${s1}/generate`, { method: "POST", body: JSON.stringify(LOOK) });
+  ok("a fresh develop claim is respected, a stale one taken over", fresh.status === 409 && taken.status === 202 && (await f("/api/me")).j.user.plan.freeShootAvailable === false, `${fresh.status} ${taken.status}`);
+  // The earlier try had already charged a credit: it isn't charged again.
+  const { j } = await f("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  const sess = new URL(j.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${sess}?promo=FREE`, { redirect: "manual" });
+  await f("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sess }) });
+  const s2 = await checked();
+  const userFile = `${process.env.DATA_DIR}/users/id/${uid}.json`;
+  const u = JSON.parse(fs.readFileSync(userFile, "utf8"));
+  fs.writeFileSync(userFile, JSON.stringify({ ...u, credits: 2, developing: { [s2]: "credit" } }));
+  claim(s2, 3);
+  const again = await f(`/api/shoots/${s2}/generate`, { method: "POST", body: JSON.stringify(LOOK) });
+  const after = (await f("/api/me")).j.user;
+  ok("a charge made by the earlier try isn't made again", again.status === 202 && after.plan.credits === 2 && !JSON.parse(fs.readFileSync(userFile, "utf8")).developing?.[s2], `${again.status} credits=${after.plan.credits}`);
+}
+
+// 25. Odd request bodies and names.
+{
+  const f = client();
+  const odd = await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: { toString: 1 } }) });
+  const nested = await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Odd Person", email: `odd${t}@x.com`, password: { valueOf: 1 } }) });
+  ok("a body value that can't be turned into text is refused, not a crash", odd.status === 400 && nested.status === 400, `${odd.status} ${nested.status}`);
+  const bidi = await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Ada \u202Egnitekram\u202C Lovelace", email: `bidi${t}@x.com`, password: "password123" }) });
+  const zw = await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Ada\u200B Lovelace", email: `zw${t}@x.com`, password: "password123" }) });
+  ok("names can't carry direction or zero-width characters", bidi.status === 400 && zw.status === 400, `${bidi.status} ${zw.status}`);
+}
+
+// 26. A download link opened after signing out goes to the sign-in page, not to a saved error file.
+{
+  const f = await account(`dl${t}@x.com`);
+  const sid = (await f("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;
+  await f(`/api/shoots/${sid}/selfies`, { method: "POST", body: JSON.stringify({ photo }) });
+  const file = (await f(`/api/shoots/${sid}`)).j.shoot.selfies[0].file;
+  const anon = await fetch(`${B}/media/${file}?download=1`, { redirect: "manual" });
+  const page = await fetch(`${B}/media/${file}`, { redirect: "manual", headers: { accept: "text/html,*/*" } });
+  const xhr = await fetch(`${B}/media/${file}`, { redirect: "manual", headers: { accept: "image/*" } });
+  const head = await fetch(`${B}/media/${file}?download=1`, { method: "HEAD", redirect: "manual" });
+  ok("signed-out download → sign-in page, signed-out image fetch and the page's HEAD check → 401", anon.status === 302 && (anon.headers.get("location") || "").startsWith(`/signin?next=%2Fapp%2Fshoot%2F${sid}`) && page.status === 302 && xhr.status === 401 && head.status === 401, `${anon.status} ${anon.headers.get("location")} ${page.status} ${xhr.status} ${head.status}`);
+}
+
 const passed = results.filter((r) => r[1]).length;
 console.log(`\n${passed}/${results.length} passed`);
 process.exit(passed === results.length ? 0 : 1);
