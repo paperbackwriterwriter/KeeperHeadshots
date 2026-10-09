@@ -1,13 +1,14 @@
 // Prerenders the free-preview watermark (lib/preview.js) with the site's own
-// fonts, into assets/watermark/: a diagonal "PREVIEW" mark that is tiled
-// across each headshot, and a band for the bottom edge. Vercel's servers
+// fonts, into assets/watermark/: rows of "PREVIEW" running diagonally across
+// the whole headshot (one overlay, cropped to each image), and a band for the
+// bottom edge. Vercel's servers
 // have no fonts, so the text is drawn here, once. Re-run after changing it:
 //   npm run watermark
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
-import { TILE, BAND } from "../lib/preview.js";
+import { OVERLAY, BAND } from "../lib/preview.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const font = (f) => `data:font/woff2;base64,${fs.readFileSync(path.join(root, "public", "fonts", f)).toString("base64")}`;
@@ -17,15 +18,19 @@ const head = `<meta charset="utf-8"><style>
 html, body { background: transparent; font-family: Figtree, sans-serif; overflow: hidden; }
 </style>`;
 
-// White text with a dark outline and shadow, so it shows on light and dark
-// backdrops alike. One mark per tile, centred, so tiles never cut a word.
-const tile = `<!doctype html><html><head>${head}<style>
-body { width: ${TILE.w}px; height: ${TILE.h}px; display: grid; place-items: center; }
-.m { transform: rotate(-30deg); text-align: center; color: rgba(255,255,255,0.66);
-  -webkit-text-stroke: 1.4px rgba(20,33,61,0.6); text-shadow: 0 2px 6px rgba(0,0,0,0.35); font-weight: 800; line-height: 1; white-space: nowrap; }
-.m b { display: block; font-size: 58px; letter-spacing: 0.12em; }
-.m small { display: block; font-size: 18px; letter-spacing: 0.3em; margin-top: 8px; font-weight: 700; }
-</style></head><body><div class="m"><b>PREVIEW</b><small>KEEPER HEADSHOTS</small></div></body></html>`;
+// Semi-transparent white words with a soft shadow, so they show on light and
+// dark backdrops alike: staggered rows, tilted 30 degrees, covering the whole
+// overlay (the rotated block is larger than it, so no corner is left bare).
+const words = Array.from({ length: 9 }, () => "<i>PREVIEW</i>").join("");
+const rows = Array.from({ length: 22 }, (_, r) => `<div class="row${r % 2 ? " off" : ""}">${words}</div>`).join("");
+const overlay = `<!doctype html><html><head>${head}<style>
+body { width: ${OVERLAY.w}px; height: ${OVERLAY.h}px; position: relative; }
+.wall { position: absolute; left: 50%; top: 50%; width: 2000px; transform: translate(-50%, -50%) rotate(-30deg); display: grid; gap: 58px; }
+.row { display: flex; gap: 64px; white-space: nowrap; justify-content: center; }
+.row.off { transform: translateX(105px); }
+i { font-style: normal; font-size: 34px; font-weight: 700; letter-spacing: 0.1em; color: rgba(255,255,255,0.62);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.35), 0 0 1px rgba(20,33,61,0.5); }
+</style></head><body><div class="wall">${rows}</div></body></html>`;
 
 const band = `<!doctype html><html><head>${head}<style>
 body { width: ${BAND.w}px; height: ${BAND.h}px; background: rgba(20,33,61,0.92); color: #f7f2e9; display: flex; align-items: center; justify-content: center; gap: 16px; font-size: 22px; font-weight: 600; white-space: nowrap; }
@@ -37,7 +42,7 @@ const exe = [process.env.CHROMIUM_PATH, "/opt/pw-browsers/chromium"].find((p) =>
 const browser = await chromium.launch(exe ? { executablePath: exe } : {});
 const out = path.join(root, "assets", "watermark");
 fs.mkdirSync(out, { recursive: true });
-for (const [name, markup, size] of [["tile", tile, TILE], ["band", band, BAND]]) {
+for (const [name, markup, size] of [["overlay", overlay, OVERLAY], ["band", band, BAND]]) {
   const page = await browser.newPage({ viewport: { width: size.w, height: size.h }, deviceScaleFactor: 1 });
   await page.setContent(markup);
   await page.evaluate(() => document.fonts.ready);
