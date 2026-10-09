@@ -87,7 +87,7 @@ let entry;
 {
   ok("permission is required", (await offer(dana, shoot, shotA, { consent: undefined })).status === 400);
   ok("a name is required", (await offer(dana, shoot, shotA, { name: "  " })).status === 400);
-  ok("a name can't carry a link or address", (await offer(dana, shoot, shotA, { name: "Ira http://x.y" })).status === 400 && (await offer(dana, shoot, shotA, { name: "ira@x.y" })).status === 400);
+  ok("a name can't carry a link or address", (await offer(dana, shoot, shotA, { name: "Ira http://x.y" })).status === 400 && (await offer(dana, shoot, shotA, { name: "ira@x.y" })).status === 400 && (await offer(dana, shoot, shotA, { name: "evil.com" })).status === 400 && (await offer(dana, shoot, shotA, { name: "ｗｗｗ.evil.example" })).status === 400);
   ok("it must be a finished headshot of the shoot", (await offer(dana, shoot, { id: "shot_nope" })).status === 400);
   const other = await account(`other${t}@x.com`);
   ok("someone else's shoot can't be offered", (await offer(other, shoot, shotA)).status === 404);
@@ -147,7 +147,12 @@ let entry;
   const lee = await account(`lee${t}@x.com`, "Lee Park");
   const s2 = await doneShoot(lee);
   await buy(lee);
-  const r2 = await offer(lee, s2, s2.shots.find((x) => x.status === "done"), { name: "Lee" });
+  // A form submitted twice in the same moment still leaves one entry.
+  const leeShot = s2.shots.find((x) => x.status === "done");
+  const [p, q] = await Promise.all([offer(lee, s2, leeShot, { name: "Lee" }), offer(lee, s2, leeShot, { name: "Lee" })]);
+  const leeEntries = (await owner("/api/owner/showcase")).j.entries.filter((e) => e.email === `lee${t}@x.com`);
+  const r2 = { j: { entry: (await lee("/api/showcase/mine")).j.entry } };
+  ok("two offers at once leave one entry", p.status === 200 && q.status === 200 && leeEntries.length === 1 && r2.j.entry && leeEntries[0].id === r2.j.entry.id, JSON.stringify({ p: p.status, q: q.status, entries: leeEntries.length }));
   await owner(`/api/owner/showcase/${r2.j.entry.id}`, { method: "POST", body: JSON.stringify({ status: "approved" }) });
   await lee("/api/account/delete", { method: "POST", body: JSON.stringify({ password: "password123" }) });
   ok("deleting the account removes it", !(await shown()).includes(r2.j.entry.id) && (await anon(`/showcase/${r2.j.entry.id}.webp`)).status === 404);

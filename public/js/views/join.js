@@ -43,7 +43,7 @@ export async function renderJoin({ root, navigate }) {
   const sameEmail = me && me.email.toLowerCase() === inv.email;
   const intro = html`<p class="eyebrow">${icon("users")} Team invitation</p>
     <h1 class="display h-2">${inv.team.ownerName} invited you to get your ${inv.team.name} headshot.</h1>
-    <p class="lede">Your shoot is already paid for and set to the team's look, so everyone matches. Upload a few recent photos of just you, and your headshots are ready in minutes.</p>
+    <p class="lede">Your shoot is already paid for and set to the team's looks, so everyone matches. Upload a few recent photos of just you, and your headshots are ready in minutes.</p>
     <div class="join-looks">${inv.team.looks.map((l) => html`<span class="chip">${l}</span>`)}</div>
     <p class="small muted">Your photos stay private. ${inv.team.ownerName} will see and can download your finished headshots.</p>`;
 

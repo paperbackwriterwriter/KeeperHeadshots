@@ -21,7 +21,7 @@ import { isPreview, isKept, watermark } from "./lib/preview.js";
 import { reviewShoots, sendOffer } from "./lib/outreach.js";
 import { aiStatus, AIError } from "./lib/ai.js";
 import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, advance, startGeneration, retryFailed, startReview, addLooks } from "./lib/pipeline.js";
-import { lookFor, MAX_LOOKS, MAX_SELFIES, PHOTO_FORMATS, isPreviewOffer } from "./public/js/shared/catalog.js";
+import { lookFor, MAX_LOOKS, MAX_SELFIES, MAX_RESUMES, PHOTO_FORMATS, isPreviewOffer } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
 import { planFor, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, EMAIL_UNCONFIRMED } from "./lib/plan.js";
 import { gpc, metaPixelId, track as trackMeta } from "./lib/meta.js";
@@ -89,7 +89,6 @@ const DUMMY_HASH = await hashPassword("not-a-real-password");
 const LIVE = ["checking", "generating", "reviewing"];
 // Funnel counting never fails the request it records (lib/stats.js).
 const noteStats = (err) => console.warn("[stats]", err.message);
-const MAX_RESUMES = 3;
 
 /* ------------------------------- Auth ------------------------------- */
 
@@ -682,7 +681,7 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
       await users
         .update(req.user.id, (u) => {
           const d = u.usage?.checkDay;
-          u.usage = { ...u.usage, checks: Math.max(0, (u.usage?.checks || 0) - 1), ...(d?.date === today ? { checkDay: { date: today, n: Math.max(0, d.n - 1) } } : {}) };
+          u.usage = { ...u.usage, ...(teamSeat ? {} : { checks: Math.max(0, (u.usage?.checks || 0) - 1) }), ...(d?.date === today ? { checkDay: { date: today, n: Math.max(0, d.n - 1) } } : {}) };
         })
         .catch(() => {});
     throw err;
@@ -717,7 +716,8 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
   }
   let charged = null;
   try {
-    // A team shoot was paid for when its invite was sent.
+    // A team shoot was paid for when its invite was sent, unless a refund since took that back.
+    if (meta.team && !(await teams.seatPaid(meta))) throw new PlanError("This team shoot is no longer paid for. Ask your team admin to buy a package or get in touch with us.", "team_unpaid", 402);
     if (plan.tier !== "owner" && !meta.team) {
       if (plan.needsEmail && !plan.credits) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
       // One free shoot per mailbox, however the address is written.
@@ -755,7 +755,7 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
     res.status(202).json({ shoot: started });
   } catch (err) {
     // Nothing was developed: give back whatever was charged and release the claim.
-    if (charged === "credit") await users.update(req.user.id, (u) => (u.credits = (u.credits || 0) + 1)).catch((e) => console.error("[generate] refund credit", e.message));
+    if (charged === "credit") await users.update(req.user.id, teams.giveBack).catch((e) => console.error("[generate] refund credit", e.message));
     if (charged === "free") {
       // Only this shoot's charge comes back, and the mailbox's claim with it.
       await users.update(req.user.id, (u) => (u.usage?.freeShootUsed === meta.id ? void (u.usage = { ...u.usage, freeShootUsed: null }) : UNCHANGED)).catch((e) => console.error("[generate] refund free", e.message));
@@ -922,7 +922,11 @@ async function sendInvite(req, team, inv) {
 // The admin's team: its looks and each person's progress.
 app.get("/api/team", requireUser, async (req, res) => {
   res.set("Cache-Control", "no-store");
-  res.json({ team: await teams.teamStatus(req.user), credits: planFor(req.user).credits || 0, email: mailEnabled() });
+  const team = await teams.teamStatus(req.user);
+  // Listing can lapse an invitation and hand its shoot back, so the page
+  // gets the account as it is now, not as it was when it loaded.
+  const user = (await users.byId(req.user.id)) || req.user;
+  res.json({ team, credits: planFor(user).credits || 0, email: mailEnabled(), user: publicUser(user) });
 });
 
 app.post("/api/team", requireUser, async (req, res) => {

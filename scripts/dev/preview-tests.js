@@ -251,6 +251,27 @@ let previewBytes = 0;
   ok("syncing again changes nothing", again.removed === 0 && again.user.previewsUnlocked === false);
 }
 
+// 4c. A refund after credits were spent on developed shoots: the next package
+// is whole (a debt is only for credits sitting on team seats).
+{
+  const kim = await account(`kimlo${t}@x.com`, "Kim Lo");
+  const { j } = await kim("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  const sid = new URL(j.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${sid}`, { redirect: "manual" });
+  await kim("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid }) });
+  await doneShoot(kim); // the free preview
+  await doneShoot(kim); // a credit shoot
+  ok("one credit was spent", (await kim("/api/me")).j.user.plan.credits === 2);
+  await fetch(`${M}/mock-refund/${sid}`);
+  const synced = (await kim("/api/billing/sync", { method: "POST", body: "{}" })).j;
+  ok("the refund takes back what's left", synced.removed === 3 && synced.user.plan.credits === 0, JSON.stringify({ removed: synced.removed, credits: synced.user?.plan?.credits }));
+  const again = await kim("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  const sid2 = new URL(again.j.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${sid2}?promo=FREE`, { redirect: "manual" });
+  const bought = (await kim("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid2 }) })).j;
+  ok("a package bought afterwards is all credits", bought.user.plan.credits === 3, String(bought.user?.plan?.credits));
+}
+
 // 5. A paid shoot is never a preview.
 {
   const paid = await doneShoot(pat);

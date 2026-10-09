@@ -2,7 +2,7 @@
 //   (new) upload -> draft/checking -> checked (photo check + looks) -> generating/reviewing -> done (proofs)
 
 import { $, $$, html, raw, icon, api, state, toast, media, squareMedia, sizeMedia, PROFILE_KIT, busy, spinner, greaseCircle, silhouette, esc, reduceMotion, loadSession } from "../core.js";
-import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, PREVIEW_OFFERS, lookFor } from "../shared/catalog.js";
+import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, MAX_RESUMES, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, PREVIEW_OFFERS, lookFor } from "../shared/catalog.js";
 import { portraitDataURL } from "../shared/portrait.js";
 import { aiBanner, planBanner, confirmPurchase } from "./dashboard.js";
 import { currentFormat, formatPicker, formatHrefs, formatName, saveFormat, downloadAll } from "./format.js";
@@ -633,19 +633,23 @@ export async function renderStudio(ctx, id) {
     if (t.status === "done") return html`<div class="frame done" data-id="${t.id}" data-status="${frameKey(t)}"><img src="${media(t.file)}" alt="Headshot ${i + 1}: ${lookName(t.backdrop, t.outfit)}" /><div class="fcap">${label}</div></div>`;
     if (t.status === "error") {
       const held = !!t.qa;
-      return html`<div class="frame error" data-id="${t.id}" data-status="${frameKey(t)}" title="${t.error}"><div>${icon(held ? "shield-check" : "circle-alert")}<b>Frame ${i + 1} ${held ? "held back" : "failed"}</b><div style="opacity:.8;margin-top:4px">${held ? "It didn't pass our quality check. Retry it for free." : String(t.error || "").slice(0, 90)}</div></div></div>`;
+      return html`<div class="frame error" data-id="${t.id}" data-status="${frameKey(t)}" title="${t.error}"><div>${icon(held ? "shield-check" : "circle-alert")}<b>Frame ${i + 1} ${held ? "held back" : "failed"}</b><div style="opacity:.8;margin-top:4px">${held ? "It didn't pass our quality check." : String(t.error || "").slice(0, 90)}</div></div></div>`;
     }
     const stage = t.status !== "rendering" ? "Queued" : t.stage === "qa" ? "Quality check" : t.attempt > 1 ? `Retake ${t.attempt}` : "Developing";
     return html`<div class="frame ${t.status}" data-id="${t.id}" data-status="${frameKey(t)}" role="img" aria-label="Frame ${i + 1}: ${stage.toLowerCase()}">${silhouette()}
       <span class="frame-state">${t.status === "rendering" ? html`<span class="badge badge-live">${stage}</span>` : html`<span class="badge" style="background:rgba(245,241,234,.1);color:#a9b1bd">Queued</span>`}</span><div class="fcap">${label}</div></div>`;
   }
 
+  // The free retries are used up: the fix is a word with us, not another click.
+  const noRetries = (s) => (s.resumes || 0) >= MAX_RESUMES;
+  const NO_RETRIES_MSG = "These frames didn't develop after several tries. Contact us and we'll sort it out.";
+
   function developCopy(s) {
     const done = s.shots.filter((x) => x.status === "done").length;
     const failed = s.shots.filter((x) => x.status === "error").length;
     const total = s.shots.length;
     if (s.status === "reviewing") return { title: "Your retoucher is grading the set", sub: `All ${plural(done, "headshot")} developed. Now scoring likeness, polish and lighting, and picking your best shot…`, pct: 96, done, total, failed };
-    if (s.status === "error") return { title: "The shoot hit a snag", sub: s.error || "Some frames couldn't be developed.", pct: (done / total) * 100, done, total, failed };
+    if (s.status === "error") return { title: "The shoot hit a snag", sub: noRetries(s) ? NO_RETRIES_MSG : s.error || "Some frames couldn't be developed.", pct: (done / total) * 100, done, total, failed };
     // Every studio slot is busy with other shoots: this one starts next.
     if (s.queued) return { title: done ? `${done} of ${total} developed` : "Your shoot is next in line", sub: "The studio is busy with other shoots right now. Your frames start as soon as a slot frees up, usually within a minute or two. Keep this page open; if you leave, the shoot picks up again when you come back.", pct: Math.max(4, ((done + failed) / total) * 92), done, total, failed };
     return { title: done ? `${done} of ${total} developed` : "Developing your headshots", sub: "Each frame is rendered from your reference photos, then checked for likeness and polish before you see it. Anything that falls short is retaken automatically. Keep this page open while they develop; if you leave, the shoot picks up again when you come back.", pct: Math.max(4, ((done + failed) / total) * 92), done, total, failed };
@@ -667,7 +671,7 @@ export async function renderStudio(ctx, id) {
 
   function developActions(s) {
     const failed = s.shots.filter((x) => x.status === "error").length;
-    if (s.status === "error" || (failed && !LIVE.includes(s.status))) return html`<button class="btn btn-flash" id="resume">${icon("refresh-cw")} Retry ${failed} failed frame${failed === 1 ? "" : "s"}</button>`;
+    if (s.status === "error" || (failed && !LIVE.includes(s.status))) return noRetries(s) ? html`<a class="btn btn-ink" href="/contact" data-link>${icon("mail")} Contact us about this shoot</a>` : html`<button class="btn btn-flash" id="resume">${icon("refresh-cw")} Retry ${failed} failed frame${failed === 1 ? "" : "s"}</button>`;
     if (s.status === "reviewing") return html`<span class="badge badge-live">Grading</span>`;
     return html`<span class="mono muted tabular" id="elapsed"></span>`;
   }
@@ -786,7 +790,7 @@ export async function renderStudio(ctx, id) {
       ${extraLooks(s) ? html`<div class="banner banner-info extra-banner">${icon("sparkles")}<div><b>You have ${plural(extraLooks(s), "extra look")} to add to this shoot.</b>Pick the backdrops and outfits, and we'll develop ${extraLooks(s) * TAKES_PER_LOOK} more headshots beside these.</div><button class="btn btn-sm btn-flash" type="button" id="pickExtra">${icon("plus")} Pick your looks</button></div>` : ""}
       ${s.sample ? html`<div class="banner banner-info">${icon("info")}<div><b>This is a sample shoot.</b>It shows exactly what your proofs will look like — sample images are illustrations. Start a new shoot to develop real headshots from your photos.</div><a class="btn btn-sm btn-flash" href="/app/new" data-link>New shoot</a></div>` : ""}
       ${s.reviewError ? html`<div class="banner banner-warn">${icon("circle-alert")}<div><b>Your headshots are ready, but grading didn't finish.</b>${s.reviewError}</div><button class="btn btn-sm btn-ink" id="regrade">${icon("refresh-cw")} Retry grading</button></div>` : ""}
-      ${failed ? html`<div class="banner banner-warn">${icon("circle-alert")}<div><b>${failed} frame${failed === 1 ? "" : "s"} didn't develop.</b>You can retry just those frames — the rest stay as they are.</div><button class="btn btn-sm btn-ink" id="resume">${icon("refresh-cw")} Retry</button></div>` : ""}
+      ${failed ? html`<div class="banner banner-warn">${icon("circle-alert")}<div><b>${failed} frame${failed === 1 ? "" : "s"} didn't develop${noRetries(s) ? " after several tries" : ""}.</b>${noRetries(s) ? "Contact us and we'll sort it out." : "You can retry just those frames — the rest stay as they are."}</div>${noRetries(s) ? html`<a class="btn btn-sm btn-ink" href="/contact" data-link>${icon("mail")} Contact us</a>` : html`<button class="btn btn-sm btn-ink" id="resume">${icon("refresh-cw")} Retry</button>`}</div>` : ""}
 
       <section class="proof-hero">
         <div class="best-print">

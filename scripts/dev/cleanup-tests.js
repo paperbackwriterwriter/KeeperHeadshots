@@ -12,7 +12,7 @@ delete process.env.BLOB_READ_WRITE_TOKEN;
 delete process.env.BLOB_STORE_ID;
 const storage = await import("../../lib/storage.js");
 const { shoots, saveMedia } = await import("../../lib/store.js");
-const { INVITE_TTL_DAYS } = await import("../../lib/teams.js");
+const { INVITE_TTL_DAYS, markSent } = await import("../../lib/teams.js");
 const { runCleanup } = await import("../../lib/cleanup.js");
 
 const results = [];
@@ -59,6 +59,9 @@ ok("full run reports finished", r.finished === true);
 {
   const team = await storage.getJSON("teams/tm_clean1.json");
   const adm = await storage.getJSON("users/id/usr_teamadm.json");
+  await markSent("tm_clean1", "inv_new");
+  const resent = (await storage.getJSON("teams/tm_clean1.json")).invites.inv_new;
+  ok("resending an invitation restarts its 90 days", Date.now() - Date.parse(resent.invitedAt) < 60_000 && resent.sentAt === resent.invitedAt);
   ok("an invitation older than 90 days lapses and gives the shoot back", r.invitesExpired === 1 && team.invites.inv_old.status === "expired" && team.invites.inv_new.status === "invited" && adm.credits === 1 && !(await storage.getJSON("invites/tokOLDtokOLDtokOLDtokOLD.json")) && !!(await storage.getJSON("invites/tokNEWtokNEWtokNEWtokNEW.json")), JSON.stringify({ expired: r.invitesExpired, credits: adm.credits }));
 }
 

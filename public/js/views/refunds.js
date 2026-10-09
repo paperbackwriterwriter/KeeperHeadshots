@@ -3,7 +3,7 @@ import { footer } from "./landing.js";
 import { CONTACT_EMAIL } from "./contact.js";
 
 // The written terms behind the "money-back guarantee" shown on the site.
-export const POLICY_UPDATED = "October 2, 2026";
+export const POLICY_UPDATED = "October 9, 2026";
 
 export function renderRefunds({ root }) {
   root.innerHTML = html`
@@ -38,7 +38,7 @@ export function renderRefunds({ root }) {
       <ul>
         <li>We refund the original payment method through Stripe, our payment provider. Most banks show it within 5–10 business days.</li>
         <li>Any shoots left from the refunded package are removed from your account.</li>
-        <li>Please don't use headshots from a refunded shoot.</li>
+        <li>Please don't use headshots from a refunded shoot. If you shared one for our home page, it comes down with the refund.</li>
       </ul>
 
       <h2 class="h-3">Before you ask</h2>

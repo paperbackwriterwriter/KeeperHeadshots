@@ -106,7 +106,7 @@ export function renderBuy({ root }, packageId) {
           <h1 class="display h-2" id="order-title">${offer ? pkg.name : `${pkg.name} package`}</h1>
           <p class="checkout-price"><strong class="tabular">$${pkg.price}</strong><span>one-time · no subscription</span></p>
           <ul class="checkout-features">${pkg.features.map((f) => html`<li>${icon("check")}<span>${f}</span></li>`)}</ul>
-          <p class="checkout-note">${icon("shield-check")}<span>Covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>. ${offer ? "Your headshots stay in your account to download any time." : "Unused shoots don't expire while your account is open."}</span></p>
+          <p class="checkout-note">${icon("shield-check")}<span>${offer ? "One-time payment. Your headshots stay in your account to download any time." : html`Your first package is covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>. Unused shoots don't expire while your account is open.`}</span></p>
           <p class="small muted">${offer ? (others.length ? "Rather have" : "") : "Want a different package?"} ${others.map((p, i) => html`${i ? " or " : ""}<a class="link" href="${link(p)}" data-link>${p.name} ($${p.price})</a>`)}${offer ? html`${others.length ? "? Or a" : "Or a"} package for more shoots: ${PACKAGES.map((p, i) => html`${i ? ", " : ""}<a class="link" href="/app/buy/${p.id}" data-link>${p.name} ($${p.price})</a>`)}` : ""}.</p>
         </section>
         <section class="checkout-pay" aria-label="Payment">

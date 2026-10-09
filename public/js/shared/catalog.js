@@ -77,6 +77,8 @@ export const OUTFITS = [
 ];
 
 // The flow caps a single shoot so every run finishes in a few minutes.
+// Free retries of a shoot's failed frames (server.js); after that it's a support case.
+export const MAX_RESUMES = 3;
 export const MAX_LOOKS = 4;
 export const TAKES_PER_LOOK = 2;
 export const MAX_SELFIES = 6;

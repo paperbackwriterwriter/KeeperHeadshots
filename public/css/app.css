@@ -222,8 +222,12 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
   text-transform: uppercase;
   color: var(--text-muted);
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--s-2);
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .mono { font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.04em; }
@@ -290,7 +294,9 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .nav-actions { margin-left: auto; display: flex; align-items: center; gap: var(--s-2); }
 .nav-toggle { display: none; }
 .nav-sheet { display: none; }
-@media (max-width: 900px) {
+/* 56.25em is 900px at the default text size; with a larger default (large
+   text in the browser or OS) the menu collapses sooner, so it never overflows. */
+@media (max-width: 56.25em) {
   .nav-links, .nav-actions .hide-m { display: none; }
   .nav-toggle { display: inline-flex; }
   .nav-sheet { display: block; position: fixed; inset: 72px 0 auto 0; max-height: calc(100dvh - 72px); overflow-y: auto; overscroll-behavior: contain; background: var(--bg); border-bottom: 1px solid var(--border); padding: var(--s-4) var(--gutter) var(--s-5); transform: translateY(-8px); opacity: 0; visibility: hidden; transition: all var(--dur-2) var(--ease-out); box-shadow: var(--shadow-2); }

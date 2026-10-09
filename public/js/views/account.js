@@ -36,7 +36,7 @@ export function renderAccount({ root, navigate }) {
       ? ""
       : html`<section class="panel prefs" aria-labelledby="team-title">
       <h2 class="h-3" id="team-title">Team headshots</h2>
-      <p class="muted">${u.hasTeam ? "Invite colleagues, follow their progress and download everyone's headshots." : "Buying for a team? Pick one look and invite colleagues by email. Each person adds their own selfies, and everyone's headshots match."}</p>
+      <p class="muted">${u.hasTeam ? "Invite colleagues, follow their progress and download everyone's headshots." : "Buying for a team? Pick the team's looks and invite colleagues by email. Each person adds their own selfies, and everyone's headshots match."}</p>
       <div class="security-actions"><a class="btn btn-ghost" href="/app/team" data-link>${icon("users")} ${u.hasTeam ? "Open my team" : "Set up a team"}</a></div>
     </section>`}
 
@@ -60,7 +60,7 @@ export function renderAccount({ root, navigate }) {
       ? ""
       : html`<section class="panel prefs" aria-labelledby="reminders-title">
       <h2 class="h-3" id="reminders-title">Reminder emails</h2>
-      <p class="muted">At most two, ever: one if your photos pass the check but you haven't developed them, and one after your free shoot or an unfinished checkout. Emails about your account and orders always arrive.</p>
+      <p class="muted">At most two reminders, ever: one if your photos pass the check but you haven't developed them, and one after your free shoot or an unfinished checkout. If you haven't bought, we may occasionally email an offer, such as a discount code; this switch stops those too. Emails about your account and orders always arrive.</p>
       <label class="check"><input type="checkbox" id="remindersOn" ${u.emailReminders !== false ? raw("checked") : ""} /> <span>Send me reminder emails</span></label>
     </section>`}
 

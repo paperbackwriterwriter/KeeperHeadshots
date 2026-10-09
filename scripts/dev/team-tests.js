@@ -119,7 +119,9 @@ let final;
 
 // 6. The admin sees progress and can download finished headshots, never selfies.
 {
-  const r = (await admin("/api/team")).j.team;
+  const status = (await admin("/api/team")).j;
+  const r = status.team;
+  ok("the team page gets the account as it is now", typeof status.user?.id === "string" && typeof status.user?.plan?.credits === "number" && status.user.plan.credits === status.credits, JSON.stringify({ user: status.user?.plan, credits: status.credits }));
   const m = r.members.find((x) => x.email === alice);
   ok("admin sees the member's progress", m?.status === "joined" && m.shootStatus === "done" && m.done > 0 && !!m.pick, JSON.stringify(m));
   const [sid, name] = m.pick.split("/");
@@ -197,10 +199,45 @@ let final;
   await fetch(`${M}/mock-refund/${sid}`);
   const synced = (await admin2("/api/billing/sync", { method: "POST", body: "{}" })).j;
   ok("the refund finds nothing left to take back", synced.removed === 3 && (await credits(admin2)) === 0, JSON.stringify(synced));
-  const ids = (await admin2("/api/team")).j.team.members.map((m) => m.id);
-  await admin2(`/api/team/invites/${ids[0]}`, { method: "DELETE" });
-  await admin2(`/api/team/invites/${ids[1]}`, { method: "DELETE" });
-  ok("cancelled invites don't hand refunded credits back", (await credits(admin2)) === 0, String(await credits(admin2)));
+  const members = (await admin2("/api/team")).j.team.members;
+  ok("the refund withdraws the open invitations", members.filter((m) => m.status === "invited").length === 0 && (await client()(`/api/join/${tokenOf(sent.results[0].link)}`)).status === 404, JSON.stringify(members.map((m) => m.status)));
+  ok("nothing is handed back", (await credits(admin2)) === 0, String(await credits(admin2)));
+  const again = await admin2("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  const sid2 = new URL(again.j.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${sid2}`, { redirect: "manual" });
+  await admin2("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid2 }) });
+  ok("a new package after a settled refund is all credits", (await credits(admin2)) === 3, String(await credits(admin2)));
+}
+
+// 9b. A refund after a colleague already accepted: their seat is no longer
+// paid for until the admin buys again.
+{
+  const admin4 = await account(`debt-admin${t}@x.com`);
+  const { j } = await admin4("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  const sid = new URL(j.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${sid}`, { redirect: "manual" });
+  await admin4("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid }) });
+  await admin4("/api/team", { method: "POST", body: JSON.stringify({ name: "Debtors", looks: LOOKS }) });
+  const eve = `eve${t}@x.com`;
+  const sent = (await admin4("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: `${eve}, spare.${t}@x.com, spare2.${t}@x.com` }) })).j;
+  const member = await account(eve);
+  const seat = (await member(`/api/join/${tokenOf(sent.results.find((r) => r.email === eve).link)}`, { method: "POST" })).j.shootId;
+  await member(`/api/shoots/${seat}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(31) }) });
+  await member(`/api/shoots/${seat}/check`, { method: "POST", body: "{}" });
+  for (let w = 0; w < 60 && (await member(`/api/shoots/${seat}`)).j.shoot.status === "checking"; w++) await new Promise((r) => setTimeout(r, 250));
+  await fetch(`${M}/mock-refund/${sid}`);
+  await admin4("/api/billing/sync", { method: "POST", body: "{}" });
+  const after = (await admin4("/api/team")).j.team.members;
+  ok("the two open invitations are withdrawn, the taken seat stays listed", after.filter((m) => m.status === "invited").length === 0 && after.some((m) => m.email === eve && m.status === "joined"), JSON.stringify(after.map((m) => [m.email === eve, m.status])));
+  const dev = await member(`/api/shoots/${seat}/generate`, { method: "POST", body: JSON.stringify({ looks: LOOKS }) });
+  ok("the taken seat can't develop while the refund debt stands", dev.status === 402 && dev.j?.code === "team_unpaid", `${dev.status} ${JSON.stringify(dev.j)}`);
+  const buy2 = await admin4("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  const sid2 = new URL(buy2.j.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${sid2}?promo=FREE`, { redirect: "manual" });
+  await admin4("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid2 }) });
+  ok("a new package settles the debt first", (await credits(admin4)) === 2, String(await credits(admin4)));
+  const dev2 = await member(`/api/shoots/${seat}/generate`, { method: "POST", body: JSON.stringify({ looks: LOOKS }) });
+  ok("and the seat develops again", dev2.status === 202, `${dev2.status} ${JSON.stringify(dev2.j)}`);
 }
 
 // 10. A team seat is paid for by the admin: the member's free photo checks

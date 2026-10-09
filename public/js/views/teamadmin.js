@@ -12,7 +12,7 @@ const STATUS = {
   joined: ["Joined", "badge badge-info"],
   returned: ["Shoot returned", "badge badge-muted"],
   deleted: ["Shoot deleted", "badge badge-muted"],
-  expired: ["Expired", "badge badge-muted"],
+  expired: ["Expired · shoot returned", "badge badge-muted"],
 };
 const shootLabel = (m) => {
   if (m.status !== "joined") return STATUS[m.status] || [m.status, "badge"];
@@ -26,7 +26,11 @@ const lookLabel = (l) => `${BACKDROPS.find((b) => b.id === l.backdrop)?.name || 
 export async function renderTeamAdmin({ root, navigate }) {
   let data;
   let disposed = false;
-  const load = async () => (data = await api("/api/team"));
+  const load = async () => {
+    data = await api("/api/team");
+    if (data.user) state.user = data.user; // a lapsed invitation may just have handed a shoot back
+    return data;
+  };
   try {
     await load();
   } catch (err) {
@@ -49,7 +53,7 @@ export async function renderTeamAdmin({ root, navigate }) {
     let looks = team?.looks?.length ? team.looks.map((l) => ({ ...l })) : [{ backdrop: "glass-office", outfit: "navy-suit" }];
     root.innerHTML = html`<main id="main" class="container app-main view-enter team-admin">
       <div class="page-head"><div><p class="eyebrow">Team headshots</p><h1 class="display h-1" style="margin-top:8px">${team ? "Team settings" : "Set up your team"}</h1>
-      <p class="lede" style="margin-top:12px">Choose the look everyone gets, so your team page matches. Then invite people by email: each invite uses one of your shoots, and each person uploads their own selfies.</p></div></div>
+      <p class="lede" style="margin-top:12px">Choose the looks everyone gets, so your team page matches. Then invite people by email: each invite uses one of your shoots, and each person uploads their own selfies.</p></div></div>
       ${lockBanner()}
       <form class="panel team-form" id="teamForm" novalidate>
         <div class="field"><label for="teamName">Team name</label><input class="input" id="teamName" name="name" maxlength="60" required value="${team?.name || ""}" placeholder="Acme Inc." /><span class="field-hint">Shown in the invitation email.</span></div>
@@ -118,7 +122,7 @@ export async function renderTeamAdmin({ root, navigate }) {
 
       <section class="panel team-invite" aria-labelledby="inviteTitle">
         <div class="team-invite-head"><h2 class="h-4" id="inviteTitle">Invite people</h2><span class="chip">${icon("ticket")} ${credits} shoot${credits === "1" ? "" : "s"} to give</span></div>
-        <p class="small muted">One shoot per person. They'll get an email with a link; their photos stay private, and you'll see their finished headshots here.${data.email ? "" : " Email isn't set up here, so copy each person's link and send it yourself."}</p>
+        <p class="small muted">One shoot per person. They'll get an email with a link; their photos stay private, and you'll see their finished headshots here. An invitation not accepted within 90 days lapses and the shoot comes back to you.${data.email ? "" : " Email isn't set up here, so copy each person's link and send it yourself."}</p>
         <form id="inviteForm" class="team-invite-form" novalidate>
           <label class="sr-only" for="emails">Email addresses</label>
           <textarea class="input" id="emails" rows="2" placeholder="alex@company.com, sam@company.com"></textarea>
@@ -206,7 +210,7 @@ export async function renderTeamAdmin({ root, navigate }) {
           data.team = r.team;
           paintTeam();
           // A seat a refund already took back doesn't come back as a shoot.
-          toast((r.user?.plan?.credits || 0) > before ? "Invite cancelled. The shoot is back in your balance." : "Invite cancelled.", "success");
+          toast((r.user?.plan?.credits || 0) > before ? "Invite cancelled. The shoot is back in your balance." : "Invite cancelled. That shoot went toward your refund.", "success");
         } catch (err) {
           restore();
           toast(err.message, "error", 7000);

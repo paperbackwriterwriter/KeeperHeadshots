@@ -219,7 +219,7 @@ export function relTime(iso) {
 export const initials = (name) =>
   String(name || "?")
     .split(/\s+/)
-    .map((p) => p[0])
+    .map((p) => [...p][0])
     .slice(0, 2)
     .join("")
     .toUpperCase();
