@@ -462,7 +462,7 @@ loadSession()
       const first = state.user.name.split(" ")[0];
       if (googleReturn === "google") toast(`Welcome back, ${first}.`, "success");
       else {
-        pixel("CompleteRegistration", {}, `reg_${state.user.id}`);
+        if (googleReturn === "google-new" && Date.now() - Date.parse(state.user.createdAt) < 10 * 60 * 1000) pixel("CompleteRegistration", {}, `reg_${state.user.id}`);
         toast(googleReturn === "google-new" ? `Welcome, ${first}. Let's make some headshots.` : `Welcome back, ${first}. Your email is confirmed.`, "success", 6000);
       }
     }

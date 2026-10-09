@@ -166,7 +166,9 @@ app.post("/api/auth/signin", async (req, res) => {
   if (locked) return res.status(429).json({ error: "Too many attempts. Wait 15 minutes and try again, or reset your password." });
   // Always run the (async) password hash, even for unknown emails, so timing
   // doesn't reveal which addresses have accounts.
-  const ok = await verifyPassword(String(password || "").slice(0, 1000), user?.password || DUMMY_HASH);
+  // An account made with Google (or taken over by its inbox's owner) has no
+  // password: the dummy hash only keeps the timing the same, it never matches.
+  const ok = (await verifyPassword(String(password || "").slice(0, 1000), user?.password || DUMMY_HASH)) && !!user?.password;
   if (!user || !password || !ok) return res.status(401).json({ error: "That email and password don't match an account." });
   if (counted) {
     const forgive = (r) => {
@@ -202,10 +204,12 @@ app.get("/api/auth/google/callback", async (req, res) => {
   const flow = google.readFlow(req.cookies?.[google.STATE_COOKIE]);
   res.clearCookie(google.STATE_COOKIE, googleCookie);
   res.set("Cache-Control", "no-store");
-  const back = (code) => res.redirect(302, `${flow?.signup ? "/signup" : "/signin"}?google=${code}${flow?.next ? `&next=${encodeURIComponent(flow.next)}` : ""}`);
+  const back = (code) => res.redirect(302, `${flow?.signup ? "/signup" : "/signin"}?google=${code}${safeNextPath(flow?.next) ? `&next=${encodeURIComponent(flow.next)}` : ""}`);
   // Pressing Cancel on Google's page comes back with error=access_denied.
   if (req.query.error) return back("cancelled");
   if (!flow || !google.stateMatches(flow, req.query.state)) return back("expired");
+  // The flow cookie isn't signed, so its destination is checked again here.
+  const next = safeNextPath(flow.next);
   let profile;
   try {
     profile = await google.finish({ code: req.query.code, flow, redirectUri: googleRedirectUri(req) });
@@ -227,24 +231,31 @@ app.get("/api/auth/google/callback", async (req, res) => {
     if (!user) return back("failed");
   }
   if (!created) {
+    // Already linked to a different Google account with this address (a
+    // reassigned work address, say): don't hand that account over.
+    if (user.googleSub && user.googleSub !== profile.sub) {
+      console.warn("[google] address linked to another Google account", user.id);
+      return back("failed");
+    }
     user = await users.update(user.id, (u) => {
       newlyVerified = false;
+      if (u.googleSub && u.googleSub !== profile.sub) throw new google.GoogleError("linked to another Google account");
       if (u.googleSub === profile.sub && ownsMailbox(u)) return UNCHANGED;
       u.googleSub = profile.sub;
-      if (u.emailVerified === false) {
-        newlyVerified = true;
-        if (u.password) {
-          delete u.password;
-          u.sessionVersion = (u.sessionVersion || 0) + 1;
-          u.revokedSessions = [];
-        }
-      }
+      // Nobody had proved this inbox was theirs (never confirmed, or only
+      // confirmed by accepting a team invitation someone else sent): whoever
+      // set the password may not be its owner, so it goes, with their sessions.
       if (!ownsMailbox(u)) {
+        newlyVerified = u.emailVerified === false;
+        if (u.password) delete u.password;
+        u.sessionVersion = (u.sessionVersion || 0) + 1;
+        u.revokedSessions = [];
         u.emailVerified = true;
         u.emailVerifiedAt = now;
         delete u.emailVerifiedVia;
       }
-    });
+    }).catch((err) => (err instanceof google.GoogleError ? null : Promise.reject(err)));
+    if (!user) return back("failed"); // deleted meanwhile, or linked elsewhere
   }
   if (created) background(recordStep("signup", user).catch(noteStats));
   if (newlyVerified) {
@@ -255,7 +266,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
   console.log("[google]", created ? "signed up" : "signed in", user.id);
   // The page shows a welcome and, for a newly confirmed account, sends the
   // Pixel's CompleteRegistration with the server's event id (deduplicated).
-  const dest = flow.next || (created ? "/app/new" : "/app");
+  const dest = next || (created ? "/app/new" : "/app");
   res.redirect(302, `${dest}${dest.includes("?") ? "&" : "?"}auth=${created ? "google-new" : newlyVerified ? "google-verified" : "google"}`);
 });
 

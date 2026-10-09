@@ -78,6 +78,10 @@ let gina;
   ok("Meta CompleteRegistration sent with the account's event id", (await metaEvents()).some((e) => e.event_name === "CompleteRegistration" && e.event_id === `reg_${me.id}`));
   const pw = await client()("/api/auth/signin", { method: "POST", body: JSON.stringify({ email: newEmail, password: "anything-at-all" }) });
   ok("password sign-in doesn't work for a Google-only account", pw.status === 401);
+  // The server compares against a dummy hash when an account has no password
+  // (for even timing); that hash's own password must not get in either.
+  const dummy = await client()("/api/auth/signin", { method: "POST", body: JSON.stringify({ email: newEmail, password: "not-a-real-password" }) });
+  ok("…not even with the dummy hash's password", dummy.status === 401, String(dummy.status));
   // Signing in again with Google: same account, plain welcome back.
   const g = client();
   const again = await google(g, { sub: `g-gina-${run}`, email: newEmail, name: "Gina Google" });
@@ -124,6 +128,25 @@ let gina;
   const k = client();
   const deep = await google(k, { ...claims, sub: `g-y-${run}`, email: `y-${run}@example.com` }, { next: "/app/account" });
   ok("an /app 'next' is honored", (await k(deep.back())).location === "/app/account?auth=google", "");
+}
+
+// 3b. Already linked to one Google account: another Google account with the
+// same address (a reassigned work address) doesn't get in.
+{
+  const f = client();
+  const other = await google(f, { sub: `g-other-${run}`, email: newEmail, name: "Someone Else" });
+  const cb = await f(other.back());
+  ok("a second Google account with a linked address is refused", cb.location === "/signin?google=failed" && !(await f("/api/me")).j.user, cb.location);
+}
+
+// 3c. A forged flow cookie can't send the person off the site.
+{
+  const f = client();
+  const { back } = await google(f, { sub: `g-gina-${run}`, email: newEmail, name: "Gina Google" });
+  const flow = JSON.parse(Buffer.from(f.jar.get("kh_google"), "base64url").toString());
+  f.jar.set("kh_google", Buffer.from(JSON.stringify({ ...flow, next: "https://evil.example/x" })).toString("base64url"));
+  const cb = await f(back());
+  ok("a forged 'next' in the flow cookie is ignored", cb.location === "/app?auth=google", cb.location);
 }
 
 // 4. An existing, confirmed password account is linked, password kept.
