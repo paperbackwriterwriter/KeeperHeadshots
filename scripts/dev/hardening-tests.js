@@ -374,6 +374,11 @@ if (process.env.DATA_DIR) {
   ok("the invite email says looks when there are several", /team's looks \(Glass Office · Navy Suit and Studio Gray · White Shirt\)/.test(inv.text), inv.text.split("\n")[2]);
   const v = mail.verificationEmail({ name: "Sam", link: "https://x/verify?token=t", code: "123456" });
   ok("the confirmation email calls it a preview shoot", /free preview shoot/.test(v.text) && !/free headshot shoot/.test(v.html));
+  // Marketing law: reminder and offer emails carry the postal address; account emails needn't.
+  const rem = mail.reminderEmail({ kind: "develop", name: "Sam", link: "https://x/app", pricing: "https://x/#pricing", unsubscribe: "https://x/unsubscribe?token=t" });
+  const off = mail.offerEmail({ name: "Sam", code: "KEEP20", discount: "20% off", until: "Sunday", link: "https://x/app", pricing: "https://x/#pricing", usedFree: true, preview: true, unsubscribe: "https://x/unsubscribe?token=t" });
+  const addr = /7006 Peckham Street, Johnston, IA 50131/;
+  ok("reminder and offer emails carry the postal address", addr.test(rem.text) && addr.test(rem.html) && addr.test(off.text) && addr.test(off.html) && !addr.test(v.html));
 }
 
 const passed = results.filter((r) => r[1]).length;
