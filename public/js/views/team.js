@@ -113,7 +113,7 @@ export function renderTeam({ root }) {
             <p class="eyebrow" data-reveal>Team pricing</p>
             <h2 class="display h-1" data-reveal style="--i:1;margin-top:16px">One shoot per person. <em>No</em> subscription.</h2>
           </div>
-          <p class="lede" data-reveal style="--i:2">Buy a package, use one shoot for each person, and keep any leftovers for new hires. Covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>.</p>
+          <p class="lede" data-reveal style="--i:2">Buy a package, use one shoot for each person, and keep any leftovers for new hires. Your first package is covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>.</p>
         </div>
         <div class="tm-prices">
           ${PACKAGES.map(

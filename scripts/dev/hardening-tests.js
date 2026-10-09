@@ -320,6 +320,51 @@ if (process.env.DATA_DIR) {
   }
 }
 
+// 19. One inbox can't create accounts all day under +tags and dots.
+{
+  const base = `flood.box${t}`;
+  const tries = [];
+  for (const local of [base, `${base}+a`, `${base}+b`, `${base.replace(/\./g, "")}+c`]) {
+    tries.push((await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Flood Box", email: `${local}@gmail.com`, password: "password123" }) })).status);
+  }
+  ok("a fourth account for one Gmail inbox in a day is refused", JSON.stringify(tries) === "[201,201,201,429]", JSON.stringify(tries));
+}
+
+// 20. One network can't mass-create accounts.
+{
+  const ip = `203.0.113.${(t + 7) % 250}`;
+  const up = (i) => fetch(B + "/api/auth/signup", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": ip }, body: JSON.stringify({ name: "Net Flood", email: `netflood${i}.${t}@x.com`, password: "password123" }) }).then((r) => r.status);
+  const statuses = [];
+  const hour = new Date().getUTCHours();
+  for (let i = 0; i < 121; i += 11) statuses.push(...(await Promise.all(Array.from({ length: 11 }, (_, k) => up(i + k)))));
+  // The counter is per clock hour; a run straddling the hour sees two windows.
+  const straddled = new Date().getUTCHours() !== hour;
+  // Requests in a batch finish in any order, so the refused one is whichever
+  // the server counted last.
+  const created = statuses.filter((s) => s === 201).length, refusedCount = statuses.filter((s) => s === 429).length;
+  ok("the 121st new account from one network in an hour is refused", straddled || (created === 120 && refusedCount === 1), straddled ? "skipped: the hour changed during the test" : `${created} created, ${refusedCount} refused`);
+  const other = await fetch(B + "/api/auth/signup", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.251" }, body: JSON.stringify({ name: "Elsewhere", email: `elsewhere${t}@x.com`, password: "password123" }) });
+  ok("other networks still can", other.status === 201, String(other.status));
+}
+
+// 21. Deleting the account isn't a place to guess the password.
+{
+  const email = `guessdel${t}@x.com`;
+  const f = await account(email);
+  const codes = [];
+  for (let i = 0; i < 11; i++) codes.push((await f("/api/account/delete", { method: "POST", body: JSON.stringify({ password: `wrong-${i}` }) })).status);
+  ok("ten wrong passwords on account deletion, then it's refused", codes.slice(0, 10).every((s) => s === 401) && codes[10] === 429, JSON.stringify(codes));
+  ok("the account is still there", (await f("/api/me")).j?.user?.email === email);
+}
+
+// 22. The landing pages' structured data quotes the price the page shows.
+{
+  const html = await fetch(B + "/linkedin-headshots").then((r) => r.text());
+  const blocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
+  const agg = blocks.flatMap((b) => [].concat(b["@graph"] || b)).map((b) => b.offers).find((o) => o?.["@type"] === "AggregateOffer");
+  ok("landing page offers start at the preview price", agg?.lowPrice === "8.99" && agg?.highPrice === "49" && agg?.offerCount === "5", JSON.stringify(agg));
+}
+
 const passed = results.filter((r) => r[1]).length;
 console.log(`\n${passed}/${results.length} passed`);
 process.exit(passed === results.length ? 0 : 1);

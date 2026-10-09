@@ -223,7 +223,7 @@ export function renderLanding({ root }) {
             <p class="eyebrow" data-reveal>Pricing</p>
             <h2 class="display h-1" data-reveal style="--i:1;margin-top:16px">One payment. <em>No</em> subscription.</h2>
           </div>
-          <p class="lede" data-reveal style="--i:2">Start with a free preview and keep only what you like, or pick a package. Packages are covered by our <a class="link" href="/refunds" data-link><span class="nowrap">money-back</span> guarantee</a>.</p>
+          <p class="lede" data-reveal style="--i:2">Start with a free preview and keep only what you like, or pick a package. Your first package is covered by our <a class="link" href="/refunds" data-link><span class="nowrap">money-back</span> guarantee</a>.</p>
         </div>
         <div class="start-free" data-reveal>
           <div class="sf-step"><span class="sf-amt">$0</span><div><b>Free preview</b><span>2 looks, 4 headshots. No card needed.</span></div></div>

@@ -129,6 +129,16 @@ let previewBytes = 0;
   const again = (await owner("/api/owner/offer", { method: "POST", body: JSON.stringify({ code, send: true }) })).j;
   await new Promise((r) => setTimeout(r, 300));
   ok("and never twice with the same code", (await mails()).filter((m) => m.to.includes(`pat${t}@x.com`) && m.subject === "How did your headshots turn out?").length === 1 && again.sent === 0, JSON.stringify(again));
+  // Someone who deleted their free shoot has still used it: the offer doesn't
+  // invite them to start one (the studio would refuse).
+  const gone = await account(`gone${t}@x.com`, "Gone Free");
+  const goneShoot = await doneShoot(gone);
+  await gone(`/api/shoots/${goneShoot.id}`, { method: "DELETE" });
+  const code2 = `GONE${String(t).slice(-6)}`;
+  await owner("/api/owner/offer", { method: "POST", body: JSON.stringify({ code: code2, send: true }) });
+  await new Promise((r) => setTimeout(r, 300));
+  const goneMail = (await mails()).findLast((m) => m.to.includes(`gone${t}@x.com`) && /turn out|preview is waiting/.test(m.subject));
+  ok("a deleted free shoot still counts as used in the offer", goneMail?.subject === "How did your headshots turn out?" && !(goneMail.links || []).some((l) => /\/app\/new/.test(l)), JSON.stringify({ subject: goneMail?.subject, links: goneMail?.links }));
   const owners = (await mails()).slice(before).filter((m) => m.to.includes(OWNER));
   ok("owners don't get offers", owners.length === 0);
 }
@@ -224,8 +234,16 @@ let previewBytes = 0;
   await fetch(`${M}/mock-pay/${sid}`, { redirect: "manual" });
   const paid = (await ray("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid }) })).j;
   ok("before the refund it's unlocked with 2 looks to add", paid.user.previewsUnlocked === true && paid.user.extraLooks[rayShoot.id] === 2);
+  const twice = (await ray("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid }) })).j;
+  ok("confirming again says when the order was applied", twice.granted === false && twice.paid === true && !Number.isNaN(Date.parse(twice.appliedAt)), JSON.stringify(twice));
+  // While unlocked, Ray offers a headshot for the home page (a clean copy).
+  const offered = await ray("/api/showcase", { method: "POST", body: JSON.stringify({ shootId: rayShoot.id, shotId: rayShoot.shots.find((x) => x.status === "done").id, name: "Ray", consent: true }) });
+  ok("an unlocked preview headshot can be offered for the showcase", offered.status === 200 && !!offered.j?.entry?.id, `${offered.status} ${JSON.stringify(offered.j)}`);
   await fetch(`${M}/mock-refund/${sid}`);
   const synced = (await ray("/api/billing/sync", { method: "POST", body: "{}" })).j;
+  const mine = (await ray("/api/showcase/mine")).j;
+  const img = await ray(`/showcase/${offered.j?.entry?.id}.webp?w=600`);
+  ok("the refund takes the showcase copy down with it", mine?.entry === null && img.status === 404, `entry=${JSON.stringify(mine?.entry)} image=${img.status}`);
   ok("a refunded offer locks the preview again", synced.user.previewsUnlocked === false && synced.user.purchased === false, JSON.stringify({ unlocked: synced.user?.previewsUnlocked, purchased: synced.user?.purchased }));
   ok("and takes back its unused extra looks", !synced.user.extraLooks[rayShoot.id], JSON.stringify(synced.user?.extraLooks));
   ok("its headshots are previews again", /no-cache/.test((await get(ray, rayFile)).cache));

@@ -5,7 +5,7 @@ import sharp from "sharp";
 import cookieParser from "cookie-parser";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { users, shoots, id, readMedia, writeMedia, deleteMedia, freeClaimKey, mailboxChecks } from "./lib/store.js";
+import { users, shoots, id, readMedia, writeMedia, deleteMedia, freeClaimKey, mailboxChecks, canonicalEmail } from "./lib/store.js";
 import { backend, createJSON, getJSON, putJSON, del, UNCHANGED } from "./lib/storage.js";
 import { runReminders, checkUnsubscribeToken } from "./lib/reminders.js";
 import { ogImage } from "./lib/og.js";
@@ -31,7 +31,7 @@ import { BUILD, BUILD_FILES } from "./lib/build.js";
 import { contactEnabled, validate as validateContact, rateLimited, submit as submitContact } from "./lib/contact.js";
 import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExample, generateSquare as generateExampleSquare, generateSet as generateExampleSet, exampleImage, sheet as exampleSheet } from "./lib/examples.js";
 import crypto from "node:crypto";
-import { withCounter, readCounter, overLimit, hashId } from "./lib/ratelimit.js";
+import { withCounter, readCounter, overLimit, hashId, DAY_MS } from "./lib/ratelimit.js";
 import { recordStep, funnelReport, STEPS } from "./lib/stats.js";
 import * as teams from "./lib/teams.js";
 import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook, stripePublishableKey, stripeMode } from "./lib/billing.js";
@@ -82,6 +82,8 @@ const SIGNIN_WINDOW_MS = 15 * 60 * 1000;
 const SIGNIN_MAX_FAILS = 10; // per network (IP)
 const SIGNIN_MAX_TOTAL = 100; // from everywhere (not for a browser that signed in to it before)
 const SIGNIN_MAX_PER_IP = 60; // wrong passwords on any addresses from one network
+const SIGNUP_MAX_PER_IP = 120; // new accounts from one network in an hour
+const SIGNUP_MAX_PER_MAILBOX = 3; // a day, counting Gmail dots and +tags as one inbox
 const DUMMY_HASH = await hashPassword("not-a-real-password");
 
 const LIVE = ["checking", "generating", "reviewing"];
@@ -117,8 +119,12 @@ app.post("/api/auth/signup", async (req, res) => {
   // Bot check first, so the "already exists" answer can't be scraped by scripts.
   const human = await checkHuman(req.body?.turnstileToken, { ip: req.ip, action: "signup" });
   if (!human.ok) return res.status(400).json({ error: "We couldn't confirm you're a person. Please complete the security check and try again.", code: "bot_check" });
+  // A script making accounts to flood an inbox with codes (one mailbox under
+  // many +tags) or to burn through email sends is stopped here.
+  if (await overLimit("signup", req.ip, SIGNUP_MAX_PER_IP)) return res.status(429).json({ error: "Too many new accounts from your network right now. Please try again later." });
   const exists = () => res.status(400).json({ error: "Please fix the highlighted fields.", fields: { email: "An account with this email already exists. Sign in instead?" } });
   if (await users.byEmail(email)) return exists();
+  if (await overLimit("signupmail", canonicalEmail(email), SIGNUP_MAX_PER_MAILBOX, DAY_MS)) return res.status(429).json({ error: "This inbox has created a few accounts today. Sign in to one of them, or try again tomorrow.", fields: { email: "This inbox has created a few accounts today. Sign in instead?" } });
   const user = await users.create({
     id: id("usr"),
     name: String(name).trim(),
@@ -721,6 +727,7 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
         freeOk = (await createJSON(key, { userId: req.user.id, shootId: meta.id, at: new Date().toISOString() })) || (await getJSON(key))?.userId === req.user.id;
       }
       await users.update(req.user.id, (u) => {
+        charged = null; // the callback may run again after a write conflict
         const p = planFor(u);
         if (freeOk && p.freeShootAvailable && ownsMailbox(u)) {
           u.usage = { ...u.usage, freeShootUsed: meta.id };
@@ -746,7 +753,12 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
   } catch (err) {
     // Nothing was developed: give back whatever was charged and release the claim.
     if (charged === "credit") await users.update(req.user.id, (u) => (u.credits = (u.credits || 0) + 1)).catch((e) => console.error("[generate] refund credit", e.message));
-    if (charged === "free") await users.update(req.user.id, (u) => (u.usage = { ...u.usage, freeShootUsed: null })).catch((e) => console.error("[generate] refund free", e.message));
+    if (charged === "free") {
+      // Only this shoot's charge comes back, and the mailbox's claim with it.
+      await users.update(req.user.id, (u) => (u.usage?.freeShootUsed === meta.id ? void (u.usage = { ...u.usage, freeShootUsed: null }) : UNCHANGED)).catch((e) => console.error("[generate] refund free", e.message));
+      const freeKey = freeClaimKey(req.user.email);
+      if ((await getJSON(freeKey).catch(() => null))?.shootId === meta.id) await del(freeKey).catch(() => {});
+    }
     await del(claimKey).catch(() => {});
     throw err;
   }
@@ -802,6 +814,7 @@ app.post("/api/shoots/:id/resume", requireUser, async (req, res) => {
   let refused = null;
   const now = Date.now();
   await shoots.updateMeta(shoot.id, (m) => {
+    refused = null; // the callback may run again after a write conflict
     if (LIVE.includes(m.status) || (m.resumeStartedAt && now - Date.parse(m.resumeStartedAt) < 15_000)) refused = "busy";
     else if ((m.resumes || 0) >= MAX_RESUMES) refused = "limit";
     if (refused) return false;
@@ -995,6 +1008,8 @@ app.post("/api/account/delete", requireUser, async (req, res) => {
     if (String(req.body?.email || "").toLowerCase().trim() !== req.user.email) return res.status(401).json({ error: "That email doesn't match this account.", fields: { password: "That email doesn't match this account." } });
   } else {
     const password = String(req.body?.password || "");
+    // Not a place to guess the password from a borrowed session.
+    if (await overLimit("delete", req.user.id, 10)) return res.status(429).json({ error: "Too many attempts. Please wait a little and try again." });
     if (!password || !(await verifyPassword(password, req.user.password))) {
       return res.status(401).json({ error: "That password isn't right.", fields: { password: "That password isn't right." } });
     }
