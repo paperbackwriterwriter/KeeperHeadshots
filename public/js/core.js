@@ -72,7 +72,11 @@ export async function api(path, { method = "GET", body, signal } = {}) {
   const data = await res.json().catch(() => ({}));
   // The session ended (signed out elsewhere, "sign out other devices"):
   // app.js takes the person to sign in instead of leaving dead-end errors.
-  if (res.status === 401 && data.code === "signed_out") document.dispatchEvent(new CustomEvent("ahg:signed-out"));
+  if (res.status === 401 && data.code === "signed_out") {
+    document.dispatchEvent(new CustomEvent("ahg:signed-out"));
+    // The same words app.js just showed, so a view's own error toast is a repeat and is dropped.
+    throw new ApiError(SIGNED_OUT_MESSAGE, res.status, data);
+  }
   if (!res.ok) throw new ApiError(data.error || `Something went wrong (${res.status}).`, res.status, data);
   return data;
 }
@@ -125,8 +129,12 @@ export async function loadSession() {
 
 // Errors stay longer (at least 8 s) and every message can be dismissed; the
 // timer pauses while the pointer or keyboard focus is on the message.
+export const SIGNED_OUT_MESSAGE = "You've been signed out. Sign in again to continue.";
+
 export function toast(message, kind = "info", ms = 4200) {
   const host = document.getElementById("toasts");
+  // The same message twice at once (an error shown by two layers) reads as a glitch.
+  if ([...host.querySelectorAll(".toast:not(.out) > div")].some((d) => d.textContent === message)) return;
   const el = document.createElement("div");
   el.className = `toast ${kind}`;
   const ic = kind === "error" ? "circle-alert" : kind === "success" ? "check-circle-2" : "info";

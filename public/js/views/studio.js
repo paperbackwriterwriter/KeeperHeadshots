@@ -147,17 +147,38 @@ export async function renderStudio(ctx, id) {
     return paintProofs(s);
   }
 
+  // A repaint replaces the control that had focus; it goes back to that
+  // control's twin, or to the page heading, rather than falling to <body>.
+  const focusedId = () => {
+    const a = document.activeElement;
+    if (!a || a === document.body) return null;
+    // Its id, or the first data-* attribute (pick, remove, slot buttons have no id).
+    const data = [...a.attributes].find((x) => x.name.startsWith("data-"));
+    return a.id ? `#${CSS.escape(a.id)}` : data ? `[${data.name}="${CSS.escape(data.value)}"]` : null;
+  };
+  function restoreFocus(sel) {
+    const el = sel && root.querySelector(sel);
+    if (el) return el.focus({ preventScroll: true });
+    if (document.activeElement && document.activeElement !== document.body) return;
+    const h = root.querySelector("main h1, main h2");
+    if (!h) return;
+    h.setAttribute("tabindex", "-1");
+    h.focus({ preventScroll: true });
+  }
+
   /* ---------------------------- Photo check ---------------------------- */
 
   function paintCheck(s) {
     const checking = s.status === "checking";
     const c = s.check;
+    const focused = focusedId();
     root.innerHTML = html`<main id="main" class="container app-main view-enter">
       ${stepper(1)}
       ${aiBanner()}
       ${s.error ? html`<div class="banner banner-danger" role="alert">${icon("circle-alert")}<div><b>The photo check didn't finish.</b>${s.error}</div></div>` : ""}
       ${checking || !c ? checkPending(s, checking) : checkResult(s)}
     </main>`.v;
+    restoreFocus(focused);
 
     const ring = $("[data-ring]");
     if (ring) requestAnimationFrame(() => requestAnimationFrame(() => ring.style.setProperty("--val", ring.dataset.ring)));
@@ -394,6 +415,7 @@ export async function renderStudio(ctx, id) {
   // A team shoot uses the team's looks (set by the team admin) and is already
   // paid for: confirm and develop.
   function paintTeamLooks(s) {
+    const focused = focusedId();
     const looks = s.team.looks;
     const preview = (l) => portraitDataURL("look-" + l.backdrop + l.outfit, { backdrop: l.backdrop, outfit: l.outfit, skin: 2, hair: "short", hairTone: 1 });
     root.innerHTML = html`<main id="main" class="container app-main view-enter looks-page">
@@ -409,6 +431,7 @@ export async function renderStudio(ctx, id) {
         <button class="btn btn-flash btn-lg" id="develop">${icon("aperture")} Develop my headshots</button>
       </div>
     </main>`.v;
+    restoreFocus(focused);
     $("#backCheck").addEventListener("click", () => {
       view = "check";
       paintCheck(shoot);
@@ -432,6 +455,7 @@ export async function renderStudio(ctx, id) {
   // added to it), rather than the looks for a new one.
   function paintLooks(s, extra = 0) {
     if (s.team && !extra) return paintTeamLooks(s);
+    const focused = focusedId();
     const plan = extra ? null : state.user?.plan;
     const planNow = () => (extra ? null : state.user?.plan);
     const MAX_LOOKS = extra || plan?.maxLooks || MAX_LOOKS_ALL;
@@ -492,9 +516,11 @@ export async function renderStudio(ctx, id) {
         <button class="btn btn-flash btn-lg" id="develop">${icon("aperture")} Develop</button>
       </div>
     </main>`.v;
+    restoreFocus(focused);
 
     const sync = () => {
       const cur = looks[active];
+      const focused = focusedId();
       $("#slots").innerHTML = html`${looks.map((l, i) => {
         const look = lookFor(l.backdrop, l.outfit);
         return html`<li class="look-card-wrap">
@@ -507,6 +533,7 @@ export async function renderStudio(ctx, id) {
           ${looks.length > 1 ? html`<button type="button" class="look-remove" data-remove="${i}" aria-label="Remove look ${i + 1}">${icon("x")}</button>` : ""}
         </li>`;
       })}${Array.from({ length: MAX_LOOKS - looks.length }, (_, k) => html`<li class="look-card-wrap"><button type="button" class="look-card empty" data-add aria-label="Add look ${looks.length + k + 1}"><span class="plus">${icon("plus")}</span><span>Add look</span></button></li>`)}`.v;
+      restoreFocus(focused);
       $("#lookCount").textContent = `${looks.length}/${MAX_LOOKS}`;
       $("#fillAll").hidden = looks.length >= MAX_LOOKS;
       $("#editorTitle").textContent = cur ? `Editing look ${active + 1} · ${lookName(cur.backdrop, cur.outfit)}` : "Add a look to start";
@@ -643,7 +670,8 @@ export async function renderStudio(ctx, id) {
 
   function wireDevelopActions() {
     $("#resume")?.addEventListener("click", async (e) => {
-      const restore = busy(e.currentTarget, "Resuming…");
+      const btn = e.currentTarget;
+      const restore = busy(btn, "Resuming…");
       try {
         const data = await api(`/api/shoots/${id}/resume`, { method: "POST" });
         shoot = data.shoot;
@@ -651,6 +679,8 @@ export async function renderStudio(ctx, id) {
         refresh();
       } catch (err) {
         restore();
+        if (err.status === 404) return refresh();
+        if (err.data?.code === "resume_limit") btn.outerHTML = html`<a class="btn btn-ink" href="/contact" data-link>${icon("mail")} Contact us about this shoot</a>`.v;
         toast(err.message, "error");
       }
     });
@@ -746,6 +776,7 @@ export async function renderStudio(ctx, id) {
     // Sort by score (best first) when graded, otherwise by frame order.
     const ordered = r ? [...done].sort((a, b) => (grade(b)?.overall || 0) - (grade(a)?.overall || 0)) : done;
 
+    const focused = focusedId();
     root.innerHTML = html`<main id="main" class="container app-main view-enter">
       ${stepper(4)}
       ${extraLooks(s) ? html`<div class="banner banner-info extra-banner">${icon("sparkles")}<div><b>You have ${plural(extraLooks(s), "extra look")} to add to this shoot.</b>Pick the backdrops and outfits, and we'll develop ${extraLooks(s) * TAKES_PER_LOOK} more headshots beside these.</div><button class="btn btn-sm btn-flash" type="button" id="pickExtra">${icon("plus")} Pick your looks</button></div>` : ""}
@@ -825,6 +856,7 @@ export async function renderStudio(ctx, id) {
       <p class="disclaimer" style="margin-top:16px">${icon("info")} Grades are AI assessments to help you choose; always pick the photo you feel represents you best.</p>
       <dialog class="lightbox" id="lb" aria-label="Headshot viewer"></dialog>
     </main>`.v;
+    restoreFocus(focused);
 
     // Download buttons follow the chosen format (portrait, square or both).
     const drawDl = () => {
@@ -966,6 +998,7 @@ export async function renderStudio(ctx, id) {
         toast(shotId ? "Saved as your pick." : "Back to the retoucher's pick.", "success");
       } catch (err) {
         restore();
+        if (err.status === 404) return refresh();
         toast(err.message, "error");
       }
     }
@@ -986,6 +1019,7 @@ export async function renderStudio(ctx, id) {
         ctx.navigate(keepHref(s, shot));
       } catch (err) {
         restore();
+        if (err.status === 404) return refresh();
         toast(err.message, "error");
       }
     });
@@ -1000,11 +1034,13 @@ export async function renderStudio(ctx, id) {
         timer = setTimeout(refresh, 2000);
       } catch (err) {
         restore();
+        if (err.status === 404) return refresh();
         toast(err.message, "error");
       }
     }));
     $("#resume")?.addEventListener("click", async (e) => {
-      const restore = busy(e.currentTarget, "Resuming…");
+      const btn = e.currentTarget;
+      const restore = busy(btn, "Resuming…");
       try {
         const data = await api(`/api/shoots/${id}/resume`, { method: "POST" });
         shoot = data.shoot;
@@ -1012,6 +1048,8 @@ export async function renderStudio(ctx, id) {
         timer = setTimeout(refresh, 2000);
       } catch (err) {
         restore();
+        if (err.status === 404) return refresh();
+        if (err.data?.code === "resume_limit") btn.outerHTML = html`<a class="btn btn-sm btn-ink" href="/contact" data-link>${icon("mail")} Contact us</a>`.v;
         toast(err.message, "error");
       }
     });
@@ -1028,6 +1066,7 @@ export async function renderStudio(ctx, id) {
         ctx.navigate("/app");
       } catch (err) {
         restore();
+        if (err.status === 404) return refresh();
         toast(err.message, "error");
       }
     });

@@ -87,6 +87,7 @@ let entry;
 {
   ok("permission is required", (await offer(dana, shoot, shotA, { consent: undefined })).status === 400);
   ok("a name is required", (await offer(dana, shoot, shotA, { name: "  " })).status === 400);
+  ok("a name can't carry a link or address", (await offer(dana, shoot, shotA, { name: "Ira http://x.y" })).status === 400 && (await offer(dana, shoot, shotA, { name: "ira@x.y" })).status === 400);
   ok("it must be a finished headshot of the shoot", (await offer(dana, shoot, { id: "shot_nope" })).status === 400);
   const other = await account(`other${t}@x.com`);
   ok("someone else's shoot can't be offered", (await offer(other, shoot, shotA)).status === 404);

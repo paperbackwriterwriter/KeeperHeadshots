@@ -198,12 +198,14 @@ export async function renderTeamAdmin({ root, navigate }) {
     $$("[data-cancel]").forEach((b) =>
       b.addEventListener("click", async () => {
         const restore = busy(b, "Cancelling…");
+        const before = state.user?.plan?.credits || 0;
         try {
           const r = await api(`/api/team/invites/${b.dataset.cancel}`, { method: "DELETE" });
           state.user = r.user;
           data.team = r.team;
           paintTeam();
-          toast("Invite cancelled. The shoot is back in your balance.", "success");
+          // A seat a refund already took back doesn't come back as a shoot.
+          toast((r.user?.plan?.credits || 0) > before ? "Invite cancelled. The shoot is back in your balance." : "Invite cancelled.", "success");
         } catch (err) {
           restore();
           toast(err.message, "error", 7000);

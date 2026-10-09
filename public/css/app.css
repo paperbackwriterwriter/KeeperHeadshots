@@ -1107,7 +1107,7 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
   .shoot-card, .shoot-card:first-child, .new-card { grid-column: span 12; grid-row: auto; }
   .shoot-card:first-child .shoot-cover { min-height: 0; aspect-ratio: 4 / 3; flex: none; }
   .teams { flex-direction: column; align-items: flex-start; }
-  .lb { grid-template-columns: 1fr; overflow-y: auto; }
+  .lb { grid-template-columns: 1fr; overflow-y: auto; overscroll-behavior: contain; }
   .lb-img img { max-height: 62dvh; }
   .best-print { max-width: 340px; }
 }
@@ -1527,6 +1527,8 @@ select.input { appearance: none; padding-right: 44px; cursor: pointer; backgroun
   /* Warning and error text needs a light tint on the dark soft backgrounds. */
   .banner-warn { border-color: #5a4424; color: #f0c98a; }
   .banner-danger { border-color: #5e2b26; color: #f5b1a8; }
+  .delete-form { border-color: #5e2b26; }
+  .delete-form .check { color: #f5b1a8; }
   .issue { color: #f0c98a; }
   .badge-warn { color: var(--warning); }
   /* White on the light dark-mode red is too faint; a deeper red keeps 4.5:1+. */

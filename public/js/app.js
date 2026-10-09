@@ -1,4 +1,4 @@
-import { $, html, icon, logoMark, wordmark, state, loadSession, api, toast, busy, initials, observeReveals, reduceMotion, updateReady, safeNext } from "./core.js";
+import { $, html, icon, logoMark, wordmark, state, loadSession, api, toast, busy, initials, observeReveals, reduceMotion, updateReady, safeNext, SIGNED_OUT_MESSAGE } from "./core.js";
 // Page code loads on demand, so each page downloads only its own view. (The
 // server adds a modulepreload hint for the first page's view; lib/seo.js.)
 const lazy = (load, name) => async (...args) => (await load())[name](...args);
@@ -348,7 +348,7 @@ function signedOut() {
     return wireChrome();
   }
   signingOut = true;
-  toast("You've been signed out. Sign in again to continue.", "info", 6000);
+  toast(SIGNED_OUT_MESSAGE, "info", 6000);
   navigate(`/signin?next=${encodeURIComponent(location.pathname + location.search)}`);
   setTimeout(() => (signingOut = false), 2000);
 }
