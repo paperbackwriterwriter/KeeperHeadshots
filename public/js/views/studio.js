@@ -157,13 +157,17 @@ export async function renderStudio(ctx, id) {
     return a.id ? `#${CSS.escape(a.id)}` : data ? `[${data.name}="${CSS.escape(data.value)}"]` : null;
   };
   function restoreFocus(sel) {
-    const el = sel && root.querySelector(sel);
-    if (el) return el.focus({ preventScroll: true });
-    if (document.activeElement && document.activeElement !== document.body) return;
-    const h = root.querySelector("main h1, main h2");
-    if (!h) return;
-    h.setAttribute("tabindex", "-1");
-    h.focus({ preventScroll: true });
+    // Two frames later: focusing during the first layout after a repaint
+    // makes Chromium scroll the page even with preventScroll.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const el = sel && root.querySelector(sel);
+      if (el) return el.focus({ preventScroll: true });
+      if (document.activeElement && document.activeElement !== document.body) return;
+      const h = root.querySelector("main h1, main h2");
+      if (!h) return;
+      h.setAttribute("tabindex", "-1");
+      h.focus({ preventScroll: true });
+    }));
   }
 
   /* ---------------------------- Photo check ---------------------------- */
