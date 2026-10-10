@@ -350,18 +350,30 @@ app.post("/api/auth/verify/code", requireUser, async (req, res) => {
 
 app.post("/api/auth/verify/resend", requireUser, async (req, res) => {
   if (ownsMailbox(req.user)) return res.json({ status: "already", user: publicUser(req.user) });
+  if (!mailEnabled()) return res.status(503).json({ error: "Email isn't set up on this site yet. Please contact us." });
   const now = Date.now();
-  const sends = (req.user.verifySends || []).filter((t) => now - t < 24 * 60 * 60 * 1000);
-  if (sends.length && now - sends[sends.length - 1] < 60 * 1000) return res.status(429).json({ error: "We just sent one. Give it a minute, and check your spam folder too." });
-  if (sends.length >= 5) return res.status(429).json({ error: "We've sent several emails today. Check your spam folder, or contact us and we'll help." });
+  let status;
+  // Reserve before contacting the provider. The atomic update rechecks fresh
+  // account data on every storage retry, so concurrent requests cannot reuse
+  // the same allowance or overwrite another request's timestamps.
+  const user = await users.update(req.user.id, (u) => {
+    const sends = (u.verifySends || []).filter((t) => now - t < 24 * 60 * 60 * 1000);
+    status = ownsMailbox(u) ? "already" : sends.some((t) => now - t < 60 * 1000) ? "recent" : sends.length >= 5 ? "daily" : "send";
+    if (status !== "send") return UNCHANGED;
+    u.verifySends = [...sends, now];
+  });
+  if (status === "already") return res.json({ status: "already", user: publicUser(user) });
+  if (status === "recent") return res.status(429).json({ error: "A confirmation email was requested recently. Wait a minute before trying again, and check your spam folder too." });
+  if (status === "daily") return res.status(429).json({ error: "You've requested several confirmation emails today. Check your spam folder, or contact us and we'll help." });
   try {
-    if (!(await sendVerification(req.user, req))) return res.status(503).json({ error: "Email isn't set up on this site yet. Please contact us." });
+    if (!(await sendVerification(user, req))) return res.status(503).json({ error: "Email isn't set up on this site yet. Please contact us." });
   } catch (err) {
+    // Keep the reservation: a provider can accept an email before its reply
+    // fails. Refunding that attempt would let retries bypass the send limits.
     console.error("[verify] resend failed", req.user.id, err.message);
     return res.status(502).json({ error: "We couldn't send the email just now. Please try again in a few minutes." });
   }
-  await users.update(req.user.id, (u) => (u.verifySends = [...sends, now]));
-  res.json({ status: "sent", email: req.user.email });
+  res.json({ status: "sent", email: user.email });
 });
 
 app.post("/api/auth/signout", async (req, res) => {

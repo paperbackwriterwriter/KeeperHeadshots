@@ -62,6 +62,7 @@ run() {
 run race node scripts/dev/race-tests.js
 run reset node scripts/dev/reset-tests.js
 run signout node scripts/dev/signout-tests.js
+run verification node scripts/dev/verification-tests.js
 run hardening env DATA_DIR="$DATA" QA_ADMIN_TOKEN=ci-admin-token-ci-admin-token BASE2=http://localhost:3101 node scripts/dev/hardening-tests.js
 run cleanup node scripts/dev/cleanup-tests.js
 run backup node scripts/dev/backup-tests.js
