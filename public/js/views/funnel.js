@@ -117,12 +117,12 @@ export function renderFunnel({ root, navigate }) {
     const m = r.summary;
     shootsBody.innerHTML = html`
       <div class="funnel-sum shoot-sum">
-        <div><b>${m.free}</b><span>free shoots</span></div>
+        <div><b>${m.free}</b><span>free shoot${m.free === 1 ? "" : "s"}</span></div>
         <div><b>${m.freeFinished}</b><span>finished</span></div>
         <div><b>${m.freeWithFailures}</b><span>with failed frames</span></div>
         <div><b>${m.freeAvgBest ?? "—"}</b><span>average best score</span></div>
         <div><b>${m.freeDownloaded}</b><span>downloaded (since 2 Oct)</span></div>
-        <div><b>${m.buyers}</b><span>buyers</span></div>
+        <div><b>${m.buyers}</b><span>buyer${m.buyers === 1 ? "" : "s"}</span></div>
       </div>
       <p class="small muted funnel-scroll-hint">Swipe the table sideways to see every column.</p>
       <div class="panel funnel-table-wrap">

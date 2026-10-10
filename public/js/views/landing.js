@@ -310,8 +310,13 @@ async function customerResults() {
   }
   const slot = $("#customers");
   if (!slot || !entries.length) return;
+  // Opened at a section below this one (/#faq): it was scrolled to before the
+  // section appeared, so bring it back into view once the section has filled.
+  const target = location.hash.length > 1 ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
+  const wasAtTarget = !!target && slot.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING && Math.abs(target.getBoundingClientRect().top) < 200;
   slot.innerHTML = customersInner(entries);
   slot.hidden = false;
+  if (wasAtTarget) target.scrollIntoView({ block: "start", behavior: "instant" });
 }
 
 // The wardrobe strip's photos are lazy, but most of them sit outside the

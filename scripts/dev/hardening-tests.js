@@ -469,6 +469,52 @@ if (process.env.DATA_DIR) {
   ok("taking over an unconfirmed account removes what the stranger uploaded, keeps the balance", !!sid && !!file && reset.status === 200 && (list.shoots || []).length === 0 && media.status === 404 && me.plan.credits === 3 && me.emailVerified === true, `${sid} ${reset.status} shoots=${(list.shoots || []).length} media=${media.status} credits=${me.plan.credits}`);
 }
 
+// 28. A body nested deeper than the guard looks is refused, not a crash.
+{
+  let deep = { toString: 1 };
+  for (let i = 0; i < 9; i++) deep = [deep];
+  const r = await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: deep, email: `deep${t}@x.com`, password: "password123" }) });
+  ok("a deeply nested body is refused with 400", r.status === 400, String(r.status));
+}
+
+// 29. A name with commas or "@" can't add recipients to an email: the display name is quoted.
+{
+  const email = `comma${t}@x.com`;
+  await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Jo, attacker@evil.example, Smith", email, password: "password123" }) });
+  const m = (await mailFor(email)).find((x) => x.rawTo);
+  ok("an email's display name is quoted", m && m.rawTo.length === 1 && m.rawTo[0].startsWith('"Jo, attacker@evil.example, Smith" <') && m.to.length === 1, JSON.stringify(m?.rawTo));
+}
+
+// 30. Several develop requests at once on a stale claim: exactly one goes
+// ahead, and the account is charged exactly once.
+if (process.env.DATA_DIR) {
+  const f = await account(`stampede${t}@x.com`);
+  const uid = (await f("/api/me")).j.user.id;
+  const { j } = await f("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  const sess = new URL(j.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${sess}?promo=FREE`, { redirect: "manual" });
+  await f("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sess }) });
+  // The free shoot first, so the shoot below is paid with a credit.
+  const shootWith = async () => {
+    const sid = (await f("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;
+    await f(`/api/shoots/${sid}/selfies`, { method: "POST", body: JSON.stringify({ photo }) });
+    await f(`/api/shoots/${sid}/check`, { method: "POST", body: "{}" });
+    for (let w = 0; w < 80 && (await f(`/api/shoots/${sid}`)).j.shoot.status === "checking"; w++) await new Promise((r) => setTimeout(r, 250));
+    return sid;
+  };
+  const LOOK = JSON.stringify({ looks: [{ backdrop: "studio-gray", outfit: "navy-suit" }] });
+  await f(`/api/shoots/${await shootWith()}/generate`, { method: "POST", body: LOOK });
+  const sid = await shootWith();
+  const file = `${process.env.DATA_DIR}/claims/develop/${sid}.json`;
+  fs.mkdirSync(file.replace(/\/[^/]+$/, ""), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ userId: uid, at: new Date(Date.now() - 5 * 60_000).toISOString() }));
+  const before = (await f("/api/me")).j.user.plan.credits;
+  const rs = await Promise.all([1, 2, 3, 4].map(() => f(`/api/shoots/${sid}/generate`, { method: "POST", body: LOOK })));
+  await new Promise((r) => setTimeout(r, 300));
+  const after = (await f("/api/me")).j.user.plan.credits;
+  ok("several develops on a stale claim charge exactly once", rs.filter((r) => r.status === 202).length === 1 && after === before - 1, `${rs.map((r) => r.status).join(",")} credits ${before}->${after}`);
+}
+
 const passed = results.filter((r) => r[1]).length;
 console.log(`\n${passed}/${results.length} passed`);
 process.exit(passed === results.length ? 0 : 1);

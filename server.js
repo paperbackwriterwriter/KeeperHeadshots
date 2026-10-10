@@ -6,7 +6,7 @@ import cookieParser from "cookie-parser";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { users, shoots, id, readMedia, writeMedia, deleteMedia, freeClaimKey, mailboxChecks, canonicalEmail } from "./lib/store.js";
-import { backend, createJSON, getJSON, putJSON, del, UNCHANGED } from "./lib/storage.js";
+import { backend, createJSON, getJSON, putJSON, updateJSON, del, UNCHANGED } from "./lib/storage.js";
 import { runReminders, checkUnsubscribeToken } from "./lib/reminders.js";
 import { ogImage } from "./lib/og.js";
 import * as showcase from "./lib/showcase.js";
@@ -68,7 +68,8 @@ app.use(express.json({ limit: "4mb" }));
 // key) would make String() throw deep in a route; refuse it up front.
 const BAD_KEYS = ["toString", "valueOf", "__proto__", "constructor", "prototype"];
 function tainted(v, depth = 0) {
-  if (!v || typeof v !== "object" || depth > 6) return false;
+  if (!v || typeof v !== "object") return false;
+  if (depth > 6) return true; // deeper than any real request: refuse rather than look further
   if (!Array.isArray(v) && BAD_KEYS.some((k) => Object.prototype.hasOwnProperty.call(v, k))) return true;
   return (Array.isArray(v) ? v : Object.values(v)).some((x) => tainted(x, depth + 1));
 }
@@ -732,10 +733,16 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
     // A claim left behind by a develop that died between charging and writing
     // the plan (the shoot is still "checked" with nothing developed) is taken
     // over after a couple of minutes; the charge it made is reused below.
-    const left = await getJSON(claimKey).catch(() => null);
-    const stale = left && left.userId === req.user.id && Date.now() - Date.parse(left.at || 0) > STALE_CLAIM_MS;
-    if (!stale) return res.status(409).json({ error: "This shoot is already in progress." });
-    await putJSON(claimKey, { userId: req.user.id, at: new Date().toISOString(), retaken: true });
+    // Taken over atomically: of several requests at once, exactly one wins.
+    let won = false;
+    await updateJSON(claimKey, (left) => {
+      won = false; // the callback may run again after a write conflict
+      const stale = left && left.userId === req.user.id && Date.now() - Date.parse(left.at || 0) > STALE_CLAIM_MS;
+      if (!stale) return UNCHANGED;
+      won = true;
+      return { userId: req.user.id, at: new Date().toISOString(), retaken: true };
+    }).catch(() => null);
+    if (!won) return res.status(409).json({ error: "This shoot is already in progress." });
   }
   let charged = null;
   let paidBy = null;
@@ -791,14 +798,27 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
     background(recordStep("developed", req.user).catch(noteStats));
     res.status(202).json({ shoot: started });
   } catch (err) {
-    // Nothing was developed: give back whatever was charged and release the claim.
-    if (charged) await users.update(req.user.id, (u) => (u.developing?.[meta.id] ? void delete u.developing[meta.id] : UNCHANGED)).catch(() => {});
-    if (charged === "credit") await users.update(req.user.id, teams.giveBack).catch((e) => console.error("[generate] refund credit", e.message));
-    if (charged === "free") {
-      // Only this shoot's charge comes back, and the mailbox's claim with it.
-      await users.update(req.user.id, (u) => (u.usage?.freeShootUsed === meta.id ? void (u.usage = { ...u.usage, freeShootUsed: null }) : UNCHANGED)).catch((e) => console.error("[generate] refund free", e.message));
-      const freeKey = freeClaimKey(req.user.email);
-      if ((await getJSON(freeKey).catch(() => null))?.shootId === meta.id) await del(freeKey).catch(() => {});
+    // Nothing was developed: give back what was charged, once. The charge is
+    // recorded on the account (u.developing) until the shoot starts, so the
+    // refund and the record's removal are one write: two failing requests
+    // can't both refund it, and a charge the shoot did use is never refunded.
+    if (charged) {
+      let refunded = null;
+      await users.update(req.user.id, (u) => {
+        refunded = null;
+        const memo = u.developing?.[meta.id];
+        if (!memo) return UNCHANGED;
+        const kind = typeof memo === "object" ? memo.charged : memo;
+        delete u.developing[meta.id];
+        if (kind === "credit") teams.giveBack(u);
+        if (kind === "free" && u.usage?.freeShootUsed === meta.id) u.usage = { ...u.usage, freeShootUsed: null };
+        refunded = kind;
+      }).catch((e) => console.error("[generate] refund", e.message));
+      if (refunded === "free") {
+        // The mailbox's free-shoot claim comes back with it.
+        const freeKey = freeClaimKey(req.user.email);
+        if ((await getJSON(freeKey).catch(() => null))?.shootId === meta.id) await del(freeKey).catch(() => {});
+      }
     }
     await del(claimKey).catch(() => {});
     throw err;
@@ -953,7 +973,7 @@ function teamAdminOnly(req, res) {
 // inviting again, or resending), so the form can't be used to flood a mailbox.
 const INVITES_PER_HOUR = 30;
 const INVITE_EMAILS_PER_DAY = 3;
-const inviteMailCapped = (team, inv) => overLimit("invite-mail", `${team.id}:${inv.email}`, INVITE_EMAILS_PER_DAY, DAY_MS);
+const inviteMailCapped = (team, inv) => overLimit("invite-mail", canonicalEmail(inv.email), INVITE_EMAILS_PER_DAY, DAY_MS);
 async function sendInvite(req, team, inv) {
   if (!mailEnabled()) return false;
   if (await inviteMailCapped(team, inv)) return "capped";
@@ -987,9 +1007,13 @@ app.post("/api/team/invites", requireUser, async (req, res) => {
   teamAdminOnly(req, res);
   const emails = [...new Set(String(req.body?.emails || "").split(/[\s,;]+/).map((e) => e.trim()).filter(Boolean))].slice(0, 25);
   if (!emails.length) return res.status(400).json({ error: "Add at least one email address." });
-  if (await overLimit("invites", req.user.id, INVITES_PER_HOUR)) return res.status(429).json({ error: "That's a lot of invites in one hour. Please wait a little and try again." });
   const results = [];
   for (const email of emails) {
+    // Each address counts towards the hourly limit, however they're batched.
+    if (await overLimit("invites", req.user.id, INVITES_PER_HOUR)) {
+      results.push({ email, ok: false, error: "That's a lot of invites in one hour. Please wait a little and try again." });
+      continue;
+    }
     try {
       const user = await users.byId(req.user.id); // fresh balance and team for each
       const { team, invite: inv } = await teams.invite(user, email);
@@ -1095,7 +1119,7 @@ app.post("/api/account/delete", requireUser, async (req, res) => {
   for (const meta of list) if (meta.team && !(meta.shots || []).length) await teams.returnSeat(meta).catch((err) => console.error("[team] return seat", meta.id, err.message));
   if (req.user.teamId) await teams.removeTeam(req.user.teamId);
   // Teams they were a member of keep the seat, not their name or address.
-  for (const teamId of new Set(list.map((m) => m.team?.id).filter(Boolean))) await teams.forgetMember(teamId, req.user.id);
+  await teams.forgetMemberEverywhere(req.user.id);
   await showcase.removeForUser(req.user.id);
   await users.remove(req.user);
   // The funnel keeps its day totals; the per-person "already counted" markers go.
@@ -1711,7 +1735,9 @@ const EMPTY_CUSTOMERS = /<section class="section" id="customers"[^>]*>\s*<\/sect
 async function withCustomers(html) {
   if (!EMPTY_CUSTOMERS.test(html)) return html;
   const entries = await showcase.approved().catch(() => []);
-  return entries.length ? html.replace(EMPTY_CUSTOMERS, customersSection(entries)) : html;
+  // A function, not a string: "$`" or "$'" in a customer's words must not be
+  // read as a replacement pattern (which would paste the page into itself).
+  return entries.length ? html.replace(EMPTY_CUSTOMERS, () => customersSection(entries)) : html;
 }
 
 app.get(/.*/, async (req, res) => {

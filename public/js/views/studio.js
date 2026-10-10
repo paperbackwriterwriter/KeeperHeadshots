@@ -1102,10 +1102,23 @@ export async function renderStudio(ctx, id) {
   }
 
   await refresh();
+  // A purchase in another tab (a package, "keep" or extra looks) changes what
+  // this shoot's results page offers: re-read it when the account changes.
+  const unlockSig = () => JSON.stringify([state.user?.previewsUnlocked, state.user?.kept?.[id], state.user?.extraLooks?.[id]]);
+  let lastUnlock = unlockSig();
+  const onUnlock = () => {
+    if (disposed) return;
+    const sig = unlockSig();
+    if (sig === lastUnlock) return;
+    lastUnlock = sig;
+    if (shoot?.status === "done") refresh();
+  };
+  document.addEventListener("ahg:user-changed", onUnlock);
   return () => {
     disposed = true;
     stop();
     aborter.abort();
+    document.removeEventListener("ahg:user-changed", onUnlock);
   };
 }
 

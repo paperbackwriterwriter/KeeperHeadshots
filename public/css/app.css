@@ -294,10 +294,10 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .nav-actions { margin-left: auto; display: flex; align-items: center; gap: var(--s-2); }
 .nav-toggle { display: none; }
 .nav-sheet { display: none; }
-/* 60em is 960px at the default text size (below that the six links and two
-   buttons don't fit on one line); with a larger default (large text in the
-   browser or OS) the menu collapses sooner, so it never overflows. */
-@media (max-width: 60em) {
+/* 64em is 1024px at the default text size (below that the six links and two
+   buttons, "Your shoots" when signed in, don't fit on one line); with a larger
+   default (large text in the browser or OS) the menu collapses sooner. */
+@media (max-width: 64em) {
   .nav-links, .nav-actions .hide-m { display: none; }
   .nav-toggle { display: inline-flex; }
   .nav-sheet { display: block; position: fixed; inset: 72px 0 auto 0; max-height: calc(100dvh - 72px); overflow-y: auto; overscroll-behavior: contain; background: var(--bg); border-bottom: 1px solid var(--border); padding: var(--s-4) var(--gutter) var(--s-5); transform: translateY(-8px); opacity: 0; visibility: hidden; transition: all var(--dur-2) var(--ease-out); box-shadow: var(--shadow-2); }
@@ -1584,7 +1584,7 @@ textarea.input.share-quote { min-height: 96px; }
 .customers { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 300px)); justify-content: center; gap: var(--s-5); margin-top: var(--s-6); }
 @media (max-width: 560px) { .customers { grid-template-columns: repeat(auto-fit, minmax(0, 340px)); } }
 .customer { display: grid; grid-template-rows: auto 1fr; margin: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
-.customer img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; display: block; }
+.customer img { width: 100%; height: auto; aspect-ratio: 3 / 4; object-fit: cover; display: block; }
 .customer figcaption { padding: 18px 20px 20px; display: grid; gap: 8px; align-content: start; }
 .customer blockquote { margin: 0; font-family: var(--font-display); font-size: var(--fs-lg); line-height: 1.35; text-wrap: pretty; }
 .customer b { font-weight: 600; }

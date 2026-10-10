@@ -280,6 +280,32 @@ let previewBytes = 0;
   ok("a preview's headshot isn't cached for a year", /max-age=3600/.test(cc) && !/immutable/.test(cc), cc);
 }
 
+// 4e. Two packages: refunding the first, partly spent, takes back only its
+// own unused credits, never the second package's.
+{
+  const two = await account(`twopack${t}@x.com`, "Tess Two");
+  const pay = async () => {
+    const { j } = await two("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+    const sid = new URL(j.url).pathname.split("/").pop();
+    await fetch(`${M}/mock-pay/${sid}`, { redirect: "manual" });
+    await two("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid }) });
+    return sid;
+  };
+  const a = await pay();
+  await new Promise((r) => setTimeout(r, 20));
+  const b = await pay();
+  await doneShoot(two); // the free preview
+  const paid = await doneShoot(two); // a credit from the first package
+  ok("(the shoot was paid by the first package)", paid.paidBy === a && (await two("/api/me")).j.user.plan.credits === 5);
+  await fetch(`${M}/mock-refund/${a}`);
+  await two("/api/billing/sync", { method: "POST", body: "{}" });
+  const afterA = (await two("/api/me")).j.user.plan.credits;
+  await fetch(`${M}/mock-refund/${b}`);
+  await two("/api/billing/sync", { method: "POST", body: "{}" });
+  const afterB = (await two("/api/me")).j.user.plan.credits;
+  ok("refunding one package leaves the other's credits", afterA === 3 && afterB === 0, `${afterA} then ${afterB}`);
+}
+
 // 5. A paid shoot is never a preview.
 {
   const paid = await doneShoot(pat);

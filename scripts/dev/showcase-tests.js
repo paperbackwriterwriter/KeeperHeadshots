@@ -191,12 +191,13 @@ let entry;
   const second = await pay();
   await doneShoot(kai); // the free preview
   const paid = await doneShoot(kai); // a credit from the first package
-  const r = await offer(kai, paid, paid.shots.find((x) => x.status === "done"), { name: "Kai" });
+  const r = await offer(kai, paid, paid.shots.find((x) => x.status === "done"), { name: "Kai $` Moe", quote: "Great $' service" });
   ok("a shoot records the package that paid for it", r.status === 200 && paid.paidBy === first, `${paid.paidBy} vs ${first}`);
   // Approved, it's in the home page's own HTML, so search engines see it.
   await owner(`/api/owner/showcase/${r.j.entry.id}`, { method: "POST", body: JSON.stringify({ status: "approved" }) });
   const page = await (await fetch(`${B}/`)).text();
-  ok("the home page carries the approved customer headshots", page.includes(`/showcase/${r.j.entry.id}.webp`) && page.includes("Real customers.") && page.includes("Kai"), page.match(/id="customers"[^>]*>/)?.[0]);
+  ok("the home page carries the approved customer headshots", page.includes(`/showcase/${r.j.entry.id}.webp`) && page.includes("Real customers.") && page.includes("Kai $` Moe"), page.match(/id="customers"[^>]*>/)?.[0]);
+  ok("a $ in a customer's words can't paste the page into itself", (page.match(/<!doctype html>/gi) || []).length === 1 && page.includes("Great $&#39; service"), `${(page.match(/<!doctype html>/gi) || []).length} doctypes, ${page.length} bytes`);
   await fetch(`${M}/mock-refund/${second}`);
   await kai("/api/billing/sync", { method: "POST", body: "{}" });
   ok("refunding the other package leaves it up", (await kai("/api/showcase/mine")).j.entry?.id === r.j.entry.id);

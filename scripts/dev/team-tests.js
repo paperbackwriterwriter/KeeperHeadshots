@@ -307,8 +307,51 @@ let final;
   const halC = await account(hal);
   await halC(`/api/join/${tokenOf(sent.results[0].link)}`, { method: "POST" });
   await halC("/api/account/delete", { method: "POST", body: JSON.stringify({ password: "password123" }) });
+  // A second member deletes their (undeveloped) team shoot first, then the account.
+  const kit = `kit${t}@x.com`;
+  const sent2 = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: kit }) })).j;
+  const kitC = await account(kit);
+  const kitSeat = (await kitC(`/api/join/${tokenOf(sent2.results[0].link)}`, { method: "POST" })).j.shootId;
+  await kitC(`/api/shoots/${kitSeat}`, { method: "DELETE" });
+  await kitC("/api/account/delete", { method: "POST", body: JSON.stringify({ password: "password123" }) });
+  ok("a member who deleted their team shoot before their account is forgotten too", !JSON.stringify((await adm("/api/team")).j.team.members).includes(kit));
   const members = (await adm("/api/team")).j.team.members;
   ok("a deleted member's name and address leave the team record", !JSON.stringify(members).includes(hal) && members.some((m) => m.status === "account_deleted" && m.name === "Deleted account"), JSON.stringify(members.map((m) => [m.email, m.status])));
+}
+
+// 9f. A refund while a colleague's photo check is running still counts that
+// seat, so deleting the shoot afterwards doesn't hand the refunded credit back.
+{
+  const adm = await account(`checkref-admin${t}@x.com`);
+  const { j } = await adm("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  const sid = new URL(j.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${sid}`, { redirect: "manual" });
+  await adm("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid }) });
+  await adm("/api/team", { method: "POST", body: JSON.stringify({ name: "Checkers", looks: LOOKS }) });
+  const ivy = `ivy${t}@x.com`;
+  const sent = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: ivy }) })).j;
+  const ivyC = await account(ivy);
+  const seat = (await ivyC(`/api/join/${tokenOf(sent.results[0].link)}`, { method: "POST" })).j.shootId;
+  await ivyC(`/api/shoots/${seat}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(60) }) });
+  const check = ivyC(`/api/shoots/${seat}/check`, { method: "POST", body: "{}" });
+  for (let w = 0; w < 40 && (await ivyC(`/api/shoots/${seat}`)).j.shoot.status !== "checking"; w++) await new Promise((r) => setTimeout(r, 50));
+  await fetch(`${M}/mock-refund/${sid}`);
+  await adm("/api/billing/sync", { method: "POST", body: "{}" });
+  await check;
+  await ivyC(`/api/shoots/${seat}`, { method: "DELETE" });
+  const left = await credits(adm);
+  ok("a refund during a colleague's photo check doesn't hand a credit back later", left === 0, String(left));
+}
+
+// 9g. Each address counts towards the hourly invite limit, however they're batched.
+{
+  const adm = await account(`batch-admin${t}@x.com`);
+  await buy(adm, "starter");
+  await adm("/api/team", { method: "POST", body: JSON.stringify({ name: "Batchers", looks: LOOKS }) });
+  const list = (n, k) => Array.from({ length: n }, (_, i) => `b${k}-${i}.${t}@x.com`).join(", ");
+  await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: list(25, 1) }) });
+  const second = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: list(6, 2) }) })).j.results;
+  ok("the 31st address in an hour is refused, across batches", /lot of invites in one hour/.test(second[5]?.error || "") && !/lot of invites/.test(second[4]?.error || ""), JSON.stringify(second.map((r) => r.error || "ok")));
 }
 
 // 10. A team seat is paid for by the admin: the member's free photo checks

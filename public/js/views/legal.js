@@ -26,7 +26,7 @@ function page({ eyebrow, title, lede, callout, body, updated = LEGAL_UPDATED }) 
 export function renderPrivacy({ root }) {
   root.innerHTML = page({
     eyebrow: "Privacy policy",
-    updated: "October 9, 2026",
+    updated: "October 10, 2026",
     title: "Your privacy",
     lede: "What we collect, why we collect it, who helps us run the service, and the choices you have.",
     callout:
@@ -57,7 +57,7 @@ export function renderPrivacy({ root }) {
       <h2 class="h-3">How AI works with your photos</h2>
       <p>To create and check your headshots, we send your photos to two AI providers: <b>Anthropic</b> (the Claude models check your selfies and review each headshot for likeness and quality) and <b>Google</b> (the Gemini models create the headshots). They process your photos for us under business terms that don't allow them to train their models on our data. They may keep data for a limited time for safety and abuse monitoring.</p>
       <p><b>We never use your photos or headshots to train AI models</b>, and we never use them in ads, examples or marketing without your written permission. The example people shown on our website are AI-generated models, not customers, except in the "From our customers" section described below.</p>
-      <p><b>Sharing your results:</b> on your finished shoot you can choose to share one headshot for our home page, with the name, job and words you give us. That's the only way a customer's headshot appears on our website: nothing is shown unless you tick the box giving permission, and we review each one before showing it. We keep a copy of that headshot and the details you gave until you take it down (from the shoot or your Account page), delete that shoot, delete your account, or the package that paid for it is refunded (yours, or your team admin's for a team shoot); it then disappears from the site within about 10 minutes. We don't use it anywhere else, such as in ads.</p>
+      <p><b>Sharing your results:</b> on your finished shoot you can choose to share one headshot for our home page, with the name, job and words you give us. That's the only way a customer's headshot appears on our website: nothing is shown unless you tick the box giving permission, and we review each one before showing it. We keep a copy of that headshot and the details you gave until you take it down (from the shoot or your Account page), delete that shoot, delete your account, or the package that paid for it is fully refunded (yours, or your team admin's for a team shoot); it then disappears from the site within about 10 minutes. We don't use it anywhere else, such as in ads.</p>
 
       <h2 class="h-3">Face data</h2>
       <p>We don't create or store face templates, face measurements or other biometric identifiers. Our AI looks at your photos to check that each headshot looks like you, the way a person would compare two pictures. We keep the photos themselves, as described below, and nothing derived from your face.</p>
@@ -99,7 +99,7 @@ export function renderPrivacy({ root }) {
         <li><b>Unfinished shoots:</b> a shoot that was never developed, and hasn't been changed for 90 days, is deleted automatically with its selfies.</li>
         <li><b>Account details:</b> while your account is open. You can delete your account at any time on your <a class="link" href="/app/account" data-link>Account page</a>. That removes your account and all your shoots, selfies and headshots straight away. If you email us instead, we'll do it within 30 days. Our nightly backups hold account and shoot records (never photos or headshots) for 30 days, so a deleted record can remain in a backup for up to 30 days.</li>
         <li><b>Free-shoot record:</b> if you used your free shoot, we keep a scrambled (hashed) copy of your email address after your account is deleted, with a note that the free shoot was used. That stops the free shoot being claimed twice. It doesn't include your name, photos or anything else. The count of free photo checks used by an email inbox is kept the same way, so that variations of one address (like name+1@…) share the free checks.</li>
-        <li><b>Shared headshots:</b> if you shared a headshot for our home page, until you take it down, delete that shoot, delete your account, or the package that paid for it is refunded (yours, or your team admin's for a team shoot).</li>
+        <li><b>Shared headshots:</b> if you shared a headshot for our home page, until you take it down, delete that shoot, delete your account, or the package that paid for it is fully refunded (yours, or your team admin's for a team shoot).</li>
         <li><b>Purchase records:</b> as long as tax and accounting rules require, usually up to 7 years.</li>
         <li><b>Messages:</b> the copy stored from the contact form is deleted automatically after 12 months. Replies we exchange by email stay in our inbox as a record of the conversation. To limit how many messages can be sent from one connection, we count messages per hour against a scrambled (hashed) form of your IP address; those counts are deleted after 2 days.</li>
       </ul>

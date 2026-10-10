@@ -133,6 +133,16 @@ export function renderAccount({ root, navigate }) {
     })
     .catch(() => {});
   const rem = $("#remindersOn", root);
+  // Changed in another tab: show the account's settings as they are now.
+  const onUser = () => {
+    if (!document.body.contains(rem)) return document.removeEventListener("ahg:user-changed", onUser);
+    const u2 = state.user;
+    if (!u2) return;
+    if (!rem.disabled) rem.checked = u2.emailReminders !== false;
+    const radio = $(`input[name="photoFormat"][value="${currentFormat()}"]`, root);
+    if (radio) radio.checked = true;
+  };
+  document.addEventListener("ahg:user-changed", onUser);
   rem.addEventListener("change", async () => {
     const on = rem.checked;
     rem.disabled = true;
