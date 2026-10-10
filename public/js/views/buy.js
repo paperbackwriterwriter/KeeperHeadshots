@@ -54,6 +54,13 @@ export function renderBuy({ root }, packageId) {
     shell(html`<p class="eyebrow">Checkout</p><h1 class="display h-2">That package doesn't exist.</h1><p class="lede">Pick one from the pricing section.</p><a class="btn btn-ink" href="/#pricing">See pricing</a>`);
     return;
   }
+  if (state.user?.demo) {
+    // Don't ask Stripe to create a payment form for a read-only account.
+    // A sample's shoot IDs cannot carry over to the visitor's new account.
+    const next = offer ? "/app/new" : location.pathname + location.search;
+    shell(html`<p class="eyebrow">Checkout</p><h1 class="display h-2">Create your account to continue.</h1><p class="lede">The demo account is read-only. Create a free account to choose ${offer ? pkg.name : `the ${pkg.name} package`} or try your own headshots first.</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><a class="btn btn-flash" href="${`/signup?next=${encodeURIComponent(next)}`}" data-link>Create free account ${icon("arrow-right")}</a><a class="btn btn-ghost" href="/app" data-link>Back to the demo</a></div>`);
+    return;
+  }
   if (offer && (!shootId || (pkg.id === "keep" && !shotId))) {
     shell(html`<p class="eyebrow">Checkout</p><h1 class="display h-2">Pick from your shoot first.</h1><p class="lede">${pkg.name} is chosen on your free preview's results page${pkg.id === "keep" ? ", for the headshot you pick there" : ""}.</p><a class="btn btn-ink" href="${shootId ? back : "/app"}" data-link>${shootId ? "Back to your shoot" : "Your shoots"}</a>`);
     return;
@@ -120,14 +127,27 @@ export function renderBuy({ root }, packageId) {
       try {
         const Stripe = await loadStripe();
         if (disposed) return;
+        // Fetch before handing over to Stripe: its asynchronous callback
+        // failures don't reliably reject createEmbeddedCheckoutPage().
+        // Account/API errors belong in our UI, not a generic Stripe panel.
+        let session;
+        try {
+          session = await api("/api/billing/checkout", { method: "POST", body: body({ embedded: true }) });
+          if (!session.clientSecret) throw new Error("Checkout isn't available right now.");
+        } catch (err) {
+          if (disposed) return;
+          if (offer && ["kept", "not_preview"].includes(err.data?.code)) return location.replace(back);
+          failed(err.message);
+          return;
+        }
+        if (disposed) return;
         const stripe = Stripe(key);
         // Stripe.js "dahlia" renamed initEmbeddedCheckout() to
         // createEmbeddedCheckoutPage() (the old name now throws).
         const create = (stripe.createEmbeddedCheckoutPage || stripe.initEmbeddedCheckout).bind(stripe);
         checkout = await create({
           fetchClientSecret: async () => {
-            const { clientSecret, eventId, value } = await api("/api/billing/checkout", { method: "POST", body: body({ embedded: true }) });
-            if (!clientSecret) throw new Error("Checkout isn't available right now.");
+            const { clientSecret, eventId, value } = session;
             pixel("InitiateCheckout", { value, currency: "USD", content_name: pkg.name }, eventId);
             return clientSecret;
           },
