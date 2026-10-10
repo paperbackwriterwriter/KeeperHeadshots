@@ -192,6 +192,19 @@ async function render({ restoreY = null } = {}) {
   }
   // Sign-in comes back to the same page, query included (e.g. /app/buy/pro?x).
   if (route.auth && !state.user) return navigate(`/signin?next=${encodeURIComponent(path + location.search)}`, { replace: true });
+  // The demo's signup links must leave its shared session before opening
+  // the guest-only form. Keep the URL (including a chosen package) intact.
+  if (path === "/signup" && state.user?.demo) {
+    try {
+      await api("/api/auth/signout", { method: "POST" });
+      state.user = null;
+    } catch (err) {
+      if (seq !== renderSeq) return;
+      toast(`We couldn't leave the demo. ${err.message} Please try again.`, "error");
+      return navigate("/app", { replace: true });
+    }
+    if (seq !== renderSeq) return;
+  }
   if (route.guestOnly && state.user) {
     const next = new URLSearchParams(location.search).get("next");
     return navigate(safeNext(next) || "/app", { replace: true });

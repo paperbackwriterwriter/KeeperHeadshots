@@ -18,6 +18,11 @@ async function render(sid, seedKey, opts) {
 
 const daysAgo = (d, h = 0) => new Date(Date.now() - d * 864e5 - h * 36e5).toISOString();
 
+const keeperHeadline = (grades, lead) => {
+  const count = Object.values(grades).filter((g) => g.grade === "keeper").length;
+  return `${count} keeper${count === 1 ? "" : "s"} — ${lead}`;
+};
+
 async function sampleShoot(userId, spec) {
   const sid = id("sht");
   const person = { skin: spec.skin, hair: spec.hair, hairTone: 0 };
@@ -53,7 +58,7 @@ async function sampleShoot(userId, spec) {
     check: spec.check,
     looks: spec.looks,
     shots,
-    review: { headline: spec.review.headline, summary: spec.review.summary, bestShotId: best.id, shots: reviewShots, at: spec.createdAt },
+    review: { headline: spec.review.keeperLead ? keeperHeadline(reviewShots, spec.review.keeperLead) : spec.review.headline, summary: spec.review.summary, bestShotId: best.id, shots: reviewShots, at: spec.createdAt },
     cover: best.file,
     doneCount: shots.length,
     bestScore: reviewShots[best.id].overall,
@@ -68,7 +73,20 @@ export function seed() {
 }
 
 async function doSeed() {
-  if (await users.byEmail(DEMO.email)) return;
+  const existing = await users.byEmail(DEMO.email);
+  if (existing) {
+    // Existing deployments already have the old sample stored. Correct only
+    // its known stale copy; don't recreate shoots or touch customer reviews.
+    for (const meta of existing.demo ? await shoots.forUser(existing.id) : []) {
+      if (!meta.sample || meta.review?.headline !== "Seven keepers — your studio gray look leads.") continue;
+      await shoots.updateMeta(meta.id, (m) => {
+        if (!m.sample || m.review?.headline !== "Seven keepers — your studio gray look leads.") return false;
+        m.review.headline = keeperHeadline(m.review.shots || {}, "your studio gray look leads.");
+        return m;
+      });
+    }
+    return;
+  }
   // The user record is written last, so a half-finished seed is retried.
   const user = { id: id("usr") };
 
@@ -112,7 +130,7 @@ async function doSeed() {
     ],
     review: {
       best: 0,
-      headline: "Seven keepers — your studio gray look leads.",
+      keeperLead: "your studio gray look leads.",
       summary: "Likeness held up across nearly every look, with the studio gray and golden-hour takes the strongest. Use the navy-suit portrait for LinkedIn and the library shot where you want a warmer, editorial feel.",
     },
   });
