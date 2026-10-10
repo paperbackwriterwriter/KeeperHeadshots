@@ -1,4 +1,5 @@
 import { $, $$, html, icon, raw, greaseCircle, state, logoMark, wordmark, example } from "../core.js";
+import { customersInner } from "../shared/customers.js";
 import { BACKDROPS, OUTFITS, PACKAGES, PREVIEW_OFFERS } from "../shared/catalog.js";
 import { FAQ } from "../shared/faq.js";
 
@@ -309,22 +310,7 @@ async function customerResults() {
   }
   const slot = $("#customers");
   if (!slot || !entries.length) return;
-  slot.innerHTML = html`<div class="container">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">From our customers</p>
-        <h2 class="display h-1" id="customersTitle" style="margin-top:16px">Real customers. <em>Their</em> headshots.</h2>
-      </div>
-      <p class="lede">Made from their own selfies, and shared with us by the people in them.</p>
-    </div>
-    <div class="customers">${entries.map(
-      (e) => html`<figure class="customer">
-        <img src="/showcase/${e.id}.webp?w=600&amp;v=${e.v}" alt="Headshot of ${e.name}, made by Keeper Headshots" loading="lazy" width="600" height="800" />
-        <figcaption>${e.quote ? html`<blockquote>“${e.quote}”</blockquote>` : ""}<p><b>${e.name}</b>${e.role ? html`<span>, ${e.role}</span>` : ""}</p></figcaption>
-      </figure>`,
-    )}</div>
-    <p class="small muted customers-note">Shared with permission. Want yours here? Use "Share your results" on your finished shoot.</p>
-  </div>`.v;
+  slot.innerHTML = customersInner(entries);
   slot.hidden = false;
 }
 
@@ -540,7 +526,7 @@ export function footer() {
           <a class="logo" href="/" data-link style="color:var(--text)">${logoMark()}${wordmark()}</a>
           <p style="margin-top:12px">Professional headshots from the photos you already have. Checked, developed and graded by AI.</p>
         </div>
-        <div><h2 class="footer-h">Product</h2><ul><li><a href="/#how">How it works</a></li><li><a href="/linkedin-headshots" data-link>LinkedIn headshots</a></li><li><a href="/#styles">Styles</a></li><li><a href="/#pricing">Pricing</a></li><li><a href="/team-headshots" data-link>Team headshots</a></li><li><a href="/real-estate-headshots" data-link>Real estate headshots</a></li><li><a href="/resume-headshots" data-link>Résumé headshots</a></li><li><a href="/doctor-headshots" data-link>Doctor headshots</a></li><li><a href="/lawyer-headshots" data-link>Lawyer headshots</a></li></ul></div>
+        <div><h2 class="footer-h">Product</h2><ul><li><a href="/#how">How it works</a></li><li><a href="/linkedin-headshots" data-link>LinkedIn headshots</a></li><li><a href="/#styles">Looks</a></li><li><a href="/#pricing">Pricing</a></li><li><a href="/team-headshots" data-link>Team headshots</a></li><li><a href="/real-estate-headshots" data-link>Real estate headshots</a></li><li><a href="/resume-headshots" data-link>Résumé headshots</a></li><li><a href="/doctor-headshots" data-link>Doctor headshots</a></li><li><a href="/lawyer-headshots" data-link>Lawyer headshots</a></li></ul></div>
         <div><h2 class="footer-h">Account</h2><ul><li><a href="/signin" data-link>Sign in</a></li><li><a href="/signup" data-link>Create account</a></li><li><a href="/app" data-link>Your shoots</a></li></ul></div>
         <div><h2 class="footer-h">Company</h2><ul><li><a href="/blog">Blog</a></li><li><a href="/#faq">FAQ</a></li><li><a href="/contact" data-link>Contact us</a></li><li><a href="/refunds" data-link>Money-back guarantee</a></li><li><a href="/privacy" data-link>Privacy policy</a></li><li><a href="/terms" data-link>Terms of service</a></li></ul></div>
       </div>

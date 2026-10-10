@@ -12,6 +12,7 @@ const STATUS = {
   joined: ["Joined", "badge badge-info"],
   returned: ["Shoot returned", "badge badge-muted"],
   deleted: ["Shoot deleted", "badge badge-muted"],
+  account_deleted: ["Account deleted", "badge badge-muted"],
   expired: ["Expired · shoot returned", "badge badge-muted"],
 };
 const shootLabel = (m) => {
@@ -169,6 +170,7 @@ export async function renderTeamAdmin({ root, navigate }) {
         const bad = r.results.filter((x) => !x.ok);
         paintTeam();
         if (ok.length) toast(`${ok.length} invite${ok.length === 1 ? "" : "s"} ${ok.every((x) => x.sent) ? "sent" : "created; copy the links to send them"}.`, "success", 6000);
+        for (const x of ok.filter((x) => x.capped)) toast(`We've already emailed ${x.email} 3 times today, so this one wasn't emailed. Copy their link and send it yourself.`, "info", 9000);
         for (const x of bad) toast(x.error, "error", 9000);
         if (bad.length) $("#emails").value = bad.map((x) => x.email).join(", ");
       } catch (err) {

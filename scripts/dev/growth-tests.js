@@ -85,6 +85,17 @@ const t = Date.now();
   const bad = await owner("/api/owner/offer", { method: "POST", body: JSON.stringify({ code: "NOPE-20", discount: "20% off", until: "Sunday" }) });
   const good = await owner("/api/owner/offer", { method: "POST", body: JSON.stringify({ code: "KEEP20", discount: "20% off", until: "Sunday" }) });
   ok("an offer code is checked with Stripe before anyone is counted or emailed", bad.status === 400 && /no active promotion code/.test(bad.j?.error || "") && good.status === 200 && good.j.promo?.percentOff === 20, `${bad.status} ${bad.j?.error} / ${good.status} ${JSON.stringify(good.j?.promo)}`);
+  // A refund shows in the funnel once, on the day it's made, as an amount and an order.
+  const { j: co } = await f("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  const refundSid = new URL(co.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${refundSid}`, { redirect: "manual" });
+  await f("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: refundSid }) });
+  const mid = (await owner("/api/owner/funnel?days=7")).j.totals;
+  await fetch(`${M}/mock-refund/${refundSid}`);
+  await f("/api/billing/sync", { method: "POST", body: "{}" });
+  await f("/api/billing/sync", { method: "POST", body: "{}" }); // a second sync counts nothing more
+  const end = (await owner("/api/owner/funnel?days=7")).j.totals;
+  ok("a refund is counted once in the funnel", end.refunds - mid.refunds === 2900 && end.refunded - mid.refunded === 1 && end.revenue === mid.revenue, JSON.stringify({ refunds: end.refunds - mid.refunds, refunded: end.refunded - mid.refunded }));
   const stranger = await f("/api/owner/funnel");
   ok("only owners can see the funnel", stranger.status === 404, String(stranger.status));
 }

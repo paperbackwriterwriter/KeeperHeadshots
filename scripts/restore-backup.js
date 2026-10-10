@@ -6,10 +6,12 @@
 //
 //   node scripts/restore-backup.js                      # newest backup: what's in it
 //   node scripts/restore-backup.js --backup backups/2026-10-01.json.gz
-//   node scripts/restore-backup.js --only users/ --missing --apply
+//   node scripts/restore-backup.js --only users/ --apply
 //
 //   --only <prefix>   only records whose key starts with this (repeatable)
-//   --missing         only records that don't exist now (never overwrites)
+//   --overwrite       also replace records that exist now (by default only
+//                     missing records are restored, so nothing current is lost)
+//   --missing         the default; accepted for older instructions
 //   --apply           write them; without it, just list what would change
 import "../lib/env.js";
 import { readBackup } from "../lib/backup.js";
@@ -20,7 +22,7 @@ const flag = (name) => args.includes(name);
 const values = (name) => args.flatMap((a, i) => (a === name && args[i + 1] ? [args[i + 1]] : []));
 const only = values("--only");
 const apply = flag("--apply");
-const missingOnly = flag("--missing");
+const missingOnly = !flag("--overwrite");
 
 const snap = await readBackup(values("--backup")[0] || null);
 if (!snap) {

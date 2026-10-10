@@ -59,13 +59,15 @@ await storage.del(leftAfterShort.filter((k) => k.includes("2024-1")));
 await storage.del(["users/id/usr_a.json"]);
 await storage.putJSON("payments/cs_1.json", { sessionId: "cs_1", amount: 2900, note: "newer" });
 const run = (...a) => execFileSync(process.execPath, ["scripts/restore-backup.js", ...a], { env: { ...process.env, DATA_DIR: dir }, encoding: "utf8" });
-const dry = run("--missing");
+const dry = run();
 const stillGone = (await storage.getJSON("users/id/usr_a.json")) === null;
-const out = run("--missing", "--apply");
+const out = run("--apply");
 const restored = await storage.getJSON("users/id/usr_a.json");
 const kept = await storage.getJSON("payments/cs_1.json");
 ok("dry run writes nothing", stillGone && /Would restore 1 records/.test(dry), dry.trim().split("\n").pop());
-ok("restore brings back a deleted account, leaves newer records alone", restored?.credits === 3 && kept.note === "newer" && /Restored 1 records/.test(out), out.trim().split("\n").pop());
+ok("restore brings back a deleted account, and by default leaves current records alone", restored?.credits === 3 && kept.note === "newer" && /Restored 1 records/.test(out), out.trim().split("\n").pop());
+const over = run("--only", "payments/", "--overwrite", "--apply");
+ok("--overwrite replaces current records when asked", (await storage.getJSON("payments/cs_1.json")).note !== "newer" && /Restored/.test(over), over.trim().split("\n").pop());
 
 // A backup store that can't be reached (store id set, no OIDC token here):
 // tonight's copy still lands in the main store, and it's reported.

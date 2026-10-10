@@ -23,7 +23,8 @@ import { aiStatus, AIError } from "./lib/ai.js";
 import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, advance, startGeneration, retryFailed, startReview, addLooks } from "./lib/pipeline.js";
 import { lookFor, MAX_LOOKS, MAX_SELFIES, MAX_RESUMES, PHOTO_FORMATS, isPreviewOffer } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
-import { planFor, ownerEmail, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, EMAIL_UNCONFIRMED } from "./lib/plan.js";
+import { customersSection } from "./public/js/shared/customers.js";
+import { planFor, ownerEmail, creditSource, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, EMAIL_UNCONFIRMED } from "./lib/plan.js";
 import { gpc, metaPixelId, track as trackMeta } from "./lib/meta.js";
 import { runCleanup } from "./lib/cleanup.js";
 import { runBackup } from "./lib/backup.js";
@@ -282,6 +283,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
       }
     }).catch((err) => (err instanceof google.GoogleError ? null : Promise.reject(err)));
     if (!user) return back("failed"); // deleted meanwhile, or linked elsewhere
+    if (newlyVerified) await purgeForTakeover(user.id);
   }
   if (created) background(recordStep("signup", user).catch(noteStats));
   if (newlyVerified) {
@@ -447,6 +449,7 @@ app.post("/api/auth/password/reset", async (req, res) => {
     delete u.emailVerifiedVia;
   });
   if (used) return invalid();
+  if (newlyVerified) await purgeForTakeover(user.id);
   // Proving they own the inbox lifts any sign-in lock on the address.
   const lift = (r) => {
     r.ips = {};
@@ -735,6 +738,7 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
     await putJSON(claimKey, { userId: req.user.id, at: new Date().toISOString(), retaken: true });
   }
   let charged = null;
+  let paidBy = null;
   try {
     // A team shoot was paid for when its invite was sent, unless a refund since took that back.
     if (meta.team && !(await teams.seatPaid(meta))) throw new PlanError("This team shoot is no longer paid for. Ask your team admin to buy a package or get in touch with us.", "team_unpaid", 402);
@@ -751,17 +755,21 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
       }
       await users.update(req.user.id, (u) => {
         charged = null; // the callback may run again after a write conflict
+        paidBy = null;
         const p = planFor(u);
         // Charged by an earlier try that died before the plan was written: don't charge again.
         const before = u.developing?.[meta.id];
-        if (before === "free" || before === "credit") {
-          charged = before;
+        const kind = typeof before === "object" ? before?.charged : before;
+        if (kind === "free" || kind === "credit") {
+          charged = kind;
+          paidBy = before?.paidBy || null;
           return UNCHANGED;
         }
         if (freeOk && p.freeShootAvailable && ownsMailbox(u)) {
           u.usage = { ...u.usage, freeShootUsed: meta.id };
           charged = "free";
         } else if (p.credits > 0) {
+          paidBy = creditSource(u);
           u.credits = p.credits - 1;
           charged = "credit";
         } else if (wantsFree && !freeOk) {
@@ -771,9 +779,10 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
         } else {
           throw new PlanError(NO_SHOOTS_LEFT);
         }
-        u.developing = { ...u.developing, [meta.id]: charged };
+        u.developing = { ...u.developing, [meta.id]: paidBy ? { charged, paidBy } : charged };
       });
       meta.paidWith = charged;
+      if (paidBy) meta.paidBy = paidBy;
       // The free shoot is a watermarked preview until a package is bought (lib/preview.js).
       if (charged === "free") meta.preview = true;
     }
@@ -939,8 +948,15 @@ function teamAdminOnly(req, res) {
   return true;
 }
 
+// Invitations: at most INVITES_PER_HOUR a team admin, and at most
+// INVITE_EMAILS_PER_DAY emails to one address a day (inviting, cancelling and
+// inviting again, or resending), so the form can't be used to flood a mailbox.
+const INVITES_PER_HOUR = 30;
+const INVITE_EMAILS_PER_DAY = 3;
+const inviteMailCapped = (team, inv) => overLimit("invite-mail", `${team.id}:${inv.email}`, INVITE_EMAILS_PER_DAY, DAY_MS);
 async function sendInvite(req, team, inv) {
   if (!mailEnabled()) return false;
+  if (await inviteMailCapped(team, inv)) return "capped";
   const link = `${appOrigin(req)}/join/${inv.token}`;
   const { subject, text, html } = teamInviteEmail({ ownerName: req.user.name, teamName: team.name, link, looks: lookNames(team.looks) });
   await sendMail({ from: { name: "Keeper Headshots", address: MAIL_FROM }, replyTo: { name: req.user.name, address: req.user.email }, to: inv.email, subject, text, html });
@@ -971,14 +987,14 @@ app.post("/api/team/invites", requireUser, async (req, res) => {
   teamAdminOnly(req, res);
   const emails = [...new Set(String(req.body?.emails || "").split(/[\s,;]+/).map((e) => e.trim()).filter(Boolean))].slice(0, 25);
   if (!emails.length) return res.status(400).json({ error: "Add at least one email address." });
-  if (await overLimit("invites", req.user.id, 60)) return res.status(429).json({ error: "That's a lot of invites in one hour. Please wait a little and try again." });
+  if (await overLimit("invites", req.user.id, INVITES_PER_HOUR)) return res.status(429).json({ error: "That's a lot of invites in one hour. Please wait a little and try again." });
   const results = [];
   for (const email of emails) {
     try {
       const user = await users.byId(req.user.id); // fresh balance and team for each
       const { team, invite: inv } = await teams.invite(user, email);
       const sent = await sendInvite(req, team, inv).catch((err) => (console.error("[team] invite email", err.message), false));
-      results.push({ email: inv.email, ok: true, sent, link: `${appOrigin(req)}/join/${inv.token}` });
+      results.push({ email: inv.email, ok: true, sent: sent === true, ...(sent === "capped" ? { capped: true } : {}), link: `${appOrigin(req)}/join/${inv.token}` });
     } catch (err) {
       if (!(err instanceof PlanError)) throw err;
       results.push({ email, ok: false, error: err.message });
@@ -994,7 +1010,9 @@ app.post("/api/team/invites/:inviteId/resend", requireUser, async (req, res) => 
   const inv = team?.invites?.[req.params.inviteId];
   if (!inv || inv.status !== "invited") return res.status(404).json({ error: "That invite isn't open any more." });
   if (inv.sentAt && Date.now() - Date.parse(inv.sentAt) < 60_000) return res.status(429).json({ error: "We just sent it. Give it a minute, and ask them to check their spam folder." });
-  if (!(await sendInvite(req, team, inv))) return res.status(503).json({ error: "Email isn't set up here. Copy the invite link and send it yourself." });
+  const sent = await sendInvite(req, team, inv);
+  if (sent === "capped") return res.status(429).json({ error: `We've emailed ${inv.email} ${INVITE_EMAILS_PER_DAY} times today. Copy the invite link and send it yourself instead.` });
+  if (!sent) return res.status(503).json({ error: "Email isn't set up here. Copy the invite link and send it yourself." });
   res.json({ ok: true });
 });
 
@@ -1037,6 +1055,25 @@ app.post("/api/join/:token", requireUser, async (req, res) => {
 
 /* ------------------------------ Account ----------------------------- */
 
+// The inbox's owner took over an account someone else made with their address
+// and never confirmed (password reset or Google sign-in). What that person
+// uploaded isn't theirs to keep: every shoot, its photos and headshots go.
+// Purchases stay (they're payment records), and so does the balance.
+async function purgeForTakeover(userId) {
+  const list = await shoots.forUser(userId);
+  if (!list.length) return 0;
+  for (const meta of list) if (meta.team && !(meta.shots || []).length) await teams.returnSeat(meta).catch((err) => console.error("[takeover] return seat", meta.id, err.message));
+  await showcase.removeForUser(userId).catch(() => {});
+  for (const meta of list) await shoots.remove(meta);
+  await users.update(userId, (u) => {
+    delete u.kept;
+    delete u.extraLooks;
+    delete u.developing;
+  }).catch(() => {});
+  console.log("[takeover] removed", list.length, "shoot(s) made before the address was confirmed", userId);
+  return list.length;
+}
+
 app.post("/api/account/delete", requireUser, async (req, res) => {
   if (req.user.demo) return res.status(403).json({ error: DEMO_READ_ONLY, code: "demo_read_only" });
   // An account made with Google has no password: typing its email confirms.
@@ -1057,6 +1094,8 @@ app.post("/api/account/delete", requireUser, async (req, res) => {
   // An undeveloped team shoot goes back to its team; your own team closes.
   for (const meta of list) if (meta.team && !(meta.shots || []).length) await teams.returnSeat(meta).catch((err) => console.error("[team] return seat", meta.id, err.message));
   if (req.user.teamId) await teams.removeTeam(req.user.teamId);
+  // Teams they were a member of keep the seat, not their name or address.
+  for (const teamId of new Set(list.map((m) => m.team?.id).filter(Boolean))) await teams.forgetMember(teamId, req.user.id);
   await showcase.removeForUser(req.user.id);
   await users.remove(req.user);
   // The funnel keeps its day totals; the per-person "already counted" markers go.
@@ -1668,6 +1707,13 @@ async function serveBlog(req, res, clean) {
   return true;
 }
 
+const EMPTY_CUSTOMERS = /<section class="section" id="customers"[^>]*>\s*<\/section>/;
+async function withCustomers(html) {
+  if (!EMPTY_CUSTOMERS.test(html)) return html;
+  const entries = await showcase.approved().catch(() => []);
+  return entries.length ? html.replace(EMPTY_CUSTOMERS, customersSection(entries)) : html;
+}
+
 app.get(/.*/, async (req, res) => {
   res.set("Content-Security-Policy", /^\/blog(\/|$)/.test(req.path) ? BLOG_CSP : CSP);
   // "//evil.com/" or "/\\evil.com" must never become a redirect to another site.
@@ -1677,7 +1723,10 @@ app.get(/.*/, async (req, res) => {
   if (await serveBlog(req, res, clean)) return;
   // A blog article (/blog?post=<slug>) is its own page to search engines.
   const post = clean === "/blog" && typeof req.query.post === "string" ? blogPostPage(req.query.post) : null;
-  const { status, html } = post || pageFor(clean);
+  let { status, html } = post || pageFor(clean);
+  // The home page carries the approved customer headshots in its HTML, so
+  // search engines see them (the browser fills the same section in later).
+  if (clean === "/") html = await withCustomers(html);
   if (!isCanonicalHost(req.get("host"))) res.set("X-Robots-Tag", "noindex");
   res.status(status).type("html").send(html);
 });

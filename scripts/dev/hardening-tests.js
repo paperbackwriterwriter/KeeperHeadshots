@@ -444,6 +444,31 @@ if (process.env.DATA_DIR) {
   ok("signed-out download → sign-in page, signed-out image fetch and the page's HEAD check → 401", anon.status === 302 && (anon.headers.get("location") || "").startsWith(`/signin?next=%2Fapp%2Fshoot%2F${sid}`) && page.status === 302 && xhr.status === 401 && head.status === 401, `${anon.status} ${anon.headers.get("location")} ${page.status} ${xhr.status} ${head.status}`);
 }
 
+// 27. Someone signs up with your address, never confirms it, pays and
+// uploads. When you take the account over with "Forgot password", what they
+// uploaded goes; the payment and its shoots balance stay.
+{
+  const email = `takeover${t}@x.com`;
+  const stranger = client();
+  await stranger("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Not You", email, password: "password123" }) });
+  const { j } = await stranger("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  const sess = new URL(j.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${sess}?promo=FREE`, { redirect: "manual" });
+  await stranger("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sess }) });
+  const sid = (await stranger("/api/shoots", { method: "POST", body: "{}" })).j?.shoot?.id;
+  await stranger(`/api/shoots/${sid}/selfies`, { method: "POST", body: JSON.stringify({ photo }) });
+  const file = (await stranger(`/api/shoots/${sid}`)).j?.shoot?.selfies?.[0]?.file;
+  const owner = client();
+  await owner("/api/auth/password/forgot", { method: "POST", body: JSON.stringify({ email }) });
+  await new Promise((r) => setTimeout(r, 800));
+  const link = (await mailFor(email)).flatMap((m) => m.links).findLast((l) => l.includes("/reset?token="));
+  const reset = await owner("/api/auth/password/reset", { method: "POST", body: JSON.stringify({ token: new URL(link).searchParams.get("token"), password: "mine-for-real-1" }) });
+  const list = (await owner("/api/shoots")).j;
+  const me = (await owner("/api/me")).j.user;
+  const media = await owner(`/media/${file}`, { headers: { accept: "image/*" } });
+  ok("taking over an unconfirmed account removes what the stranger uploaded, keeps the balance", !!sid && !!file && reset.status === 200 && (list.shoots || []).length === 0 && media.status === 404 && me.plan.credits === 3 && me.emailVerified === true, `${sid} ${reset.status} shoots=${(list.shoots || []).length} media=${media.status} credits=${me.plan.credits}`);
+}
+
 const passed = results.filter((r) => r[1]).length;
 console.log(`\n${passed}/${results.length} passed`);
 process.exit(passed === results.length ? 0 : 1);

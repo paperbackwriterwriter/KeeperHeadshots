@@ -276,6 +276,41 @@ let final;
   ok("a colleague's checked seat still develops after the admin deletes their account", del.status === 200 && dev.status === 202, `${del.status} ${dev.status} ${JSON.stringify(dev.j?.error)}`);
 }
 
+// 9d. One address gets at most 3 invitation emails a day, however often it's
+// invited, cancelled and invited again, or resent.
+{
+  const adm = await account(`cap-admin${t}@x.com`);
+  await buy(adm, "starter");
+  await adm("/api/team", { method: "POST", body: JSON.stringify({ name: "Cappers", looks: LOOKS }) });
+  const who = `capped${t}@x.com`;
+  const sends = [];
+  for (let i = 0; i < 4; i++) {
+    const r = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: who }) })).j.results[0];
+    sends.push(r.sent ? "sent" : r.capped ? "capped" : "no");
+    const id = (await adm("/api/team")).j.team.members.find((m) => m.email === who && m.status === "invited")?.id;
+    if (i < 3) await adm(`/api/team/invites/${id}`, { method: "DELETE" });
+  }
+  const id = (await adm("/api/team")).j.team.members.find((m) => m.email === who && m.status === "invited")?.id;
+  const resend = await adm(`/api/team/invites/${id}/resend`, { method: "POST" });
+  const got = (await mails()).filter((m) => m.to.includes(who)).length;
+  ok("an address gets at most 3 invitation emails a day", sends.join(",") === "sent,sent,sent,capped" && resend.status === 429 && got === 3, `${sends.join(",")} resend=${resend.status} emails=${got}`);
+}
+
+// 9e. A member who deletes their account leaves the team's list without
+// their name or address.
+{
+  const adm = await account(`scrub-admin${t}@x.com`);
+  await buy(adm, "starter");
+  await adm("/api/team", { method: "POST", body: JSON.stringify({ name: "Scrubbers", looks: LOOKS }) });
+  const hal = `hal${t}@x.com`;
+  const sent = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: hal }) })).j;
+  const halC = await account(hal);
+  await halC(`/api/join/${tokenOf(sent.results[0].link)}`, { method: "POST" });
+  await halC("/api/account/delete", { method: "POST", body: JSON.stringify({ password: "password123" }) });
+  const members = (await adm("/api/team")).j.team.members;
+  ok("a deleted member's name and address leave the team record", !JSON.stringify(members).includes(hal) && members.some((m) => m.status === "account_deleted" && m.name === "Deleted account"), JSON.stringify(members.map((m) => [m.email, m.status])));
+}
+
 // 10. A team seat is paid for by the admin: the member's free photo checks
 // don't gate it and aren't spent on it.
 {

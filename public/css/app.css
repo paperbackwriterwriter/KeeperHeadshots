@@ -289,14 +289,15 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .logo b { color: var(--ink); font-family: var(--font-display); font-weight: 600; font-size: 1.45rem; letter-spacing: -0.01em; line-height: 0.9; }
 .logo span { font-size: 0.5625rem; font-weight: 700; letter-spacing: 0.34em; text-transform: uppercase; color: var(--accent-text); }
 .nav-links { display: flex; gap: 4px; margin-left: var(--s-5); }
-.nav-links a { text-decoration: none; font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); padding: 8px 12px; border-radius: var(--r-pill); transition: color var(--dur-2), background-color var(--dur-2); }
+.nav-links a { white-space: nowrap; text-decoration: none; font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); padding: 8px 12px; border-radius: var(--r-pill); transition: color var(--dur-2), background-color var(--dur-2); }
 .nav-links a:hover { color: var(--text); background: color-mix(in srgb, var(--ink) 6%, transparent); }
 .nav-actions { margin-left: auto; display: flex; align-items: center; gap: var(--s-2); }
 .nav-toggle { display: none; }
 .nav-sheet { display: none; }
-/* 56.25em is 900px at the default text size; with a larger default (large
-   text in the browser or OS) the menu collapses sooner, so it never overflows. */
-@media (max-width: 56.25em) {
+/* 60em is 960px at the default text size (below that the six links and two
+   buttons don't fit on one line); with a larger default (large text in the
+   browser or OS) the menu collapses sooner, so it never overflows. */
+@media (max-width: 60em) {
   .nav-links, .nav-actions .hide-m { display: none; }
   .nav-toggle { display: inline-flex; }
   .nav-sheet { display: block; position: fixed; inset: 72px 0 auto 0; max-height: calc(100dvh - 72px); overflow-y: auto; overscroll-behavior: contain; background: var(--bg); border-bottom: 1px solid var(--border); padding: var(--s-4) var(--gutter) var(--s-5); transform: translateY(-8px); opacity: 0; visibility: hidden; transition: all var(--dur-2) var(--ease-out); box-shadow: var(--shadow-2); }
@@ -366,12 +367,15 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .hero-visual { min-width: 0; }
 .sheet-controls { max-width: 540px; margin: 6px 0 0 auto; display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
 .sheet-dots { display: flex; gap: 2px; }
-.sheet-dot { width: 24px; height: 28px; border: 0; padding: 0; background: none; cursor: pointer; display: grid; place-items: center; }
+.sheet-dot { width: 28px; height: 44px; margin-block: -8px; border: 0; padding: 0; background: none; cursor: pointer; display: grid; place-items: center; }
 .sheet-dot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); transition: background var(--dur-2), transform var(--dur-2); }
 .sheet-dot[aria-pressed="true"]::before { background: var(--brass-500); transform: scale(1.35); }
 .sheet-dot:hover::before { background: var(--ink-400); }
 .sheet-pause { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink); display: grid; place-items: center; cursor: pointer; }
 .sheet-pause svg { width: 14px; height: 14px; }
+/* Small round controls keep their look but get a 44px touch area. */
+.sheet-pause { position: relative; }
+.sheet-pause::after, .look-remove::after, .thumb .rm::after, .scan .rm-photo::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; }
 .sheet-pause:hover { border-color: var(--ink-400); }
 .tag-keeper .score { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--success); background: var(--success-soft); padding: 2px 8px; border-radius: var(--r-pill); }
 .arrow-doodle { position: absolute; left: 22%; bottom: 36%; width: 20%; z-index: 3; color: var(--ink); transform: rotate(-8deg); }
@@ -759,7 +763,7 @@ p, li, dd, .lede, figcaption { text-wrap: pretty; }
   linear-gradient(#fff, #fff) left top / 18px 2px no-repeat, linear-gradient(#fff, #fff) left top / 2px 18px no-repeat,
   linear-gradient(#fff, #fff) left bottom / 18px 2px no-repeat, linear-gradient(#fff, #fff) left bottom / 2px 18px no-repeat,
   linear-gradient(#fff, #fff) right bottom / 18px 2px no-repeat, linear-gradient(#fff, #fff) right bottom / 2px 18px no-repeat; }
-@media (max-width: 640px) { .scan .rm-photo { width: 30px; height: 30px; top: 6px; right: 6px; } }
+@media (max-width: 640px) { .scan .rm-photo { width: 30px; height: 30px; top: 6px; right: 6px; } .scan .rm-photo::after { inset: -7px; } }
 @keyframes scan { to { top: 100%; } }
 .scan.idle::after { display: none; }
 .scan.idle img { opacity: 0.9; filter: none; }
@@ -976,7 +980,9 @@ body:has(.develop-bar) .toasts { bottom: calc(96px + env(safe-area-inset-bottom)
 .funnel-rate small { color: var(--text-muted); font-family: var(--font-body, inherit); }
 .funnel-scroll-hint { display: none; margin: 0 0 var(--s-2); }
 @media (max-width: 640px) { .funnel-scroll-hint { display: block; } }
-.funnel-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--s-4); border-top: 1px solid var(--border); padding-top: var(--s-4); }
+/* Six figures: three to a row, two on phones, so none is left on its own. */
+.funnel-sum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-4); border-top: 1px solid var(--border); padding-top: var(--s-4); }
+@media (max-width: 640px) { .funnel-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .funnel-sum div { display: grid; gap: 2px; align-content: start; }
 .funnel-sum b { font-family: var(--font-display); font-size: var(--fs-xl); font-variant-numeric: tabular-nums lining-nums; }
 .funnel-sum span { font-size: var(--fs-sm); color: var(--text-muted); }
@@ -1014,6 +1020,7 @@ body:has(.develop-bar) .toasts { bottom: calc(96px + env(safe-area-inset-bottom)
 .pick-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--surface); font-size: var(--fs-xs); font-weight: 700; color: var(--text-muted); cursor: pointer; transition: border-color var(--dur-2), color var(--dur-2), background-color var(--dur-2); }
 .pick-btn:hover { border-color: var(--flash-500); color: var(--accent-text); background: var(--accent-soft); }
 .pick-btn svg, .pick-label svg { width: 14px; height: 14px; }
+@media (pointer: coarse), (max-width: 640px) { .pick-btn { min-height: 44px; padding: 0 16px; } }
 .pick-label { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 700; color: var(--accent-text); padding: 0 4px; }
 .score-pill { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--r-pill); font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 500; background: rgba(251, 249, 245, 0.94); color: var(--ink-950); box-shadow: var(--shadow-1); font-variant-numeric: tabular-nums; }
 .score-pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
@@ -1590,6 +1597,8 @@ textarea.input.share-quote { min-height: 96px; }
 .sc-item { display: grid; grid-template-columns: 120px 1fr; gap: 18px; align-items: start; }
 .sc-item img { width: 120px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 10px; }
 .sc-item > div { display: grid; gap: 8px; justify-items: start; min-width: 0; }
+.sc-item .btn-row { justify-content: flex-start; margin-inline: 0; max-width: none; }
+.sc-item .btn-row > .btn { flex: 1 1 0; white-space: nowrap; }
 .sc-item q { font-style: italic; }
 @media (max-width: 480px) {
   .sc-item { grid-template-columns: 88px 1fr; gap: 14px; }

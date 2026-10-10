@@ -175,6 +175,36 @@ let entry;
   ok("refunding the package takes it down", synced.user.purchased === false && (await rae("/api/showcase/mine")).j.entry === null && (await rae(`/showcase/${r.j.entry.id}.webp`)).status === 404, JSON.stringify({ purchased: synced.user?.purchased }));
 }
 
+// 5c. With two packages, refunding one only takes down what that one paid
+// for (credits are spent oldest package first).
+{
+  const kai = await account(`kai${t}@x.com`, "Kai Moe");
+  const pay = async () => {
+    const { j } = await kai("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+    const sid = new URL(j.url).pathname.split("/").pop();
+    await fetch(`${M}/mock-pay/${sid}`, { redirect: "manual" });
+    await kai("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid }) });
+    return sid;
+  };
+  const first = await pay();
+  await new Promise((r) => setTimeout(r, 20));
+  const second = await pay();
+  await doneShoot(kai); // the free preview
+  const paid = await doneShoot(kai); // a credit from the first package
+  const r = await offer(kai, paid, paid.shots.find((x) => x.status === "done"), { name: "Kai" });
+  ok("a shoot records the package that paid for it", r.status === 200 && paid.paidBy === first, `${paid.paidBy} vs ${first}`);
+  // Approved, it's in the home page's own HTML, so search engines see it.
+  await owner(`/api/owner/showcase/${r.j.entry.id}`, { method: "POST", body: JSON.stringify({ status: "approved" }) });
+  const page = await (await fetch(`${B}/`)).text();
+  ok("the home page carries the approved customer headshots", page.includes(`/showcase/${r.j.entry.id}.webp`) && page.includes("Real customers.") && page.includes("Kai"), page.match(/id="customers"[^>]*>/)?.[0]);
+  await fetch(`${M}/mock-refund/${second}`);
+  await kai("/api/billing/sync", { method: "POST", body: "{}" });
+  ok("refunding the other package leaves it up", (await kai("/api/showcase/mine")).j.entry?.id === r.j.entry.id);
+  await fetch(`${M}/mock-refund/${first}`);
+  await kai("/api/billing/sync", { method: "POST", body: "{}" });
+  ok("refunding the package that paid for it takes it down", (await kai("/api/showcase/mine")).j.entry === null);
+}
+
 // 6. The demo account can't offer anything.
 {
   const demo = client();
