@@ -291,6 +291,7 @@ export function renderLanding({ root }) {
   const stopHero = heroCycle();
   const stopStrip = stripPreload();
   const stopReel = stripReel();
+  rendered = performance.now();
   customerResults();
   return () => {
     stopHero?.();
@@ -301,6 +302,7 @@ export function renderLanding({ root }) {
 
 // Headshots customers shared with their permission, once approved. The
 // section stays hidden until there's at least one.
+let rendered = 0;
 async function customerResults() {
   let entries = [];
   try {
@@ -310,13 +312,14 @@ async function customerResults() {
   }
   const slot = $("#customers");
   if (!slot || !entries.length) return;
-  // Opened at a section below this one (/#faq): it was scrolled to before the
-  // section appeared, so bring it back into view once the section has filled.
-  const target = location.hash.length > 1 ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
-  const wasAtTarget = !!target && slot.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING && Math.abs(target.getBoundingClientRect().top) < 200;
+  const wasHidden = slot.hidden;
   slot.innerHTML = customersInner(entries);
   slot.hidden = false;
-  if (wasAtTarget) target.scrollIntoView({ block: "start", behavior: "instant" });
+  // Opened at a section below this one (/#faq), whose scroll (perhaps still
+  // a smooth one) was aimed before the section appeared: go to it again, at
+  // once, unless the visitor has had time to scroll somewhere themselves.
+  const target = location.hash.length > 1 ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
+  if (wasHidden && target && performance.now() - rendered < 3000 && slot.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING) target.scrollIntoView({ block: "start", behavior: "instant" });
 }
 
 // The wardrobe strip's photos are lazy, but most of them sit outside the
