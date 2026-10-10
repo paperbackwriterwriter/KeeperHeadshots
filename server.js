@@ -365,7 +365,12 @@ app.post("/api/auth/verify/resend", requireUser, async (req, res) => {
 });
 
 app.post("/api/auth/signout", async (req, res) => {
-  await revokeSession(req).catch((err) => console.error("[signout] revoke", err.message));
+  try {
+    await revokeSession(req);
+  } catch (err) {
+    console.error("[signout] revoke", err.message);
+    return res.status(503).json({ error: "Sign-out is temporarily unavailable. Please try again." });
+  }
   clearSession(res);
   res.json({ ok: true });
 });

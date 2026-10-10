@@ -301,11 +301,21 @@ function wireChrome() {
       prev?.();
     };
   }
-  $("#signOut")?.addEventListener("click", async () => {
-    await api("/api/auth/signout", { method: "POST" }).catch(() => {});
-    state.user = null;
-    toast("Signed out. See you soon.", "success");
-    navigate("/");
+  $("#signOut")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const restore = busy(btn, "Signing out…");
+    btn.querySelector("span")?.classList.add("hide-m");
+    try {
+      const result = await api("/api/auth/signout", { method: "POST" });
+      if (result.ok !== true) throw new Error("Sign-out wasn't confirmed. Please try again.");
+      state.user = null;
+      toast("Signed out. See you soon.", "success");
+      navigate("/");
+    } catch (err) {
+      toast(`We couldn't sign you out. ${err.message}`, "error");
+    } finally {
+      restore();
+    }
   });
 }
 

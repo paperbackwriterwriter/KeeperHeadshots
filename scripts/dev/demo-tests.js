@@ -86,6 +86,64 @@ try {
     await assertSignedOut();
     pass(`${width}px failed demo sign-out preserves the session and can be retried`);
 
+    // The normal chrome button must also wait for confirmed sign-out. A
+    // server error, an offline request, or an unconfirmed response must keep
+    // the account visible and signed in, with a working retry button.
+    for (const failure of ["server", "offline", "unconfirmed"]) {
+      await signInDemo();
+      await context.route("**/api/auth/signout", (route) => failure === "offline"
+        ? route.abort("internetdisconnected")
+        : route.fulfill({ status: failure === "server" ? 503 : 200, json: failure === "server" ? { error: "Sign-out temporarily unavailable. Please try again." } : {} }));
+      await page.locator("#signOut").click();
+      await page.getByText(/We couldn't sign you out/).waitFor();
+      assert.equal(new URL(page.url()).pathname, "/app");
+      assert.equal(await page.locator("#signOut").isEnabled(), true);
+      assert.equal(await page.locator("#toasts .success").filter({ hasText: "Signed out" }).count(), 0);
+      assert.equal((await (await context.request.get(BASE + "/api/me")).json()).user.demo, true);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+      await page.screenshot({ path: `${OUT}/signout-${failure}-${width}.png`, fullPage: true });
+      await page.reload();
+      await page.locator("#signOut").waitFor();
+      assert.equal(new URL(page.url()).pathname, "/app");
+      assert.equal((await (await context.request.get(BASE + "/api/me")).json()).user.demo, true);
+      await context.unroute("**/api/auth/signout");
+      await page.locator("#signOut").click();
+      await page.waitForURL(BASE + "/");
+      await page.getByText("Signed out. See you soon.", { exact: true }).waitFor();
+      assert.equal((await (await context.request.get(BASE + "/api/me")).json()).user, null);
+      await page.reload();
+      await page.locator("a[href='/signin']").first().waitFor({ state: "attached" });
+      assert.equal((await (await context.request.get(BASE + "/api/me")).json()).user, null);
+      pass(`${width}px ${failure} sign-out keeps the session across reload and permits a successful retry`);
+    }
+
+    await signInDemo();
+    let signouts = 0;
+    let release;
+    const pending = new Promise((resolve) => { release = resolve; });
+    await context.route("**/api/auth/signout", async (route) => {
+      signouts++;
+      await pending;
+      await route.continue();
+    });
+    try {
+      await page.locator("#signOut").click();
+      await page.waitForFunction(() => document.querySelector("#signOut")?.getAttribute("aria-busy") === "true");
+      assert.equal(await page.locator("#signOut").isDisabled(), true);
+      await page.evaluate(() => { document.querySelector("#signOut").click(); document.querySelector("#signOut").click(); });
+      await page.waitForTimeout(100);
+      assert.equal(signouts, 1);
+      assert.equal(new URL(page.url()).pathname, "/app");
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+      await page.screenshot({ path: `${OUT}/signout-pending-${width}.png`, fullPage: true });
+    } finally {
+      release();
+    }
+    await page.waitForURL(BASE + "/");
+    assert.equal((await (await context.request.get(BASE + "/api/me")).json()).user, null);
+    await context.unroute("**/api/auth/signout");
+    pass(`${width}px pending sign-out disables duplicate requests and waits for success`);
+
     await page.goto(BASE + "/");
     await page.locator("a[href='/app/buy/professional']").click();
     await page.waitForURL("**/signin?next=*");
