@@ -173,6 +173,7 @@ const STATES = [
   { name: "shoot-lightbox", url: `/app/shoot/${mayaDone}`, who: maya, prep: async (p) => { await p.locator("#proofs img").first().click(); await p.waitForTimeout(500); }, full: false },
   { name: "team-shoot-looks", url: `/app/shoot/${samShoot}`, who: sam },
   { name: "account", url: "/app/account", who: maya },
+  { name: "account-delete", url: "/app/account", who: maya, prep: click("#startDelete") },
   { name: "account-shared", url: "/app/account", who: sam, prep: async (p) => { await p.waitForSelector(".share-status"); } },
   { name: "shoot-share-form", url: `/app/shoot/${mayaDone}`, who: maya, prep: async (p) => { await p.click("#shareOpen"); await p.waitForSelector("#shareForm"); } },
   { name: "showcase-admin", url: "/app/showcase", who: owner, prep: async (p) => { await p.waitForSelector(".sc-item"); } },

@@ -84,7 +84,7 @@ export function renderAccount({ root, navigate }) {
       ${u.demo
         ? html`<p>The demo account can't be deleted. Create your own account to try Keeper Headshots with your photos.</p>`
         : html`
-      <p>This permanently deletes your account, every shoot, and all of your selfies and headshots. It can't be undone, so download any headshots you want to keep first.${u.hasTeam ? " Your team closes, but colleagues keep the shoots you've already given them." : ""}</p>
+      <p>This cancels any shoots still developing and permanently deletes your account, every shoot, and all of your selfies and headshots. It can't be undone, so download any headshots you want to keep first.${u.hasTeam ? " Your team closes, but colleagues keep the shoots you've already given them." : ""}</p>
       ${credits > 0
         ? html`<div class="banner banner-danger" style="margin:16px 0">${icon("circle-alert")}<div><b>You have ${credits} unused ${credits === 1 ? "shoot" : "shoots"}.</b>They'll be lost when you delete your account. If you bought them in the last 30 days, <a class="link" href="/refunds" data-link>check whether you qualify for a refund</a> first.</div></div>`
         : ""}
@@ -98,7 +98,7 @@ export function renderAccount({ root, navigate }) {
           <input class="input" id="delPassword" name="password" type="password" autocomplete="current-password" aria-describedby="err-delPassword" required />`}
           <span class="field-error" id="err-delPassword" role="alert" hidden></span>
         </div>
-        <label class="check"><input type="checkbox" id="delConfirm" /> <span>I understand my shoots and headshots will be deleted for good.</span></label>
+        <label class="check"><input type="checkbox" id="delConfirm" /> <span>I understand any developing shoots will be cancelled and all my photos deleted for good.</span></label>
         <div class="delete-actions">
           <button class="btn btn-danger" id="confirmDelete" type="submit" disabled>${icon("trash-2")} Permanently delete</button>
           <button class="btn btn-ghost" id="cancelDelete" type="button">Cancel</button>

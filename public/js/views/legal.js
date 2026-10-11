@@ -26,7 +26,7 @@ function page({ eyebrow, title, lede, callout, body, updated = LEGAL_UPDATED }) 
 export function renderPrivacy({ root }) {
   root.innerHTML = page({
     eyebrow: "Privacy policy",
-    updated: "October 10, 2026",
+    updated: "October 11, 2026",
     title: "Your privacy",
     lede: "What we collect, why we collect it, who helps us run the service, and the choices you have.",
     callout:
@@ -96,6 +96,7 @@ export function renderPrivacy({ root }) {
       <h2 class="h-3">How long we keep it</h2>
       <ul>
         <li><b>Photos and headshots:</b> until you delete the shoot, or until your account is deleted. Deleting a shoot removes its selfies and headshots from our storage straight away.</li>
+        <li><b>Cancellation records:</b> after deletion, we keep a cancellation marker against the random account and shoot numbers so a background worker cannot restore deleted data. These markers contain no names, email addresses, photos or headshots.</li>
         <li><b>Unfinished shoots:</b> a shoot that was never developed, and hasn't been changed for 90 days, is deleted automatically with its selfies.</li>
         <li><b>Account details:</b> while your account is open. You can delete your account at any time on your <a class="link" href="/app/account" data-link>Account page</a>. That removes your account and all your shoots, selfies and headshots straight away. If you email us instead, we'll do it within 30 days. Our nightly backups hold account and shoot records (never photos or headshots) for 30 days, so a deleted record can remain in a backup for up to 30 days.</li>
         <li><b>Free-shoot record:</b> if you used your free shoot, we keep a scrambled (hashed) copy of your email address after your account is deleted, with a note that the free shoot was used. That stops the free shoot being claimed twice. It doesn't include your name, photos or anything else. The count of free photo checks used by an email inbox is kept the same way, so that variations of one address (like name+1@…) share the free checks.</li>

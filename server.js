@@ -20,6 +20,7 @@ import { blogIndex, blogPost, blogImage, syncBlog } from "./lib/blog.js";
 import { isPreview, isKept, watermark } from "./lib/preview.js";
 import { reviewShoots, sendOffer } from "./lib/outreach.js";
 import { aiStatus, AIError } from "./lib/ai.js";
+import { shootQueueCallback, startLocalShootWorker, ensureShootJob } from "./lib/shoot-jobs.js";
 import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, advance, startGeneration, retryFailed, startReview, addLooks } from "./lib/pipeline.js";
 import { lookFor, MAX_LOOKS, MAX_SELFIES, MAX_RESUMES, PHOTO_FORMATS, isPreviewOffer } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
@@ -64,6 +65,13 @@ app.post("/api/billing/webhook", express.raw({ type: "application/json" }), asyn
 // Photos are uploaded one per request, which keeps every body well under
 // Vercel's 4.5 MB request limit.
 app.use(express.json({ limit: "4mb" }));
+app.use((req, res, next) => {
+  if (req.method === "POST" && req.headers["ce-type"] === "com.vercel.queue.v2beta") {
+    if (req.headers["ce-vqsqueuename"] !== "keeper-shoots") return res.status(400).end();
+    return shootQueueCallback(req, res);
+  }
+  next();
+});
 // A body value that is an object with its own toString/valueOf (or a prototype
 // key) would make String() throw deep in a route; refuse it up front.
 const BAD_KEYS = ["toString", "valueOf", "__proto__", "constructor", "prototype"];
@@ -534,15 +542,16 @@ app.get("/api/shoots", requireUser, async (req, res) => {
   res.json({ shoots: (await shoots.forUser(req.user.id)).map(summary) });
 });
 
-// Polled by the studio while a shoot is live; each poll also moves it forward.
+// Managed shoots move through durable deliveries even with no open browser.
 app.get("/api/shoots/:id", requireUser, async (req, res) => {
   const shoot = await ownShoot(req, res);
   if (!shoot) return;
-  if (!LIVE.includes(shoot.status)) return res.json({ shoot });
-  // A failed step (e.g. a storage conflict) is retried by the next poll; the
-  // person sees the current state, not an error.
+  // Upgrade earlier live shoots, retaining immediate legacy recovery during
+  // the first visit and during a temporary queue publishing outage.
+  if (!LIVE.includes(shoot.status) || shoot.jobId) return res.json({ shoot });
+  await ensureShootJob(shoot.id).catch((err) => console.error("[shoot-job] upgrade", shoot.id, err.message));
   const moved = await advance(shoot.id, shoot).catch((err) => (console.error("[advance]", shoot.id, err.message), null));
-  res.json({ shoot: moved || shoot });
+  res.json({ shoot: await shoots.get(shoot.id) || moved || shoot });
 });
 
 app.post("/api/shoots", requireUser, async (req, res) => {
@@ -960,7 +969,6 @@ app.delete("/api/shoots/:id", requireUser, async (req, res) => {
   const meta = await ownShoot(req, res, { full: false });
   if (!meta) return;
   if (meta.sample) return res.status(400).json({ error: "Sample shoots are read-only." });
-  if (LIVE.includes(meta.status)) return res.status(409).json({ error: "Wait for the shoot to finish before deleting it." });
   await shoots.remove(meta);
   // Headshots kept from it and unused extra looks for it go with it.
   await users.update(req.user.id, (u) => {
@@ -1131,10 +1139,10 @@ app.post("/api/account/delete", requireUser, async (req, res) => {
       return res.status(401).json({ error: "That password isn't right.", fields: { password: "That password isn't right." } });
     }
   }
+  // Revoke work before listing: concurrent uploads, develops and late workers
+  // must not restore photos after their account has requested erasure.
+  await users.beginRemoval(req.user.id);
   const list = await shoots.forUser(req.user.id);
-  if (list.some((s) => LIVE.includes(s.status))) {
-    return res.status(409).json({ error: "One of your shoots is still developing. Wait for it to finish, then delete your account." });
-  }
   // An undeveloped team shoot goes back to its team; your own team closes.
   for (const meta of list) if (meta.team && !(meta.shots || []).length) await teams.returnSeat(meta).catch((err) => console.error("[team] return seat", meta.id, err.message));
   if (req.user.teamId) await teams.removeTeam(req.user.teamId);
@@ -1804,6 +1812,7 @@ export default app;
 
 if (!process.env.VERCEL) {
   await seed();
+  startLocalShootWorker();
   const port = Number(process.env.PORT || 3000);
   app.listen(port, () => {
     const s = aiStatus();
