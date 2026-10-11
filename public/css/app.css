@@ -823,7 +823,7 @@ p, li, dd, .lede, figcaption { text-wrap: pretty; }
 .look-card.is-set { cursor: default; }
 .look-card.is-set:hover { border-color: var(--border); transform: none; }
 .look-card.empty { height: 100%; min-height: 200px; place-content: center; justify-items: center; gap: 10px; border-style: dashed; border-color: var(--border-strong); background: transparent; color: var(--text-muted); font-weight: 700; font-size: var(--fs-sm); }
-.look-card.empty:hover { border-color: var(--flash-500); color: var(--accent-text); background: var(--accent-soft); }
+.look-card.empty:hover { border-color: var(--flash-500); color: color-mix(in srgb, var(--accent-text) 80%, var(--text)); background: var(--accent-soft); }
 .look-card.empty .plus { width: 44px; height: 44px; border-radius: 50%; background: var(--ink); color: var(--on-ink); display: grid; place-items: center; transition: transform var(--dur-3) var(--ease-spring), background-color var(--dur-2); }
 .look-card.empty:hover .plus { transform: rotate(90deg); background: var(--flash-500); }
 .look-card.empty .plus svg { width: 20px; height: 20px; }
