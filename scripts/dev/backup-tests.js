@@ -76,6 +76,15 @@ ok("restore brings back a deleted account, and by default leaves current records
 const over = run("--only", "payments/", "--overwrite", "--apply");
 ok("--overwrite replaces current records when asked", (await storage.getJSON("payments/cs_1.json")).note !== "newer" && /Restored/.test(over), over.trim().split("\n").pop());
 
+// Today's indexes may have removed an entry recovered from an older snapshot.
+await storage.putJSON("shoot-catalog/usr_a.json", { items: [] });
+await storage.putJSON("showcase-users/usr_a.json", { ids: [] });
+await storage.del(["shoots/sht_1.json", "showcase/shc_1.json"]);
+run("--only", "shoots/", "--only", "showcase/", "--apply");
+const invalidated = !(await storage.getJSON("shoot-catalog/usr_a.json")) && !(await storage.getJSON("showcase-users/usr_a.json"));
+const { listShootPage } = await import("../../lib/shoot-list.js");
+ok("restored records rebuild current indexes so recovered shoots are visible", invalidated && (await listShootPage("usr_a")).shoots.some((s) => s.id === "sht_1") && (await storage.getJSON("showcase/shc_1.json"))?.userId === "usr_a");
+
 // A backup store that can't be reached (store id set, no OIDC token here):
 // tonight's copy still lands in the main store, and it's reported.
 process.env.BACKUP_STORE_ID = "store_unreachable";

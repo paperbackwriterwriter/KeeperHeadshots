@@ -15,7 +15,7 @@
 //   --apply           write them; without it, just list what would change
 import "../lib/env.js";
 import { readBackup } from "../lib/backup.js";
-import { getJSON, putJSON } from "../lib/storage.js";
+import { getJSON, putJSON, del } from "../lib/storage.js";
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -37,12 +37,27 @@ console.log(byPrefix);
 
 let written = 0;
 let skipped = 0;
-for (const k of keys) {
-  if (missingOnly && (await getJSON(k)) !== null) {
-    skipped++;
-    continue;
+const rebuild = new Set();
+try {
+  for (const k of keys) {
+    if (missingOnly && (await getJSON(k)) !== null) {
+      skipped++;
+      continue;
+    }
+    if (apply) {
+      await putJSON(k, snap.records[k]);
+      // A missing-only restore merges historical records into today's data.
+      // Existing secondary indexes may omit those records; rebuild lazily
+      // from the restored primary entries, even after a partial failure.
+      const uid = k.startsWith("idx/") ? k.split("/")[1] : snap.records[k]?.userId;
+      if (typeof uid === "string" && /^usr_[\w-]+$/.test(uid)) {
+        if (k.startsWith("idx/") || k.startsWith("shoots/")) rebuild.add(`shoot-catalog/${uid}.json`);
+        if (k.startsWith("showcase/")) rebuild.add(`showcase-users/${uid}.json`);
+      }
+    }
+    written++;
   }
-  if (apply) await putJSON(k, snap.records[k]);
-  written++;
+} finally {
+  if (rebuild.size) await del([...rebuild]);
 }
 console.log(`${apply ? "Restored" : "Would restore"} ${written} records${missingOnly ? ` (${skipped} already exist, left alone)` : ""}.${apply ? "" : " Add --apply to write them."}`);
