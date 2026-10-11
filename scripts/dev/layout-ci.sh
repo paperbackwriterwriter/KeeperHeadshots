@@ -34,5 +34,9 @@ done
 
 status=0
 BROWSER="$BROWSER" node scripts/dev/layout-audit.mjs "$OUT" || status=$?
+BROWSER="$BROWSER" node scripts/dev/verification-delivery-tests.js "$OUT/verification-delivery" || status=$?
+BROWSER="$BROWSER" node scripts/dev/privacy-tests.js "$OUT/privacy" || status=$?
+BROWSER="$BROWSER" node scripts/dev/homepage-tests.js "$OUT/homepage" || status=$?
+BROWSER="$BROWSER" node scripts/dev/gateway-csp-tests.js "$OUT/gateway-csp" || status=$?
 if [ $status -ne 0 ]; then echo "== server log"; tail -40 "$WORK/server.log"; fi
 exit $status

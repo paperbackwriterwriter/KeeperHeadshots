@@ -1,4 +1,4 @@
-import { $, html, icon, logoMark, wordmark, state, loadSession, api, toast, busy, initials, observeReveals, reduceMotion, updateReady, safeNext, SIGNED_OUT_MESSAGE } from "./core.js";
+import { $, html, icon, logoMark, wordmark, state, loadSession, api, toast, busy, initials, observeReveals, reduceMotion, updateReady, safeNext, SIGNED_OUT_MESSAGE, afterPaint } from "./core.js";
 // Page code loads on demand, so each page downloads only its own view. (The
 // server adds a modulepreload hint for the first page's view; lib/seo.js.)
 const lazy = (load, name) => async (...args) => (await load())[name](...args);
@@ -178,8 +178,9 @@ async function render({ restoreY = null } = {}) {
   // On the first load, public pages arrive with prerendered content (lib/seo.js).
   // Swap in the live view without replaying the entrance animations.
   const hydrating = firstRender && app.childElementCount > 0;
-  if (hydrating) document.documentElement.classList.add("hydrating");
   const path = location.pathname.replace(/\/+$/, "") || "/";
+  const keepLanding = hydrating && path === "/" && !!app.querySelector("#view .hero");
+  if (hydrating && !keepLanding) document.documentElement.classList.add("hydrating");
   let match;
   const route = routes.find((r) => (match = path.match(r.path)));
   if (!route) {
@@ -215,10 +216,12 @@ async function render({ restoreY = null } = {}) {
   // The blog keeps what the server sent while the view is swapped in
   // (views/blog.js): the articles themselves, or the div Soro's embed fills.
   const keep = document.querySelector("[data-blog-ssr]") || document.getElementById("soro-blog");
-  app.innerHTML = html`${chrome}<div id="view"></div>`.v;
+  if (keepLanding) {
+    if (state.user) $("#nav").outerHTML = chrome.v;
+  } else app.innerHTML = html`${chrome}<div id="view"></div>`.v;
   const view = $("#view");
   if (keep) view.append(keep);
-  const ctx = { root: view, navigate, setTitle: (t) => (document.title = `${t} · Keeper Headshots`) };
+  const ctx = { root: view, hydrate: keepLanding, navigate, setTitle: (t) => (document.title = `${t} · Keeper Headshots`) };
   let viewCleanup = null;
   try {
     viewCleanup = (await route.view(ctx, ...(match?.slice(1) || []))) || null;
@@ -230,7 +233,7 @@ async function render({ restoreY = null } = {}) {
   if (seq !== renderSeq) return void viewCleanup?.();
   cleanup = viewCleanup;
   wireChrome();
-  if (hydrating) {
+  if (hydrating && !keepLanding) {
     // Content already on screen stays visible; the rest still reveals on scroll.
     app.querySelectorAll("[data-reveal]").forEach((el) => el.getBoundingClientRect().top < innerHeight && el.classList.add("in"));
     requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove("hydrating")));
@@ -301,11 +304,21 @@ function wireChrome() {
       prev?.();
     };
   }
-  $("#signOut")?.addEventListener("click", async () => {
-    await api("/api/auth/signout", { method: "POST" }).catch(() => {});
-    state.user = null;
-    toast("Signed out. See you soon.", "success");
-    navigate("/");
+  $("#signOut")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const restore = busy(btn, "Signing out…");
+    btn.querySelector("span")?.classList.add("hide-m");
+    try {
+      const result = await api("/api/auth/signout", { method: "POST" });
+      if (result.ok !== true) throw new Error("Sign-out wasn't confirmed. Please try again.");
+      state.user = null;
+      toast("Signed out. See you soon.", "success");
+      navigate("/");
+    } catch (err) {
+      toast(`We couldn't sign you out. ${err.message}`, "error");
+    } finally {
+      restore();
+    }
   });
 }
 
@@ -523,9 +536,9 @@ loadSession()
   .catch(() => {})
   .finally(() => {
     // Not on a password reset link: nothing may see that URL's one-time token.
-    if (location.pathname !== "/reset") initPixel();
-    render();
-    loadAnalytics();
+    const rendering = render();
+    if (location.pathname !== "/reset") initPixel({ afterRender: rendering });
+    rendering.then(() => afterPaint(loadAnalytics));
     if (googleReturn && state.user) {
       const first = state.user.name.split(" ")[0];
       if (googleReturn === "google") toast(`Welcome back, ${first}.`, "success");

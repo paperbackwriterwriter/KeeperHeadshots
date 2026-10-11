@@ -20,6 +20,7 @@ import { blogIndex, blogPost, blogImage, syncBlog } from "./lib/blog.js";
 import { isPreview, isKept, watermark } from "./lib/preview.js";
 import { reviewShoots, sendOffer } from "./lib/outreach.js";
 import { aiStatus, AIError } from "./lib/ai.js";
+import { shootQueueCallback, startLocalShootWorker, ensureShootJob } from "./lib/shoot-jobs.js";
 import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, advance, startGeneration, retryFailed, startReview, addLooks } from "./lib/pipeline.js";
 import { lookFor, MAX_LOOKS, MAX_SELFIES, MAX_RESUMES, PHOTO_FORMATS, isPreviewOffer } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
@@ -64,6 +65,13 @@ app.post("/api/billing/webhook", express.raw({ type: "application/json" }), asyn
 // Photos are uploaded one per request, which keeps every body well under
 // Vercel's 4.5 MB request limit.
 app.use(express.json({ limit: "4mb" }));
+app.use((req, res, next) => {
+  if (req.method === "POST" && req.headers["ce-type"] === "com.vercel.queue.v2beta") {
+    if (req.headers["ce-vqsqueuename"] !== "keeper-shoots") return res.status(400).end();
+    return shootQueueCallback(req, res);
+  }
+  next();
+});
 // A body value that is an object with its own toString/valueOf (or a prototype
 // key) would make String() throw deep in a route; refuse it up front.
 const BAD_KEYS = ["toString", "valueOf", "__proto__", "constructor", "prototype"];
@@ -350,22 +358,39 @@ app.post("/api/auth/verify/code", requireUser, async (req, res) => {
 
 app.post("/api/auth/verify/resend", requireUser, async (req, res) => {
   if (ownsMailbox(req.user)) return res.json({ status: "already", user: publicUser(req.user) });
+  if (!mailEnabled()) return res.status(503).json({ error: "Email isn't set up on this site yet. Please contact us." });
   const now = Date.now();
-  const sends = (req.user.verifySends || []).filter((t) => now - t < 24 * 60 * 60 * 1000);
-  if (sends.length && now - sends[sends.length - 1] < 60 * 1000) return res.status(429).json({ error: "We just sent one. Give it a minute, and check your spam folder too." });
-  if (sends.length >= 5) return res.status(429).json({ error: "We've sent several emails today. Check your spam folder, or contact us and we'll help." });
+  let status;
+  // Reserve before contacting the provider. The atomic update rechecks fresh
+  // account data on every storage retry, so concurrent requests cannot reuse
+  // the same allowance or overwrite another request's timestamps.
+  const user = await users.update(req.user.id, (u) => {
+    const sends = (u.verifySends || []).filter((t) => now - t < 24 * 60 * 60 * 1000);
+    status = ownsMailbox(u) ? "already" : sends.some((t) => now - t < 60 * 1000) ? "recent" : sends.length >= 5 ? "daily" : "send";
+    if (status !== "send") return UNCHANGED;
+    u.verifySends = [...sends, now];
+  });
+  if (status === "already") return res.json({ status: "already", user: publicUser(user) });
+  if (status === "recent") return res.status(429).json({ error: "A confirmation email was requested recently. Wait a minute before trying again, and check your spam folder too." });
+  if (status === "daily") return res.status(429).json({ error: "You've requested several confirmation emails today. Check your spam folder, or contact us and we'll help." });
   try {
-    if (!(await sendVerification(req.user, req))) return res.status(503).json({ error: "Email isn't set up on this site yet. Please contact us." });
+    if (!(await sendVerification(user, req))) return res.status(503).json({ error: "Email isn't set up on this site yet. Please contact us." });
   } catch (err) {
+    // Keep the reservation: a provider can accept an email before its reply
+    // fails. Refunding that attempt would let retries bypass the send limits.
     console.error("[verify] resend failed", req.user.id, err.message);
     return res.status(502).json({ error: "We couldn't send the email just now. Please try again in a few minutes." });
   }
-  await users.update(req.user.id, (u) => (u.verifySends = [...sends, now]));
-  res.json({ status: "sent", email: req.user.email });
+  res.json({ status: "sent", email: user.email });
 });
 
 app.post("/api/auth/signout", async (req, res) => {
-  await revokeSession(req).catch((err) => console.error("[signout] revoke", err.message));
+  try {
+    await revokeSession(req);
+  } catch (err) {
+    console.error("[signout] revoke", err.message);
+    return res.status(503).json({ error: "Sign-out is temporarily unavailable. Please try again." });
+  }
   clearSession(res);
   res.json({ ok: true });
 });
@@ -476,7 +501,10 @@ app.post("/api/auth/signout-all", requireUser, async (req, res) => {
 app.get("/api/me", async (req, res) => {
   const user = await currentUser(req);
   const { vision, imaging } = aiStatus();
-  res.json({ user: user ? publicUser(user) : null, ai: { vision, imaging }, meta: { pixelId: metaPixelId() }, turnstile: { siteKey: turnstileSiteKey() }, google: google.googleEnabled(), stripe: { publishableKey: stripePublishableKey(), mode: stripeMode() } });
+  const optOut = gpc(req);
+  // Session and privacy settings belong to this request, never a shared cache.
+  res.set("Cache-Control", "private, no-store");
+  res.json({ user: user ? publicUser(user) : null, ai: { vision, imaging }, meta: { pixelId: optOut ? null : metaPixelId(), optOut }, turnstile: { siteKey: turnstileSiteKey() }, google: google.googleEnabled(), stripe: { publishableKey: stripePublishableKey(), mode: stripeMode() } });
 });
 
 /* ------------------------------ Shoots ------------------------------ */
@@ -514,15 +542,16 @@ app.get("/api/shoots", requireUser, async (req, res) => {
   res.json({ shoots: (await shoots.forUser(req.user.id)).map(summary) });
 });
 
-// Polled by the studio while a shoot is live; each poll also moves it forward.
+// Managed shoots move through durable deliveries even with no open browser.
 app.get("/api/shoots/:id", requireUser, async (req, res) => {
   const shoot = await ownShoot(req, res);
   if (!shoot) return;
-  if (!LIVE.includes(shoot.status)) return res.json({ shoot });
-  // A failed step (e.g. a storage conflict) is retried by the next poll; the
-  // person sees the current state, not an error.
+  // Upgrade earlier live shoots, retaining immediate legacy recovery during
+  // the first visit and during a temporary queue publishing outage.
+  if (!LIVE.includes(shoot.status) || shoot.jobId) return res.json({ shoot });
+  await ensureShootJob(shoot.id).catch((err) => console.error("[shoot-job] upgrade", shoot.id, err.message));
   const moved = await advance(shoot.id, shoot).catch((err) => (console.error("[advance]", shoot.id, err.message), null));
-  res.json({ shoot: moved || shoot });
+  res.json({ shoot: await shoots.get(shoot.id) || moved || shoot });
 });
 
 app.post("/api/shoots", requireUser, async (req, res) => {
@@ -940,7 +969,6 @@ app.delete("/api/shoots/:id", requireUser, async (req, res) => {
   const meta = await ownShoot(req, res, { full: false });
   if (!meta) return;
   if (meta.sample) return res.status(400).json({ error: "Sample shoots are read-only." });
-  if (LIVE.includes(meta.status)) return res.status(409).json({ error: "Wait for the shoot to finish before deleting it." });
   await shoots.remove(meta);
   // Headshots kept from it and unused extra looks for it go with it.
   await users.update(req.user.id, (u) => {
@@ -1111,10 +1139,10 @@ app.post("/api/account/delete", requireUser, async (req, res) => {
       return res.status(401).json({ error: "That password isn't right.", fields: { password: "That password isn't right." } });
     }
   }
+  // Revoke work before listing: concurrent uploads, develops and late workers
+  // must not restore photos after their account has requested erasure.
+  await users.beginRemoval(req.user.id);
   const list = await shoots.forUser(req.user.id);
-  if (list.some((s) => LIVE.includes(s.status))) {
-    return res.status(409).json({ error: "One of your shoots is still developing. Wait for it to finish, then delete your account." });
-  }
   // An undeveloped team shoot goes back to its team; your own team closes.
   for (const meta of list) if (meta.team && !(meta.shots || []).length) await teams.returnSeat(meta).catch((err) => console.error("[team] return seat", meta.id, err.message));
   if (req.user.teamId) await teams.removeTeam(req.user.teamId);
@@ -1421,9 +1449,9 @@ app.get("/media/:sid/:name", mediaUser, async (req, res) => {
 /* ----------------------------- Examples ----------------------------- */
 
 // Marketing example headshots (see lib/examples.js).
-// /examples/<id>.jpg is the original; /examples/<id>.webp?w=360|600|900 is a
+// /examples/<id>.jpg is the original; /examples/<id>.webp?w=180|360|600|900 is a
 // resized WebP for the pages. Either way the CDN caches the response.
-const EXAMPLE_WIDTHS = [360, 600, 900];
+const EXAMPLE_WIDTHS = [180, 360, 600, 900];
 app.get(/^\/examples\/([a-z0-9-]+)\.(jpg|webp)$/, async (req, res) => {
   const [id, ext] = [req.params[0], req.params[1]];
   // Each distinct URL misses the CDN cache and costs a storage read and a
@@ -1672,7 +1700,9 @@ const CSP = [
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
   "img-src 'self' data: blob: https://www.facebook.com https://*.stripe.com",
-  "connect-src 'self' https://www.facebook.com https://connect.facebook.net https://api.stripe.com https://*.stripe.com",
+  // Exact primary/fallback hosts in Pixel 1088231967271424's Meta openbridge
+  // configuration. Keep cloud-provider wildcards out of this policy.
+  "connect-src 'self' https://www.facebook.com https://connect.facebook.net https://api.stripe.com https://*.stripe.com https://xd-f1cf3d4fdb19408ea770fc6f80817dcb.ecs.us-east-1.on.aws https://bded8a3c6ae-1-1053047382554.us-central1.run.app",
   // www.facebook.com: the Meta Pixel's fallback when its normal send is
   // blocked (a hidden frame that posts the event there).
   "frame-src https://challenges.cloudflare.com https://js.stripe.com https://*.js.stripe.com https://checkout.stripe.com https://hooks.stripe.com https://www.facebook.com",
@@ -1782,6 +1812,7 @@ export default app;
 
 if (!process.env.VERCEL) {
   await seed();
+  startLocalShootWorker();
   const port = Number(process.env.PORT || 3000);
   app.listen(port, () => {
     const s = aiStatus();

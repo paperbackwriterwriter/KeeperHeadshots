@@ -17,6 +17,8 @@ const ok = (name, cond, extra = "") => (results.push(!!cond), console.log(cond ?
 
 await storage.putJSON("users/id/usr_a.json", { id: "usr_a", email: "a@x.com", credits: 3 });
 await storage.putJSON("users/email/a@x.com.json", { id: "usr_a" });
+await storage.putJSON("cancelled/shoots/sht_gone.json", { cancelled: true });
+await storage.putJSON("jobs/shoots/sht_1/job_1.json", { sid: "sht_1", jobId: "job_1" });
 await storage.putJSON("payments/cs_1.json", { sessionId: "cs_1", amount: 2900 });
 await storage.putJSON("shoots/sht_1.json", { id: "sht_1", userId: "usr_a" });
 await storage.putJSON("idx/usr_a/sht_1", { createdAt: "2026-09-28T00:00:00Z" });
@@ -32,6 +34,7 @@ const r = await runBackup();
 const snap = await readBackup();
 const keys = Object.keys(snap.records);
 ok("backup holds accounts, their shoot index, payments, shoots, frames and funnel counts", ["users/id/usr_a.json", "users/email/a@x.com.json", "payments/cs_1.json", "shoots/sht_1.json", "shots/sht_1/shot_1.json", "idx/usr_a/sht_1", "stats/days/2026-09-28.json"].every((k) => keys.includes(k)) && snap.records["users/id/usr_a.json"].credits === 3, JSON.stringify(r));
+ok("backup preserves erasure barriers and durable job intents", snap.records["cancelled/shoots/sht_gone.json"]?.cancelled === true && snap.records["jobs/shoots/sht_1/job_1.json"]?.jobId === "job_1");
 ok("backup leaves out photos and rate-limit counters", !keys.some((k) => k.startsWith("media/") || k.startsWith("ratelimit/")) && snap.complete === true);
 ok("backup holds showcase entries (not their image copies) and funnel markers", keys.includes("showcase/shc_1.json") && !keys.includes("showcase/shc_1.jpg") && keys.includes("stats/seen/usr_a/signup.json"));
 {

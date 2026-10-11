@@ -20,6 +20,13 @@ const browser = await chromium.launch(exe ? { executablePath: exe } : {});
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 // Only the page's own markup matters; skip third-party requests.
 await page.route(/^https?:\/\/(?!localhost|127\.0\.0\.1)/, (r) => r.abort());
+// Capture the current client template rather than adopting yesterday's
+// homepage snapshot. Other pages still need their server-provided content.
+await page.route(BASE + "/", async (route) => {
+  const response = await route.fetch();
+  const body = (await response.text()).replace(/<div id="app">[\s\S]*?(?=<div class="toasts")/, '<div id="app"></div>\n  ');
+  await route.fulfill({ response, body });
+});
 
 const clean = (html) =>
   html

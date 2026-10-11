@@ -5,7 +5,15 @@
   "functions": {
     "server.js": {
       "maxDuration": 300,
-      "includeFiles": "assets/{og,watermark}/**"
+      "includeFiles": "assets/{og,watermark}/**",
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "keeper-shoots",
+          "retryAfterSeconds": 5,
+          "maxDeliveries": 1048576
+        }
+      ]
     }
   },
   "redirects": [

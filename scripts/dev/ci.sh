@@ -61,6 +61,8 @@ run() {
 }
 run race node scripts/dev/race-tests.js
 run reset node scripts/dev/reset-tests.js
+run signout node scripts/dev/signout-tests.js
+run verification node scripts/dev/verification-tests.js
 run hardening env DATA_DIR="$DATA" QA_ADMIN_TOKEN=ci-admin-token-ci-admin-token BASE2=http://localhost:3101 node scripts/dev/hardening-tests.js
 run cleanup node scripts/dev/cleanup-tests.js
 run backup node scripts/dev/backup-tests.js
@@ -76,6 +78,7 @@ run preview node scripts/dev/preview-tests.js
 run google node scripts/dev/google-tests.js
 run render-race env MOCKLOG="$MOCKLOG" EMAIL=owner-ci@example.com node scripts/dev/render-race.js
 run slots env MOCKLOG="$MOCKLOG" RENDER_SLOTS=3 node scripts/dev/slots-test.js
+run durable-shoots node scripts/dev/durable-shoot-tests.js
 
 if [ $status -ne 0 ]; then
   echo "== server log (3100)"; tail -60 "$WORK/server-3100.log"

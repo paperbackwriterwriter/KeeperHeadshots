@@ -28,14 +28,14 @@ export function planBanner(mode = "always") {
   if (plan.tier === "demo")
     return html`<div class="banner banner-info" data-plan-banner="${mode}">${icon("info")}<div><b>You're exploring the demo account.</b>It's read-only, so you can browse the sample shoots. Create a free account to try it with your own photos; your first shoot is a free preview.</div><a class="btn btn-sm btn-flash" href="/signup" data-link id="demoSignup">Create free account</a></div>`;
   if (plan.needsEmail)
-    return html`<div class="banner banner-warn verify-banner" data-plan-banner="${mode}">${icon("mail")}<div><b>Confirm your email to unlock your free shoot.</b>We emailed a 6-digit code to ${state.user.email}. Enter it here, or click the link in the email. Can't find it? Check your spam folder.
+    return html`<div class="banner banner-warn verify-banner" data-plan-banner="${mode}">${icon("mail")}<div><b>Confirm your email to unlock your free shoot.</b>Confirm ${state.user.email} with the 6-digit code or link in your confirmation email. You can request an email below. Check your spam folder too.
       <form class="verify-code" data-verify-code novalidate>
         <label class="sr-only" for="verifyCode">6-digit code</label>
         <input class="input" id="verifyCode" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" placeholder="123 456" aria-describedby="verifyCodeErr" />
         <button class="btn btn-flash" type="submit">Confirm</button>
         <span class="field-error" id="verifyCodeErr" role="alert" hidden></span>
       </form>
-      <p class="verify-resend">Didn't get it? <button class="link-btn" type="button" data-resend-verify>Resend email</button></p></div></div>`;
+      <p class="verify-resend">Need an email? <button class="link-btn" type="button" data-resend-verify>Send confirmation email</button></p></div></div>`;
   if (plan.tier === "trial")
     return html`<div class="banner banner-info" data-plan-banner="${mode}">${icon("sparkles")}<div><b>Your first shoot is a free preview.</b>Up to 2 looks, which makes 4 headshots, each checked and graded by AI.</div></div>`;
   if (plan.tier === "none")
