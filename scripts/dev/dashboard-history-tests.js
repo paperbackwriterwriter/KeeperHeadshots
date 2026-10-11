@@ -16,6 +16,9 @@ Object.assign(process.env, { DATA_DIR: dir, SESSION_SECRET: crypto.randomBytes(3
 const { users, shoots } = await import("../../lib/store.js");
 const { hashPassword } = await import("../../lib/auth.js");
 const { default: app } = await import("../../server.js");
+// Skip the automatic listener during import, then use development cookies
+// for this local HTTP server. WebKit correctly rejects Secure cookies here.
+delete process.env.VERCEL;
 const user = { id: "usr_history_browser", email: "history-browser@example.com", name: "Maya Okafor", password: await hashPassword("password123"), emailVerified: true, createdAt: new Date().toISOString() };
 await users.create(user);
 for (let i = 0; i < 7; i++) await shoots.create({ id: `sht_browser_${i}`, userId: user.id, name: `Portrait session ${i + 1}`, createdAt: new Date(Date.UTC(2026, 9, i + 1)).toISOString(), status: ["draft", "checked", "error"][i % 3], shots: [], selfies: [] });
