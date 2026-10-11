@@ -493,7 +493,10 @@ app.post("/api/auth/signout-all", requireUser, async (req, res) => {
 app.get("/api/me", async (req, res) => {
   const user = await currentUser(req);
   const { vision, imaging } = aiStatus();
-  res.json({ user: user ? publicUser(user) : null, ai: { vision, imaging }, meta: { pixelId: metaPixelId() }, turnstile: { siteKey: turnstileSiteKey() }, google: google.googleEnabled(), stripe: { publishableKey: stripePublishableKey(), mode: stripeMode() } });
+  const optOut = gpc(req);
+  // Session and privacy settings belong to this request, never a shared cache.
+  res.set("Cache-Control", "private, no-store");
+  res.json({ user: user ? publicUser(user) : null, ai: { vision, imaging }, meta: { pixelId: optOut ? null : metaPixelId(), optOut }, turnstile: { siteKey: turnstileSiteKey() }, google: google.googleEnabled(), stripe: { publishableKey: stripePublishableKey(), mode: stripeMode() } });
 });
 
 /* ------------------------------ Shoots ------------------------------ */

@@ -3,10 +3,13 @@
 // Conversions API, so Meta counts it once.
 import { state } from "./core.js";
 
+// Either the request header or the browser property can carry the opt-out.
+const optedOut = () => state.meta?.optOut || navigator.globalPrivacyControl;
+
 export function initPixel() {
   const id = state.meta?.pixelId;
   // Respect Global Privacy Control (a browser-level "don't share my data" signal).
-  if (!id || window.fbq || navigator.globalPrivacyControl) return;
+  if (!id || window.fbq || optedOut()) return;
   /* eslint-disable */
   !(function (f, b, e, v, n, t, s) {
     if (f.fbq) return;
@@ -25,6 +28,6 @@ export function initPixel() {
 export const pageUrl = () => location.origin + location.pathname;
 
 export function pixel(name, params = {}, eventId) {
-  if (!window.fbq) return;
+  if (!window.fbq || optedOut()) return;
   window.fbq("track", name, params, eventId ? { eventID: eventId } : undefined);
 }
