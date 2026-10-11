@@ -95,10 +95,11 @@ export function renderPrivacy({ root }) {
 
       <h2 class="h-3">How long we keep it</h2>
       <ul>
-        <li><b>Photos and headshots:</b> until you delete the shoot, or until your account is deleted. Deleting a shoot removes its selfies and headshots from our storage straight away.</li>
-        <li><b>Cancellation records:</b> after deletion, we keep a cancellation marker against the random account and shoot numbers so a background worker cannot restore deleted data. These markers contain no names, email addresses, photos or headshots.</li>
+        <li><b>Photos and headshots:</b> until you delete the shoot, or until your account is deleted. Deleting a shoot removes its selfies and headshots from active storage straight away.</li>
+        <li><b>Photo backups:</b> we keep private recovery copies of selfies, headshots and shared customer photos for up to seven days. Deleting a photo, shoot, shared headshot or account also requests deletion of its recovery copies and prevents them from being restored. If backup storage is temporarily unavailable, we retry deletion; a recovery copy can remain until it is deleted or expires.</li>
+        <li><b>Cancellation records:</b> after deletion, we keep a cancellation marker against the random account and shoot numbers, or a scrambled photo filename, so a background worker or backup restore cannot bring back deleted data. These markers contain no names, email addresses, photos or headshots.</li>
         <li><b>Unfinished shoots:</b> a shoot that was never developed, and hasn't been changed for 90 days, is deleted automatically with its selfies.</li>
-        <li><b>Account details:</b> while your account is open. You can delete your account at any time on your <a class="link" href="/app/account" data-link>Account page</a>. That removes your account and all your shoots, selfies and headshots straight away. If you email us instead, we'll do it within 30 days. Our nightly backups hold account and shoot records (never photos or headshots) for 30 days, so a deleted record can remain in a backup for up to 30 days.</li>
+        <li><b>Account details:</b> while your account is open. You can delete your account at any time on your <a class="link" href="/app/account" data-link>Account page</a>. That removes your account and all your shoots, selfies and headshots straight away. If you email us instead, we'll do it within 30 days. Our nightly backups hold account and shoot records for 30 days, so a deleted record can remain in a backup for up to 30 days.</li>
         <li><b>Free-shoot record:</b> if you used your free shoot, we keep a scrambled (hashed) copy of your email address after your account is deleted, with a note that the free shoot was used. That stops the free shoot being claimed twice. It doesn't include your name, photos or anything else. The count of free photo checks used by an email inbox is kept the same way, so that variations of one address (like name+1@…) share the free checks.</li>
         <li><b>Shared headshots:</b> if you shared a headshot for our home page, until you take it down, delete that shoot, delete your account, or the package that paid for it is fully refunded (yours, or your team admin's for a team shoot).</li>
         <li><b>Purchase records:</b> as long as tax and accounting rules require, usually up to 7 years.</li>
@@ -157,7 +158,7 @@ export function renderTerms({ root }) {
       <h2 class="h-3">4. Your photos</h2>
       <ul>
         <li>Only upload photos of yourself, or of someone who has given you permission to create headshots of them. You must have the right to use every photo you upload.</li>
-        <li>You keep ownership of your photos. You give us permission to store them, process them and send them to our AI providers only to provide the service to you. That permission ends when you delete the photos or your account, except for copies we're legally required to keep.</li>
+        <li>You keep ownership of your photos. You give us permission to store them, process them and send them to our AI providers only to provide the service to you. That permission ends when you delete the photos or your account, except for private recovery copies awaiting deletion for up to seven days, and records we're legally required to keep.</li>
       </ul>
 
       <h2 class="h-3">5. Your headshots</h2>

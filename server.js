@@ -646,7 +646,7 @@ app.delete("/api/shoots/:id/selfies/:name", requireUser, async (req, res) => {
     }
   });
   if (problem) return res.status(problem[0]).json({ error: problem[1] });
-  await deleteMedia(removed.file).catch(() => {});
+  await deleteMedia(removed.file);
   res.json({ shoot: await shoots.get(meta.id) });
 });
 

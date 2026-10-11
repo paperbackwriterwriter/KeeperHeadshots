@@ -1,0 +1,180 @@
+// Real filesystem recovery plus a private-store stand-in for outages/races.
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+const root = await fs.mkdtemp(path.join(os.tmpdir(), "keeper-photo-backup-"));
+process.env.DATA_DIR = root;
+for (const key of ["BLOB_STORE_ID", "BLOB_READ_WRITE_TOKEN", "BACKUP_STORE_ID", "BACKUP_READ_WRITE_TOKEN", "STORAGE_NAMESPACE"]) delete process.env[key];
+const storage = await import("../../lib/storage.js");
+const { runBackup, readBackup } = await import("../../lib/backup.js");
+const { restorePhoto, maintainPhotoBackups, recordErased, backupPhotos } = await import("../../lib/photo-backup.js");
+const { target, mainTarget } = await import("../../lib/backup-target.js");
+const { shoots, users, deleteMedia } = await import("../../lib/store.js");
+const showcase = await import("../../lib/showcase.js");
+const now = Date.now();
+let passed = 0;
+const test = async (name, fn) => { await fn(); passed++; console.log("PASS", name); };
+const fixture = async (n) => {
+  const uid = `usr_${n}`, sid = `sht_${n}`;
+  await storage.putJSON(`users/id/${uid}.json`, { id: uid, email: `${n}@example.com` });
+  await storage.putJSON(`shoots/${sid}.json`, { id: sid, userId: uid });
+  await storage.putJSON(`idx/${uid}/${sid}`, {});
+  const keys = [`media/${sid}/selfie.jpg`, `media/${sid}/headshot.png`, `showcase/shc_${n}0000000000.jpg`];
+  await storage.putJSON(keys[2].replace(/\.jpg$/, ".json"), { id: `shc_${n}0000000000`, userId: uid, shootId: sid, status: "pending" });
+  for (const [i, key] of keys.entries()) await storage.putFile(key, Buffer.from([0, 255, 128, i, 33]), "image/jpeg");
+  return { uid, sid, keys };
+};
+const a = await fixture("a");
+let snap;
+await test("selfies, headshots and shared copies have private binary manifests", async () => {
+  const report = await runBackup({ now }); snap = await readBackup(report.key);
+  assert.equal(report.photos, 3); assert.equal(report.failed, 0);
+  assert.equal(snap.photos.entries.length, 3);
+  assert.ok(snap.photos.entries.every((e) => e.bytes === 5 && /^[a-f0-9]{64}$/.test(e.sha256) && !snap.records[e.key]));
+});
+const entry = snap.photos.entries.find((e) => e.key === a.keys[0]);
+await test("photo dry run writes nothing; restore is byte-exact and missing-only", async () => {
+  const bytes = await storage.getFile(entry.key); await storage.del(entry.key);
+  assert.equal(await restorePhoto(entry), "would-restore"); assert.equal(await storage.getFile(entry.key), null);
+  assert.equal(await restorePhoto(entry, { apply: true }), "restored"); assert.deepEqual(await storage.getFile(entry.key), bytes);
+  await storage.putFile(entry.key, Buffer.from("newer"), "image/jpeg");
+  assert.equal(await restorePhoto(entry, { apply: true }), "exists"); assert.equal((await storage.getFile(entry.key)).toString(), "newer");
+  assert.equal(await restorePhoto(entry, { apply: true, overwrite: true }), "restored");
+});
+await test("corrupt backups and path/ownership substitutions cannot be restored", async () => {
+  await storage.del(entry.key); const buf = await storage.getFile(entry.backupKey);
+  await storage.putFile(entry.backupKey, Buffer.from("bad"));
+  await assert.rejects(restorePhoto(entry, { apply: true }), /checksum/); assert.equal(await storage.getFile(entry.key), null);
+  await storage.putFile(entry.backupKey, buf);
+  await assert.rejects(restorePhoto({ ...entry, key: "media/sht_other/selfie.jpg" }), /Invalid photo manifest/);
+  await assert.rejects(restorePhoto({ ...entry, backupKey: "../photo.jpg" }), /Invalid photo manifest/);
+  await storage.putJSON(`shoots/${a.sid}.json`, { id: a.sid, userId: "usr_other" });
+  assert.equal(await restorePhoto(entry, { apply: true }), "missing-owner");
+  await storage.putJSON(`shoots/${a.sid}.json`, { id: a.sid, userId: a.uid });
+});
+await test("CLI restores records and photos, honors dry-run and prefix selection", async () => {
+  const cli = (...args) => execFileSync(process.execPath, ["scripts/restore-backup.js", "--backup", snap.key, ...args], { encoding: "utf8", env: process.env });
+  await storage.del([a.keys[0], a.keys[1], `shoots/${a.sid}.json`]);
+  assert.match(cli("--photos"), /would-restore/); assert.equal(await storage.getFile(a.keys[0]), null);
+  cli("--photos", "--apply"); assert.ok(await storage.getFile(a.keys[0])); assert.ok(await storage.getJSON(`shoots/${a.sid}.json`));
+  await storage.del(a.keys[1]); cli("--only", "showcase/", "--photos", "--apply"); assert.equal(await storage.getFile(a.keys[1]), null);
+  cli("--only", "media/", "--photos", "--apply"); assert.ok(await storage.getFile(a.keys[1]));
+});
+await test("exclusive creation preserves a concurrent upload during recovery", async () => {
+  await storage.del(entry.key); const original = mainTarget.get;
+  mainTarget.get = async (key) => {
+    const buf = await original(key);
+    if (key === entry.backupKey) await storage.putFile(entry.key, Buffer.from("concurrent-upload"));
+    return buf;
+  };
+  try {
+    assert.equal(await restorePhoto(entry, { apply: true }), "exists");
+    assert.equal((await storage.getFile(entry.key)).toString(), "concurrent-upload");
+  } finally { mainTarget.get = original; }
+});
+await test("removing one selfie purges only its copies and forbids old recovery", async () => {
+  await deleteMedia(a.keys[0].slice(6)); assert.equal(await storage.getFile(entry.backupKey), null);
+  assert.equal(await restorePhoto(entry, { apply: true }), "erased");
+  assert.ok(await storage.getFile(snap.photos.entries.find((e) => e.key === a.keys[1]).backupKey));
+});
+await test("taking down a shared headshot purges its backup and forbids record recovery", async () => {
+  const shared = snap.photos.entries.find((e) => e.key.startsWith("showcase/"));
+  await showcase.remove("shc_a0000000000"); assert.equal(await storage.getFile(shared.backupKey), null);
+  assert.equal(await restorePhoto(shared, { apply: true }), "erased");
+  assert.equal(await recordErased("showcase/shc_a0000000000.json", snap.records["showcase/shc_a0000000000.json"]), true);
+});
+await test("shoot deletion erases all its backups and cannot be undone by old restore", async () => {
+  await shoots.remove({ id: a.sid, userId: a.uid });
+  assert.deepEqual(await storage.list(`photo-backups/${a.uid}/`), []);
+  assert.equal(await recordErased(`shoots/${a.sid}.json`, { userId: a.uid }), true);
+  assert.equal(await restorePhoto(entry, { apply: true }), "erased");
+});
+await test("expiry prunes binaries even when the record backup is incomplete", async () => {
+  const b = await fixture("b"); const oldNow = now - 8 * 86_400_000;
+  const old = await runBackup({ now: oldNow }); const oldSnap = await readBackup(old.key);
+  const oldEntry = oldSnap.photos.entries.find((e) => e.key === b.keys[0]);
+  await storage.del(oldEntry.key); assert.equal(await restorePhoto(oldEntry, { apply: true, now }), "expired");
+  const cleanup = await maintainPhotoBackups({ now }); assert.ok(cleanup.pruned >= 3); assert.equal(await storage.getFile(oldEntry.backupKey), null);
+  const short = await runBackup({ budgetMs: 0 }); assert.equal(short.complete, false); assert.equal(short.pruned, 0);
+});
+// Test the actual shared target interface; no SDK auth is needed by the stand-in.
+const originals = Object.fromEntries(["get", "put", "list", "del"].map((k) => [k, target[k]]));
+const remote = new Map(); let offline = false, interceptPut = null, interceptGet = null;
+process.env.BACKUP_READ_WRITE_TOKEN = "private-test-store";
+target.put = async (k, v) => { if (offline) throw new Error("store offline"); if (interceptPut) await interceptPut(k); remote.set(k, Buffer.from(v)); };
+target.get = async (k) => { if (offline) throw new Error("store offline"); if (interceptGet) await interceptGet(k); return remote.get(k) || null; };
+target.list = async (p) => { if (offline) throw new Error("store offline"); return [...remote.keys()].filter((k) => k.startsWith(p)); };
+target.del = async (keys) => { if (offline) throw new Error("store offline"); keys.forEach((k) => remote.delete(k)); };
+try {
+  const c = await fixture("c"); let remoteSnap;
+  await test("separate private store holds both records and photo bytes", async () => {
+    const report = await runBackup({ now }); assert.equal(report.separateStore, true); remoteSnap = await readBackup(report.key);
+    assert.ok(remoteSnap.photos.entries.filter((e) => e.uid === c.uid).every((e) => e.store === "separate" && remote.has(e.backupKey)));
+  });
+  const ce = remoteSnap.photos.entries.find((e) => e.key === c.keys[0]);
+  await test("backup store outage falls back and the newest fallback snapshot is readable", async () => {
+    offline = true; const r = await runBackup({ now: now + 86_400_000 });
+    assert.equal(r.separateStore, false); assert.ok(r.failed); const fallback = await readBackup();
+    assert.equal(fallback.key, r.key); assert.ok(fallback.photos.entries.every((e) => e.store === "main")); offline = false;
+    assert.equal((await readBackup()).key, r.key);
+  });
+  await test("erasure during remote upload removes the late backup instead of attaching it", async () => {
+    const d = await fixture("d"); let triggered = false;
+    interceptPut = async (key) => { if (!triggered && key.startsWith(`photo-backups/${d.uid}/`)) { triggered = true; await shoots.remove({ id: d.sid, userId: d.uid }); } };
+    const report = await runBackup({ now }); interceptPut = null;
+    assert.ok(triggered); assert.ok(![...remote.keys()].some((k) => k.startsWith(`photo-backups/${d.uid}/`)));
+    assert.ok(!(await readBackup(report.key)).photos.entries.some((e) => e.uid === d.uid));
+  });
+  await test("outage deletion leaves a durable purge, denies recovery, then retries", async () => {
+    offline = true; await users.remove({ id: c.uid, email: "c@example.com" });
+    assert.ok((await storage.list("photo-purge/")).length); assert.ok(remote.has(ce.backupKey));
+    assert.equal(await restorePhoto(ce, { apply: true }), "erased");
+    offline = false; await maintainPhotoBackups({ now }); assert.equal(remote.has(ce.backupKey), false);
+    assert.equal((await storage.list("photo-purge/")).length, 0);
+  });
+  await test("mirrored erasure still blocks recovery after loss of main-store markers", async () => {
+    await storage.del(await storage.list("photo-erased/")); await storage.del(await storage.list("cancelled/"));
+    await storage.putJSON(`shoots/${c.sid}.json`, { id: c.sid, userId: c.uid });
+    assert.equal(await restorePhoto(ce, { apply: true }), "erased");
+    assert.equal(await recordErased(`users/id/${c.uid}.json`, { id: c.uid }), true);
+  });
+  await test("restoration fails closed if remote erasure checks are unavailable", async () => {
+    offline = true; await assert.rejects(restorePhoto(ce, { apply: true }), /offline/); offline = false;
+  });
+  await test("deletion between reading a backup and writing recovery blocks the write", async () => {
+    const f = await fixture("f"); const r = await runBackup({ now }); const fe = (await readBackup(r.key)).photos.entries.find((e) => e.key === f.keys[0]);
+    await storage.del(fe.key); let ran = false;
+    interceptGet = async (key) => { if (key === fe.backupKey && !ran) { ran = true; await shoots.remove({ id: f.sid, userId: f.uid }); } };
+    assert.ok(["missing-backup", "erased"].includes(await restorePhoto(fe, { apply: true }))); interceptGet = null;
+    assert.ok(ran); assert.equal(await storage.getFile(fe.key), null);
+  });
+  await test("an erasure-check outage after recovery removes the just-written image", async () => {
+    const h = await fixture("h"); const r = await runBackup({ now }); const he = (await readBackup(r.key)).photos.entries.find((e) => e.key === h.keys[0]);
+    await storage.del(he.key);
+    interceptGet = async (key) => { if (key.startsWith("photo-erased/") && await storage.getFile(he.key)) throw new Error("post-write-check-offline"); };
+    try { await assert.rejects(restorePhoto(he, { apply: true }), /post-write-check-offline/); }
+    finally { interceptGet = null; }
+    assert.equal(await storage.getFile(he.key), null);
+  });
+  await test("short photo runs resume after the last batch instead of starving later files", async () => {
+    const g = await fixture("g"); let writes = 0;
+    interceptPut = async (key) => { if (key.startsWith("photo-backups/")) { writes++; await new Promise((r) => setTimeout(r, 8)); } };
+    const records = {}; for (const key of await storage.list("shoots/")) records[key] = await storage.getJSON(key);
+    const first = await backupPhotos({ records, now, deadline: Date.now() + 20 });
+    const cursor = (await storage.getJSON("cron/photo-backup-state.json"))?.cursor;
+    interceptPut = null; assert.ok(!first.complete && cursor && writes);
+    const second = await backupPhotos({ records, now, deadline: Date.now() + 10_000 });
+    assert.equal(second.complete, true); assert.equal(await storage.getJSON("cron/photo-backup-state.json"), null);
+    assert.ok(second.entries.some((e) => e.uid === g.uid));
+  });
+} finally { Object.assign(target, originals); delete process.env.BACKUP_READ_WRITE_TOKEN; }
+await test("preview namespace keeps recovery copies and erasures apart from production", async () => {
+  const code = `const s=await import('./lib/storage.js'); const b=await import('./lib/backup.js'); await s.putJSON('shoots/sht_preview.json',{id:'sht_preview',userId:'usr_preview'}); await s.putFile('media/sht_preview/p.jpg',Buffer.from('p')); const r=await b.runBackup(); console.log(r.photos);`;
+  const out = execFileSync(process.execPath, ["--input-type=module", "-e", code], { encoding: "utf8", env: { ...process.env, STORAGE_NAMESPACE: "preview/", BACKUP_STORE_ID: "unreachable" } });
+  assert.match(out, /1/); assert.equal(await storage.getJSON("shoots/sht_preview.json"), null);
+  assert.ok((await fs.readdir(path.join(root, "preview/photo-backups/usr_preview/sht_preview"))).length);
+});
+await fs.rm(root, { recursive: true, force: true });
+console.log(`\n${passed}/${passed} passed`);

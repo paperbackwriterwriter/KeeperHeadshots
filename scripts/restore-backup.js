@@ -12,10 +12,12 @@
 //   --overwrite       also replace records that exist now (by default only
 //                     missing records are restored, so nothing current is lost)
 //   --missing         the default; accepted for older instructions
+//   --photos          also recover unexpired photos (checksum + erasure checks)
 //   --apply           write them; without it, just list what would change
 import "../lib/env.js";
 import { readBackup } from "../lib/backup.js";
-import { getJSON, putJSON, del } from "../lib/storage.js";
+import { restorePhoto, recordErased } from "../lib/photo-backup.js";
+import { getJSON, putJSON, createJSON, del } from "../lib/storage.js";
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -40,12 +42,20 @@ let skipped = 0;
 const rebuild = new Set();
 try {
   for (const k of keys) {
+    if (await recordErased(k, snap.records[k])) { skipped++; continue; }
     if (missingOnly && (await getJSON(k)) !== null) {
       skipped++;
       continue;
     }
     if (apply) {
-      await putJSON(k, snap.records[k]);
+      if (missingOnly) {
+        if (!await createJSON(k, snap.records[k])) { skipped++; continue; }
+      } else await putJSON(k, snap.records[k]);
+      if (!k.startsWith("cancelled/") && !k.startsWith("photo-erased/")) {
+        try {
+          if (await recordErased(k, snap.records[k])) { await del(k); skipped++; continue; }
+        } catch (err) { await del(k); throw err; }
+      }
       // A missing-only restore merges historical records into today's data.
       // Existing secondary indexes may omit those records; rebuild lazily
       // from the restored primary entries, even after a partial failure.
@@ -61,3 +71,16 @@ try {
   if (rebuild.size) await del([...rebuild]);
 }
 console.log(`${apply ? "Restored" : "Would restore"} ${written} records${missingOnly ? ` (${skipped} already exist, left alone)` : ""}.${apply ? "" : " Add --apply to write them."}`);
+
+if (flag("--photos")) {
+  const counts = {};
+  for (const entry of snap.photos?.entries || []) {
+    if (only.length && !only.some((p) => entry.key.startsWith(p))) continue;
+    const recordKey = entry.key.startsWith("media/") ? `shoots/${entry.sid}.json` : entry.key.replace(/\.jpg$/, ".json");
+    const result = await restorePhoto(entry, { apply, overwrite: !missingOnly, plannedOwner: snap.records[recordKey] });
+    counts[result] = (counts[result] || 0) + 1;
+  }
+  console.log("Photos:", counts);
+} else if (snap.photos?.entries?.length) {
+  console.log(`${snap.photos.entries.length} photo copies listed; add --photos to include unexpired photos.`);
+}
