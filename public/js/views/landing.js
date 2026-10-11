@@ -11,6 +11,7 @@ const HERO_SETS = [
   ["hero", 96, 1], ["p1", 95, 5], ["p2", 94, 0], ["p3", 97, 8], ["p4", 95, 3], ["p5", 96, 4], ["p6", 94, 1], ["p7", 95, 5], ["p8", 97, 0],
 ];
 const CYCLE_MS = 8000;
+const frameSources = (id) => [180, 360, 600].map((w) => `${example(id, w)} ${w}w`).join(", ");
 
 const HERO_FRAMES = [
   ["studio-gray", "navy-suit"], ["glass-office", "charcoal-blazer"], ["city-terrace", "camel-knit"],
@@ -37,9 +38,9 @@ const STRIP = [
 
 
 
-export function renderLanding({ root }) {
+export function renderLanding({ root, hydrate = false }) {
   const cta = state.user ? "/app/new" : "/signup";
-  root.innerHTML = html`
+  if (!hydrate) root.innerHTML = html`
   <main id="main">
     <!-- Hero -->
     <section class="hero">
@@ -69,7 +70,7 @@ export function renderLanding({ root }) {
           <div class="sheet-board" role="img" aria-label="Example: one casual selfie becomes a contact sheet of professional headshots of the same person">
             ${HERO_FRAMES.map(
               ([b, o], i) => html`<div class="sheet-frame ${i === HERO_SETS[0][2] ? "keeper" : ""}" style="--d:${i}">
-                <img src="${example(`hero-${i + 1}`, 360)}" alt="" loading="${i < 6 ? "eager" : "lazy"}" />
+                <img src="${example(`hero-${i + 1}`, 360)}" srcset="${frameSources(`hero-${i + 1}`)}" sizes="(max-width: 600px) 23vw, 145px" alt="" loading="${i < 6 ? "eager" : "lazy"}" />
                 <span class="fno">${String(i + 1).padStart(2, "0")}A</span>
                 ${i === HERO_SETS[0][2] ? greaseCircle() : ""}
               </div>`,
@@ -288,6 +289,9 @@ export function renderLanding({ root }) {
     </section>
   </main>
   ${footer()}`.v;
+  // Keep the server-rendered headline and images on first load. Only the
+  // signed-in destinations need updating before attaching page behavior.
+  if (hydrate && state.user) root.querySelectorAll('a[href="/signup"][data-link]').forEach((a) => a.setAttribute("href", cta));
   const stopHero = heroCycle();
   const stopStrip = stripPreload();
   const stopReel = stripReel();
@@ -311,7 +315,12 @@ async function customerResults() {
     return;
   }
   const slot = $("#customers");
-  if (!slot || !entries.length) return;
+  if (!slot) return;
+  if (!entries.length) {
+    slot.hidden = true;
+    slot.replaceChildren();
+    return;
+  }
   const wasHidden = slot.hidden;
   slot.innerHTML = customersInner(entries);
   slot.hidden = false;
@@ -433,7 +442,13 @@ function heroCycle() {
   let hovering = false;
   let busy = false;
   let timer = null;
-  const urls = (i) => [example(`${HERO_SETS[i][0]}-selfie`, 360), ...Array.from({ length: 9 }, (_, j) => example(`${HERO_SETS[i][0]}-${j + 1}`, 360))];
+  let visible = !("IntersectionObserver" in window);
+  let warmTimer = null;
+  let warmed = false;
+  const urls = (i) => [example(`${HERO_SETS[i][0]}-selfie`, 360), ...imgs.map((im, j) => {
+    const width = [180, 360, 600].find((w) => w >= im.clientWidth * devicePixelRatio) || 600;
+    return example(`${HERO_SETS[i][0]}-${j + 1}`, width);
+  })];
   const preload = (i) =>
     Promise.all(urls(i).map((u) => { const im = new Image(); im.src = u; return im.decode(); }));
 
@@ -454,7 +469,10 @@ function heroCycle() {
     await new Promise((r) => setTimeout(r, reduce ? 0 : 520));
     const [sel, ...frames] = urls(i);
     selfie.src = sel;
-    imgs.forEach((im, j) => (im.src = frames[j]));
+    imgs.forEach((im, j) => {
+      im.srcset = frameSources(`${HERO_SETS[i][0]}-${j + 1}`);
+      im.src = frames[j];
+    });
     $("#heroScore").textContent = HERO_SETS[i][1];
     // Move the best-pick circle to this person's pick; a fresh copy replays
     // the pencil loop.
@@ -471,7 +489,7 @@ function heroCycle() {
     busy = false;
   }
   const tick = () => {
-    if (!paused && !hovering && !document.hidden) show((current + 1) % HERO_SETS.length);
+    if (visible && !paused && !hovering && !document.hidden) show((current + 1) % HERO_SETS.length);
   };
   const start = () => {
     clearInterval(timer);
@@ -487,9 +505,24 @@ function heroCycle() {
   sheet.addEventListener("focusout", () => (hovering = false));
   setPauseUI();
   start();
-  // Warm the next person's photos once the page has settled.
-  setTimeout(() => preload(1).catch(() => {}), 2500);
-  return () => clearInterval(timer);
+  // On phones the contact sheet starts below the first screen. Don't fetch
+  // the next person's ten photos until the rotating sheet is actually visible.
+  const warm = () => {
+    if (reduce || warmed) return;
+    warmed = true;
+    warmTimer = setTimeout(() => preload(1).catch(() => {}), 2500);
+  };
+  const io = "IntersectionObserver" in window ? new IntersectionObserver((entries) => {
+    visible = entries.some((entry) => entry.isIntersecting);
+    if (visible) warm();
+  }) : null;
+  if (io) io.observe(sheet);
+  else warm();
+  return () => {
+    clearInterval(timer);
+    clearTimeout(warmTimer);
+    io?.disconnect();
+  };
 }
 
 function reviewPreview() {

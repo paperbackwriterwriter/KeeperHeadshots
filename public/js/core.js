@@ -37,7 +37,7 @@ export const logoMark = () =>
 
 // Example headshots rendered by the studio (lib/examples.js), as WebP at the
 // width they're shown (the server resizes once; the CDN caches it). Bump v to
-// refresh caches. Allowed widths: 360, 600, 900.
+// refresh caches. Allowed widths: 180, 360, 600, 900.
 export const example = (id, w = 600) => `/examples/${id}.webp?w=${w}&v=5`;
 
 export const wordmark = () => raw(`<span class="logo-word"><b>Keeper</b> <span>Headshots</span></span>`);
@@ -173,6 +173,24 @@ export function toast(message, kind = "info", ms = 4200) {
 }
 
 export const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Let critical content paint before nonessential scripts start. The fallback
+// also runs in background tabs, where animation frames can be suspended.
+export function afterPaint(task) {
+  let done = false;
+  const run = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(fallback);
+    task();
+  };
+  const fallback = setTimeout(run, 2000);
+  if (document.visibilityState === "hidden") return run();
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if ("requestIdleCallback" in window) requestIdleCallback(run, { timeout: 1500 });
+    else run();
+  }));
+}
 
 export function observeReveals(root = document) {
   const els = $$("[data-reveal]:not(.in), .sheet-circle:not(.in)", root);

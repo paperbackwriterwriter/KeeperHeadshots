@@ -1441,9 +1441,9 @@ app.get("/media/:sid/:name", mediaUser, async (req, res) => {
 /* ----------------------------- Examples ----------------------------- */
 
 // Marketing example headshots (see lib/examples.js).
-// /examples/<id>.jpg is the original; /examples/<id>.webp?w=360|600|900 is a
+// /examples/<id>.jpg is the original; /examples/<id>.webp?w=180|360|600|900 is a
 // resized WebP for the pages. Either way the CDN caches the response.
-const EXAMPLE_WIDTHS = [360, 600, 900];
+const EXAMPLE_WIDTHS = [180, 360, 600, 900];
 app.get(/^\/examples\/([a-z0-9-]+)\.(jpg|webp)$/, async (req, res) => {
   const [id, ext] = [req.params[0], req.params[1]];
   // Each distinct URL misses the CDN cache and costs a storage read and a
