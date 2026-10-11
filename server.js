@@ -1692,7 +1692,9 @@ const CSP = [
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
   "img-src 'self' data: blob: https://www.facebook.com https://*.stripe.com",
-  "connect-src 'self' https://www.facebook.com https://connect.facebook.net https://api.stripe.com https://*.stripe.com",
+  // Exact primary/fallback hosts in Pixel 1088231967271424's Meta openbridge
+  // configuration. Keep cloud-provider wildcards out of this policy.
+  "connect-src 'self' https://www.facebook.com https://connect.facebook.net https://api.stripe.com https://*.stripe.com https://xd-f1cf3d4fdb19408ea770fc6f80817dcb.ecs.us-east-1.on.aws https://bded8a3c6ae-1-1053047382554.us-central1.run.app",
   // www.facebook.com: the Meta Pixel's fallback when its normal send is
   // blocked (a hidden frame that posts the event there).
   "frame-src https://challenges.cloudflare.com https://js.stripe.com https://*.js.stripe.com https://checkout.stripe.com https://hooks.stripe.com https://www.facebook.com",
