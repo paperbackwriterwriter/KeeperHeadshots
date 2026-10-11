@@ -22,6 +22,9 @@ await storage.putJSON("jobs/shoots/sht_1/job_1.json", { sid: "sht_1", jobId: "jo
 await storage.putJSON("payments/cs_1.json", { sessionId: "cs_1", amount: 2900 });
 await storage.putJSON("shoots/sht_1.json", { id: "sht_1", userId: "usr_a" });
 await storage.putJSON("idx/usr_a/sht_1", { createdAt: "2026-09-28T00:00:00Z" });
+await storage.putJSON("shoot-catalog/usr_a.json", { items: [{ id: "sht_1", createdAt: "2026-09-28T00:00:00Z" }] });
+await storage.putJSON("showcase-users/usr_a.json", { ids: ["shc_1"] });
+await storage.putJSON("billing-sync/usr_a.json", { historyCursor: "cs_1", leaseUntil: 0, nextAutoAt: 0 });
 await storage.putJSON("showcase/shc_1.json", { id: "shc_1", userId: "usr_a", status: "pending" });
 await storage.putFile("showcase/shc_1.jpg", Buffer.from("jpg"), "image/jpeg");
 await storage.putJSON("stats/seen/usr_a/signup.json", { at: "2026-09-28T00:00:00Z" });
@@ -36,6 +39,7 @@ const keys = Object.keys(snap.records);
 ok("backup holds accounts, their shoot index, payments, shoots, frames and funnel counts", ["users/id/usr_a.json", "users/email/a@x.com.json", "payments/cs_1.json", "shoots/sht_1.json", "shots/sht_1/shot_1.json", "idx/usr_a/sht_1", "stats/days/2026-09-28.json"].every((k) => keys.includes(k)) && snap.records["users/id/usr_a.json"].credits === 3, JSON.stringify(r));
 ok("backup preserves erasure barriers and durable job intents", snap.records["cancelled/shoots/sht_gone.json"]?.cancelled === true && snap.records["jobs/shoots/sht_1/job_1.json"]?.jobId === "job_1");
 ok("backup leaves out photos and rate-limit counters", !keys.some((k) => k.startsWith("media/") || k.startsWith("ratelimit/")) && snap.complete === true);
+ok("backup includes history catalogs, showcase indexes and reconciliation cursors", ["shoot-catalog/usr_a.json", "showcase-users/usr_a.json", "billing-sync/usr_a.json"].every((k) => keys.includes(k)));
 ok("backup holds showcase entries (not their image copies) and funnel markers", keys.includes("showcase/shc_1.json") && !keys.includes("showcase/shc_1.jpg") && keys.includes("stats/seen/usr_a/signup.json"));
 {
   // Deleting a shoot takes its develop claim with it (lib/store.js).
