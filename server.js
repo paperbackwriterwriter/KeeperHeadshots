@@ -21,6 +21,7 @@ import { isPreview, isKept, watermark } from "./lib/preview.js";
 import { reviewShoots, sendOffer } from "./lib/outreach.js";
 import { aiStatus, AIError } from "./lib/ai.js";
 import { shootQueueCallback, startLocalShootWorker, ensureShootJob } from "./lib/shoot-jobs.js";
+import { listShootPage } from "./lib/shoot-list.js";
 import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, advance, startGeneration, retryFailed, startReview, addLooks } from "./lib/pipeline.js";
 import { lookFor, MAX_LOOKS, MAX_SELFIES, MAX_RESUMES, PHOTO_FORMATS, isPreviewOffer } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
@@ -539,7 +540,8 @@ const summary = (s) => ({
 });
 
 app.get("/api/shoots", requireUser, async (req, res) => {
-  res.json({ shoots: (await shoots.forUser(req.user.id)).map(summary) });
+  const page = await listShootPage(req.user.id, { cursor: req.query.cursor ?? null, limit: req.query.limit === undefined ? 24 : Number(req.query.limit) });
+  res.json({ shoots: page.shoots.map(summary), nextCursor: page.nextCursor });
 });
 
 // Managed shoots move through durable deliveries even with no open browser.
@@ -1249,7 +1251,7 @@ app.post("/api/billing/confirm", requireUser, async (req, res) => {
 
 app.post("/api/billing/sync", requireUser, async (req, res) => {
   if (!billingEnabled() || req.user.demo || !req.user.stripeCustomerId || (await overLimit("sync", req.user.id, 20))) return res.json({ added: 0, removed: 0, user: publicUser(req.user) });
-  const { added, removed, revoked } = await syncPurchases(req.user);
+  const { added, removed, revoked } = await syncPurchases(req.user, { automatic: req.body?.automatic === true });
   res.json({ added, removed, user: publicUser(added || removed || revoked ? await users.byId(req.user.id) : req.user) });
 });
 

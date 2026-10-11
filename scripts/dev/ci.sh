@@ -79,6 +79,7 @@ run google node scripts/dev/google-tests.js
 run render-race env MOCKLOG="$MOCKLOG" EMAIL=owner-ci@example.com node scripts/dev/render-race.js
 run slots env MOCKLOG="$MOCKLOG" RENDER_SLOTS=3 node scripts/dev/slots-test.js
 run durable-shoots node scripts/dev/durable-shoot-tests.js
+run history-queries node scripts/dev/history-query-tests.js
 
 if [ $status -ne 0 ]; then
   echo "== server log (3100)"; tail -60 "$WORK/server-3100.log"

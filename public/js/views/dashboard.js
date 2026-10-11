@@ -1,4 +1,4 @@
-import { html, icon, api, state, media, relTime, toast, example, spinner } from "../core.js";
+import { html, icon, api, state, media, relTime, toast, example, spinner, busy } from "../core.js";
 import { pixel } from "../pixel.js";
 import { PACKAGES } from "../shared/catalog.js";
 
@@ -99,7 +99,7 @@ export async function confirmPurchase(sessionId) {
 export async function renderDashboard({ root, navigate }) {
   if (!(await handleCheckoutReturn(navigate, root))) {
     // Pick up any purchase whose return trip didn't finish (e.g. closed tab).
-    api("/api/billing/sync", { method: "POST" })
+    api("/api/billing/sync", { method: "POST", body: { automatic: true } })
       .then((res) => {
         if (res.added || res.removed) {
           state.user = res.user;
@@ -133,7 +133,7 @@ export async function renderDashboard({ root, navigate }) {
   }
   grid.removeAttribute("aria-busy");
 
-  if (!data.shoots.length) {
+  if (!data.shoots.length && !data.nextCursor) {
     grid.outerHTML = html`<div class="empty view-enter">
       <div class="empty-art" aria-hidden="true">${["strip-1", "hero-2", "strip-3"].map((s, i) => html`<div class="print"><img src="${example(s)}" alt="" /><div class="print-cap"><b>0${i + 1}</b></div></div>`)}</div>
       <h2 class="display h-2">Your first shoot starts with a selfie.</h2>
@@ -143,9 +143,9 @@ export async function renderDashboard({ root, navigate }) {
     return;
   }
 
-  grid.innerHTML = html`${data.shoots.map((s, i) => {
+  const cards = (items) => html`${items.map((s, i) => {
     const [cls, label] = STATUS[s.status] || STATUS.draft;
-    return html`<a class="shoot-card view-enter" href="/app/shoot/${s.id}" data-link style="animation-delay:${i * 70}ms">
+    return html`<a class="shoot-card view-enter" href="/app/shoot/${s.id}" data-link style="animation-delay:${Math.min(i, 8) * 70}ms">
       <div class="shoot-cover">
         ${s.cover ? html`<img src="${media(s.cover)}" alt="" loading="lazy" />` : ""}
         <div class="badge-row"><span class="${cls}">${label}</span>${s.sample ? html`<span class="badge badge-ink">Sample</span>` : ""}</div>
@@ -162,6 +162,25 @@ export async function renderDashboard({ root, navigate }) {
             : html`<span class="muted">${icon("arrow-right")}</span>`}
       </div>
     </a>`;
-  })}
+  })}`;
+  grid.innerHTML = html`${cards(data.shoots)}
   <a class="new-card" href="/app/new" data-link><div><span class="plus">${icon("plus")}</span><p class="h-4" style="margin-top:12px;color:var(--text)">New shoot</p><p class="small">New looks, new photos</p></div></a>`.v;
+  const more = document.createElement("div");
+  more.style.cssText = "margin-top:24px;display:flex;justify-content:center";
+  more.innerHTML = html`<button class="btn btn-ink" type="button">Show more shoots ${icon("arrow-down")}</button>`.v;
+  grid.after(more);
+  let cursor = data.nextCursor;
+  more.hidden = !cursor;
+  const button = more.querySelector("button");
+  button.addEventListener("click", async () => {
+    const restore = busy(button, "Loading shoots…");
+    try {
+      const page = await api(`/api/shoots?${new URLSearchParams({ cursor })}`);
+      if (!grid.isConnected) return;
+      grid.querySelector(".new-card").insertAdjacentHTML("beforebegin", cards(page.shoots).v);
+      cursor = page.nextCursor;
+      more.hidden = !cursor;
+    } catch (err) { if (grid.isConnected) toast(err.message, "error"); }
+    finally { restore(); }
+  });
 }
