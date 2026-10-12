@@ -1434,6 +1434,7 @@ select.input { appearance: none; padding-right: 44px; cursor: pointer; backgroun
 .contact-card .ficon, .contact-sent .ficon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--brand-soft); color: var(--accent-text); }
 .contact-card .ficon svg, .contact-sent .ficon svg { width: 20px; height: 20px; }
 .contact-sent { display: flex; gap: var(--s-4); margin-top: var(--s-6); padding: var(--s-6); border-radius: var(--r-lg); background: var(--surface-raised); border: 1px solid var(--border); max-width: 640px; }
+.contact-sent > div { min-width: 0; overflow-wrap: anywhere; }
 .contact-sent:focus { outline: none; }
 .contact-sent .ficon { background: var(--success-soft); color: var(--success); }
 @media (max-width: 900px) {

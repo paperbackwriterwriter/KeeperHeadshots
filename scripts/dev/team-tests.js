@@ -354,6 +354,28 @@ let final;
   ok("the 31st address in an hour is refused, across batches", /lot of invites in one hour/.test(second[5]?.error || "") && !/lot of invites/.test(second[4]?.error || ""), JSON.stringify(second.map((r) => r.error || "ok")));
 }
 
+// 9h. An account confirmed only by a team invitation keeps its team shoot
+// when the address's inbox resets the password from another device: it's a
+// member's paid seat, and the admin mustn't win the seat back this way.
+{
+  const adm = await account(`squat-admin${t}@x.com`);
+  await buy(adm, "starter");
+  await adm("/api/team", { method: "POST", body: JSON.stringify({ name: "Squatters", looks: LOOKS }) });
+  const vic = `victim${t}@x.com`;
+  const sent = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: vic }) })).j;
+  const squatter = await account(vic, { verify: false });
+  const seat = (await squatter(`/api/join/${tokenOf(sent.results[0].link)}`, { method: "POST" })).j.shootId;
+  await squatter(`/api/shoots/${seat}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(70) }) });
+  const before = await credits(adm);
+  const owner = client();
+  await owner("/api/auth/password/forgot", { method: "POST", body: JSON.stringify({ email: vic }) });
+  await new Promise((r) => setTimeout(r, 800));
+  const link = (await mails()).filter((m) => m.to.includes(vic)).flatMap((m) => m.links).findLast((l) => l.includes("/reset?token="));
+  const reset = await owner("/api/auth/password/reset", { method: "POST", body: JSON.stringify({ token: new URL(link).searchParams.get("token"), password: "the-real-owner-1" }) });
+  const left = (await owner("/api/shoots")).j?.shoots || [];
+  ok("an invitation-confirmed account reset from another device keeps its team shoot, and the admin gains no credit", !!seat && reset.status === 200 && left.length === 1 && (await credits(adm)) === before, `${reset.status} shoots=${left.length} credits ${before}->${await credits(adm)}`);
+}
+
 // 10. A team seat is paid for by the admin: the member's free photo checks
 // don't gate it and aren't spent on it.
 {

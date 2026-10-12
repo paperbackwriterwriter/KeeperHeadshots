@@ -91,6 +91,18 @@ app.use("/api", (req, res, next) => {
   res.set("X-App-Build", BUILD);
   next();
 });
+// A shoot's delivery id is for the queue alone; browsers never need it.
+app.use("/api/shoots", (req, res, next) => {
+  const json = res.json.bind(res);
+  res.json = (body) => {
+    if (body?.shoot?.jobId) {
+      const { jobId, ...shoot } = body.shoot;
+      body = { ...body, shoot };
+    }
+    return json(body);
+  };
+  next();
+});
 app.get("/api/version", (req, res) => res.set("Cache-Control", "no-store").json({ build: BUILD }));
 
 const isEmail = (s) => typeof s === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
@@ -274,6 +286,8 @@ app.get("/api/auth/google/callback", async (req, res) => {
       console.warn("[google] address linked to another Google account", user.id);
       return back("failed");
     }
+    // Taken over from the device that made the account: it's the same person.
+    const sameDevice = knownDevice(req, user);
     user = await users.update(user.id, (u) => {
       newlyVerified = false;
       if (u.googleSub && u.googleSub !== profile.sub) throw new google.GoogleError("linked to another Google account");
@@ -293,7 +307,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
       }
     }).catch((err) => (err instanceof google.GoogleError ? null : Promise.reject(err)));
     if (!user) return back("failed"); // deleted meanwhile, or linked elsewhere
-    if (newlyVerified) await purgeForTakeover(user.id);
+    if (newlyVerified && !sameDevice) await purgeForTakeover(user.id);
   }
   if (created) background(recordStep("signup", user).catch(noteStats));
   if (newlyVerified) {
@@ -389,8 +403,12 @@ app.post("/api/auth/signout", async (req, res) => {
   try {
     await revokeSession(req);
   } catch (err) {
-    console.error("[signout] revoke", err.message);
-    return res.status(503).json({ error: "Sign-out is temporarily unavailable. Please try again." });
+    // An account part-way through deletion has no sessions worth keeping:
+    // let the browser sign out rather than trapping it in a signed-in state.
+    if (err.status !== 410) {
+      console.error("[signout] revoke", err.message);
+      return res.status(503).json({ error: "Sign-out is temporarily unavailable. Please try again." });
+    }
   }
   clearSession(res);
   res.json({ ok: true });
@@ -458,6 +476,8 @@ app.post("/api/auth/password/reset", async (req, res) => {
   const at = new Date().toISOString();
   let used = false;
   let newlyVerified = false;
+  // Reset from the device that made the account: it's the same person.
+  const sameDevice = knownDevice(req, user);
   const updated = await users.update(user.id, (u) => {
     // Another request already used this link (the password changed since we checked).
     used = u.password !== user.password;
@@ -476,7 +496,7 @@ app.post("/api/auth/password/reset", async (req, res) => {
     delete u.emailVerifiedVia;
   });
   if (used) return invalid();
-  if (newlyVerified) await purgeForTakeover(user.id);
+  if (newlyVerified && !sameDevice) await purgeForTakeover(user.id);
   // Proving they own the inbox lifts any sign-in lock on the address.
   const lift = (r) => {
     r.ips = {};
@@ -1109,10 +1129,14 @@ app.post("/api/join/:token", requireUser, async (req, res) => {
 
 /* ------------------------------ Account ----------------------------- */
 
-// The inbox's owner took over an account someone else made with their address
-// and never confirmed (password reset or Google sign-in). What that person
-// uploaded isn't theirs to keep: every shoot, its photos and headshots go.
-// Purchases stay (they're payment records), and so does the balance.
+// The inbox's owner took over, from another device, an account someone else
+// made with their address and never confirmed (password reset or Google
+// sign-in). What that person uploaded isn't theirs to keep: every shoot, its
+// photos and headshots go. Purchases stay (they're payment records), and so
+// does the balance. A takeover from the device that made the account is its
+// owner, and keeps everything. An account confirmed by a team invitation keeps
+// its shoots too: they're a member's paid work, and the admin can't win a seat
+// back by taking over an address they invited.
 async function purgeForTakeover(userId) {
   const list = await shoots.forUser(userId);
   if (!list.length) return 0;
@@ -1319,7 +1343,7 @@ async function squareOf(sid, name, shot) {
 
 // Ready-made sizes, made on first download and cached next to the headshot:
 //   linkedin  800×800 JPEG profile photo (LinkedIn asks for at least 400×400)
-//   banner    1584×396 LinkedIn background in the colours of this headshot's
+//   banner    1584×396 LinkedIn background in the colors of this headshot's
 //             backdrop (the area above the head, softly blurred), so the
 //             profile photo sits on a matching banner
 //   signature 256×256 round PNG with transparent corners, for email
@@ -1778,6 +1802,8 @@ app.get(/.*/, async (req, res) => {
   if (/^\/[\/\\]/.test(req.path) || req.path.includes("\\")) return res.status(404).type("html").send(pageFor("/__not_found__").html);
   const clean = req.path.length > 1 ? "/" + req.path.replace(/\/+$/, "").replace(/^\/+/, "") : "/";
   if (clean !== req.path) return res.redirect(301, clean + req.url.slice(req.path.length));
+  // Guessed addresses for sections of the home page.
+  if (clean === "/pricing" || clean === "/faq") return res.redirect(308, `/#${clean.slice(1)}`);
   if (await serveBlog(req, res, clean)) return;
   // A blog article (/blog?post=<slug>) is its own page to search engines.
   const post = clean === "/blog" && typeof req.query.post === "string" ? blogPostPage(req.query.post) : null;

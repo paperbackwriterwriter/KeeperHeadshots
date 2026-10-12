@@ -100,6 +100,20 @@ try {
   assert.ok(await storage.getJSON(`jobs/shoots/${sid}/${newJob}.json`));
   await discardShootJob(sid, newJob);
   pass("an early retry or regrade delivery waits for its new plan commit");
+  // A second delivery (or a forged one) while another holds the job's lease
+  // waits instead of starting a parallel worker on the same shoot.
+  const leasedSid = id("sht");
+  const leasedJob = id("job");
+  const leasedKey = `jobs/shoots/${leasedSid}/${leasedJob}.json`;
+  // The shoot first, then its leased job: the running workers scan for jobs.
+  await shoots.create({ ...(await shoots.getMeta(sid)), id: leasedSid, status: "generating", jobId: leasedJob });
+  await storage.createJSON(leasedKey, { sid: leasedSid, jobId: leasedJob, createdAt: new Date().toISOString(), activated: true, lease: "other-delivery", leaseUntil: new Date(Date.now() + 60_000).toISOString() });
+  await assert.rejects(processShootJob({ sid: leasedSid, jobId: leasedJob }), ShootPending);
+  assert.equal((await storage.getJSON(leasedKey)).lease, "other-delivery");
+  assert.equal((await shoots.getMeta(leasedSid)).status, "generating");
+  await storage.del(leasedKey);
+  await shoots.updateMeta(leasedSid, (m) => { m.status = "done"; });
+  pass("a delivery waits while another holds the job's lease");
   const { startReview } = await import("../../lib/pipeline.js");
   await assert.rejects(startReview(sid, () => { throw new Error("Regrade limit"); }), /Regrade limit/);
   assert.deepEqual(await storage.list(`jobs/shoots/${sid}/`), []);
@@ -271,7 +285,8 @@ try {
   // fixture's metadata afterwards, never its source shoot's shared photos.
   const upgraded = await owner.f(`/api/shoots/${legacySid}`, undefined, { port: 3218 });
   assert.equal(upgraded.status, 200);
-  assert.ok(upgraded.j.shoot.jobId);
+  assert.ok((await shoots.getMeta(legacySid)).jobId);
+  assert.equal(upgraded.j.shoot.jobId, undefined); // the queue's id never reaches the browser
   const legacyIndex = messages.length - 1;
   assert.equal(messages[legacyIndex].body.sid, legacySid);
   for (let delivery = 1; delivery <= 12 && (await shoots.getMeta(legacySid)).status !== "done"; delivery++) { await pause(600); await deliver(delivery, legacyIndex); }

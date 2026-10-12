@@ -177,6 +177,42 @@ try {
       await context.close();
     }
   }
+  // Opening the emailed link must not confirm anything: mail scanners open
+  // links (some run the page's script). Only the button press confirms.
+  {
+    delivery = "sent";
+    process.env.RESEND_API_KEY = mailKey;
+    const context = await browser.newContext({ viewport: { width: 390, height: 900 }, reducedMotion: "reduce" });
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", (err) => errors.push(err.message));
+    const email = `link-${crypto.randomUUID()}@example.com`;
+    const signup = await fetch(BASE + "/api/auth/signup", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "Link QA", email, password: "local-qa-password" }) });
+    assert.equal(signup.status, 201);
+    const { user } = await signup.json();
+    const mail = messages.filter((m) => JSON.stringify(m.to).includes(email)).at(-1);
+    const token = JSON.stringify(mail).match(/\/verify\?token=([\w-]+\.\d+\.[\w-]+)/)?.[1];
+    assert.ok(token);
+    const posts = [];
+    page.on("request", (r) => { if (new URL(r.url()).pathname === "/api/auth/verify") posts.push(r.method()); });
+    await page.goto(`${BASE}/verify?token=${token}`);
+    const btn = page.locator("#confirmEmail");
+    await btn.waitFor();
+    await page.waitForTimeout(500);
+    assert.deepEqual(posts, []);
+    assert.equal((await users.byId(user.id)).emailVerified, false);
+    assert.equal(new URL(page.url()).search, "");
+    pass("opening the emailed link shows a button and confirms nothing");
+    const confirmed = page.waitForResponse((r) => new URL(r.url()).pathname === "/api/auth/verify");
+    await btn.click();
+    assert.equal((await confirmed).status(), 200);
+    await page.getByRole("heading", { name: "Email confirmed." }).waitFor();
+    assert.equal((await users.byId(user.id)).emailVerified, true);
+    await screenshot(page, "link-confirmed-390.png");
+    pass("pressing the button confirms the address");
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
   console.log(`${passed}/${passed} browser checks passed`);
 } finally {
   await browser?.close();

@@ -221,7 +221,7 @@ export const sizeMedia = (file, size) => (file ? `/media/${file.split("/").map(e
 // For the profile-kit links: what each size is, in the words people use.
 export const PROFILE_KIT = [
   ["linkedin", "LinkedIn photo", "800 × 800, face centered for the round frame"],
-  ["banner", "LinkedIn banner", "1584 × 396, in the colours of this backdrop"],
+  ["banner", "LinkedIn banner", "1584 × 396, in the colors of this backdrop"],
   ["signature", "Email signature", "Round PNG, 256 px, transparent corners"],
 ];
 
