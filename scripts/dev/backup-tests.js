@@ -38,9 +38,9 @@ const snap = await readBackup();
 const keys = Object.keys(snap.records);
 ok("backup holds accounts, their shoot index, payments, shoots, frames and funnel counts", ["users/id/usr_a.json", "users/email/a@x.com.json", "payments/cs_1.json", "shoots/sht_1.json", "shots/sht_1/shot_1.json", "idx/usr_a/sht_1", "stats/days/2026-09-28.json"].every((k) => keys.includes(k)) && snap.records["users/id/usr_a.json"].credits === 3, JSON.stringify(r));
 ok("backup preserves erasure barriers and durable job intents", snap.records["cancelled/shoots/sht_gone.json"]?.cancelled === true && snap.records["jobs/shoots/sht_1/job_1.json"]?.jobId === "job_1");
-ok("backup leaves out photos and rate-limit counters", !keys.some((k) => k.startsWith("media/") || k.startsWith("ratelimit/")) && snap.complete === true);
+ok("record JSON omits binary payloads and rate-limit counters", !keys.some((k) => k.startsWith("media/") || k.startsWith("ratelimit/")) && snap.complete === true);
 ok("backup includes history catalogs, showcase indexes and reconciliation cursors", ["shoot-catalog/usr_a.json", "showcase-users/usr_a.json", "billing-sync/usr_a.json"].every((k) => keys.includes(k)));
-ok("backup holds showcase entries (not their image copies) and funnel markers", keys.includes("showcase/shc_1.json") && !keys.includes("showcase/shc_1.jpg") && keys.includes("stats/seen/usr_a/signup.json"));
+ok("record JSON holds showcase metadata and funnel markers separately from binaries", keys.includes("showcase/shc_1.json") && !keys.includes("showcase/shc_1.jpg") && keys.includes("stats/seen/usr_a/signup.json"));
 {
   // Deleting a shoot takes its develop claim with it (lib/store.js).
   const { shoots } = await import("../../lib/store.js");
