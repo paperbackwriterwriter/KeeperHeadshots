@@ -26,7 +26,7 @@ function page({ eyebrow, title, lede, callout, body, updated = LEGAL_UPDATED }) 
 export function renderPrivacy({ root }) {
   root.innerHTML = page({
     eyebrow: "Privacy policy",
-    updated: "October 11, 2026",
+    updated: "October 12, 2026",
     title: "Your privacy",
     lede: "What we collect, why we collect it, who helps us run the service, and the choices you have.",
     callout:
@@ -136,7 +136,7 @@ export function renderPrivacy({ root }) {
 export function renderTerms({ root }) {
   root.innerHTML = page({
     eyebrow: "Terms of service",
-    updated: "October 9, 2026",
+    updated: "October 12, 2026",
     title: "Terms of service",
     lede: "The agreement between you and Keeper Headshots when you use the studio.",
     callout:
