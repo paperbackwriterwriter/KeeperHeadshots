@@ -469,12 +469,10 @@ if (process.env.DATA_DIR) {
   ok("taking over an unconfirmed account removes what the stranger uploaded, keeps the balance", !!sid && !!file && reset.status === 200 && (list.shoots || []).length === 0 && media.status === 404 && me.plan.credits === 3 && me.emailVerified === true, `${sid} ${reset.status} shoots=${(list.shoots || []).length} media=${media.status} credits=${me.plan.credits}`);
 }
 
-// 27b. The same reset from the device that made the account is its owner,
-// who keeps their shoots. (A client that keeps every cookie, including the
-// "known device" one.)
-{
+// A client that keeps every cookie, including the device ones.
+function jarClient() {
   const jar = new Map();
-  const dev = async (p, o = {}) => {
+  return async (p, o = {}) => {
     const cookie = [...jar].map(([k, v]) => `${k}=${v}`).join("; ");
     const r = await fetch(B + p, { redirect: "manual", ...o, headers: { "content-type": "application/json", cookie, ...(o.headers || {}) } });
     for (const c of r.headers.getSetCookie?.() || []) {
@@ -486,20 +484,67 @@ if (process.env.DATA_DIR) {
     try { j = await r.json(); } catch {}
     return { status: r.status, j };
   };
-  const email = `samedev${t}@x.com`;
-  await dev("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Real Owner", email, password: "password123" }) });
+}
+const shootWithSelfie = async (dev) => {
   const { j } = await dev("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
   const sess = new URL(j.url).pathname.split("/").pop();
   await fetch(`${M}/mock-pay/${sess}?promo=FREE`, { redirect: "manual" });
   await dev("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sess }) });
   const sid = (await dev("/api/shoots", { method: "POST", body: "{}" })).j?.shoot?.id;
   await dev(`/api/shoots/${sid}/selfies`, { method: "POST", body: JSON.stringify({ photo }) });
+  return sid;
+};
+const resetFrom = async (dev, email, password) => {
   await dev("/api/auth/password/forgot", { method: "POST", body: JSON.stringify({ email }) });
   await new Promise((r) => setTimeout(r, 800));
   const link = (await mailFor(email)).flatMap((m) => m.links).findLast((l) => l.includes("/reset?token="));
-  const reset = await dev("/api/auth/password/reset", { method: "POST", body: JSON.stringify({ token: new URL(link).searchParams.get("token"), password: "still-mine-123" }) });
+  return dev("/api/auth/password/reset", { method: "POST", body: JSON.stringify({ token: new URL(link).searchParams.get("token"), password }) });
+};
+
+// 27b. The same reset from the browser that made the account is its owner,
+// who keeps their shoots.
+{
+  const dev = jarClient();
+  const email = `samedev${t}@x.com`;
+  await dev("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Real Owner", email, password: "password123" }) });
+  const sid = await shootWithSelfie(dev);
+  const reset = await resetFrom(dev, email, "still-mine-123");
   const list = (await dev("/api/shoots")).j;
   ok("a reset from the device that made the account keeps its shoots", !!sid && reset.status === 200 && (list.shoots || []).some((s) => s.id === sid), `${reset.status} shoots=${(list.shoots || []).length}`);
+}
+
+// 27c. A browser that only signed in to the account (say, a shared computer
+// the maker used once) isn't the one that made it: the shoots still go.
+{
+  const maker = jarClient();
+  const email = `otherdev${t}@x.com`;
+  await maker("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Squatter", email, password: "password123" }) });
+  const sid = await shootWithSelfie(maker);
+  const shared = jarClient();
+  const signin = await shared("/api/auth/signin", { method: "POST", body: JSON.stringify({ email, password: "password123" }) });
+  const reset = await resetFrom(shared, email, "the-real-owner-9");
+  const list = (await shared("/api/shoots")).j;
+  ok("a reset from a browser that only signed in still removes the maker's shoots", !!sid && signin.status === 200 && reset.status === 200 && (list.shoots || []).length === 0, `${signin.status} ${reset.status} shoots=${(list.shoots || []).length}`);
+}
+
+// 27d. A takeover that lands while a develop holds its charge (the account
+// records it until the shoot starts) gives that credit back.
+if (process.env.DATA_DIR) {
+  const maker = jarClient();
+  const email = `midcharge${t}@x.com`;
+  await maker("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Squatter", email, password: "password123" }) });
+  const sid = await shootWithSelfie(maker);
+  const credits = async (c) => (await c("/api/me")).j?.user?.plan?.credits;
+  const before = await credits(maker);
+  const file = `${process.env.DATA_DIR}/users/id/${(await maker("/api/me")).j.user.id}.json`;
+  const u = JSON.parse(fs.readFileSync(file, "utf8"));
+  u.credits -= 1;
+  u.developing = { [sid]: "credit" };
+  fs.writeFileSync(file, JSON.stringify(u));
+  const owner = jarClient();
+  const reset = await resetFrom(owner, email, "the-real-owner-7");
+  const after = await credits(owner);
+  ok("a takeover during a develop's charge gives the credit back", reset.status === 200 && after === before, `${reset.status} credits ${before}->${after}`);
 }
 
 // 28. A body nested deeper than the guard looks is refused, not a crash.

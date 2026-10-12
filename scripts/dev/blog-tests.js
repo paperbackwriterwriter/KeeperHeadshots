@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
-import { parseFeed, cleanHtml, privateAddress, excerptOf, pipeTable, truncate, fetchImage } from "../../lib/blog.js";
+import { parseFeed, cleanHtml, privateAddress, excerptOf, pipeTable, truncate, fetchImage, inlineCode } from "../../lib/blog.js";
 
 const results = [];
 const ok = (name, cond, extra = "") => (results.push(!!cond), console.log(cond ? "PASS" : "FAIL", name, extra));
@@ -27,6 +27,7 @@ ok("clean: no script, handlers, iframes or styles", !/script|onclick|onerror|ifr
 ok("clean: leading title heading dropped", !clean.includes("My Title"));
 ok("clean: article links point at /blog/<slug>", clean.includes('href="/blog/other-one"'));
 ok("clean: image without a copy left out, copied one rewritten", !clean.includes("e.com/a.jpg") && clean.includes('src="/blog/img/aaaaaaaaaaaaaaaaaaaaaaaa.jpg"') && clean.includes('width="10"'));
+ok("clean: Markdown inline code becomes <code>, but not inside code blocks", cleanHtml("<p>Name it `First-Last.jpg` today</p>").includes("<code>First-Last.jpg</code>") && inlineCode("<pre><code>`x`</code></pre>") === "<pre><code>`x`</code></pre>", cleanHtml("<p>Name it `First-Last.jpg` today</p>"));
 ok("clean: h1 inside the article becomes h2", cleanHtml("<p>a</p><h1>Sub</h1>").includes("<h2>Sub</h2>"));
 ok("clean: off-site links get nofollow, article links don't", /<a href="https:\/\/other\.example\/x" rel="nofollow noopener">/.test(cleanHtml('<p><a href="https://other.example/x">e</a></p>')) && !/rel=/.test(cleanHtml('<p><a href="https://keeperheadshots.com/blog?post=other-one">o</a></p>')), cleanHtml('<p><a href="https://other.example/x">e</a></p>'));
 ok("tables: Markdown table in a paragraph becomes a table", cleanHtml("<p>| Use | Crop | | --- | --- | | LinkedIn | Square | | Website | Portrait |</p>") === '<table><thead><tr><th scope="col">Use</th><th scope="col">Crop</th></tr></thead><tbody><tr><td>LinkedIn</td><td>Square</td></tr><tr><td>Website</td><td>Portrait</td></tr></tbody></table>');

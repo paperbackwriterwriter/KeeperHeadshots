@@ -80,13 +80,14 @@ await test("incomplete attempts expire without deleting successful recovery poin
   assert.equal(await storage.getFile(old), null); assert.ok(r.incompletePruned);
   assert.ok(await storage.getFile(first.key)); assert.equal(r.pruned, 0);
 });
-const originals = Object.fromEntries(["get", "put", "list", "del"].map((k) => [k, target[k]]));
+const originals = Object.fromEntries(["get", "put", "list", "listPage", "del"].map((k) => [k, target[k]]));
 const remote = new Map(); let offline = false;
 process.env.BACKUP_READ_WRITE_TOKEN = "private-test-store";
 target.put = async (k, v) => { if (offline) throw new Error("offline"); remote.set(k, Buffer.from(v)); };
 target.get = async (k) => { if (offline) throw new Error("offline"); return remote.get(k) || null; };
 target.list = async (p) => { if (offline) throw new Error("offline"); return [...remote.keys()].filter((k) => k.startsWith(p)); };
 target.del = async (keys) => { if (offline) throw new Error("offline"); keys.forEach((k) => remote.delete(k)); };
+target.listPage = async (p) => ({ keys: await target.list(p), cursor: null });
 try {
   await test("expiry removes fallback attempts from both stores after the remote store recovers", async () => {
     const old = "backups/incomplete/2000-01-01/00-00-00.000Z-0123456789abcdef.json.gz";

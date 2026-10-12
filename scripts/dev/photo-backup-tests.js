@@ -99,14 +99,38 @@ await test("expiry prunes binaries even when the record backup is incomplete", a
   const cleanup = await maintainPhotoBackups({ now }); assert.ok(cleanup.pruned >= 3); assert.equal(await storage.getFile(oldEntry.backupKey), null);
   const short = await runBackup({ budgetMs: 0 }); assert.equal(short.complete, false); assert.equal(short.pruned, 0);
 });
+await test("expiry pages through the copies and resumes where a short run stopped", async () => {
+  const old = new Date(now - 30 * 86_400_000).toISOString().slice(0, 10);
+  const stale = Array.from({ length: 5 }, (_, i) => `photo-backups/usr_page${i}/sht_page${i}/${"a".repeat(63)}${i}/${old}.jpg`);
+  for (const k of stale) await storage.putFile(k, Buffer.from("x"));
+  process.env.STORAGE_LIST_PAGE = "2";
+  try {
+    let budget = 0;
+    const realNow = Date.now;
+    // A deadline that lets exactly one page through, then runs out.
+    Date.now = () => (budget++ < 6 ? realNow() : realNow() + 60_000);
+    let first;
+    try { first = await maintainPhotoBackups({ now, deadline: realNow() + 30_000 }); } finally { Date.now = realNow; }
+    assert.equal(first.complete, false);
+    const remaining = [];
+    for (const k of stale) if (await storage.getFile(k)) remaining.push(k);
+    assert.ok(remaining.length > 0 && remaining.length < stale.length, `remaining ${remaining.length}`);
+    assert.ok((await storage.getJSON("cron/photo-maintain-main.json"))?.cursor);
+    const second = await maintainPhotoBackups({ now });
+    assert.equal(second.complete, true);
+    for (const k of stale) assert.equal(await storage.getFile(k), null);
+    assert.equal((await storage.getJSON("cron/photo-maintain-main.json"))?.cursor, null);
+  } finally { delete process.env.STORAGE_LIST_PAGE; }
+});
 // Test the actual shared target interface; no SDK auth is needed by the stand-in.
-const originals = Object.fromEntries(["get", "put", "list", "del"].map((k) => [k, target[k]]));
+const originals = Object.fromEntries(["get", "put", "list", "listPage", "del"].map((k) => [k, target[k]]));
 const remote = new Map(); let offline = false, interceptPut = null, interceptGet = null;
 process.env.BACKUP_READ_WRITE_TOKEN = "private-test-store";
 target.put = async (k, v) => { if (offline) throw new Error("store offline"); if (interceptPut) await interceptPut(k); remote.set(k, Buffer.from(v)); };
 target.get = async (k) => { if (offline) throw new Error("store offline"); if (interceptGet) await interceptGet(k); return remote.get(k) || null; };
 target.list = async (p) => { if (offline) throw new Error("store offline"); return [...remote.keys()].filter((k) => k.startsWith(p)); };
 target.del = async (keys) => { if (offline) throw new Error("store offline"); keys.forEach((k) => remote.delete(k)); };
+target.listPage = async (p, cursor) => { const keys = (await target.list(p)).sort().filter((k) => !cursor || k > cursor); return { keys, cursor: null }; };
 try {
   const c = await fixture("c"); let remoteSnap;
   await test("separate private store holds both records and photo bytes", async () => {

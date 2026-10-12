@@ -11,7 +11,7 @@ import { runReminders, checkUnsubscribeToken } from "./lib/reminders.js";
 import { ogImage } from "./lib/og.js";
 import * as showcase from "./lib/showcase.js";
 import { CONTACT_TO } from "./lib/contact.js";
-import { knownDevice, hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailCode, checkEmailCode, emailVerified, ownsMailbox, resetToken, checkResetToken } from "./lib/auth.js";
+import { knownDevice, originDevice, markOrigin, newOriginId, hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailCode, checkEmailCode, emailVerified, ownsMailbox, resetToken, checkResetToken } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import * as google from "./lib/google.js";
@@ -164,9 +164,11 @@ app.post("/api/auth/signup", async (req, res) => {
     createdAt: new Date().toISOString(),
     emailVerified: false,
     verifySends: [Date.now()],
+    originDevice: newOriginId(),
   });
   if (!user) return exists(); // the same address signed up a moment ago
   setSession(res, user);
+  markOrigin(res, user);
   // Meta's CompleteRegistration fires when the email is confirmed (below).
   const verificationSent = await sendVerification(user, req).catch((err) => {
     console.error("[verify] send failed", user.id, err.message);
@@ -286,8 +288,8 @@ app.get("/api/auth/google/callback", async (req, res) => {
       console.warn("[google] address linked to another Google account", user.id);
       return back("failed");
     }
-    // Taken over from the device that made the account: it's the same person.
-    const sameDevice = knownDevice(req, user);
+    // Taken over from the browser that made the account: it's the same person.
+    const sameDevice = originDevice(req, user);
     user = await users.update(user.id, (u) => {
       newlyVerified = false;
       if (u.googleSub && u.googleSub !== profile.sub) throw new google.GoogleError("linked to another Google account");
@@ -476,8 +478,8 @@ app.post("/api/auth/password/reset", async (req, res) => {
   const at = new Date().toISOString();
   let used = false;
   let newlyVerified = false;
-  // Reset from the device that made the account: it's the same person.
-  const sameDevice = knownDevice(req, user);
+  // Reset from the browser that made the account: it's the same person.
+  const sameDevice = originDevice(req, user);
   const updated = await users.update(user.id, (u) => {
     // Another request already used this link (the password changed since we checked).
     used = u.password !== user.password;
@@ -1143,11 +1145,27 @@ async function purgeForTakeover(userId) {
   for (const meta of list) if (meta.team && !(meta.shots || []).length) await teams.returnSeat(meta).catch((err) => console.error("[takeover] return seat", meta.id, err.message));
   await showcase.removeForUser(userId).catch(() => {});
   for (const meta of list) await shoots.remove(meta);
-  await users.update(userId, (u) => {
+  // A develop caught mid-charge (its shoot is gone now) gives its charge back,
+  // as a failed develop would: the balance stays with the account.
+  let freeBack = null;
+  const owner = await users.update(userId, (u) => {
+    freeBack = null;
     delete u.kept;
     delete u.extraLooks;
+    for (const [sid, memo] of Object.entries(u.developing || {})) {
+      const kind = typeof memo === "object" ? memo?.charged : memo;
+      if (kind === "credit") teams.giveBack(u);
+      if (kind === "free" && u.usage?.freeShootUsed === sid) {
+        u.usage = { ...u.usage, freeShootUsed: null };
+        freeBack = sid;
+      }
+    }
     delete u.developing;
-  }).catch(() => {});
+  }).catch(() => null);
+  if (freeBack && owner) {
+    const freeKey = freeClaimKey(owner.email);
+    if ((await getJSON(freeKey).catch(() => null))?.shootId === freeBack) await del(freeKey).catch(() => {});
+  }
   console.log("[takeover] removed", list.length, "shoot(s) made before the address was confirmed", userId);
   return list.length;
 }
