@@ -59,6 +59,7 @@ run() {
     tail -1 "$WORK/$1.out"
   fi
 }
+run prompts node scripts/dev/prompt-tests.js
 run race node scripts/dev/race-tests.js
 run reset node scripts/dev/reset-tests.js
 run signout node scripts/dev/signout-tests.js

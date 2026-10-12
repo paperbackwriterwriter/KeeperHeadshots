@@ -39,7 +39,7 @@ function checkResult(nImages) {
     verdict: "ready",
     headline: "A clear, well-lit set — ready for the studio.",
     summary: "Your face is sharp and evenly lit across the set, and the mix of angles gives the model plenty to work with. The first photo is your strongest reference.",
-    subject: { description: "Short dark hair; no glasses; no facial hair.", glasses: false },
+    subject: { description: "Short dark hair; no glasses; no facial hair.", glasses: false, hair: "Short dark hair, neatly cut, parted on the left; clean-shaven.", smile: "closed" },
     photos: Array.from({ length: nImages }, (_, i) => ({
       index: i,
       score: [91, 82, 76, 64, 88, 70][i % 6],
