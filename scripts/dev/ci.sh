@@ -79,6 +79,7 @@ run reminders node scripts/dev/reminder-tests.js
 run showcase node scripts/dev/showcase-tests.js
 run blog node scripts/dev/blog-tests.js
 run preview node scripts/dev/preview-tests.js
+run reshoot env DATA_DIR="$DATA" node scripts/dev/reshoot-tests.js
 run google node scripts/dev/google-tests.js
 run render-race env MOCKLOG="$MOCKLOG" EMAIL=owner-ci@example.com node scripts/dev/render-race.js
 run slots env MOCKLOG="$MOCKLOG" RENDER_SLOTS=3 node scripts/dev/slots-test.js

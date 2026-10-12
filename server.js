@@ -725,9 +725,10 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   // A team shoot can go ahead on the invitation alone (lib/teams.js).
   if (plan.needsEmail && !(meta.team && emailVerified(req.user))) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
   const limitMsg = `Free accounts include ${FREE.checks} photo checks, and you've used them. Buy a package to keep going.`;
-  // A team seat was paid for by the admin (lib/teams.js), so the member's
-  // free allowance neither gates it nor is spent on it; only the daily cap applies.
-  const teamSeat = !!meta.team && meta.paidWith === "team";
+  // A team seat was paid for by the admin (lib/teams.js), and a free reshoot
+  // costs nothing (see /reshoot), so the free allowance neither gates it nor is
+  // spent on it; only the daily cap applies.
+  const teamSeat = (!!meta.team && meta.paidWith === "team") || !!(await reshootGrant(meta, req.user.id));
   if (plan.checksLeft === 0 && !teamSeat) throw new PlanError(limitMsg);
   // One check at a time per shoot: a double-click doesn't run (or count) twice.
   const startedAt = await beginCheck(meta.id);
@@ -826,7 +827,13 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
   try {
     // A team shoot was paid for when its invite was sent, unless a refund since took that back.
     if (meta.team && !(await teams.seatPaid(meta))) throw new PlanError("This team shoot is no longer paid for. Ask your team admin to buy a package or get in touch with us.", "team_unpaid", 402);
-    if (plan.tier !== "owner" && !meta.team) {
+    const original = await reshootGrant(meta, req.user.id);
+    if (meta.reshootOf && !original) throw new PlanError("This free reshoot is no longer available. Contact us and we'll sort it out.", "reshoot_unavailable", 400);
+    if (original) {
+      if (unique.length > (meta.reshootLooks || 1)) throw new PlanError(`Your free reshoot includes up to ${meta.reshootLooks || 1} look${(meta.reshootLooks || 1) === 1 ? "" : "s"}. Remove ${unique.length - (meta.reshootLooks || 1)} to continue.`, "too_many_looks", 400);
+      meta.paidWith = "reshoot";
+      if (original.preview) meta.preview = true;
+    } else if (plan.tier !== "owner" && !meta.team) {
       if (plan.needsEmail && !plan.credits) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
       // One free shoot per mailbox, however the address is written.
       // Only a mailbox its owner confirmed can claim it (a paid but unconfirmed
@@ -871,6 +878,8 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
       if (charged === "free") meta.preview = true;
     }
     const started = await startGeneration(meta, unique);
+    // The free reshoot is used once it develops (deleting it doesn't give it back).
+    if (original) await shoots.updateMeta(original.id, (m) => (m.reshootId === meta.id && !m.reshootUsed ? void (m.reshootUsed = meta.id) : false)).catch((err) => console.error("[reshoot] mark used", original.id, err.message));
     if (charged) await users.update(req.user.id, (u) => (u.developing?.[meta.id] ? void delete u.developing[meta.id] : UNCHANGED)).catch(() => {});
     background(recordStep("developed", req.user).catch(noteStats));
     res.status(202).json({ shoot: started });
@@ -962,6 +971,73 @@ app.post("/api/shoots/:id/resume", requireUser, async (req, res) => {
   if (refused === "busy") return res.status(409).json({ error: "This shoot is still in progress." });
   if (refused === "limit") return res.status(429).json({ error: "These frames still didn't develop after several tries. Contact us and we'll sort it out.", code: "resume_limit" });
   res.status(202).json({ shoot: await retryFailed(shoot.id) });
+});
+
+// A free reshoot: when our quality check held back several frames because
+// they didn't look enough like the person, the selfies are usually why, so a
+// new shoot with new selfies costs nothing (no credit, free shoot or free
+// photo check). One per developed shoot, with the same looks; the new shoot
+// keeps the original's preview status. The original records the reshoot
+// (reshootId) and the reshoot points back (reshootOf): both must match for
+// the reshoot to develop free.
+const heldForLikeness = (shoot) => (shoot.shots || []).filter((t) => t.status === "error" && (t.qa?.history?.at(-1)?.likeness ?? 10) < 8).length;
+const RESHOOT_MIN_HELD = 2;
+
+async function reshootGrant(meta, userId) {
+  if (!meta?.reshootOf) return null;
+  const original = await shoots.getMeta(meta.reshootOf).catch(() => null);
+  return original && original.userId === userId && original.reshootId === meta.id ? original : null;
+}
+
+app.post("/api/shoots/:id/reshoot", requireUser, async (req, res) => {
+  if (req.user.demo) throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
+  const shoot = await ownShoot(req, res);
+  if (!shoot) return;
+  if (shoot.reshootUsed) return res.status(409).json({ error: "This shoot's free reshoot has already been used.", code: "reshoot_used" });
+  if (shoot.sample || shoot.team || shoot.reshootOf) return res.status(400).json({ error: "This shoot can't be reshot free. Contact us and we'll sort it out.", code: "reshoot_unavailable" });
+  if (LIVE.includes(shoot.status)) return res.status(409).json({ error: "This shoot is still in progress." });
+  if (heldForLikeness(shoot) < RESHOOT_MIN_HELD) return res.status(400).json({ error: "A free reshoot is for shoots where several headshots were held back for likeness.", code: "reshoot_unavailable" });
+  // Asked again: the reshoot already made, while it's still waiting for photos.
+  if (shoot.reshootId) {
+    const made = await shoots.getMeta(shoot.reshootId).catch(() => null);
+    if (made && made.userId === req.user.id) {
+      if ((made.shots || []).length) return res.status(409).json({ error: "This shoot's free reshoot has already been used.", code: "reshoot_used" });
+      return res.json({ shoot: made });
+    }
+  }
+  const sid = id("sht");
+  const was = shoot.reshootId || null;
+  let won = false;
+  await shoots.updateMeta(shoot.id, (m) => {
+    won = false; // the callback may run again after a write conflict
+    if ((m.reshootId || null) !== was) return false;
+    m.reshootId = sid;
+    won = true;
+  });
+  if (!won) return res.status(409).json({ error: "A reshoot is already being set up. Refresh the page.", code: "reshoot_busy" });
+  const looks = (shoot.looks || []).filter((l) => lookFor(l.backdrop, l.outfit)).map((l) => ({ backdrop: l.backdrop, outfit: l.outfit })).slice(0, MAX_LOOKS);
+  try {
+    const made = await shoots.create({
+      id: sid,
+      userId: req.user.id,
+      name: `${String(shoot.name || "Shoot").slice(0, 49)} · reshoot`,
+      status: "draft",
+      createdAt: new Date().toISOString(),
+      selfies: [],
+      check: null,
+      looks,
+      shots: [],
+      review: null,
+      error: null,
+      reshootOf: shoot.id,
+      reshootLooks: Math.max(1, looks.length),
+    });
+    console.log("[reshoot]", shoot.id, "->", sid, "held", heldForLikeness(shoot));
+    res.status(201).json({ shoot: made });
+  } catch (err) {
+    await shoots.updateMeta(shoot.id, (m) => (m.reshootId === sid ? void (m.reshootId = was) : false)).catch(() => {});
+    throw err;
+  }
 });
 
 app.post("/api/shoots/:id/review", requireUser, async (req, res) => {

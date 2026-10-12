@@ -466,9 +466,10 @@ export async function renderStudio(ctx, id) {
   function paintLooks(s, extra = 0) {
     if (s.team && !extra) return paintTeamLooks(s);
     const focused = focusedId();
-    const plan = extra ? null : state.user?.plan;
-    const planNow = () => (extra ? null : state.user?.plan);
-    const MAX_LOOKS = extra || plan?.maxLooks || MAX_LOOKS_ALL;
+    const reshoot = !extra && !!s.reshootOf;
+    const plan = extra || reshoot ? null : state.user?.plan;
+    const planNow = () => (extra || reshoot ? null : state.user?.plan);
+    const MAX_LOOKS = extra || (reshoot && s.reshootLooks) || plan?.maxLooks || MAX_LOOKS_ALL;
     const trial = plan?.tier === "trial";
     const same = (a, b) => a.backdrop === b.backdrop && a.outfit === b.outfit;
     const had = extra ? (s.looks || []).map((l) => ({ ...l })) : [];
@@ -490,6 +491,7 @@ export async function renderStudio(ctx, id) {
         ? html`<div class="page-head"><div><p class="eyebrow">${s.name}</p><h1 class="display h-1" style="margin-top:8px">Pick your ${plural(MAX_LOOKS, "extra look")}.</h1><p class="lede" style="margin-top:12px">${TAKES_PER_LOOK} takes each, added to this shoot beside the headshots you have. Tap a look to change its backdrop or outfit.</p></div></div>`
         : html`<div class="page-head"><div><p class="eyebrow">${s.name}</p><h1 class="display h-1" style="margin-top:8px">Dress the set.</h1><p class="lede" style="margin-top:12px">Up to ${MAX_LOOKS} looks, ${TAKES_PER_LOOK} takes each. Tap a look to change its backdrop or outfit, or tap an empty slot to add one.</p></div></div>`}
 
+      ${reshoot ? html`<div class="banner banner-info">${icon("camera")}<div><b>Your free reshoot.</b>Up to ${plural(MAX_LOOKS, "look")} (${MAX_LOOKS * TAKES_PER_LOOK} headshots) from your new selfies. Nothing is charged.</div></div>` : ""}
       ${trial ? html`<div class="banner banner-info">${icon("sparkles")}<div><b>Your free preview shoot.</b>Up to ${MAX_LOOKS} looks (${MAX_LOOKS * TAKES_PER_LOOK} preview headshots). Paid packages unlock up to ${MAX_LOOKS_ALL} looks per shoot.</div></div>` : ""}
       ${plan && !plan.canDevelop ? planBanner("blocked") : ""}
       <section aria-labelledby="looksTitle">
@@ -649,6 +651,10 @@ export async function renderStudio(ctx, id) {
   // happening, the selfies are usually why: once per shoot, a window suggests
   // a better set (better light, varied angles and work-like expressions).
   const heldForLikeness = (s) => (s.shots || []).filter((t) => t.status === "error" && (t.qa?.history?.at(-1)?.likeness ?? 10) < 8).length;
+  // A free reshoot with new selfies (POST /api/shoots/:id/reshoot): the
+  // person isn't charged again for selfies that didn't work.
+  const canReshoot = (s) => heldForLikeness(s) >= 2 && !s.sample && !s.team && !s.reshootOf && !s.reshootUsed && !state.user?.demo && !LIVE.includes(s.status);
+  const reshootHref = (s) => `/app/new?reshoot=${encodeURIComponent(s.id)}`;
   function selfieTips(s) {
     const held = heldForLikeness(s);
     if (held < 2 || s.sample || state.user?.demo || $("#selfieTips")) return;
@@ -662,7 +668,7 @@ export async function renderStudio(ctx, id) {
     dlg.innerHTML = html`<form method="dialog">
       <p class="eyebrow">${icon("camera")} Better selfies, closer likeness</p>
       <h2 class="display h-3" id="selfieTipsTitle">${held} headshots didn't look enough like you.</h2>
-      <p>Our quality check held them back. That usually comes down to the selfies, and a new set fixes it. For your next photos:</p>
+      <p>Our quality check held them back. That usually comes down to the selfies, and a new set fixes it.${canReshoot(s) ? " Your reshoot is free, with the same looks." : ""} For your next photos:</p>
       <ul>
         <li><b>Good light.</b> Face a window in soft daylight, with even light on your face: no harsh overhead lights, strong shadows or backlight.</li>
         <li><b>Varied angles.</b> Straight on, turned a little to the left and a little to the right, with the camera at eye level.</li>
@@ -670,7 +676,9 @@ export async function renderStudio(ctx, id) {
         <li><b>Clear and current.</b> Your face filling much of the frame, no filters, sunglasses or hats, and taken recently, so they look like you today.</li>
       </ul>
       <div class="tips-actions">
-        <a class="btn btn-flash" href="/app/new" data-link data-close>${icon("camera")} Start a new shoot with new selfies</a>
+        ${canReshoot(s)
+          ? html`<a class="btn btn-flash" href="${reshootHref(s)}" data-link data-close>${icon("camera")} Retake my selfies (free reshoot)</a>`
+          : html`<a class="btn btn-flash" href="/app/new" data-link data-close>${icon("camera")} Start a new shoot with new selfies</a>`}
         ${retry ? html`<button class="btn btn-ghost" type="button" data-retry>${icon("refresh-cw")} Retry the held-back frames (free)</button>` : ""}
         <button class="btn btn-ghost" value="close">Not now</button>
       </div>
@@ -849,6 +857,7 @@ export async function renderStudio(ctx, id) {
       ${extraLooks(s) ? html`<div class="banner banner-info extra-banner">${icon("sparkles")}<div><b>You have ${plural(extraLooks(s), "extra look")} to add to this shoot.</b>Pick the backdrops and outfits, and we'll develop ${extraLooks(s) * TAKES_PER_LOOK} more headshots beside these.</div><button class="btn btn-sm btn-flash" type="button" id="pickExtra">${icon("plus")} Pick your looks</button></div>` : ""}
       ${s.sample ? html`<div class="banner banner-info">${icon("info")}<div><b>This is a sample shoot.</b>It shows exactly what your proofs will look like — sample images are illustrations. Start a new shoot to develop real headshots from your photos.</div><a class="btn btn-sm btn-flash" href="/app/new" data-link>New shoot</a></div>` : ""}
       ${s.reviewError ? html`<div class="banner banner-warn">${icon("circle-alert")}<div><b>Your headshots are ready, but grading didn't finish.</b>${s.reviewError}</div><button class="btn btn-sm btn-ink" id="regrade">${icon("refresh-cw")} Retry grading</button></div>` : ""}
+      ${canReshoot(s) ? html`<div class="banner banner-info reshoot-banner">${icon("camera")}<div><b>${heldForLikeness(s)} headshots didn't look enough like you.</b>That usually comes down to the selfies. Retake them in soft daylight, with a few angles, and we'll reshoot your looks free.</div><a class="btn btn-sm btn-flash" href="${reshootHref(s)}" data-link>${icon("camera")} Free reshoot</a></div>` : ""}
       ${failed ? html`<div class="banner banner-warn">${icon("circle-alert")}<div><b>${failed} frame${failed === 1 ? "" : "s"} didn't develop${noRetries(s) ? " after several tries" : ""}.</b>${noRetries(s) ? "Contact us and we'll sort it out." : "You can retry just those frames — the rest stay as they are."}</div>${noRetries(s) ? html`<a class="btn btn-sm btn-ink" href="/contact" data-link>${icon("mail")} Contact us</a>` : html`<button class="btn btn-sm btn-ink" id="resume">${icon("refresh-cw")} Retry</button>`}</div>` : ""}
 
       <section class="proof-hero">
@@ -1186,6 +1195,9 @@ async function toJpegDataURL(file) {
 }
 
 function renderUpload({ root, navigate }) {
+  // ?reshoot=<shoot id>: the free reshoot of a shoot whose headshots were held
+  // back for likeness (POST /api/shoots/:id/reshoot). Nothing is charged.
+  const reshootOf = /^sht_[\w-]{6,40}$/.test(new URLSearchParams(location.search).get("reshoot") || "") ? new URLSearchParams(location.search).get("reshoot") : null;
   const photos = [];
   let uploading = false; // the button stays busy even if the account changes meanwhile
   // Leaving mid-upload cancels the rest (and removes the half-made shoot).
@@ -1194,12 +1206,16 @@ function renderUpload({ root, navigate }) {
   root.innerHTML = html`<main id="main" class="container app-main view-enter">
     ${stepper(0)}
     ${aiBanner()}
-    ${planBanner()}
+    ${reshootOf ? "" : planBanner()}
     <div class="studio-grid">
       <div>
-        <p class="eyebrow">New shoot</p>
+        ${reshootOf
+          ? html`<p class="eyebrow">${icon("camera")} Free reshoot</p>
+        <h1 class="display h-1" style="margin:8px 0 12px">New selfies, on us.</h1>
+        <p class="lede" style="margin-bottom:28px">Some of your headshots didn't look enough like you, so this shoot is free, with the same looks. Add 1–${MAX_SELFIES} new photos: soft daylight on your face, a few angles, and the expressions you'd use at work.</p>`
+          : html`<p class="eyebrow">New shoot</p>
         <h1 class="display h-1" style="margin:8px 0 12px">Start with a few selfies.</h1>
-        <p class="lede" style="margin-bottom:28px">Add 1–${MAX_SELFIES} recent photos of just you. More angles and expressions help the studio nail your likeness.</p>
+        <p class="lede" style="margin-bottom:28px">Add 1–${MAX_SELFIES} recent photos of just you. More angles and expressions help the studio nail your likeness.</p>`}
         <label class="dropzone" id="dz">
           <input type="file" id="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple aria-describedby="dzHelp" />
           <div>
@@ -1236,7 +1252,7 @@ function renderUpload({ root, navigate }) {
   // Demo accounts, unconfirmed emails and accounts without a shoot left can't
   // start one. Read fresh each time: confirming the email on this page (the
   // code box in the banner) changes the answer without reloading.
-  const canStart = () => state.user?.plan?.canDevelop !== false;
+  const canStart = () => (reshootOf ? !state.user?.demo : state.user?.plan?.canDevelop !== false);
   const whyNot = () => {
     const plan = state.user?.plan || {};
     if (plan.tier === "demo") return "The demo account is read-only. Create a free account to try it with your own photos.";
@@ -1289,7 +1305,9 @@ function renderUpload({ root, navigate }) {
     const label = go.querySelector("span");
     let shootId = null;
     try {
-      ({ shoot: { id: shootId } } = await api("/api/shoots", { method: "POST", body: {} }));
+      ({ shoot: { id: shootId } } = reshootOf
+        ? await api(`/api/shoots/${reshootOf}/reshoot`, { method: "POST", body: {} })
+        : await api("/api/shoots", { method: "POST", body: {} }));
       // One photo per request keeps each upload small and reliable. The batch
       // is fixed here, so nothing added or removed meanwhile changes what's sent.
       const batch = photos.slice();
