@@ -102,6 +102,7 @@ export async function renderStudio(ctx, id) {
       shoot = data.shoot;
       ctx.setTitle(shoot.name);
       paint(prev);
+      selfieTips(shoot);
       // After uploading, the new shoot's check starts automatically (on the
       // first load that succeeds, even if that's a "Try again").
       if (!prev) autoCheck();
@@ -639,6 +640,49 @@ export async function renderStudio(ctx, id) {
       }
     });
     sync();
+  }
+
+  /* --------------------------- Selfie tips ---------------------------- */
+
+  // Frames our quality check held back because they didn't look enough like
+  // the person (their last attempt scored likeness under 8). When that keeps
+  // happening, the selfies are usually why: once per shoot, a window suggests
+  // a better set (better light, varied angles and work-like expressions).
+  const heldForLikeness = (s) => (s.shots || []).filter((t) => t.status === "error" && (t.qa?.history?.at(-1)?.likeness ?? 10) < 8).length;
+  function selfieTips(s) {
+    const held = heldForLikeness(s);
+    if (held < 2 || s.sample || state.user?.demo || $("#selfieTips")) return;
+    const key = `kh:selfie-tips:${s.id}`;
+    try { if (localStorage.getItem(key)) return; localStorage.setItem(key, "1"); } catch {}
+    const retry = !LIVE.includes(s.status) && !noRetries(s) && !s.team;
+    const dlg = document.createElement("dialog");
+    dlg.className = "tips-dialog";
+    dlg.id = "selfieTips";
+    dlg.setAttribute("aria-labelledby", "selfieTipsTitle");
+    dlg.innerHTML = html`<form method="dialog">
+      <p class="eyebrow">${icon("camera")} Better selfies, closer likeness</p>
+      <h2 class="display h-3" id="selfieTipsTitle">${held} headshots didn't look enough like you.</h2>
+      <p>Our quality check held them back. That usually comes down to the selfies, and a new set fixes it. For your next photos:</p>
+      <ul>
+        <li><b>Good light.</b> Face a window in soft daylight, with even light on your face: no harsh overhead lights, strong shadows or backlight.</li>
+        <li><b>Varied angles.</b> Straight on, turned a little to the left and a little to the right, with the camera at eye level.</li>
+        <li><b>Professional expressions.</b> The ones you'd use at work: relaxed and neutral, a closed-mouth smile and a natural smile.</li>
+        <li><b>Clear and current.</b> Your face filling much of the frame, no filters, sunglasses or hats, and taken recently, so they look like you today.</li>
+      </ul>
+      <div class="tips-actions">
+        <a class="btn btn-flash" href="/app/new" data-link data-close>${icon("camera")} Start a new shoot with new selfies</a>
+        ${retry ? html`<button class="btn btn-ghost" type="button" data-retry>${icon("refresh-cw")} Retry the held-back frames (free)</button>` : ""}
+        <button class="btn btn-ghost" value="close">Not now</button>
+      </div>
+    </form>`.v;
+    document.body.appendChild(dlg);
+    dlg.addEventListener("close", () => dlg.remove());
+    dlg.querySelector("[data-close]")?.addEventListener("click", () => dlg.close());
+    dlg.querySelector("[data-retry]")?.addEventListener("click", () => {
+      dlg.close();
+      $("#resume")?.click();
+    });
+    dlg.showModal();
   }
 
   /* ------------------------------ Develop ------------------------------ */
