@@ -116,9 +116,9 @@ try {
   const ce = remoteSnap.photos.entries.find((e) => e.key === c.keys[0]);
   await test("backup store outage falls back and the newest fallback snapshot is readable", async () => {
     offline = true; const r = await runBackup({ now: now + 86_400_000 });
-    assert.equal(r.separateStore, false); assert.ok(r.failed); const fallback = await readBackup();
+    assert.equal(r.separateStore, false); assert.ok(r.failed); const fallback = await readBackup(r.key);
     assert.equal(fallback.key, r.key); assert.ok(fallback.photos.entries.every((e) => e.store === "main")); offline = false;
-    assert.equal((await readBackup()).key, r.key);
+    assert.equal((await readBackup()).key, remoteSnap.key);
   });
   await test("erasure during remote upload removes the late backup instead of attaching it", async () => {
     const d = await fixture("d"); let triggered = false;

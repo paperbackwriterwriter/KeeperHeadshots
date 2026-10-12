@@ -28,11 +28,11 @@ const missingOnly = !flag("--overwrite");
 
 const snap = await readBackup(values("--backup")[0] || null);
 if (!snap) {
-  console.error("No backup found.");
+  console.error("No complete backup found. Use --backup <key> to inspect a specific incomplete attempt.");
   process.exit(1);
 }
 const keys = Object.keys(snap.records).filter((k) => !only.length || only.some((p) => k.startsWith(p)));
-console.log(`${snap.key}: taken ${snap.at}, ${snap.count} records${snap.complete ? "" : " (INCOMPLETE)"}; ${keys.length} selected`);
+console.log(`${snap.key}: taken ${snap.at}, ${snap.count} records${snap.complete && !snap.failed && !snap.photos?.failed ? "" : " (INCOMPLETE OR ERRORS)"}; ${keys.length} selected`);
 const byPrefix = {};
 for (const k of keys) byPrefix[k.split("/")[0]] = (byPrefix[k.split("/")[0]] || 0) + 1;
 console.log(byPrefix);
