@@ -66,6 +66,8 @@ run verification node scripts/dev/verification-tests.js
 run hardening env DATA_DIR="$DATA" QA_ADMIN_TOKEN=ci-admin-token-ci-admin-token BASE2=http://localhost:3101 node scripts/dev/hardening-tests.js
 run cleanup node scripts/dev/cleanup-tests.js
 run backup node scripts/dev/backup-tests.js
+run backup-retry node scripts/dev/backup-retry-tests.js
+run storage-queue node scripts/dev/storage-queue-tests.js
 run photo-backup node scripts/dev/photo-backup-tests.js
 run env node scripts/dev/env-tests.js
 run alerts node scripts/dev/alert-tests.js

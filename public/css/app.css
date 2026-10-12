@@ -1581,8 +1581,11 @@ textarea.input.share-quote { min-height: 96px; }
 .share-form .field-error:not([hidden]) { margin-top: -8px; }
 
 /* Customer results on the home page (views/landing.js) */
-.customers { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 300px)); justify-content: center; gap: var(--s-5); margin-top: var(--s-6); }
-@media (max-width: 560px) { .customers { grid-template-columns: repeat(auto-fit, minmax(0, 340px)); } }
+.customers { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--s-5); margin-top: var(--s-6); }
+.customers > .customer { flex: 0 1 300px; min-width: 0; }
+/* Four results form two balanced rows; other partial rows stay centered. */
+.customers:has(> .customer:nth-child(4):last-child) { max-width: calc(600px + var(--s-5)); margin-inline: auto; }
+@media (max-width: 560px) { .customers > .customer { flex-basis: 340px; } }
 .customer { display: grid; grid-template-rows: auto 1fr; margin: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
 .customer img { width: 100%; height: auto; aspect-ratio: 3 / 4; object-fit: cover; display: block; }
 .customer figcaption { padding: 18px 20px 20px; display: grid; gap: 8px; align-content: start; }
