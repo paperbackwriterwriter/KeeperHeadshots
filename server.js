@@ -20,7 +20,7 @@ import { blogIndex, blogPost, blogImage, syncBlog } from "./lib/blog.js";
 import { isPreview, isKept, watermark } from "./lib/preview.js";
 import { reviewShoots, sendOffer } from "./lib/outreach.js";
 import { aiStatus, AIError } from "./lib/ai.js";
-import { shootQueueCallback, startLocalShootWorker, ensureShootJob } from "./lib/shoot-jobs.js";
+import { shootQueueCallback, startLocalShootWorker, ensureShootJob, workerJob, runShootWorker } from "./lib/shoot-jobs.js";
 import { listShootPage } from "./lib/shoot-list.js";
 import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, advance, startGeneration, retryFailed, startReview, addLooks } from "./lib/pipeline.js";
 import { lookFor, MAX_LOOKS, MAX_SELFIES, MAX_RESUMES, PHOTO_FORMATS, isPreviewOffer } from "./public/js/shared/catalog.js";
@@ -91,6 +91,15 @@ app.use("/api", (req, res, next) => {
   res.set("X-App-Build", BUILD);
   next();
 });
+// One link of a shoot's worker chain (lib/shoot-jobs.js), started by a signed
+// request from this deployment. It answers at once and works in the background.
+app.post("/api/internal/shoot-worker", (req, res) => {
+  const job = workerJob(req.body);
+  if (!job) return res.status(404).end();
+  res.status(202).json({ ok: true });
+  background(runShootWorker(job));
+});
+
 // A shoot's delivery id is for the queue alone; browsers never need it.
 app.use("/api/shoots", (req, res, next) => {
   const json = res.json.bind(res);

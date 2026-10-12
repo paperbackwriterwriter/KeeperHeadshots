@@ -293,10 +293,29 @@ try {
   assert.equal((await shoots.getMeta(legacySid)).status, "done");
   pass("one legacy progress request installs durable continuation for the remaining batches");
   await stop(cloud);
+  // Vercel doesn't deliver queue messages to this Express app: the signed
+  // worker chain alone finishes a shoot, with no page polls and no deliveries.
+  const chainArgs = ["--input-type=module", "-e", 'const {default:app}=await import("./server.js"); app.listen(3219);'];
+  const chain = launch(chainArgs, { ...cloudVars, PORT: "3219", SHOOT_WORKER_ORIGIN: "http://localhost:3219" }, "worker-chain");
+  await ready(3219);
+  const at = { port: 3219 };
+  const chainSid = (await owner.f("/api/shoots", {}, at)).j.shoot.id;
+  for (let i = 0; i < 3; i++) assert.equal((await owner.f(`/api/shoots/${chainSid}/selfies`, { photo }, at)).status, 201);
+  assert.equal((await owner.f(`/api/shoots/${chainSid}/check`, {}, at)).status, 200);
+  await until(async () => (await shoots.getMeta(chainSid))?.status === "checked", 60_000);
+  const deliveriesBefore = messages.length;
+  assert.equal((await owner.f(`/api/shoots/${chainSid}/generate`, { looks }, at)).status, 202);
+  const chained = await until(async () => { const m = await shoots.get(chainSid); return m?.status === "done" && m; }, 180_000);
+  assert.equal(chained.shots.filter((x) => x.status === "done").length, 4);
+  assert.equal(messages.length, deliveriesBefore + 1); // published, never delivered
+  const forged = await fetch("http://localhost:3219/api/internal/shoot-worker", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sid: chainSid, jobId: "job_x", link: 0, exp: Date.now() + 60_000, sig: "nope" }) });
+  assert.equal(forged.status, 404);
+  pass("the signed worker chain finishes a shoot with no page polls or queue deliveries, and refuses unsigned starts");
+  await stop(chain);
   console.log(`${count}/${count} passed`);
 } catch (err) {
   console.error(err);
-  for (const name of ["server-1", "server-2", "server-restarted", "publisher-failure", "queue-callback", "queue-callback-restarted", "mock"]) {
+  for (const name of ["server-1", "server-2", "server-restarted", "publisher-failure", "queue-callback", "queue-callback-restarted", "worker-chain", "mock"]) {
     const log = await fs.readFile(path.join(dir, name + ".log"), "utf8").catch(() => "");
     console.error(name, log.split("\n").slice(-18).join("\n"));
   }
