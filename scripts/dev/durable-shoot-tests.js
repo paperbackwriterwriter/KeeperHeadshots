@@ -308,14 +308,31 @@ try {
   const chained = await until(async () => { const m = await shoots.get(chainSid); return m?.status === "done" && m; }, 180_000);
   assert.equal(chained.shots.filter((x) => x.status === "done").length, 4);
   assert.equal(messages.length, deliveriesBefore + 1); // published, never delivered
-  const forged = await fetch("http://localhost:3219/api/internal/shoot-worker", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sid: chainSid, jobId: "job_x", link: 0, exp: Date.now() + 60_000, sig: "nope" }) });
+  const forged = await fetch("http://localhost:3219/api/internal/shoot-worker", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sid: chainSid, jobId: "job_x", exp: Date.now() + 60_000, sig: "nope" }) });
   assert.equal(forged.status, 404);
-  pass("the signed worker chain finishes a shoot with no page polls or queue deliveries, and refuses unsigned starts");
+  pass("the signed worker finishes a shoot with no page polls or queue deliveries, and refuses unsigned starts");
+  // With no worker request at all, the minute cron alone carries a shoot on.
   await stop(chain);
+  const cronServer = launch(chainArgs, { ...cloudVars, PORT: "3219", CRON_SECRET: "durable-cron-secret-durable-cron-secret" }, "shoot-cron");
+  await ready(3219);
+  const cronSid = (await owner.f("/api/shoots", {}, at)).j.shoot.id;
+  for (let i = 0; i < 3; i++) assert.equal((await owner.f(`/api/shoots/${cronSid}/selfies`, { photo }, at)).status, 201);
+  assert.equal((await owner.f(`/api/shoots/${cronSid}/check`, {}, at)).status, 200);
+  await until(async () => (await shoots.getMeta(cronSid))?.status === "checked", 60_000);
+  assert.equal((await owner.f(`/api/shoots/${cronSid}/generate`, { looks }, at)).status, 202);
+  assert.equal((await fetch("http://localhost:3219/api/cron/shoots")).status, 404); // cron secret required
+  const tick = () => fetch("http://localhost:3219/api/cron/shoots", { headers: { authorization: "Bearer durable-cron-secret-durable-cron-secret" } }).then((r) => r.json());
+  const first = await tick();
+  assert.ok(first.jobs >= 1, JSON.stringify(first));
+  const cronDone = await until(async () => { const m = await shoots.get(cronSid); if (m?.status === "done") return m; await tick(); return false; }, 180_000);
+  assert.equal(cronDone.shots.filter((x) => x.status === "done").length, 4);
+  assert.deepEqual(await storage.list(`jobs/shoots/${cronSid}/`), []);
+  pass("the minute cron alone develops and finishes a shoot, then clears its job");
+  await stop(cronServer);
   console.log(`${count}/${count} passed`);
 } catch (err) {
   console.error(err);
-  for (const name of ["server-1", "server-2", "server-restarted", "publisher-failure", "queue-callback", "queue-callback-restarted", "worker-chain", "mock"]) {
+  for (const name of ["server-1", "server-2", "server-restarted", "publisher-failure", "queue-callback", "queue-callback-restarted", "worker-chain", "shoot-cron", "mock"]) {
     const log = await fs.readFile(path.join(dir, name + ".log"), "utf8").catch(() => "");
     console.error(name, log.split("\n").slice(-18).join("\n"));
   }

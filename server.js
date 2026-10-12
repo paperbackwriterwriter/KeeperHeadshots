@@ -20,7 +20,7 @@ import { blogIndex, blogPost, blogImage, syncBlog } from "./lib/blog.js";
 import { isPreview, isKept, watermark } from "./lib/preview.js";
 import { reviewShoots, sendOffer } from "./lib/outreach.js";
 import { aiStatus, AIError } from "./lib/ai.js";
-import { shootQueueCallback, startLocalShootWorker, ensureShootJob, workerJob, runShootWorker } from "./lib/shoot-jobs.js";
+import { shootQueueCallback, startLocalShootWorker, ensureShootJob, workerJob, runShootWorker, runDueShootJobs } from "./lib/shoot-jobs.js";
 import { listShootPage } from "./lib/shoot-list.js";
 import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, advance, startGeneration, retryFailed, startReview, addLooks } from "./lib/pipeline.js";
 import { lookFor, MAX_LOOKS, MAX_SELFIES, MAX_RESUMES, PHOTO_FORMATS, isPreviewOffer } from "./public/js/shared/catalog.js";
@@ -1722,6 +1722,14 @@ app.post("/api/unsubscribe", express.urlencoded({ extended: false, limit: "2kb" 
 });
 
 // Nightly backup of accounts, payments and shoot records (lib/backup.js).
+// Every minute: unfinished shoots keep developing with no page open
+// (lib/shoot-jobs.js). Quiet when there's nothing to do.
+app.get("/api/cron/shoots", cronOnly, async (req, res) => {
+  const report = await runDueShootJobs();
+  if (report.jobs) console.log("[shoot-cron]", JSON.stringify(report));
+  res.json(report);
+});
+
 app.get("/api/cron/backup", cronOnly, async (req, res) => {
   const report = await runBackup();
   console.log("[backup]", JSON.stringify(report));

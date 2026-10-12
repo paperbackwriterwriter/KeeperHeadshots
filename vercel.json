@@ -63,7 +63,12 @@
     },
     {
       "source": "/css/(.*)",
-      "has": [{ "type": "query", "key": "v" }],
+      "has": [
+        {
+          "type": "query",
+          "key": "v"
+        }
+      ],
       "headers": [
         {
           "key": "Cache-Control",
@@ -111,6 +116,10 @@
     {
       "path": "/api/cron/blog",
       "schedule": "27 7 * * *"
+    },
+    {
+      "path": "/api/cron/shoots",
+      "schedule": "* * * * *"
     }
   ]
 }
