@@ -547,6 +547,13 @@ if (process.env.DATA_DIR) {
   ok("a takeover during a develop's charge gives the credit back", reset.status === 200 && after === before, `${reset.status} credits ${before}->${after}`);
 }
 
+// 29. Public pages may be cached by Vercel's CDN briefly; API answers aren't.
+{
+  const home = await fetch(B + "/");
+  const me = await fetch(B + "/api/me");
+  ok("public pages carry a short CDN cache, APIs don't", /max-age=60/.test(home.headers.get("vercel-cdn-cache-control") || "") && !home.headers.get("set-cookie") && !me.headers.get("vercel-cdn-cache-control"), `${home.headers.get("vercel-cdn-cache-control")} / ${me.headers.get("vercel-cdn-cache-control")}`);
+}
+
 // 28. A body nested deeper than the guard looks is refused, not a crash.
 {
   let deep = { toString: 1 };

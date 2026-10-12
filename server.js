@@ -338,16 +338,20 @@ app.post("/api/auth/verify", async (req, res) => {
   res.json({ status: "verified", user: me?.id === user.id ? publicUser(updated) : me ? publicUser(me) : null, eventId });
 });
 
-async function markVerified(user, req) {
-  const updated = await users.update(user.id, (u) => {
-    u.emailVerified = true;
-    u.emailVerifiedAt = new Date().toISOString();
-    delete u.emailVerifiedVia;
-  });
-  const eventId = `reg_${user.id}`;
+function confirmEmail(u) {
+  u.emailVerified = true;
+  u.emailVerifiedAt = new Date().toISOString();
+  delete u.emailVerifiedVia;
+}
+function afterVerified(updated, req) {
+  const eventId = `reg_${updated.id}`;
   trackMeta("CompleteRegistration", { eventId, user: updated, req });
   background(recordStep("verified", updated).catch(noteStats));
-  return { updated, eventId };
+  return eventId;
+}
+async function markVerified(user, req) {
+  const updated = await users.update(user.id, confirmEmail);
+  return { updated, eventId: afterVerified(updated, req) };
 }
 
 // The 6-digit code from the same email (lib/auth.js), typed on the page the
@@ -357,18 +361,25 @@ app.post("/api/auth/verify/code", requireUser, async (req, res) => {
   // Guessing limits: a few tries an hour per account and per connection, and
   // 20 in all per account, after which only the emailed link works.
   const tooMany = { error: "Too many tries. Use the link in the email instead, or wait a while.", code: "rate_limited" };
-  if ((await overLimit("verifycode", req.user.id, 8)) || (await overLimit("verifycodeaddr", hashId(req.user.email), 8)) || (await overLimit("verifycodeip", req.ip || "unknown", 30))) return res.status(429).json(tooMany);
+  // The three counters are independent writes: made together, not one by one.
+  const limits = await Promise.all([overLimit("verifycode", req.user.id, 8), overLimit("verifycodeaddr", hashId(req.user.email), 8), overLimit("verifycodeip", req.ip || "unknown", 30)]);
+  if (limits.some(Boolean)) return res.status(429).json(tooMany);
+  // Counting the try and confirming the address are one write.
   let spent = false;
-  await users.update(req.user.id, (u) => {
+  let right = false;
+  const updated = await users.update(req.user.id, (u) => {
     spent = (u.verifyCodeTries || 0) >= 20;
-    if (!spent) u.verifyCodeTries = (u.verifyCodeTries || 0) + 1;
-    return spent ? UNCHANGED : undefined;
+    right = false;
+    if (spent) return UNCHANGED;
+    u.verifyCodeTries = (u.verifyCodeTries || 0) + 1;
+    right = checkEmailCode(u, req.body?.code);
+    if (right) confirmEmail(u);
   });
   if (spent) return res.status(429).json(tooMany);
-  if (!checkEmailCode(req.user, req.body?.code)) {
+  if (!right) {
     return res.status(400).json({ error: "That code isn't right. Check the latest email from us, or use its link.", fields: { code: "That code isn't right." } });
   }
-  const { updated, eventId } = await markVerified(req.user, req);
+  const eventId = afterVerified(updated, req);
   console.log("[verify] confirmed by code", req.user.id);
   res.json({ status: "verified", user: publicUser(updated), eventId });
 });
@@ -1814,7 +1825,13 @@ async function withCustomers(html) {
   return entries.length ? html.replace(EMPTY_CUSTOMERS, () => customersSection(entries)) : html;
 }
 
+// Public pages are the same for everyone (accounts load in the browser), so
+// Vercel's CDN may serve them for a minute and refresh in the background:
+// visitors (and bots probing for WordPress) rarely wait on a cold function.
+// Browsers still revalidate every time; each deploy clears the CDN.
+const PAGE_CDN_CACHE = "max-age=60, stale-while-revalidate=86400";
 app.get(/.*/, async (req, res) => {
+  res.set("Vercel-CDN-Cache-Control", PAGE_CDN_CACHE);
   res.set("Content-Security-Policy", /^\/blog(\/|$)/.test(req.path) ? BLOG_CSP : CSP);
   // "//evil.com/" or "/\\evil.com" must never become a redirect to another site.
   if (/^\/[\/\\]/.test(req.path) || req.path.includes("\\")) return res.status(404).type("html").send(pageFor("/__not_found__").html);
