@@ -581,10 +581,14 @@ app.get("/api/shoots", requireUser, async (req, res) => {
 app.get("/api/shoots/:id", requireUser, async (req, res) => {
   const shoot = await ownShoot(req, res);
   if (!shoot) return;
-  // Upgrade earlier live shoots, retaining immediate legacy recovery during
-  // the first visit and during a temporary queue publishing outage.
-  if (!LIVE.includes(shoot.status) || shoot.jobId) return res.json({ shoot });
-  await ensureShootJob(shoot.id).catch((err) => console.error("[shoot-job] upgrade", shoot.id, err.message));
+  // The durable delivery normally does the work. If no frame is being worked
+  // on (the queue is slow or not delivering), an open page moves the shoot on
+  // itself; frame and review claims keep any frame from rendering twice.
+  const busy = (shoot.shots || []).some((s) => s.status === "rendering" && Date.now() - Date.parse(s.startedAt) < 90_000)
+    || (shoot.status === "reviewing" && shoot.reviewWorkerAt && Date.now() - Date.parse(shoot.reviewWorkerAt) < 90_000);
+  if (!LIVE.includes(shoot.status) || (shoot.jobId && busy)) return res.json({ shoot });
+  // Upgrade earlier live shoots to a durable delivery.
+  if (!shoot.jobId) await ensureShootJob(shoot.id).catch((err) => console.error("[shoot-job] upgrade", shoot.id, err.message));
   const moved = await advance(shoot.id, shoot).catch((err) => (console.error("[advance]", shoot.id, err.message), null));
   res.json({ shoot: await shoots.get(shoot.id) || moved || shoot });
 });
