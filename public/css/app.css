@@ -1718,3 +1718,7 @@ textarea.input.share-quote { min-height: 96px; }
   .btn-google { --btn-bg: #131314; --btn-fg: #e3e3e3; --btn-bd: #8e918f; }
   .btn-google:hover { --btn-bg: #1f1f20; --btn-bd: #e3e3e3; }
 }
+
+/* iPhone/iPad: a second tap to save several photos (views/format.js). */
+.save-sheet { position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 160; width: min(420px, calc(100vw - 32px)); display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 18px; border-radius: var(--r-lg); background: var(--surface-raised); border: 1px solid var(--border); box-shadow: 0 18px 48px rgba(0,0,0,.28); }
+.save-sheet p { grid-column: 1 / -1; margin: 0; font-weight: 600; }

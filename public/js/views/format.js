@@ -44,9 +44,54 @@ export async function canDownload(href) {
   return true;
 }
 
+// iPhone and iPad Safari keep only one download per tap, so several files
+// (both shapes, or a whole set) go through the share sheet instead, whose
+// "Save Images" puts them all in Photos at once.
+const appleTouch = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+const fileName = (res, href, i) => /filename="?([^";]+)"?/.exec(res.headers.get("content-disposition") || "")?.[1] || `headshot-${i + 1}.${/square=1/.test(href) ? "square." : ""}jpg`;
+
+async function shareFiles(hrefs) {
+  const files = await Promise.all(hrefs.map(async (href, i) => {
+    const res = await fetch(href, { credentials: "same-origin" });
+    if (!res.ok) throw new Error("download failed");
+    const blob = await res.blob();
+    return new File([blob], fileName(res, href, i), { type: blob.type || "image/jpeg" });
+  }));
+  if (!navigator.canShare?.({ files })) return false;
+  const share = () => navigator.share({ files }).then(() => true, (err) => (err.name === "AbortError" ? true : Promise.reject(err)));
+  try {
+    return await share();
+  } catch (err) {
+    if (err.name !== "NotAllowedError") throw err;
+  }
+  // Fetching took long enough that Safari no longer counts this as the
+  // person's tap: one more tap opens the sheet.
+  return new Promise((resolve) => {
+    const sheet = document.createElement("div");
+    sheet.className = "save-sheet";
+    sheet.setAttribute("role", "dialog");
+    sheet.setAttribute("aria-label", "Save your headshots");
+    sheet.innerHTML = html`<p>Your ${files.length} photos are ready.</p>
+      <button type="button" class="btn btn-flash" data-save>Save ${files.length} photos</button>
+      <button type="button" class="btn btn-ghost" data-close>Not now</button>`.v;
+    const done = (v) => { sheet.remove(); resolve(v); };
+    sheet.querySelector("[data-save]").addEventListener("click", () => share().then(() => done(true), () => done(false)));
+    sheet.querySelector("[data-close]").addEventListener("click", () => done(true));
+    document.body.appendChild(sheet);
+    sheet.querySelector("[data-save]").focus();
+  });
+}
+
 // Browsers allow several downloads from one click when they're spaced out a little.
 export async function downloadAll(hrefs) {
   if (!hrefs.length || !(await canDownload(hrefs[0]))) return;
+  if (hrefs.length > 1 && appleTouch() && navigator.share) {
+    try {
+      if (await shareFiles(hrefs)) return;
+    } catch {
+      // fall back to separate downloads below
+    }
+  }
   for (const [i, href] of hrefs.entries()) {
     if (i) await new Promise((r) => setTimeout(r, 350));
     const a = document.createElement("a");
