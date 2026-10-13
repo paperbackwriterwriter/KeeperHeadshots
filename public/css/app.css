@@ -159,6 +159,9 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+  /* A word too long for its line (an email address at large text) breaks
+     rather than pushing the page sideways. */
+  overflow-wrap: break-word;
   font-family: var(--font-body);
   font-size: var(--fs-base);
   line-height: var(--lh-body);
@@ -478,7 +481,11 @@ p, li, dd, .lede, figcaption { text-wrap: pretty; }
 .compare-row dd.hi { color: #d2a85c; }
 
 /* Retoucher showcase */
-.showcase { display: grid; grid-template-columns: 1fr 1.1fr; gap: var(--s-8); align-items: center; }
+.showcase { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: var(--s-8); align-items: center; }
+/* Stacked, as below the 900px breakpoint, when enlarged text leaves the two
+   columns too little room (56rem is under 900px at normal text size). */
+.showcase-wrap { container-type: inline-size; }
+@container (max-width: 56rem) { .showcase { grid-template-columns: minmax(0, 1fr); } }
 .feature-list { list-style: none; display: grid; gap: var(--s-4); margin-top: var(--s-6); }
 .feature-list li { display: grid; grid-template-columns: 36px 1fr; gap: var(--s-3); align-items: start; }
 .feature-list .ficon { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: rgba(245, 241, 234, 0.08); color: var(--paper-100); }
@@ -501,7 +508,9 @@ p, li, dd, .lede, figcaption { text-wrap: pretty; }
 /* Pricing */
 /* Homepage: the free preview and its two keep offers, above the packages */
 .start-free { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: var(--s-3); align-items: center; padding: var(--s-4); margin-bottom: var(--s-6); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); }
-.sf-step { display: flex; gap: 14px; align-items: center; padding: var(--s-3) var(--s-4); border-radius: var(--r-md); min-width: 0; }
+.sf-step { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; padding: var(--s-3) var(--s-4); border-radius: var(--r-md); min-width: 0; }
+/* The price sits beside its text, or above it when enlarged text needs the room. */
+.sf-step > div { flex: 1 1 8rem; min-width: 0; overflow-wrap: anywhere; }
 .sf-step.sf-pop { background: var(--night); color: var(--paper-100); box-shadow: inset 0 0 0 1px var(--flash-500), var(--shadow-3); }
 .sf-step.sf-pop span:not(.sf-amt) { color: var(--text-inverse-muted); }
 .sf-amt { font-family: var(--font-display); font-size: 2rem; line-height: 1; letter-spacing: -0.02em; flex: none; font-variant-numeric: lining-nums; }
@@ -509,7 +518,14 @@ p, li, dd, .lede, figcaption { text-wrap: pretty; }
 .sf-step span:not(.sf-amt) { display: block; font-size: var(--fs-xs); color: var(--text-muted); }
 .pricing-or { margin: 0 0 var(--s-4); color: var(--text-muted); font-size: var(--fs-sm); }
 @media (max-width: 900px) { .start-free { grid-template-columns: 1fr; } .start-free .btn { justify-self: stretch; } }
-.pricing { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-4); align-items: stretch; }
+/* The same stacking when enlarged text leaves the row too little room (48rem is
+   below the 900px breakpoint at normal text size, so only larger text reaches it). */
+.start-free-wrap { container-type: inline-size; }
+@container (max-width: 48rem) { .start-free { grid-template-columns: 1fr; } .start-free .btn { justify-self: stretch; } }
+/* Three across while each card has 16rem (always, above the 900px breakpoint,
+   at normal text size); fewer when enlarged text needs the room. */
+.pricing { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: var(--s-4); align-items: stretch; }
+.plan { min-width: 0; overflow-wrap: anywhere; }
 .plan { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--s-6); display: flex; flex-direction: column; gap: var(--s-5); transition: transform var(--dur-3) var(--ease-out), box-shadow var(--dur-3) var(--ease-out); }
 .plan:hover { transform: translateY(-4px); box-shadow: var(--shadow-2); }
 .plan-pop { background: var(--night); color: var(--paper-100); border-color: var(--night); box-shadow: var(--shadow-3); }
@@ -540,7 +556,7 @@ p, li, dd, .lede, figcaption { text-wrap: pretty; }
 /* Final CTA + footer */
 .cta-band { border-radius: var(--r-xl); padding: clamp(32px, 6vw, 80px); background: radial-gradient(120% 140% at 100% 0%, rgba(184, 137, 59, 0.35), transparent 50%), radial-gradient(90% 120% at 0% 100%, rgba(20, 33, 61, 0.35), transparent 55%), var(--night); color: var(--paper-100); display: grid; grid-template-columns: 1.3fr auto; gap: var(--s-6); align-items: end; overflow: hidden; position: relative; }
 .footer { padding: var(--s-8) 0 var(--s-6); color: var(--text-muted); font-size: var(--fs-sm); }
-.footer-grid { display: grid; grid-template-columns: minmax(0, 17.5rem) repeat(3, minmax(0, 1fr)); gap: var(--s-6); padding-bottom: var(--s-6); border-bottom: 1px solid var(--border); }
+.footer-grid { display: grid; grid-template-columns: minmax(0, min(17.5rem, 30%)) repeat(3, minmax(0, 1fr)); gap: var(--s-6); padding-bottom: var(--s-6); border-bottom: 1px solid var(--border); }
 .footer .footer-h { font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--text); margin-bottom: var(--s-3); }
 .footer ul { list-style: none; display: grid; gap: 8px; }
 .footer a { text-decoration: none; }
@@ -890,7 +906,9 @@ body:has(.develop-bar) .toasts { bottom: calc(96px + env(safe-area-inset-bottom)
 .bars { display: grid; gap: 10px; }
 .rv-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; align-items: start; }
 @media (max-width: 640px) { .rv-grid { grid-template-columns: minmax(0, 1fr); } .rv-grid > .print { max-width: 240px; justify-self: center; width: 100%; } }
-.bar-row { display: grid; grid-template-columns: 84px 1fr 34px; align-items: center; gap: 12px; font-size: var(--fs-sm); }
+/* The label and score columns are in em (84px and 34px at normal size), so
+   they grow with the text instead of breaking "Likeness" or "10". */
+.bar-row { display: grid; grid-template-columns: 6em minmax(0, 1fr) 2.43em; align-items: center; gap: 12px; font-size: var(--fs-sm); }
 .bar-row .meter-track { height: 6px; }
 .bar-row b { text-align: right; font-variant-numeric: tabular-nums; }
 
@@ -1167,9 +1185,13 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
 /* ---------- 13. Reduced motion ---------- */
 /* ---------- Policy pages ---------- */
 .policy-page { padding-top: var(--s-8); }
-.policy { max-width: 720px; margin-inline: auto; display: grid; gap: var(--s-4); }
+.policy { max-width: 720px; margin-inline: auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-4); container-type: inline-size; }
+/* Words kept together ("money-back" in a heading) may still wrap when the
+   column is narrower than they are, as with large text on a phone. */
+@container (max-width: 13.5rem) { .policy .nowrap { white-space: normal; } }
+.policy-callout > div { min-width: 0; }
 .policy h2 { margin-top: var(--s-5); }
-.policy ul, .policy ol { margin: 0; padding-left: 1.3em; display: grid; gap: var(--s-2); color: var(--text-muted); }
+.policy ul, .policy ol { margin: 0; padding-left: 1.3em; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-2); color: var(--text-muted); }
 .policy li b, .policy p b { color: var(--text); }
 .policy > p:not(.eyebrow):not(.lede) { color: var(--text-muted); }
 .policy-callout { display: flex; gap: var(--s-4); padding: var(--s-5); border-radius: var(--r-lg); background: var(--brand-soft); margin-top: var(--s-3); }
@@ -1242,7 +1264,10 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
 .tm-steps span:not(.li-no) { color: var(--text-inverse-muted); }
 .tm-steps li { border-bottom-color: rgba(245, 241, 234, 0.12); }
 .inverse .li-no { color: #d2a85c; }
-.tm-prices { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-4); }
+/* Four across while each has 11.5rem (always, above the 900px breakpoint, at
+   normal text size); fewer when enlarged text needs the room. */
+.tm-prices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11.5rem), 1fr)); gap: var(--s-4); }
+.tm-price { min-width: 0; }
 .tm-price { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--s-6); display: grid; gap: 6px; align-content: start; }
 .tm-price p { margin: 0; }
 .tm-price-name { font-weight: 700; }
@@ -1437,7 +1462,7 @@ select.input { appearance: none; padding-right: 44px; cursor: pointer; backgroun
 .hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 .contact-side { display: grid; gap: var(--s-3); padding-top: var(--s-7); }
 .contact-card { display: flex; gap: var(--s-4); padding: var(--s-5); border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--border); }
-.contact-card > div { display: grid; gap: 4px; }
+.contact-card > div { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
 .contact-card span:not(.ficon) { color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.5; }
 .contact-card .link { justify-self: start; font-weight: 600; font-size: var(--fs-sm); margin-top: 4px; }
 .contact-card .ficon, .contact-sent .ficon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--brand-soft); color: var(--accent-text); }

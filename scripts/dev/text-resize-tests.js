@@ -58,6 +58,22 @@ for (const width of [390, 1280]) {
   await page.locator(".customers").screenshot({ path: `${OUT}/customers-${width}.png` });
   await page.context().close();
 }
+// 3. No page scrolls sideways at 200% text, at desktop, just above the
+// tablet breakpoint and at phone width.
+for (const width of [1280, 901, 390]) {
+  const wide = [];
+  for (const path of ["/", "/contact", "/team-headshots", "/refunds", "/privacy"]) {
+    const page = await (await browser.newContext({ viewport: { width, height: 800 } })).newPage();
+    page.on("pageerror", (e) => errs.push(e.message));
+    await page.goto(B + path, { waitUntil: "networkidle" });
+    await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+    await page.waitForTimeout(250);
+    const extra = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+    if (extra > 0) wide.push(`${path} +${extra}px`);
+    await page.context().close();
+  }
+  ok(`${width}px, text at 200%: no page scrolls sideways`, !wide.length, wide.join(", "));
+}
 ok("no page errors", !errs.length, errs.join("; "));
 await browser.close();
 const failed = results.filter((x) => !x).length;

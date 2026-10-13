@@ -199,7 +199,7 @@ export function renderLanding({ root, hydrate = false }) {
     </section>
 
     <!-- Retoucher showcase -->
-    <section class="section inverse">
+    <section class="section inverse showcase-wrap">
       <div class="container showcase">
         <div>
           <p class="eyebrow" data-reveal>Your AI retoucher</p>
@@ -227,11 +227,11 @@ export function renderLanding({ root, hydrate = false }) {
           </div>
           <p class="lede" data-reveal style="--i:2">Start with a free preview and keep only what you like, or pick a package. Your first package is covered by our <a class="link" href="/refunds" data-link><span class="nowrap">money-back</span> guarantee</a>.</p>
         </div>
-        <div class="start-free" data-reveal>
+        <div class="start-free-wrap"><div class="start-free" data-reveal>
           <div class="sf-step"><span class="sf-amt">$0</span><div><b>Free preview</b><span>2 looks, 4 headshots. No card needed.</span></div></div>
           ${PREVIEW_OFFERS.map((o) => html`<div class="sf-step ${o.popular ? "sf-pop" : ""}"><span class="sf-amt">$${o.price}</span><div><b>${o.name}</b><span>${o.looks ? `Every headshot from your preview, plus ${o.looks} new looks.` : "The one headshot you like best, full resolution."}</span></div></div>`)}
           <a class="btn btn-flash" href="${cta}" data-link>Try it free ${icon("arrow-right")}</a>
-        </div>
+        </div></div>
         <p class="pricing-or">Need more shoots? Packages include every look and headshot:</p>
         <div class="pricing">
           ${PACKAGES.map(
