@@ -75,6 +75,30 @@ for (let i = 0; i < 40 && !["generating", "reviewing", "done"].includes(status);
   status = (await f(`/api/shoots/${soft}`)).shoot.status;
 }
 ok("and continuing develops the shoot", ["generating", "reviewing", "done"].includes(status), status);
+
+// Choosing several large photos at once: "Check my photos" stays off until
+// every one is ready, so none is left out of the shoot.
+{
+  const big = [];
+  for (let i = 0; i < 6; i++) {
+    const file = `${OUT}/big${i}.jpg`;
+    fs.writeFileSync(file, await sharp({ create: { width: 3024, height: 4032, channels: 3, noise: { type: "gaussian", mean: 128, sigma: 40 } } }).jpeg({ quality: 90 }).toBuffer());
+    big.push(file);
+  }
+  await page.goto(`${B}/app/new`);
+  await page.waitForSelector("#go");
+  // Every animation frame, note the button's state and the photo count.
+  await page.evaluate(() => {
+    window.__seen = [];
+    const tick = () => { const go = document.getElementById("go"); if (!go) return; window.__seen.push([go.disabled, document.getElementById("count").textContent]); requestAnimationFrame(tick); };
+    tick();
+  });
+  await page.setInputFiles("#file", big);
+  await page.waitForFunction(() => /^6 \//.test(document.getElementById("count").textContent) && !document.getElementById("go").disabled, null, { timeout: 60000 });
+  const seen = await page.evaluate(() => window.__seen);
+  const early = seen.filter(([disabled, count]) => !disabled && !/^6 \/ \d+ PHOTOS$/.test(count));
+  ok("'Check my photos' waits until every chosen photo is ready", seen.some(([d, c]) => d && /ADDING/.test(c)) && !early.length, `${seen.length} frames; enabled early at ${JSON.stringify(early.slice(0, 2))}`);
+}
 ok("no page errors", !errs.length, errs.join("; "));
 await browser.close();
 const failed = results.filter((x) => !x).length;

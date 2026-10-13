@@ -249,6 +249,14 @@ let final;
   ok("the colleague's shared headshot comes down with the admin's refund", (await fayC("/api/showcase/mine")).j.entry === null && (await fayC(`/showcase/${shared.j?.entry?.id}.webp`)).status === 404, JSON.stringify((await fayC("/api/showcase/mine")).j));
   const dev = await member(`/api/shoots/${seat}/generate`, { method: "POST", body: JSON.stringify({ looks: LOOKS }) });
   ok("the taken seat can't develop while the refund debt stands", dev.status === 402 && dev.j?.code === "team_unpaid", `${dev.status} ${JSON.stringify(dev.j)}`);
+  {
+    // Nor are its photo checks free any more: they're the colleague's own.
+    const left = async () => (await member("/api/me")).j.user.plan.checksLeft;
+    const before = await left();
+    await member(`/api/shoots/${seat}/check`, { method: "POST", body: "{}" });
+    for (let w = 0; w < 60 && (await member(`/api/shoots/${seat}`)).j.shoot.status === "checking"; w++) await new Promise((r) => setTimeout(r, 250));
+    ok("an unpaid seat's photo check counts as the colleague's own", before != null && (await left()) === before - 1, `${before} → ${await left()}`);
+  }
   const buy2 = await admin4("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
   const sid2 = new URL(buy2.j.url).pathname.split("/").pop();
   await fetch(`${M}/mock-pay/${sid2}?promo=FREE`, { redirect: "manual" });

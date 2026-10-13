@@ -26,6 +26,21 @@ ok("sign-up isn't a result", !searchSite("create your account").some((r) => r.ur
   const s = searchSite("watermark")[0]?.snippet || "";
   ok("snippets show the matching passage", /watermark/i.test(s) && s.length <= 170, s);
 }
+{
+  const prices = searchSite("price").filter((r) => r.type === "Pricing").map((r) => r.snippet);
+  ok("price snippets read as one sentence (no capitals mid-list)", prices.length >= 4 && prices.every((s) => !/[:,] (Up|Full|Our|Best|Great|The|Every)\b/.test(s)) && prices.some((s) => /LinkedIn/.test(s)), prices.join(" | "));
+}
+
+// Every FAQ result's #anchor exists on the page it links to.
+{
+  const urls = new Set(["linkedin", "team", "estate", "resume", "doctor", "lawyer", "free"].flatMap((q) => searchSite(q)).filter((r) => r.type === "FAQ").map((r) => r.url));
+  const missing = [];
+  for (const u of urls) {
+    const [path, hash] = u.split("#");
+    if (hash && !(await (await fetch(B + path)).text()).includes(`id="${hash}"`)) missing.push(u);
+  }
+  ok("FAQ results link to anchors that exist", urls.size >= 5 && !missing.length, `${urls.size} urls; missing ${missing.join(", ")}`);
+}
 
 // The endpoint.
 {

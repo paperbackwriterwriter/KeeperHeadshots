@@ -1334,6 +1334,7 @@ function renderUpload({ root, navigate }) {
   const reshootOf = /^sht_[\w-]{6,40}$/.test(new URLSearchParams(location.search).get("reshoot") || "") ? new URLSearchParams(location.search).get("reshoot") : null;
   const photos = [];
   let uploading = false; // the button stays busy even if the account changes meanwhile
+  let preparing = 0; // chosen photos still being converted
   // Leaving mid-upload cancels the rest (and removes the half-made shoot).
   const aborter = new AbortController();
   const signal = aborter.signal;
@@ -1398,23 +1399,30 @@ function renderUpload({ root, navigate }) {
     thumbs.innerHTML = html`${photos.map(
       (p, i) => html`<div class="thumb"><img src="${p.url}" alt="Photo ${i + 1}: ${p.name}" /><span class="idx">${String(i + 1).padStart(2, "0")}</span><button class="rm" data-rm="${i}" aria-label="Remove photo ${i + 1}">${icon("x")}</button></div>`,
     )}`.v;
-    $("#count").textContent = `${photos.length} / ${MAX_SELFIES} PHOTOS`;
-    if (!uploading) go.disabled = !photos.length;
+    $("#count").textContent = `${photos.length} / ${MAX_SELFIES} PHOTOS${preparing ? ` · ADDING ${preparing}…` : ""}`;
+    // Not until every chosen photo is ready, so none is left out.
+    if (!uploading) go.disabled = !photos.length || preparing > 0;
     dz.classList.toggle("dz-compact", photos.length > 0);
   };
 
   async function add(files) {
     const list = [...files].filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name));
     if (files.length && !list.length) return toast("Those files aren't photos. Try JPG, PNG or WebP.", "error");
-    const room = MAX_SELFIES - photos.length;
+    const room = MAX_SELFIES - photos.length - preparing;
     if (list.length > room) toast(`Only ${MAX_SELFIES} photos per shoot — adding the first ${room}.`, "info");
-    for (const f of list.slice(0, room)) {
+    const chosen = list.slice(0, Math.max(0, room));
+    preparing += chosen.length;
+    draw();
+    for (const f of chosen) {
       try {
-        photos.push({ name: f.name, url: await toJpegDataURL(f) });
-        draw();
+        const url = await toJpegDataURL(f);
+        preparing--;
+        photos.push({ name: f.name, url });
       } catch (err) {
+        preparing--;
         toast(err.message, "error", 6000);
       }
+      draw();
     }
   }
 
@@ -1432,7 +1440,7 @@ function renderUpload({ root, navigate }) {
     photos.splice(Number(b.dataset.rm), 1), draw();
   });
   go.addEventListener("click", async () => {
-    if (uploading) return;
+    if (uploading || preparing) return;
     if (!canStart()) return toast(whyNot(), "info", 8000);
     uploading = true;
     const restore = busy(go, "Uploading…");

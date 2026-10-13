@@ -372,6 +372,9 @@ if (process.env.DATA_DIR) {
   ok("the ready email reads right for a single headshot", /1 headshot, checked for likeness and graded\./.test(one.text) && !/each/.test(one.text), one.text.split("\n")[2]);
   const inv = mail.teamInviteEmail({ ownerName: "Ada", teamName: "Acme", link: "https://x/join/t", looks: ["Glass Office · Navy Suit", "Studio Gray · White Shirt"] });
   ok("the invite email says looks when there are several", /team's looks \(Glass Office · Navy Suit and Studio Gray · White Shirt\)/.test(inv.text), inv.text.split("\n")[2]);
+  ok("and names the admin and team", inv.subject === "Ada invited you to get your Acme headshot" && /Ada sees only/.test(inv.text) && /<b>Acme<\/b>/.test(inv.html), inv.subject);
+  const phish = mail.teamInviteEmail({ ownerName: "Payroll: re-verify at keeper-pay.xyz", teamName: "Payroll: re-verify at keeper-pay.xyz today", link: "https://x/join/t", looks: ["Studio Gray · White Shirt"] });
+  ok("a name or team name that reads like a web address isn't sent", !/keeper-pay/i.test(phish.subject + phish.text + phish.html) && phish.subject === "Your team admin invited you to get your team headshot" && /they see only/.test(phish.text), phish.subject);
   const v = mail.verificationEmail({ name: "Sam", link: "https://x/verify?token=t", code: "123456" });
   ok("the confirmation email calls it a preview shoot", /free preview shoot/.test(v.text) && !/free headshot shoot/.test(v.html));
   // Marketing law: reminder and offer emails carry the postal address; account emails needn't.

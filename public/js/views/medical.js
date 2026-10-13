@@ -145,7 +145,7 @@ export function renderMedical({ root }) {
       </div>
     </section>
 
-    <section class="section">
+    <section class="section" id="faq">
       <div class="container faq">
         <div>
           <p class="eyebrow" data-reveal>Medical headshot FAQ</p>

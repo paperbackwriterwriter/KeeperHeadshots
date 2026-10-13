@@ -738,9 +738,12 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   // A team seat was paid for by the admin (lib/teams.js), and a free reshoot
   // costs nothing (see /reshoot), so the free allowance neither gates it nor is
   // spent on it; only the daily cap applies. A reshoot's first few checks are
-  // free; after that they count like any other.
-  const freeReshoot = (meta.reshootChecks || 0) < RESHOOT_FREE_CHECKS && !!(await reshootGrant(meta, req.user.id));
-  const teamSeat = (!!meta.team && meta.paidWith === "team") || freeReshoot;
+  // free; after that they count like any other. They're counted on the
+  // original, so deleting and remaking the reshoot doesn't start them again.
+  const reshootOriginal = await reshootGrant(meta, req.user.id);
+  const freeReshoot = !!reshootOriginal && (reshootOriginal.reshootChecks || 0) < RESHOOT_FREE_CHECKS;
+  // (A seat the admin's refund left unpaid is the person's own check again.)
+  const teamSeat = (!!meta.team && meta.paidWith === "team" && (await teams.seatPaid(meta).catch(() => false))) || freeReshoot;
   if (plan.checksLeft === 0 && !teamSeat) throw new PlanError(limitMsg);
   // One check at a time per shoot: a double-click doesn't run (or count) twice.
   const startedAt = await beginCheck(meta.id);
@@ -783,7 +786,7 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   try {
     await runCheck(meta.id, startedAt);
     background(recordStep("checked", req.user).catch(noteStats));
-    if (freeReshoot) await shoots.updateMeta(meta.id, (m) => void (m.reshootChecks = (m.reshootChecks || 0) + 1)).catch(() => {});
+    if (freeReshoot) await shoots.updateMeta(reshootOriginal.id, (m) => void (m.reshootChecks = (m.reshootChecks || 0) + 1)).catch(() => {});
     // A check that asks for new selfies doesn't use up a free check: retaking
     // them isn't held against anyone. (It still counts toward the daily cap.)
     const checked = await shoots.getMeta(meta.id).catch(() => null);

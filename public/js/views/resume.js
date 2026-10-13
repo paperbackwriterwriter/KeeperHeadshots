@@ -157,7 +157,7 @@ export function renderResume({ root }) {
       </div>
     </section>
 
-    <section class="section" style="padding-top:0">
+    <section class="section" id="faq" style="padding-top:0">
       <div class="container faq">
         <div>
           <p class="eyebrow" data-reveal>Résumé headshot FAQ</p>

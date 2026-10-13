@@ -212,7 +212,8 @@ export async function renderTeamAdmin({ root, navigate }) {
           data.team = r.team;
           paintTeam();
           // A seat a refund already took back doesn't come back as a shoot.
-          toast((r.user?.plan?.credits || 0) > before ? "Invite cancelled. The shoot is back in your balance." : "Invite cancelled. That shoot went toward your refund.", "success");
+          // (The owner's shoots aren't counted, so there's nothing to give back.)
+          toast(r.user?.plan?.tier === "owner" ? "Invite cancelled." : (r.user?.plan?.credits || 0) > before ? "Invite cancelled. The shoot is back in your balance." : "Invite cancelled. That shoot went toward your refund.", "success");
         } catch (err) {
           restore();
           toast(err.message, "error", 7000);

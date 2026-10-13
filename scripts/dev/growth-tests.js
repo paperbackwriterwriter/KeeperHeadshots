@@ -85,6 +85,23 @@ const t = Date.now();
   const bad = await owner("/api/owner/offer", { method: "POST", body: JSON.stringify({ code: "NOPE-20", discount: "20% off", until: "Sunday" }) });
   const good = await owner("/api/owner/offer", { method: "POST", body: JSON.stringify({ code: "KEEP20", discount: "20% off", until: "Sunday" }) });
   ok("an offer code is checked with Stripe before anyone is counted or emailed", bad.status === 400 && /no active promotion code/.test(bad.j?.error || "") && good.status === 200 && good.j.promo?.percentOff === 20, `${bad.status} ${bad.j?.error} / ${good.status} ${JSON.stringify(good.j?.promo)}`);
+  // A partial refund takes back only the shoots it pays for: half a shoot's
+  // worth takes none, and a refund rounded to the cent still counts in full.
+  {
+    const { j: pc } = await f("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+    const psid = new URL(pc.url).pathname.split("/").pop();
+    await fetch(`${M}/mock-pay/${psid}`, { redirect: "manual" });
+    await f("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: psid }) });
+    const credits = async () => (await f("/api/me")).j.user.plan.credits;
+    const c0 = await credits();
+    await fetch(`${M}/mock-refund/${psid}?amount=484`); // half of one $9.67 shoot
+    await f("/api/billing/sync", { method: "POST", body: "{}" });
+    const c1 = await credits();
+    await fetch(`${M}/mock-refund/${psid}?amount=1933`); // two shoots' worth, rounded down to the cent
+    await f("/api/billing/sync", { method: "POST", body: "{}" });
+    const c2 = await credits();
+    ok("a partial refund takes back only whole shoots it covers", c1 === c0 && c2 === c0 - 2, `${c0} → ${c1} → ${c2}`);
+  }
   // A refund shows in the funnel once, on the day it's made, as an amount and an order.
   const { j: co } = await f("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
   const refundSid = new URL(co.url).pathname.split("/").pop();

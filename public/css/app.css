@@ -1532,7 +1532,7 @@ select.input { appearance: none; padding-right: 44px; cursor: pointer; backgroun
     --surface: var(--paper-50);
     --surface-raised: #ffffff;
     --surface-sunken: var(--paper-200);
-    --accent-text: #8c6a2c;
+    --accent-text: #7a5c24; /* AA on the dimmed paper (#ece6db) */
     --success: #177245;
     --success-soft: #dcefe3;
     color: var(--text);
