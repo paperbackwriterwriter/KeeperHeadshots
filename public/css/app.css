@@ -1761,3 +1761,21 @@ dialog.search-dialog::backdrop { background: rgba(8, 12, 20, 0.55); }
 .search-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .search-chips .chip { cursor: pointer; min-height: 36px; font-size: var(--fs-sm); }
 .search-chips .chip:hover { color: var(--text); border-color: var(--text-muted); }
+
+/* ---------- Retake directions (photo check under MIN_CHECK_SCORE) ---------- */
+.retake-panel { margin-top: 24px; border-color: color-mix(in srgb, var(--danger, #9b2c2c) 35%, var(--border)); }
+.retake-panel .eyebrow { display: inline-flex; align-items: center; gap: 8px; }
+.retake-panel .eyebrow svg { width: 16px; height: 16px; }
+.retake-panel h2 { margin: 10px 0 8px; }
+.retake-panel h3 { margin: 22px 0 10px; }
+.retake-panel > p.muted { max-width: 64ch; }
+.retake-steps { margin: 0; padding-left: 1.3em; display: grid; gap: 8px; line-height: 1.5; }
+.retake-steps li::marker { font-weight: 700; color: var(--accent-text); }
+.retake-setup { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.retake-setup li { display: flex; gap: 10px; align-items: flex-start; line-height: 1.45; font-size: var(--fs-sm); }
+.retake-setup svg { flex: none; width: 20px; height: 20px; margin-top: 1px; color: var(--accent-text); }
+.shot-list { margin: 0 0 16px; padding: 0; list-style: none; counter-reset: shot; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.shot-list li { counter-increment: shot; position: relative; padding: 12px 12px 12px 48px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); font-size: var(--fs-sm); line-height: 1.4; }
+.shot-list li::before { content: counter(shot); position: absolute; left: 12px; top: 12px; width: 26px; height: 26px; border-radius: 50%; background: var(--ink); color: var(--on-ink); display: grid; place-items: center; font-weight: 700; font-size: var(--fs-xs); }
+.shot-list b { display: block; }
+.shot-list span { color: var(--text-muted); }

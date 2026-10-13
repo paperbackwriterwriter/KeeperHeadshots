@@ -2,7 +2,7 @@
 //   (new) upload -> draft/checking -> checked (photo check + looks) -> generating/reviewing -> done (proofs)
 
 import { $, $$, html, raw, icon, api, state, toast, media, squareMedia, sizeMedia, PROFILE_KIT, busy, spinner, greaseCircle, silhouette, esc, reduceMotion, loadSession } from "../core.js";
-import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, MAX_RESUMES, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, PREVIEW_OFFERS, lookFor } from "../shared/catalog.js";
+import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, MAX_RESUMES, MIN_CHECK_SCORE, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, PREVIEW_OFFERS, lookFor } from "../shared/catalog.js";
 import { portraitDataURL } from "../shared/portrait.js";
 import { aiBanner, planBanner, confirmPurchase } from "./dashboard.js";
 import { currentFormat, formatPicker, formatHrefs, formatName, saveFormat, downloadAll, guardDownloadLinks } from "./format.js";
@@ -197,11 +197,6 @@ export async function renderStudio(ctx, id) {
       paintLooks(shoot);
       window.scrollTo({ top: 0, behavior: reduceMotion() ? "instant" : "smooth" });
     });
-    $("#override")?.addEventListener("click", () => {
-      view = "looks";
-      shoot._override = true;
-      paintLooks(shoot);
-    });
     wireDelete();
   }
 
@@ -362,8 +357,43 @@ export async function renderStudio(ctx, id) {
         : html`<div style="margin-top:24px">${addPhotosPanel(s)}</div><div class="actions-bar"><button class="btn btn-ghost btn-sm" id="delete">${icon("trash-2")} Delete shoot</button></div>`}`;
   }
 
+  // The shot list for a retake: what a strong set of reference selfies looks like.
+  const SHOT_LIST = [
+    ["Straight on", "Phone at eye level, about an arm's length away, looking into the lens."],
+    ["Turned a little left", "Turn your head about 20 degrees, eyes back to the camera."],
+    ["Turned a little right", "The same, the other way."],
+    ["Relaxed and neutral", "Lips together, the face you'd make in a meeting."],
+    ["Closed-mouth smile", "A small, natural smile."],
+    ["Natural smile", "The smile you'd give a colleague, teeth showing if that's how you smile."],
+  ];
+
+  // Directions for new selfies when the check asks for a retake: what was
+  // wrong with these, then how to take a set that will pass.
+  function retakePanel(s, c) {
+    const direction = (c.retake_direction?.length ? c.retake_direction : c.tips) || [];
+    return html`<section class="panel retake-panel" id="retakePanel" aria-labelledby="retakeTitle">
+      <p class="eyebrow">${icon("camera")} Retake your selfies to continue</p>
+      <h2 class="display h-3" id="retakeTitle">Your set scored ${c.overall_score}. A shoot needs ${MIN_CHECK_SCORE} or more.</h2>
+      <p class="muted">Weaker reference photos produce headshots that don't look like you, so we won't start a shoot on them. A few new selfies, taken like this, usually fix it in minutes.</p>
+      ${direction.length ? html`<h3 class="h-4">What to change</h3><ol class="retake-steps">${direction.map((d) => html`<li>${d}</li>`)}</ol>` : ""}
+      <h3 class="h-4">Set up</h3>
+      <ul class="retake-setup">
+        <li>${icon("sun")}<span><b>Face a window in daylight.</b> Soft, even light on both sides of your face: no overhead lights, lamps behind you or harsh sun.</span></li>
+        <li>${icon("scan-face")}<span><b>Fill the frame.</b> Head and shoulders, your face about a third of the photo, in sharp focus.</span></li>
+        <li>${icon("eye")}<span><b>Nothing in the way.</b> No sunglasses, hats, hands or hair over your face. Your usual glasses are fine.</span></li>
+        <li>${icon("wand-sparkles")}<span><b>No filters or portrait mode.</b> The plain camera, so your skin and features stay true.</span></li>
+      </ul>
+      <h3 class="h-4">Take these ${SHOT_LIST.length}</h3>
+      <ol class="shot-list">${SHOT_LIST.map(([t, d]) => html`<li><b>${t}</b><span>${d}</span></li>`)}</ol>
+      <p class="small muted">Then remove the photos marked <b>Replace</b>, add your new ones below and re-check. Re-checks after a retake don't use up a free check.</p>
+    </section>`;
+  }
+
   function checkResult(s) {
     const c = s.check;
+    // Checks from before the minimum score are held to it too (as the server does).
+    if (c.verdict !== "retake" && c.overall_score < MIN_CHECK_SCORE) c.verdict = "retake";
+    const retake = c.verdict === "retake";
     const verdict = { ready: ["Ready to shoot", "badge-success"], usable: ["Usable", "badge-warn"], retake: ["Retake needed", "badge-danger"] }[c.verdict];
     const kept = c.photos.filter((p) => p.keep).length;
     return html`<section class="verdict">
@@ -375,7 +405,7 @@ export async function renderStudio(ctx, id) {
           <span class="badge ${verdict[1]}">${icon(c.verdict === "retake" ? "circle-alert" : "check")} ${verdict[0]}</span>
           <h1 class="display h-2" style="margin:14px 0 10px">${c.headline}</h1>
           <p class="muted" style="max-width:62ch">${c.summary}</p>
-          <p class="mono" style="margin-top:14px;color:#a9b1bd">${kept} OF ${s.selfies.length} PHOTOS WILL BE USED AS REFERENCES</p>
+          <p class="mono" style="margin-top:14px;color:#a9b1bd">${retake ? `NEW SELFIES NEEDED · ${MIN_CHECK_SCORE}+ TO START YOUR SHOOT` : `${kept} OF ${s.selfies.length} PHOTOS WILL BE USED AS REFERENCES`}</p>
         </div>
       </section>
 
@@ -386,7 +416,7 @@ export async function renderStudio(ctx, id) {
           return html`<article class="pcheck ${p.keep ? "" : "skip"}" style="--i:${i}">
             <div class="pcheck-img"><img src="${media(selfie.file)}" alt="Your photo ${p.index + 1}" /></div>
             <div class="pcheck-body">
-              <div class="pcheck-top"><span class="pcheck-score tabular">${p.score}</span><span style="display:flex;gap:6px;align-items:center">${p.keep ? html`<span class="badge badge-success">${icon("check")} Using</span>` : html`<span class="badge badge-danger">${icon("x")} Skipped</span>`}${s.selfies.length > 1 ? html`<button class="rm-inline" data-remove-selfie="${selfie.file}" aria-label="Remove photo ${p.index + 1}" title="Remove photo">${icon("trash-2")}</button>` : ""}</span></div>
+              <div class="pcheck-top"><span class="pcheck-score tabular">${p.score}</span><span style="display:flex;gap:6px;align-items:center">${retake && (!p.keep || p.score < MIN_CHECK_SCORE) ? html`<span class="badge badge-danger">${icon("refresh-cw")} Replace</span>` : p.keep ? html`<span class="badge badge-success">${icon("check")} Using</span>` : html`<span class="badge badge-danger">${icon("x")} Skipped</span>`}${s.selfies.length > 1 ? html`<button class="rm-inline" data-remove-selfie="${selfie.file}" aria-label="Remove photo ${p.index + 1}" title="Remove photo">${icon("trash-2")}</button>` : ""}</span></div>
               <div class="meters">
                 ${[["Lighting", p.lighting], ["Sharpness", p.sharpness], ["Visibility", p.face_visibility], ["Expression", p.expression]].map(
                   ([k, v]) => html`<div class="meter" style="--i:${i}"><span>${k}</span><div class="meter-track"><div class="meter-fill" style="--v:${v};--mcol:${meterColor(v)}"></div></div><b>${v}</b></div>`,
@@ -399,12 +429,13 @@ export async function renderStudio(ctx, id) {
         })}
       </div>
 
-      <div style="margin-top:24px">${addPhotosPanel(s, c.tips || [])}</div>
+      ${retake ? retakePanel(s, c) : ""}
+      <div style="margin-top:24px">${addPhotosPanel(s, retake ? [] : c.tips || [])}</div>
 
       <div class="actions-bar">
         <div class="btn-pair" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" id="delete">${icon("trash-2")} Delete</button><button class="btn btn-ghost btn-sm" id="recheck">${icon("refresh-cw")} Re-check photos</button></div>
         ${c.verdict === "retake"
-          ? html`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost" id="override">Continue anyway</button><a class="btn btn-flash" href="#addMore">${icon("camera")} Add better photos</a></div>`
+          ? html`<a class="btn btn-flash" href="#addMore">${icon("camera")} Add new selfies</a>`
           : html`<button class="btn btn-flash btn-lg" id="toLooks">${s.team ? "Continue" : "Choose your looks"} ${icon("arrow-right")}</button>`}
       </div>
       <p class="disclaimer" style="margin-top:16px">${icon("info")} Scores are AI estimates of how well each photo will work as a reference — not a judgment of how you look.</p>`;
@@ -449,7 +480,7 @@ export async function renderStudio(ctx, id) {
     $("#develop").addEventListener("click", async (e) => {
       const restore = busy(e.currentTarget, "Setting up…");
       try {
-        const data = await api(`/api/shoots/${id}/generate`, { method: "POST", body: { looks, override: !!shoot._override } });
+        const data = await api(`/api/shoots/${id}/generate`, { method: "POST", body: { looks } });
         shoot = data.shoot;
         paintDevelop(shoot);
         window.scrollTo({ top: 0, behavior: "instant" });
@@ -619,7 +650,7 @@ export async function renderStudio(ctx, id) {
       try {
         const data = extra
           ? await api(`/api/shoots/${id}/more-looks`, { method: "POST", body: { looks } })
-          : await api(`/api/shoots/${id}/generate`, { method: "POST", body: { looks, override: !!shoot._override } });
+          : await api(`/api/shoots/${id}/generate`, { method: "POST", body: { looks } });
         if (data.user) state.user = data.user;
         shoot = data.shoot;
         paintDevelop(shoot);

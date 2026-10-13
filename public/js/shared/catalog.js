@@ -82,6 +82,9 @@ export const MAX_RESUMES = 3;
 export const MAX_LOOKS = 4;
 export const TAKES_PER_LOOK = 2;
 export const MAX_SELFIES = 6;
+// The photo check's lowest passing score (0-100). A set scoring less is a
+// "retake": new selfies are needed before a shoot can be developed.
+export const MIN_CHECK_SCORE = 76;
 export const MIN_SELFIES = 1;
 
 // What each one-time package buys. A paid shoot allows MAX_LOOKS looks,

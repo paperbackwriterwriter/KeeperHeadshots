@@ -20,11 +20,11 @@ import { blogIndex, blogPost, blogImage, syncBlog } from "./lib/blog.js";
 import { searchSite } from "./lib/search.js";
 import { isPreview, isKept, watermark } from "./lib/preview.js";
 import { reviewShoots, sendOffer } from "./lib/outreach.js";
-import { aiStatus, AIError } from "./lib/ai.js";
+import { aiStatus, AIError, gateCheck } from "./lib/ai.js";
 import { shootQueueCallback, startLocalShootWorker, ensureShootJob, workerJob, runShootWorker, runDueShootJobs } from "./lib/shoot-jobs.js";
 import { listShootPage } from "./lib/shoot-list.js";
 import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, advance, startGeneration, retryFailed, startReview, addLooks } from "./lib/pipeline.js";
-import { lookFor, MAX_LOOKS, MAX_SELFIES, MAX_RESUMES, PHOTO_FORMATS, isPreviewOffer } from "./public/js/shared/catalog.js";
+import { lookFor, MAX_LOOKS, MAX_SELFIES, MAX_RESUMES, MIN_CHECK_SCORE, PHOTO_FORMATS, isPreviewOffer } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
 import { customersSection } from "./public/js/shared/customers.js";
 import { planFor, ownerEmail, creditSource, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, EMAIL_UNCONFIRMED } from "./lib/plan.js";
@@ -781,6 +781,13 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   try {
     await runCheck(meta.id, startedAt);
     background(recordStep("checked", req.user).catch(noteStats));
+    // A check that asks for new selfies doesn't use up a free check: retaking
+    // them isn't held against anyone. (It still counts toward the daily cap.)
+    const checked = await shoots.getMeta(meta.id).catch(() => null);
+    if (checked?.check?.verdict === "retake" && checked.checkStartedAt === startedAt) {
+      if (mailboxReserved) await mailboxChecks.release(req.user.email);
+      if (counted && !teamSeat) await users.update(req.user.id, (u) => void (u.usage = { ...u.usage, checks: Math.max(0, (u.usage?.checks || 0) - 1) })).catch(() => {});
+    }
   } catch (err) {
     if (mailboxReserved) await mailboxChecks.release(req.user.email);
     if (counted)
@@ -800,7 +807,9 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
   if (!meta || !requireAI("imaging", res) || !requireAI("vision", res)) return;
   if (meta.sample) return res.status(400).json({ error: "Sample shoots are read-only." });
   if (!meta.check) return res.status(400).json({ error: "Run the photo check first." });
-  if (meta.check.verdict === "retake" && !req.body?.override) return res.status(400).json({ error: "These photos need a retake before we can shoot. Add better photos and re-check." });
+  // A set scoring under MIN_CHECK_SCORE (or judged a retake) never develops:
+  // new selfies first. Checks made before the minimum existed are held to it too.
+  if (gateCheck({ ...meta.check }).verdict === "retake") return res.status(400).json({ error: `These photos scored ${meta.check.overall_score}, and a shoot needs ${MIN_CHECK_SCORE} or more so your headshots look like you. Follow the directions on this page, add new selfies and re-check.`, code: "retake_needed" });
   if (LIVE.includes(meta.status)) return res.status(409).json({ error: "This shoot is already in progress." });
   // A shoot is developed once; retries of failed frames go through /resume.
   if (meta.status !== "checked" || (meta.shots || []).length) return res.status(409).json({ error: "This shoot has already been developed. Start a new shoot for new looks." });
