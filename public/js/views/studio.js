@@ -278,23 +278,71 @@ export async function renderStudio(ctx, id) {
   // New selfies for a retake: the flagged photos make way for them (before
   // uploading when the set is full, after it otherwise, so a shoot always
   // keeps at least one photo), then the set is re-checked.
+  // New selfies for a retake. Each is read first (a photo the browser can't
+  // open never costs one already in the set); a photo marked Replace makes
+  // room only when the set is full, and at most one goes per new photo that
+  // arrived. Then the set is re-checked. One run at a time.
+  let replacing = false;
   async function replacePhotos(files) {
+    if (replacing) return;
     const list = files.filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name)).slice(0, MAX_SELFIES);
     if (!list.length) return toast("Those files aren't photos. Try JPG, PNG or WebP.", "error");
+    replacing = true;
+    const input = $("#retakeFile");
+    const btn = $("#retakeBtn");
+    const say = (t) => { const el = $("#retakeStatus"); if (el) el.textContent = t; };
+    if (input) input.disabled = true;
+    btn?.setAttribute("aria-busy", "true");
+    btn?.classList.add("is-busy");
     const flagged = flaggedFiles(shoot);
+    let added = 0;
+    let removed = 0;
     const drop = async (file) => {
       try {
         shoot = (await api(`/api/shoots/${id}/selfies/${encodeURIComponent(file.split("/").pop())}`, { method: "DELETE", signal })).shoot;
-      } catch {}
+        removed++;
+        return true;
+      } catch {
+        return false;
+      }
     };
-    const btn = $("#retakeBtn");
-    btn?.classList.add("is-busy");
-    while (flagged.length && list.length > MAX_SELFIES - shoot.selfies.length && shoot.selfies.length > 1) await drop(flagged.shift());
-    const added = await addPhotos(list, { recheck: false });
-    btn?.classList.remove("is-busy");
-    if (disposed || !added) return;
-    for (const f of flagged) if (shoot.selfies.length > 1 && shoot.selfies.some((x) => x.file === f)) await drop(f);
+    try {
+      say("Preparing your photos…");
+      const photos = [];
+      for (const f of list) {
+        try { photos.push(await toJpegDataURL(f)); } catch (err) { if (!disposed) toast(err.message, "error", 6000); }
+      }
+      for (let i = 0; i < photos.length && !disposed; i++) {
+        say(`Uploading ${i + 1} of ${photos.length}…`);
+        if (shoot.selfies.length >= MAX_SELFIES) {
+          const f = flagged.shift();
+          if (!f) { toast(`Only ${MAX_SELFIES} photos per shoot. Remove one to add more.`, "info"); break; }
+          if (!(await drop(f))) break;
+        }
+        try {
+          await api(`/api/shoots/${id}/selfies`, { method: "POST", body: { photo: photos[i] }, signal });
+          added++;
+          shoot = (await api(`/api/shoots/${id}`, { signal })).shoot;
+        } catch (err) {
+          if (!disposed) toast(err.message, "error", 6000);
+          break;
+        }
+      }
+      // The rest of the photos marked Replace go, one for each new photo.
+      for (const f of flagged) {
+        if (disposed || removed >= added || shoot.selfies.length <= 1) break;
+        if (shoot.selfies.some((x) => x.file === f)) await drop(f);
+      }
+    } finally {
+      replacing = false;
+      if (input) input.disabled = false;
+      btn?.removeAttribute("aria-busy");
+      btn?.classList.remove("is-busy");
+      say("");
+    }
     if (disposed) return;
+    if (!added && !removed) return;
+    if (added) toast(`Added ${added} photo${added === 1 ? "" : "s"}. Re-checking your set…`, "success");
     if (state.ai.vision) runCheck();
     else paintCheck(shoot);
   }
@@ -416,7 +464,11 @@ export async function renderStudio(ctx, id) {
     const direction = (c.retake_direction?.length ? c.retake_direction : c.tips) || [];
     return html`<section class="panel retake-panel" id="retakePanel" aria-labelledby="retakeTitle">
       <p class="eyebrow">${icon("camera")} ${blocked ? "Retake your selfies to continue" : "New selfies recommended"}</p>
-      ${blocked
+      ${!blocked && c.overall_score >= RECOMMENDED_CHECK_SCORE
+        ? html`<h2 class="display h-3" id="retakeTitle">These photos need a retake.</h2>
+          <p class="muted">Our check found a problem with this set that would hurt your likeness. A few new selfies, taken like this, usually fix it in minutes, or you can go ahead with the ones you have.</p>
+          <button class="btn btn-ghost btn-sm continue-anyway" type="button" id="continueAnyway">Continue with these selfies anyway</button>`
+        : blocked
         ? html`<h2 class="display h-3" id="retakeTitle">Your set scored ${c.overall_score}. A shoot needs ${MIN_CHECK_SCORE} or more.</h2>
           <p class="muted">Below ${MIN_CHECK_SCORE}, headshots won't look enough like you, so we can't start a shoot on these. A few new selfies, taken like this, usually fix it in minutes.</p>`
         : html`<h2 class="display h-3" id="retakeTitle">Your set scored ${c.overall_score}. A shoot needs ${RECOMMENDED_CHECK_SCORE} or more.</h2>
@@ -482,7 +534,7 @@ export async function renderStudio(ctx, id) {
       <div class="actions-bar">
         <div class="btn-pair" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" id="delete">${icon("trash-2")} Delete</button><button class="btn btn-ghost btn-sm" id="recheck">${icon("refresh-cw")} Re-check photos</button></div>
         ${c.verdict === "retake"
-          ? html`<label class="btn btn-flash" id="retakeBtn">${icon("camera")} Add new selfies<input type="file" id="retakeFile" accept="image/*" multiple class="sr-only" /></label>`
+          ? html`<div class="retake-go"><label class="btn btn-flash" id="retakeBtn">${icon("camera")} Add new selfies<input type="file" id="retakeFile" accept="image/*" multiple class="sr-only" /></label><span class="small muted" id="retakeStatus" role="status" aria-live="polite"></span></div>`
           : html`<button class="btn btn-flash btn-lg" id="toLooks">${s.team ? "Continue" : "Choose your looks"} ${icon("arrow-right")}</button>`}
       </div>
       <p class="disclaimer" style="margin-top:16px">${icon("info")} Scores are AI estimates of how well each photo will work as a reference — not a judgment of how you look.</p>`;
@@ -734,6 +786,9 @@ export async function renderStudio(ctx, id) {
   const canReshoot = (s) => heldForLikeness(s) >= 2 && !s.sample && !s.team && !s.reshootOf && !s.reshootUsed && !state.user?.demo && !LIVE.includes(s.status);
   const reshootHref = (s) => `/app/new?reshoot=${encodeURIComponent(s.id)}`;
   function selfieTips(s) {
+    // Only once the shoot has finished: frames held back while it's still
+    // developing may yet be retried, and a free reshoot isn't offered until then.
+    if (LIVE.includes(s.status)) return;
     const held = heldForLikeness(s);
     if (held < 2 || s.sample || state.user?.demo || $("#selfieTips")) return;
     const key = `kh:selfie-tips:${s.id}`;
@@ -1026,9 +1081,9 @@ export async function renderStudio(ctx, id) {
       $("#dlBest")?.addEventListener("click", () => downloadAll(formatHrefs(best.file, fmt)));
       $("#dlAll")?.addEventListener("click", async (e) => {
         const restore = busy(e.currentTarget, "Downloading…");
-        await downloadAll(ordered.flatMap((t) => formatHrefs(t.file, fmt)));
+        const saved = await downloadAll(ordered.flatMap((t) => formatHrefs(t.file, fmt)));
         restore();
-        toast(`${plural(n, "headshot")} downloaded ${what}.`, "success");
+        if (saved) toast(`${plural(n, "headshot")} downloaded ${what}.`, "success");
       });
     };
     drawDl();
@@ -1250,6 +1305,7 @@ export async function renderStudio(ctx, id) {
     stop();
     aborter.abort();
     document.removeEventListener("ahg:user-changed", onUnlock);
+    $("#selfieTips")?.close();
   };
 }
 
@@ -1383,9 +1439,17 @@ function renderUpload({ root, navigate }) {
     const label = go.querySelector("span");
     let shootId = null;
     try {
-      ({ shoot: { id: shootId } } = reshootOf
+      const { shoot: made } = reshootOf
         ? await api(`/api/shoots/${reshootOf}/reshoot`, { method: "POST", body: {} })
-        : await api("/api/shoots", { method: "POST", body: {} }));
+        : await api("/api/shoots", { method: "POST", body: {} });
+      // The free reshoot was already set up, with photos: carry on with it there.
+      if (made.selfies?.length) {
+        uploading = false;
+        restore();
+        toast("Your free reshoot is already set up. Add or change its photos here.", "info", 6000);
+        return navigate(`/app/shoot/${made.id}`);
+      }
+      shootId = made.id;
       // One photo per request keeps each upload small and reliable. The batch
       // is fixed here, so nothing added or removed meanwhile changes what's sent.
       const batch = photos.slice();

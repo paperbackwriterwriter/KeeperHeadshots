@@ -50,15 +50,19 @@ export async function canDownload(href) {
 const appleTouch = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 const fileName = (res, href, i) => /filename="?([^";]+)"?/.exec(res.headers.get("content-disposition") || "")?.[1] || `headshot-${i + 1}.${/square=1/.test(href) ? "square." : ""}jpg`;
 
+// Returns "saved", "cancelled" (the sheet was closed), or false when sharing
+// isn't possible here (the caller downloads instead).
 async function shareFiles(hrefs) {
-  const files = await Promise.all(hrefs.map(async (href, i) => {
+  // One at a time: a whole team's set at full size at once is a lot of memory on a phone.
+  const files = [];
+  for (const [i, href] of hrefs.entries()) {
     const res = await fetch(href, { credentials: "same-origin" });
     if (!res.ok) throw new Error("download failed");
     const blob = await res.blob();
-    return new File([blob], fileName(res, href, i), { type: blob.type || "image/jpeg" });
-  }));
+    files.push(new File([blob], fileName(res, href, i), { type: blob.type || "image/jpeg" }));
+  }
   if (!navigator.canShare?.({ files })) return false;
-  const share = () => navigator.share({ files }).then(() => true, (err) => (err.name === "AbortError" ? true : Promise.reject(err)));
+  const share = () => navigator.share({ files }).then(() => "saved", (err) => (err.name === "AbortError" ? "cancelled" : Promise.reject(err)));
   try {
     return await share();
   } catch (err) {
@@ -74,20 +78,37 @@ async function shareFiles(hrefs) {
     sheet.innerHTML = html`<p>Your ${files.length} photos are ready.</p>
       <button type="button" class="btn btn-flash" data-save>Save ${files.length} photos</button>
       <button type="button" class="btn btn-ghost" data-close>Not now</button>`.v;
-    const done = (v) => { sheet.remove(); resolve(v); };
-    sheet.querySelector("[data-save]").addEventListener("click", () => share().then(() => done(true), () => done(false)));
-    sheet.querySelector("[data-close]").addEventListener("click", () => done(true));
+    const before = document.activeElement;
+    const done = (v) => {
+      sheet.remove();
+      removeEventListener("popstate", leave);
+      document.removeEventListener("ahg:navigate", leave);
+      document.removeEventListener("keydown", onKey);
+      if (before?.isConnected) before.focus();
+      resolve(v);
+    };
+    const leave = () => done("cancelled");
+    const onKey = (e) => e.key === "Escape" && done("cancelled");
+    sheet.querySelector("[data-save]").addEventListener("click", () => share().then(done, () => done(false)));
+    sheet.querySelector("[data-close]").addEventListener("click", () => done("cancelled"));
+    // Leaving the page (in-app navigation) or Escape closes it.
+    addEventListener("popstate", leave);
+    document.addEventListener("ahg:navigate", leave);
+    document.addEventListener("keydown", onKey);
     document.body.appendChild(sheet);
     sheet.querySelector("[data-save]").focus();
   });
 }
 
 // Browsers allow several downloads from one click when they're spaced out a little.
+// Returns false when nothing was saved (signed out, or the share sheet closed).
 export async function downloadAll(hrefs) {
-  if (!hrefs.length || !(await canDownload(hrefs[0]))) return;
+  if (!hrefs.length || !(await canDownload(hrefs[0]))) return false;
   if (hrefs.length > 1 && appleTouch() && navigator.share) {
     try {
-      if (await shareFiles(hrefs)) return;
+      const shared = await shareFiles(hrefs);
+      if (shared === "saved") return true;
+      if (shared === "cancelled") return false;
     } catch {
       // fall back to separate downloads below
     }
@@ -101,6 +122,7 @@ export async function downloadAll(hrefs) {
     a.click();
     a.remove();
   }
+  return true;
 }
 
 // Download links (<a download>) check the session first, then download as usual.

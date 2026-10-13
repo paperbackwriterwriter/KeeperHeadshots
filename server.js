@@ -737,8 +737,10 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   const limitMsg = `Free accounts include ${FREE.checks} photo checks, and you've used them. Buy a package to keep going.`;
   // A team seat was paid for by the admin (lib/teams.js), and a free reshoot
   // costs nothing (see /reshoot), so the free allowance neither gates it nor is
-  // spent on it; only the daily cap applies.
-  const teamSeat = (!!meta.team && meta.paidWith === "team") || !!(await reshootGrant(meta, req.user.id));
+  // spent on it; only the daily cap applies. A reshoot's first few checks are
+  // free; after that they count like any other.
+  const freeReshoot = (meta.reshootChecks || 0) < RESHOOT_FREE_CHECKS && !!(await reshootGrant(meta, req.user.id));
+  const teamSeat = (!!meta.team && meta.paidWith === "team") || freeReshoot;
   if (plan.checksLeft === 0 && !teamSeat) throw new PlanError(limitMsg);
   // One check at a time per shoot: a double-click doesn't run (or count) twice.
   const startedAt = await beginCheck(meta.id);
@@ -781,12 +783,15 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   try {
     await runCheck(meta.id, startedAt);
     background(recordStep("checked", req.user).catch(noteStats));
+    if (freeReshoot) await shoots.updateMeta(meta.id, (m) => void (m.reshootChecks = (m.reshootChecks || 0) + 1)).catch(() => {});
     // A check that asks for new selfies doesn't use up a free check: retaking
     // them isn't held against anyone. (It still counts toward the daily cap.)
     const checked = await shoots.getMeta(meta.id).catch(() => null);
     if (checked?.check?.verdict === "retake" && checked.checkStartedAt === startedAt) {
       if (mailboxReserved) await mailboxChecks.release(req.user.email);
       if (counted && !teamSeat) await users.update(req.user.id, (u) => void (u.usage = { ...u.usage, checks: Math.max(0, (u.usage?.checks || 0) - 1) })).catch(() => {});
+      // Going ahead with these photos anyway (generate) counts it after all.
+      if (mailboxReserved) await shoots.updateMeta(meta.id, (m) => (m.check && m.checkStartedAt === startedAt ? void (m.check.refunded = true) : false)).catch(() => {});
     }
   } catch (err) {
     if (mailboxReserved) await mailboxChecks.release(req.user.email);
@@ -845,13 +850,29 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
   }
   let charged = null;
   let paidBy = null;
+  let reshootMarked = null;
   try {
     // A team shoot was paid for when its invite was sent, unless a refund since took that back.
     if (meta.team && !(await teams.seatPaid(meta))) throw new PlanError("This team shoot is no longer paid for. Ask your team admin to buy a package or get in touch with us.", "team_unpaid", 402);
     const original = await reshootGrant(meta, req.user.id);
-    if (meta.reshootOf && !original) throw new PlanError("This free reshoot is no longer available. Contact us and we'll sort it out.", "reshoot_unavailable", 400);
+    // A reshoot whose original is gone (deleted) develops like any other shoot.
+    if (meta.reshootOf && !original) {
+      delete meta.reshootOf;
+      delete meta.reshootLooks;
+    }
     if (original) {
       if (unique.length > (meta.reshootLooks || 1)) throw new PlanError(`Your free reshoot includes up to ${meta.reshootLooks || 1} look${(meta.reshootLooks || 1) === 1 ? "" : "s"}. Remove ${unique.length - (meta.reshootLooks || 1)} to continue.`, "too_many_looks", 400);
+      // The free reshoot is used once it develops (deleting it doesn't give it
+      // back): marked before developing, and given back below if that fails.
+      let marked = false;
+      await shoots.updateMeta(original.id, (m) => {
+        marked = false; // the callback may run again after a write conflict
+        if (m.reshootId !== meta.id || (m.reshootUsed && m.reshootUsed !== meta.id)) return false;
+        m.reshootUsed = meta.id;
+        marked = true;
+      });
+      if (!marked) throw new PlanError("This free reshoot has already been used.", "reshoot_used", 409);
+      reshootMarked = original.id;
       meta.paidWith = "reshoot";
       if (original.preview) meta.preview = true;
     } else if (plan.tier !== "owner" && !meta.team) {
@@ -899,8 +920,10 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
       if (charged === "free") meta.preview = true;
     }
     const started = await startGeneration(meta, unique);
-    // The free reshoot is used once it develops (deleting it doesn't give it back).
-    if (original) await shoots.updateMeta(original.id, (m) => (m.reshootId === meta.id && !m.reshootUsed ? void (m.reshootUsed = meta.id) : false)).catch((err) => console.error("[reshoot] mark used", original.id, err.message));
+    reshootMarked = null;
+    // A photo check given back as a retake counts after all when the person
+    // goes ahead with those photos.
+    if (meta.check?.refunded && req.body?.override && planFor(req.user).checksLeft != null) background(countRefundedCheck(req.user).catch(() => {}));
     if (charged) await users.update(req.user.id, (u) => (u.developing?.[meta.id] ? void delete u.developing[meta.id] : UNCHANGED)).catch(() => {});
     background(recordStep("developed", req.user).catch(noteStats));
     res.status(202).json({ shoot: started });
@@ -927,10 +950,18 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
         if ((await getJSON(freeKey).catch(() => null))?.shootId === meta.id) await del(freeKey).catch(() => {});
       }
     }
+    if (reshootMarked) await shoots.updateMeta(reshootMarked, (m) => (m.reshootUsed === meta.id ? void delete m.reshootUsed : false)).catch(() => {});
     await del(claimKey).catch(() => {});
     throw err;
   }
 });
+
+// Counts one free photo check (see the check endpoint's retake refund).
+async function countRefundedCheck(user) {
+  const total = await mailboxChecks.reserve(user.email, FREE.checks, user.usage?.checks || 0);
+  if (total === null) return;
+  await users.update(user.id, (u) => void (u.usage = { ...u.usage, checks: Math.max((u.usage?.checks || 0) + 1, total) }));
+}
 
 // Extra looks bought with a preview offer ("Preview + 2 more looks"): they're
 // added to that shoot and developed. The credit is taken first, atomically,
@@ -1003,6 +1034,8 @@ app.post("/api/shoots/:id/resume", requireUser, async (req, res) => {
 // the reshoot to develop free.
 const heldForLikeness = (shoot) => (shoot.shots || []).filter((t) => t.status === "error" && (t.qa?.history?.at(-1)?.likeness ?? 10) < 8).length;
 const RESHOOT_MIN_HELD = 2;
+// Photo checks on a reshoot that don't use the free allowance.
+const RESHOOT_FREE_CHECKS = 3;
 
 async function reshootGrant(meta, userId) {
   if (!meta?.reshootOf) return null;
@@ -1115,6 +1148,8 @@ app.delete("/api/shoots/:id", requireUser, async (req, res) => {
   if (!meta) return;
   if (meta.sample) return res.status(400).json({ error: "Sample shoots are read-only." });
   await shoots.remove(meta);
+  // Its free reshoot, if not yet developed, becomes an ordinary shoot.
+  if (meta.reshootId && !meta.reshootUsed) await shoots.updateMeta(meta.reshootId, (m) => (m.reshootOf === meta.id && !(m.shots || []).length ? void (delete m.reshootOf, delete m.reshootLooks) : false)).catch(() => {});
   // Headshots kept from it and unused extra looks for it go with it.
   await users.update(req.user.id, (u) => {
     if (!u.kept?.[meta.id] && !u.extraLooks?.[meta.id]) return UNCHANGED;

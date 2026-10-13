@@ -133,6 +133,30 @@ ok("the original records it", (await f(`/api/shoots/${first}`)).j.shoot.reshootI
   ok("an undeveloped reshoot deleted can be made again", b.status === 201 && b.j.shoot.id !== a && b.j.shoot.reshootLooks === 1, `${b.status}`);
 }
 
+// 5. A reshoot's first 3 photo checks are free; later ones count as usual.
+// And deleting the original makes its undeveloped reshoot an ordinary shoot.
+{
+  const h = await account(`reshoot-checks${t}@x.com`);
+  const sid = (await h("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;
+  await develop(h, sid, LOOKS.slice(0, 1));
+  holdBack(await settle(h, sid), 2);
+  const rid = (await h(`/api/shoots/${sid}/reshoot`, { method: "POST", body: "{}" })).j.shoot.id;
+  await h(`/api/shoots/${rid}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(20) }) });
+  const left = async () => (await h("/api/me")).j.user.plan.checksLeft;
+  const start = await left();
+  for (let i = 0; i < 3; i++) await h(`/api/shoots/${rid}/check`, { method: "POST", body: "{}" });
+  const afterFree = await left();
+  await h(`/api/shoots/${rid}/check`, { method: "POST", body: "{}" });
+  const afterFourth = await left();
+  ok("a reshoot's first 3 checks are free", afterFree === start, `${start} → ${afterFree}`);
+  ok("a 4th counts as usual", afterFourth === start - 1, `${afterFree} → ${afterFourth}`);
+  await h(`/api/shoots/${sid}`, { method: "DELETE" });
+  const orphan = (await h(`/api/shoots/${rid}`)).j.shoot;
+  ok("deleting the original makes its reshoot an ordinary shoot", !orphan.reshootOf && !orphan.reshootLooks);
+  const gen = await h(`/api/shoots/${rid}/generate`, { method: "POST", body: JSON.stringify({ looks: LOOKS.slice(0, 1) }) });
+  ok("which develops like any other (here: no shoots left, so it asks to buy)", gen.status === 402 && !/reshoot/i.test(gen.j?.error || ""), `${gen.status} ${gen.j?.error}`);
+}
+
 const failed = results.filter((x) => !x).length;
 console.log(`${results.length - failed}/${results.length} passed`);
 process.exit(failed ? 1 : 0);

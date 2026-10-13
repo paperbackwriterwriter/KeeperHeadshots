@@ -89,8 +89,21 @@ async function checked(f, n) {
   ok("a set scoring 70 comes back as a retake", c?.overall_score === 70 && c?.verdict === "retake", `${c?.overall_score} ${c?.verdict}`);
   const gen = await f(`/api/shoots/${sid}/generate`, { method: "POST", body: JSON.stringify({ looks: LOOKS }) });
   ok("it needs the person's go-ahead", gen.status === 400 && gen.j?.code === "retake_recommended", `${gen.status} ${gen.j?.code}`);
+  const before = (await f("/api/me")).j.user.plan.checksLeft;
   const go = await f(`/api/shoots/${sid}/generate`, { method: "POST", body: JSON.stringify({ looks: LOOKS, override: true }) });
   ok("and develops when they continue anyway", go.status === 202, `${go.status} ${go.j?.error || ""}`);
+  let after = before;
+  for (let i = 0; i < 20 && after === before; i++) { await new Promise((r) => setTimeout(r, 150)); after = (await f("/api/me")).j.user.plan.checksLeft; }
+  ok("going ahead counts the check that was given back", after === before - 1, `${before} → ${after}`);
+}
+
+// The background worker refuses a malformed signature instead of crashing.
+{
+  const { workerJob } = await import("../../lib/shoot-jobs.js");
+  process.env.SESSION_SECRET ||= "test-secret-test-secret-test-secret";
+  let threw = false, out;
+  try { out = workerJob({ sid: "sht_abcdefgh", jobId: "job_abcdefgh", exp: Date.now() + 60_000, sig: "é".repeat(43) }); } catch { threw = true; }
+  ok("a non-ASCII worker signature is refused, not a crash", !threw && out === null);
 }
 
 const failed = results.filter((x) => !x).length;

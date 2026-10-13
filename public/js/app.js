@@ -95,6 +95,8 @@ export function navigate(to, { replace = false, silent = false } = {}) {
   if (replace) clearTimeout(scrollSave);
   else saveScroll();
   history[replace ? "replaceState" : "pushState"]({}, "", to);
+  // Overlays tied to the page being left (e.g. the iPhone save sheet) close.
+  document.dispatchEvent(new CustomEvent("ahg:navigate"));
   if (!silent) render();
 }
 

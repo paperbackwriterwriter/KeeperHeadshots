@@ -59,6 +59,7 @@ export function openSearch(initial = "") {
   let timer = null;
   let ctrl = null;
   let seq = 0;
+  let shown = 0; // the request whose results are on screen
 
   const show = (q, results) => {
     const terms = [...new Set(fold(q).match(/[a-z0-9]+/g) || [])].filter((t) => t.length >= 2);
@@ -103,7 +104,7 @@ export function openSearch(initial = "") {
     const mine = ++seq;
     try {
       const { results } = await api(`/api/search?q=${encodeURIComponent(q)}`, { signal: ctrl.signal });
-      if (mine === seq) show(q, results || []);
+      if (mine === seq) show(q, results || []), (shown = mine);
     } catch (err) {
       if (err.name !== "AbortError" && mine === seq) status.textContent = err.message;
     }
@@ -111,14 +112,19 @@ export function openSearch(initial = "") {
 
   input.addEventListener("input", () => {
     clearTimeout(timer);
-    timer = setTimeout(run, 140);
+    timer = setTimeout(() => ((timer = null), run()), 140);
   });
   // Enter goes to the first result; arrows move between results.
-  dialog.querySelector("form").addEventListener("submit", (e) => {
-    const first = list.querySelector("a");
-    if (!first) return e.preventDefault();
+  // Enter: the first result for what's typed now (not a previous query's).
+  dialog.querySelector("form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    first.click();
+    // Results still on their way (or not yet asked for): fetch them first.
+    if (timer || seq !== shown) {
+      clearTimeout(timer);
+      timer = null;
+      await run();
+    }
+    list.querySelector("a")?.click();
   });
   dialog.addEventListener("keydown", (e) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
@@ -147,6 +153,7 @@ export function openSearch(initial = "") {
     dialog.close();
   });
   dialog.addEventListener("close", () => {
+    clearTimeout(timer);
     ctrl?.abort();
     dialog.remove();
     dialog = null;

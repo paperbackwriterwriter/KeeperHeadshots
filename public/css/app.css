@@ -1755,7 +1755,7 @@ dialog.search-dialog::backdrop { background: rgba(8, 12, 20, 0.55); }
 .search-type { font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-text); }
 .search-hit b { font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
 .search-snippet { font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.45; overflow-wrap: anywhere; }
-.search-hit mark { background: color-mix(in srgb, var(--accent, #b8893b) 28%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+.search-hit mark { background: color-mix(in srgb, var(--accent, #b8893b) 20%, transparent); color: var(--text); border-radius: 3px; padding: 0 1px; }
 .search-suggest { padding: 14px 18px 18px; }
 .search-suggest p { margin: 0 0 10px; }
 .search-chips { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -1781,3 +1781,6 @@ dialog.search-dialog::backdrop { background: rgba(8, 12, 20, 0.55); }
 .shot-list span { color: var(--text-muted); }
 .btn:has(> input:focus-visible) { box-shadow: var(--ring); }
 .retake-panel .continue-anyway { margin-top: 12px; }
+.retake-go { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.retake-go .small:empty { display: none; }
+#retakeBtn.is-busy { opacity: 0.7; pointer-events: none; }
