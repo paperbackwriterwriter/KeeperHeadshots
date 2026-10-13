@@ -26,10 +26,33 @@ export function initPixel({ afterRender } = {}) {
     script.src = "https://connect.facebook.net/en_US/fbevents.js";
     document.head.append(script);
   };
-  // Install the event queue immediately; fetch/evaluate the SDK after the
-  // first view has rendered and painted, preserving its queued events.
-  if (afterRender) afterRender.then(() => afterPaint(load));
+  // Install the event queue immediately. The SDK (fbevents.js) is large and
+  // runs long tasks on load, so it waits for the visitor's first interaction,
+  // or for the page to have loaded and stayed quiet a few seconds, whichever
+  // comes first. Queued events are sent once it loads; sign-ups, checkouts and
+  // purchases also reach Meta from the server (Conversions API, same event IDs).
+  if (afterRender) afterRender.then(() => afterPaint(() => whenActiveOrIdle(load)));
   else load();
+}
+
+export const PIXEL_IDLE_MS = 4000;
+const ACTIVITY = ["pointerdown", "keydown", "touchstart", "wheel", "scroll"];
+function whenActiveOrIdle(task) {
+  let done = false;
+  let timer = null;
+  const opts = { passive: true, capture: true };
+  const run = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    ACTIVITY.forEach((e) => window.removeEventListener(e, run, opts));
+    task();
+  };
+  ACTIVITY.forEach((e) => window.addEventListener(e, run, opts));
+  const idle = () => (window.requestIdleCallback ? requestIdleCallback(run, { timeout: 2000 }) : run());
+  const start = () => (timer = setTimeout(idle, PIXEL_IDLE_MS));
+  if (document.readyState === "complete") start();
+  else window.addEventListener("load", start, { once: true });
 }
 
 // The page an event happens on, sent with requests the server also reports to

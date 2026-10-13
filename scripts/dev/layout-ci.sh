@@ -40,5 +40,6 @@ BROWSER="$BROWSER" node scripts/dev/homepage-tests.js "$OUT/homepage" || status=
 BROWSER="$BROWSER" node scripts/dev/gateway-csp-tests.js "$OUT/gateway-csp" || status=$?
 BROWSER="$BROWSER" node scripts/dev/dashboard-history-tests.js "$OUT/dashboard-history" || status=$?
 BROWSER="$BROWSER" node scripts/dev/retake-flow-tests.js "$OUT/retake-flow" || status=$?
+BROWSER="$BROWSER" node scripts/dev/text-resize-tests.js "$OUT/text-resize" || status=$?
 if [ $status -ne 0 ]; then echo "== server log"; tail -40 "$WORK/server.log"; fi
 exit $status

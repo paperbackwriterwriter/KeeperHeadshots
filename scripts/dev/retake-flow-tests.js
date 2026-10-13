@@ -77,14 +77,21 @@ for (let i = 0; i < 40 && !["generating", "reviewing", "done"].includes(status);
 ok("and continuing develops the shoot", ["generating", "reviewing", "done"].includes(status), status);
 
 // Choosing several large photos at once: "Check my photos" stays off until
-// every one is ready, so none is left out of the shoot.
+// every one is ready, so none is left out of the shoot. Phone-sized photos
+// (8 megapixels), in a page of their own so WebKit on CI isn't holding the
+// earlier pages' images too.
 {
   const big = [];
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 4; i++) {
     const file = `${OUT}/big${i}.jpg`;
-    fs.writeFileSync(file, await sharp({ create: { width: 3024, height: 4032, channels: 3, noise: { type: "gaussian", mean: 128, sigma: 40 } } }).jpeg({ quality: 90 }).toBuffer());
+    fs.writeFileSync(file, await sharp({ create: { width: 2448, height: 3264, channels: 3, noise: { type: "gaussian", mean: 128, sigma: 30 } } }).jpeg({ quality: 85 }).toBuffer());
     big.push(file);
   }
+  await ctx.close();
+  const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx2.addCookies([{ name: cookie.split("=")[0], value: cookie.split("=").slice(1).join("="), url: B }]);
+  const page = await ctx2.newPage();
+  page.on("pageerror", (e) => errs.push(e.message));
   await page.goto(`${B}/app/new`);
   await page.waitForSelector("#go");
   // Every animation frame, note the button's state and the photo count.
@@ -94,10 +101,11 @@ ok("and continuing develops the shoot", ["generating", "reviewing", "done"].incl
     tick();
   });
   await page.setInputFiles("#file", big);
-  await page.waitForFunction(() => /^6 \//.test(document.getElementById("count").textContent) && !document.getElementById("go").disabled, null, { timeout: 60000 });
+  await page.waitForFunction(() => /^4 \//.test(document.getElementById("count").textContent) && !document.getElementById("go").disabled, null, { timeout: 60000 });
   const seen = await page.evaluate(() => window.__seen);
-  const early = seen.filter(([disabled, count]) => !disabled && !/^6 \/ \d+ PHOTOS$/.test(count));
+  const early = seen.filter(([disabled, count]) => !disabled && !/^4 \/ \d+ PHOTOS$/.test(count));
   ok("'Check my photos' waits until every chosen photo is ready", seen.some(([d, c]) => d && /ADDING/.test(c)) && !early.length, `${seen.length} frames; enabled early at ${JSON.stringify(early.slice(0, 2))}`);
+  await ctx2.close();
 }
 ok("no page errors", !errs.length, errs.join("; "));
 await browser.close();

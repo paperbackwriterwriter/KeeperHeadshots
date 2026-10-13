@@ -148,7 +148,7 @@ try {
     pass(`phone DPR ${scale}: appropriate responsive source`);
     await context.close();
   }
-  for (const mode of ["stalled-frames", "failed-session", "late-privacy"]) {
+  for (const mode of ["stalled-frames", "failed-session", "late-privacy", "deferred-sdk"]) {
     const context = await contextFor({ stalledFrames: mode !== "failed-session", failedSession: mode === "failed-session" });
     const page = await context.newPage();
     await page.goto(BASE + "/");
@@ -160,6 +160,17 @@ try {
       await page.waitForTimeout(2200);
       assert.deepEqual(requests, []);
       assert.equal(await page.evaluate(() => Boolean(window.__sdkReady)), false);
+    } else if (mode === "deferred-sdk") {
+      // The ad SDK waits for the first interaction (or a few quiet seconds),
+      // keeping its long tasks out of page load; its queued PageView survives.
+      const requests = [];
+      page.on("request", (r) => r.url().endsWith("/fbevents.js") && requests.push(Date.now()));
+      await page.waitForFunction(() => window.fbq, null, { polling: 50 });
+      await page.waitForTimeout(2500);
+      assert.deepEqual(requests, [], "no SDK before interaction or idle");
+      await page.evaluate(() => window.scrollBy(0, 300));
+      await page.waitForFunction(() => window.__sdkReady, null, { polling: 50, timeout: 3000 });
+      assert.equal(await page.evaluate(() => window.__metaCalls.filter((c) => c[0] === "track" && c[1] === "PageView").length), 1);
     } else if (mode === "stalled-frames") {
       await page.waitForFunction(() => window.__sdkReady, null, { polling: 50 });
       assert.equal(await page.evaluate(() => window.__metaCalls.filter((c) => c[0] === "track" && c[1] === "PageView").length), 1);

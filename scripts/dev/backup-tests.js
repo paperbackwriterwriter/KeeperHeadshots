@@ -51,16 +51,27 @@ ok("record JSON holds showcase metadata and funnel markers separately from binar
   ok("deleting a shoot removes its develop claim", !(await storage.getJSON("claims/develop/sht_2.json")) && !(await storage.getJSON("shoots/sht_2.json")));
 }
 
-// Only the newest KEEP_DAYS snapshots are kept.
-for (let i = 1; i <= KEEP_DAYS + 5; i++) await storage.putFile(`backups/2025-01-${String(i).padStart(2, "0")}.json.gz`, Buffer.from("old"), "application/gzip");
+// Snapshots are kept for KEEP_DAYS days by date (the privacy policy's
+// promise), not by count: one a day for KEEP_DAYS + 5 days back.
+const DAY = 86_400_000;
+const dayKey = (t) => `backups/${new Date(t).toISOString().slice(0, 10)}.json.gz`;
+for (let i = 1; i <= KEEP_DAYS + 5; i++) await storage.putFile(dayKey(Date.now() - i * DAY), Buffer.from("old"), "application/gzip");
 await runBackup();
-const left = (await storage.list("backups/")).filter((k) => k.endsWith(".json.gz"));
-ok(`keeps the newest ${KEEP_DAYS}`, left.length === KEEP_DAYS && left.includes(r.key), `${left.length} kept`);
+const snapshots = async () => (await storage.list("backups/")).filter((k) => /^backups\/\d{4}-\d{2}-\d{2}\.json\.gz$/.test(k));
+const left = await snapshots();
+const oldest = left.sort()[0];
+ok(`keeps ${KEEP_DAYS} days of snapshots, none older`, left.length === KEEP_DAYS && left.includes(r.key) && oldest > dayKey(Date.now() - KEEP_DAYS * DAY), `${left.length} kept, oldest ${oldest}`);
+// A gap of failed nights doesn't keep snapshots past their age either.
 for (let i = 1; i <= 3; i++) await storage.putFile(`backups/2024-12-${String(i).padStart(2, "0")}.json.gz`, Buffer.from("old"), "application/gzip");
-const short = await runBackup({ budgetMs: 0, now: Date.parse("2024-11-30T12:00:00Z") });
-const leftAfterShort = (await storage.list("backups/")).filter((k) => k.endsWith(".json.gz"));
-ok("an incomplete backup prunes nothing, so the last complete one stays", short.complete === false && short.pruned === 0 && leftAfterShort.length === KEEP_DAYS + 4, `complete=${short.complete} pruned=${short.pruned} left=${leftAfterShort.length}`);
-await storage.del(leftAfterShort.filter((k) => k.includes("2024-1")));
+const short = await runBackup({ budgetMs: 0 });
+ok("an incomplete night still expires snapshots past their age", short.complete === false && short.pruned === 3 && !(await snapshots()).some((k) => k.includes("2024-12")), `complete=${short.complete} pruned=${short.pruned}`);
+ok("and keeps the newest complete one", (await snapshots()).includes(r.key) && short.newestComplete === r.key.slice(8, 18), short.newestComplete);
+{
+  const { expireBackups, STALE_AFTER_DAYS } = await import("../../lib/backup.js");
+  const fresh = await expireBackups({ alertStale: true });
+  const later = await expireBackups({ now: Date.now() + (STALE_AFTER_DAYS + 1) * DAY, alertStale: true });
+  ok("a stale backup raises an alert; a fresh one doesn't", fresh.stale === false && later.stale === true, `${fresh.stale} ${later.stale}`);
+}
 
 // Restore: a deleted account comes back; an existing record isn't overwritten with --missing.
 await storage.del(["users/id/usr_a.json"]);

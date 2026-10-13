@@ -188,10 +188,31 @@ try {
     const records = {}; for (const key of await storage.list("shoots/")) records[key] = await storage.getJSON(key);
     const first = await backupPhotos({ records, now, deadline: Date.now() + 20 });
     const cursor = (await storage.getJSON("cron/photo-backup-state.json"))?.cursor;
-    interceptPut = null; assert.ok(!first.complete && cursor && writes);
+    interceptPut = null; assert.ok(!first.passComplete && cursor && writes);
     const second = await backupPhotos({ records, now, deadline: Date.now() + 10_000 });
     assert.equal(second.complete, true); assert.equal(await storage.getJSON("cron/photo-backup-state.json"), null);
     assert.ok(second.entries.some((e) => e.uid === g.uid));
+  });
+  await test("time-limited nights accumulate photo copies into a full recovery point with the newest records", async () => {
+    const h = await fixture("k");
+    await storage.putJSON(`users/id/${h.uid}.json`, { id: h.uid, email: "k@example.com", note: "v1" });
+    interceptPut = async (key) => { if (key.startsWith("photo-backups/")) await new Promise((r) => setTimeout(r, 15)); };
+    let last; const runs = [];
+    try {
+      for (let i = 0; i < 40; i++) {
+        await storage.putJSON(`users/id/${h.uid}.json`, { id: h.uid, email: "k@example.com", note: `v${i + 2}` });
+        last = await runBackup({ now, budgetMs: 60 }); runs.push(last);
+        if (last.photosPending === 0) break;
+      }
+    } finally { interceptPut = null; }
+    assert.ok(runs.length > 1 && runs.slice(0, -1).some((r) => r.photosPending > 0), "needed several short runs");
+    assert.equal(last.photosPending, 0);
+    assert.ok(runs.every((r) => r.successful), "every short night is a record recovery point");
+    const snap = await readBackup();
+    assert.equal(snap.key, last.key);
+    assert.equal(snap.records[`users/id/${h.uid}.json`].note, `v${runs.length + 1}`, "restore picks the newest records");
+    assert.equal(snap.photos.complete, true);
+    assert.ok(h.keys.every((k) => snap.photos.entries.some((e) => e.key === k)), "the manifest covers every photo");
   });
 } finally { Object.assign(target, originals); delete process.env.BACKUP_READ_WRITE_TOKEN; }
 await test("preview namespace keeps recovery copies and erasures apart from production", async () => {

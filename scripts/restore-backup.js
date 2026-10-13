@@ -32,7 +32,9 @@ if (!snap) {
   process.exit(1);
 }
 const keys = Object.keys(snap.records).filter((k) => !only.length || only.some((p) => k.startsWith(p)));
-console.log(`${snap.key}: taken ${snap.at}, ${snap.count} records${snap.complete && !snap.failed && !snap.photos?.failed ? "" : " (INCOMPLETE OR ERRORS)"}; ${keys.length} selected`);
+const recordsOk = snap.complete && !snap.failed && !snap.photos?.failed;
+const photoNote = snap.photos && (snap.photos.complete === false || snap.photos.failed) ? `; photo copies incomplete (${snap.photos.pending ?? "?"} without a copy, ${snap.photos.failed || 0} failed)` : "";
+console.log(`${snap.key}: taken ${snap.at}, ${snap.count} records${recordsOk ? "" : " (INCOMPLETE OR ERRORS)"}${photoNote}; ${keys.length} selected`);
 const byPrefix = {};
 for (const k of keys) byPrefix[k.split("/")[0]] = (byPrefix[k.split("/")[0]] || 0) + 1;
 console.log(byPrefix);

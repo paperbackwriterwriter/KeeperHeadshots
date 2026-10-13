@@ -265,9 +265,25 @@ function wireChrome() {
     const onScroll = () => nav.classList.toggle("is-scrolled", window.scrollY > 8);
     requestAnimationFrame(onScroll); // after layout, not forcing one mid-render
     window.addEventListener("scroll", onScroll, { passive: true });
+    // Collapse into the menu whenever the links don't fit on one line, whatever
+    // the width: text-only zoom enlarges text without reaching the CSS
+    // breakpoint. Measured again when the width or the text size changes.
+    const inner = nav.querySelector(".nav-inner");
+    let fitted = "";
+    const fit = () => {
+      const key = `${inner.clientWidth}|${getComputedStyle(inner).fontSize}`;
+      if (key === fitted) return;
+      fitted = key;
+      nav.classList.remove("nav-compact");
+      if (inner.scrollWidth > inner.clientWidth + 1) nav.classList.add("nav-compact");
+    };
+    const sizes = inner && typeof ResizeObserver === "function" ? new ResizeObserver(() => requestAnimationFrame(fit)) : null;
+    sizes?.observe(document.documentElement);
+    if (inner) requestAnimationFrame(fit);
     const prev = cleanup;
     cleanup = () => {
       window.removeEventListener("scroll", onScroll);
+      sizes?.disconnect();
       prev?.();
     };
   }

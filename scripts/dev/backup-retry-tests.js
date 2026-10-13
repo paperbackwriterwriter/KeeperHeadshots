@@ -96,6 +96,13 @@ try {
     assert.equal(await storage.getFile(old), null); assert.equal(remote.has(old), false);
     assert.equal(r.incompletePruned, 2);
   });
+  await test("dated snapshots past their age are removed from both stores", async () => {
+    const old = `backups/${new Date(now - 40 * 86_400_000).toISOString().slice(0, 10)}.json.gz`;
+    await storage.putFile(old, Buffer.from("old-primary")); remote.set(old, Buffer.from("old-remote"));
+    const r = await runBackup({ now });
+    assert.equal(await storage.getFile(old), null); assert.equal(remote.has(old), false);
+    assert.ok(r.pruned >= 2);
+  });
   await test("same-day complete copies are selected by capture time across stores", async () => {
     const base = { version: 2, count: 1, complete: true, failed: 0, records: {}, photos: { complete: true, failed: 0, entries: [] } };
     remote.set(first.key, zlib.gzipSync(JSON.stringify({ ...base, at: new Date(now - 1000).toISOString(), records: { "users/id/usr_retry.json": { id: "usr_retry", value: "remote-old" } } })));

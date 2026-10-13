@@ -158,7 +158,7 @@ export function renderLanding({ root, hydrate = false }) {
               const b = BACKDROPS.find((x) => x.id === s.backdrop);
               const o = OUTFITS.find((x) => x.id === s.outfit);
               return html`<li><figure class="strip-card print">
-                <img src="${example(s.id)}" alt="Example headshot: ${b.name} backdrop, ${o.name}" loading="lazy" decoding="async" width="224" height="280" />
+                <img src="${example(s.id)}" srcset="${frameSources(s.id)}" sizes="(max-width: 640px) 184px, 224px" alt="Example headshot: ${b.name} backdrop, ${o.name}" loading="lazy" decoding="async" width="224" height="280" />
                 <figcaption class="print-cap"><b>${b.name}</b><span>${o.name}</span></figcaption>
               </figure></li>`;
             })}
@@ -539,7 +539,7 @@ function reviewPreview() {
     </div>
     <div class="rv-grid">
       <div class="print" style="position:relative;padding:8px 8px 0">
-        <img src="${example(shots[0].seed)}" alt="Example best-pick headshot" loading="lazy" />
+        <img src="${example(shots[0].seed)}" srcset="${frameSources(shots[0].seed)}" sizes="(max-width: 640px) 224px, 280px" alt="Example best-pick headshot" loading="lazy" />
         <div class="print-cap"><b>Best pick</b><span>94 / 100</span></div>
       </div>
       <div style="display:grid;gap:14px">
@@ -552,7 +552,7 @@ function reviewPreview() {
     </div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px">
       ${shots.slice(1).map(
-        (s) => html`<div style="position:relative"><img src="${example(s.seed)}" alt="" loading="lazy" style="aspect-ratio:4/5;object-fit:cover;border-radius:4px;width:100%" />
+        (s) => html`<div style="position:relative"><img src="${example(s.seed)}" srcset="${frameSources(s.seed)}" sizes="(max-width: 640px) 30vw, 140px" alt="" loading="lazy" style="aspect-ratio:4/5;object-fit:cover;border-radius:4px;width:100%" />
         <span class="score-pill g-${s.g}" style="position:absolute;left:6px;bottom:6px;height:24px;font-size:11px"><i></i>${s.score}</span></div>`,
       )}
     </div>
