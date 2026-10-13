@@ -17,6 +17,7 @@ import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import * as google from "./lib/google.js";
 import { pageFor, blogPostPage, blogIndexPage, blogArticlePage, blogNotFoundPage, blogSitemap, isCanonicalHost } from "./lib/seo.js";
 import { blogIndex, blogPost, blogImage, syncBlog } from "./lib/blog.js";
+import { searchSite } from "./lib/search.js";
 import { isPreview, isKept, watermark } from "./lib/preview.js";
 import { reviewShoots, sendOffer } from "./lib/outreach.js";
 import { aiStatus, AIError } from "./lib/ai.js";
@@ -111,6 +112,15 @@ app.use("/api/shoots", (req, res, next) => {
     return json(body);
   };
   next();
+});
+// Site search: pages, FAQ answers, prices and blog articles (lib/search.js).
+// Public and the same for everyone, so the CDN keeps answers for a minute.
+app.get("/api/search", async (req, res) => {
+  const q = typeof req.query.q === "string" ? req.query.q.trim().slice(0, 80) : "";
+  const index = q.length >= 2 ? await blogIndex().catch(() => null) : null;
+  const results = q.length >= 2 ? searchSite(q, { posts: index?.posts }) : [];
+  res.set("Cache-Control", "public, max-age=60").set("Vercel-CDN-Cache-Control", "max-age=300, stale-while-revalidate=3600");
+  res.json({ q, results });
 });
 app.get("/api/version", (req, res) => res.set("Cache-Control", "no-store").json({ build: BUILD }));
 

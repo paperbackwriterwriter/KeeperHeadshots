@@ -28,6 +28,7 @@ const renderResume = lazy(() => import("./views/resume.js"), "renderResume");
 const renderMedical = lazy(() => import("./views/medical.js"), "renderMedical");
 const renderLegal = lazy(() => import("./views/legal-headshots.js"), "renderLegal");
 import { initPixel, pixel } from "./pixel.js";
+import { initSearch, searchButton } from "./search.js";
 
 const app = document.getElementById("app");
 let cleanup = null;
@@ -118,6 +119,7 @@ function marketingNav() {
           ? html`<a class="btn btn-ghost btn-sm hide-m" href="/app" data-link>Your shoots</a>`
           : html`<a class="btn btn-ghost btn-sm hide-m" href="/signin" data-link>Sign in</a>`}
         <a class="btn btn-flash btn-sm hide-m" href="${signedIn ? "/app/new" : "/signup"}" data-link>Get your headshots ${icon("arrow-right")}</a>
+        ${searchButton()}
         <button class="btn btn-ghost btn-icon nav-toggle" id="navToggle" aria-expanded="false" aria-controls="navSheet" aria-label="Open menu">${icon("menu")}</button>
       </div>
     </div>
@@ -537,6 +539,7 @@ loadSession()
   .finally(() => {
     // Not on a password reset link: nothing may see that URL's one-time token.
     const rendering = render();
+    initSearch();
     if (location.pathname !== "/reset") initPixel({ afterRender: rendering });
     rendering.then(() => afterPaint(loadAnalytics));
     if (googleReturn && state.user) {
