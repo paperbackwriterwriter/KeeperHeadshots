@@ -744,7 +744,16 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   const freeReshoot = !!reshootOriginal && (reshootOriginal.reshootChecks || 0) < RESHOOT_FREE_CHECKS;
   // (A seat the admin's refund left unpaid is the person's own check again.)
   const teamSeat = (!!meta.team && meta.paidWith === "team" && (await teams.seatPaid(meta).catch(() => false))) || freeReshoot;
-  if (plan.checksLeft === 0 && !teamSeat) throw new PlanError(limitMsg);
+  // Before the free shoot (no address for this mailbox has had it), checks
+  // past the free allowance come from a daily one instead, so nobody is left
+  // unable to see a result without buying.
+  const beforeShoot = async () => plan.tier === "trial" && !plan.needsEmail && !(await getJSON(freeClaimKey(req.user.email)).catch(() => null));
+  let extra = false;
+  if (plan.checksLeft === 0 && !teamSeat) {
+    if (!(await beforeShoot())) throw new PlanError(limitMsg);
+    extra = true;
+  }
+  const extraDayMsg = `That's ${FREE.checksPerDayBeforeShoot} photo checks today. You can check more photos tomorrow, or start your free shoot with photos that passed.`;
   // One check at a time per shoot: a double-click doesn't run (or count) twice.
   const startedAt = await beginCheck(meta.id);
   if (!startedAt) return res.status(409).json({ error: "A photo check is already running for this shoot." });
@@ -759,27 +768,36 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   let mailboxTotal = 0;
   const today = new Date().toISOString().slice(0, 10);
   const dayMsg = `That's ${DAILY_CHECKS} photo checks today. You can check more photos tomorrow.`;
+  let extraReserved = false;
   try {
-    if (perMailbox) {
+    if (perMailbox && !extra) {
       const total = await mailboxChecks.reserve(req.user.email, FREE.checks, req.user.usage?.checks || 0);
       if (total === null) {
         await users.update(req.user.id, (u) => (u.usage = { ...u.usage, checks: Math.max(u.usage?.checks || 0, FREE.checks) })).catch(() => {});
-        throw new PlanError(limitMsg);
+        // The last free check went to another request just now.
+        if (!(await beforeShoot())) throw new PlanError(limitMsg);
+        extra = true;
+      } else {
+        mailboxReserved = true;
+        mailboxTotal = total;
       }
-      mailboxReserved = true;
-      mailboxTotal = total;
+    }
+    if (extra) {
+      if (!(await mailboxChecks.reserveToday(req.user.email, FREE.checksPerDayBeforeShoot, today))) throw new PlanError(extraDayMsg, "daily_checks", 429);
+      extraReserved = true;
     }
     if (counted) {
       await users.update(req.user.id, (u) => {
-        if (!teamSeat && planFor(u).checksLeft === 0) throw new PlanError(limitMsg);
+        if (!teamSeat && !extra && planFor(u).checksLeft === 0) throw new PlanError(limitMsg);
         const day = u.usage?.checkDay?.date === today ? u.usage.checkDay.n : 0;
         if (day >= DAILY_CHECKS) throw new PlanError(dayMsg, "daily_checks", 429);
         // Shows what's left for the whole mailbox, not just this address.
-        u.usage = { ...u.usage, ...(teamSeat ? {} : { checks: Math.max((u.usage?.checks || 0) + 1, mailboxTotal) }), checkDay: { date: today, n: day + 1 } };
+        u.usage = { ...u.usage, ...(teamSeat || extra ? {} : { checks: Math.max((u.usage?.checks || 0) + 1, mailboxTotal) }), checkDay: { date: today, n: day + 1 } };
       });
     }
   } catch (err) {
     if (mailboxReserved) await mailboxChecks.release(req.user.email);
+    if (extraReserved) await mailboxChecks.releaseToday(req.user.email, today);
     await shoots.updateMeta(meta.id, (m) => (m.status === "checking" && m.checkStartedAt === startedAt ? void Object.assign(m, { status: statusWithoutCheck(m) }) : false)).catch(() => {});
     throw err;
   }
@@ -792,17 +810,20 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
     const checked = await shoots.getMeta(meta.id).catch(() => null);
     if (checked?.check?.verdict === "retake" && checked.checkStartedAt === startedAt) {
       if (mailboxReserved) await mailboxChecks.release(req.user.email);
-      if (counted && !teamSeat) await users.update(req.user.id, (u) => void (u.usage = { ...u.usage, checks: Math.max(0, (u.usage?.checks || 0) - 1) })).catch(() => {});
+      // (A check past the free allowance, before the free shoot, still counts
+      // toward that day's allowance: it's the cap on these.)
+      if (counted && !teamSeat && !extra) await users.update(req.user.id, (u) => void (u.usage = { ...u.usage, checks: Math.max(0, (u.usage?.checks || 0) - 1) })).catch(() => {});
       // Going ahead with these photos anyway (generate) counts it after all.
       if (mailboxReserved) await shoots.updateMeta(meta.id, (m) => (m.check && m.checkStartedAt === startedAt ? void (m.check.refunded = true) : false)).catch(() => {});
     }
   } catch (err) {
     if (mailboxReserved) await mailboxChecks.release(req.user.email);
+    if (extraReserved) await mailboxChecks.releaseToday(req.user.email, today);
     if (counted)
       await users
         .update(req.user.id, (u) => {
           const d = u.usage?.checkDay;
-          u.usage = { ...u.usage, ...(teamSeat ? {} : { checks: Math.max(0, (u.usage?.checks || 0) - 1) }), ...(d?.date === today ? { checkDay: { date: today, n: Math.max(0, d.n - 1) } } : {}) };
+          u.usage = { ...u.usage, ...(teamSeat || extra ? {} : { checks: Math.max(0, (u.usage?.checks || 0) - 1) }), ...(d?.date === today ? { checkDay: { date: today, n: Math.max(0, d.n - 1) } } : {}) };
         })
         .catch(() => {});
     throw err;

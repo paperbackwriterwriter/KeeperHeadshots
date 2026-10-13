@@ -72,10 +72,23 @@ ok("trailing slash still redirects on-site", slash.status === 301 && slash.heade
 // 7. Signup name with a link rejected.
 const n = await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Win http://evil.com", email: `n${Date.now()}@x.com`, password: "password123" }) });
 ok("signup name with URL rejected", n.status === 400, String(n.status));
-// 8. Parallel checks can't exceed the free allowance (6).
+// 8. Parallel checks can't exceed the free allowance (6), once the free shoot
+// is used (before it, see the daily allowance below).
 const d = await account(`checks${Date.now()}@x.com`);
 const s4 = await checkedShoot(d); // 1 used
-const outs = await Promise.all(Array.from({ length: 8 }, () => d(`/api/shoots/${s4}/check`, { method: "POST" })));
-const used = 1 + outs.filter((o) => o.status === 200).length;
+const s5 = await checkedShoot(d); // 2 used (made first: afterwards there are no shoots left to start)
+await d(`/api/shoots/${s4}/generate`, { method: "POST", body: looks });
+const outs = await Promise.all(Array.from({ length: 8 }, () => d(`/api/shoots/${s5}/check`, { method: "POST" })));
+const used = 2 + outs.filter((o) => o.status === 200).length;
 ok("parallel photo checks capped at 6", used <= 6, `used ${used}`);
+// 9. Before the free shoot, parallel checks past the 6 can't exceed the daily
+// allowance (10) either, across the last free check and the daily ones.
+{
+  const e = await account(`checks-day${Date.now()}@x.com`);
+  const s = await checkedShoot(e); // 1 used
+  for (let i = 0; i < 4; i++) await e(`/api/shoots/${s}/check`, { method: "POST" }); // 5 used
+  const runs = await Promise.all(Array.from({ length: 16 }, () => e(`/api/shoots/${s}/check`, { method: "POST" })));
+  const passed = runs.filter((o) => o.status === 200).length;
+  ok("parallel checks before the free shoot: at most 1 free + 10 that day", passed <= 11, `passed ${passed}`);
+}
 console.log(`\n${results.filter((r) => r[1]).length}/${results.length} passed`);

@@ -411,7 +411,9 @@ let final;
     last = await member(`/api/shoots/${own}/check`, { method: "POST", body: "{}" });
     await settled(own);
   }
-  ok("her own seventh check is refused", last.status === 402 && (await checksLeft()) === 0, `${last.status} ${JSON.stringify(last.j)}`);
+  // Her own free shoot isn't used yet, so a seventh comes from the daily
+  // allowance before the free shoot (check-gate-tests.js), not her free checks.
+  ok("her own seventh check comes from the daily allowance, not her free checks", last.status === 200 && (await checksLeft()) === 0, `${last.status} ${JSON.stringify(last.j?.error)}`);
   const again = await member(`/api/shoots/${seat}/check`, { method: "POST", body: "{}" });
   await settled(seat);
   ok("the paid team seat can still be checked", [200, 202].includes(again.status), `${again.status} ${JSON.stringify(again.j)}`);

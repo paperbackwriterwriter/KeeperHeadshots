@@ -129,8 +129,11 @@ if (process.env.QA_ADMIN_TOKEN) {
   await a(`/api/shoots/${j.shoot.id}/selfies`, { method: "POST", body: JSON.stringify({ photo }) });
   for (let i = 0; i < 4; i++) await a(`/api/shoots/${j.shoot.id}/check`, { method: "POST" });
   const b = await account(`${base}+second@gmail.com`);
-  const left = (await b("/api/me")).j.user.plan.checksLeft;
   const s2 = (await b("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;
+  // (With the mailbox's free shoot used: before it, more checks come from a
+  // daily allowance; see check-gate-tests.js.)
+  await a(`/api/shoots/${j.shoot.id}/generate`, { method: "POST", body: JSON.stringify({ looks: [{ backdrop: "studio-gray", outfit: "navy-suit" }] }) });
+  const left = (await b("/api/me")).j.user.plan.checksLeft;
   await b(`/api/shoots/${s2}/selfies`, { method: "POST", body: JSON.stringify({ photo }) });
   const runs = [];
   for (let i = 0; i < 3; i++) runs.push((await b(`/api/shoots/${s2}/check`, { method: "POST" })).status);

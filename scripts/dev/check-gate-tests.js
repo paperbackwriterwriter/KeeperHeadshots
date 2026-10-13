@@ -106,6 +106,43 @@ async function checked(f, n) {
   ok("a non-ASCII worker signature is refused, not a crash", !threw && out === null);
 }
 
+// Before the free shoot, using up the free checks doesn't leave anyone stuck:
+// more checks come from a daily allowance per mailbox (FREE.checksPerDayBeforeShoot),
+// until the free shoot is used.
+{
+  const { FREE } = await import("../../lib/plan.js");
+  const t = Date.now();
+  const base = `before-shoot${t}`;
+  const f = client();
+  const email = `${base}@gmail.com`;
+  await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Lisa Check", email, password: "password123" }) });
+  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email) }) });
+  const sid = (await f("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;
+  await f(`/api/shoots/${sid}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(90) }) });
+  const statuses = [];
+  for (let i = 0; i < FREE.checks + FREE.checksPerDayBeforeShoot + 1; i++) statuses.push((await f(`/api/shoots/${sid}/check`, { method: "POST", body: "{}" })).status);
+  const last = await f(`/api/shoots/${sid}/check`, { method: "POST", body: "{}" });
+  const free = statuses.slice(0, FREE.checks), extra = statuses.slice(FREE.checks, FREE.checks + FREE.checksPerDayBeforeShoot);
+  ok(`after the ${FREE.checks} free checks, the free shoot not yet used: ${FREE.checksPerDayBeforeShoot} more today`, free.every((x) => x === 200) && extra.every((x) => x === 200), statuses.join(","));
+  ok("then a daily limit, with a way forward", statuses.at(-1) === 429 && last.status === 429 && /tomorrow/.test(last.j?.error || "") && /free shoot/.test(last.j?.error || ""), `${statuses.at(-1)} ${last.j?.error}`);
+  ok("the free allowance itself isn't overdrawn", (await f("/api/me")).j.user.plan.checksLeft === 0);
+  const alias = client();
+  const aliasEmail = `${base}+alias@gmail.com`;
+  await alias("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Lisa Alias", email: aliasEmail, password: "password123" }) });
+  await alias("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(aliasEmail) }) });
+  const asid = (await alias("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;
+  await alias(`/api/shoots/${asid}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(91) }) });
+  const shared = await alias(`/api/shoots/${asid}/check`, { method: "POST", body: "{}" });
+  ok("the daily allowance is shared by every address for the mailbox", shared.status === 429, `${shared.status}`);
+  // Once the free shoot is used, the free allowance is the limit again.
+  // (A second draft first: with no shoots left, a new one can't be started.)
+  const sid2 = (await f("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;
+  await f(`/api/shoots/${sid2}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(92) }) });
+  const dev = await f(`/api/shoots/${sid}/generate`, { method: "POST", body: JSON.stringify({ looks: LOOKS }) });
+  const after = await f(`/api/shoots/${sid2}/check`, { method: "POST", body: "{}" });
+  ok("once the free shoot is used, the free checks are the limit again", dev.status === 202 && after.status === 402 && /Buy a package/.test(after.j?.error || ""), `${dev.status} ${after.status} ${after.j?.error}`);
+}
+
 const failed = results.filter((x) => !x).length;
 console.log(`${results.length - failed}/${results.length} passed`);
 process.exit(failed ? 1 : 0);
