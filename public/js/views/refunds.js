@@ -1,9 +1,10 @@
 import { html, icon } from "../core.js";
 import { footer } from "./landing.js";
 import { CONTACT_EMAIL } from "./contact.js";
+import { PREVIEW_OFFERS } from "../shared/catalog.js";
 
 // The written terms behind the "money-back guarantee" shown on the site.
-export const POLICY_UPDATED = "October 10, 2026";
+export const POLICY_UPDATED = "October 13, 2026";
 
 export function renderRefunds({ root }) {
   root.innerHTML = html`
@@ -25,6 +26,7 @@ export function renderRefunds({ root }) {
         <li>If none of the headshots from the <b>first paid shoot</b> in your package are ones you'd use professionally, we refund the <b>full package price</b>, less any shoots you developed after it and kept. A later shoot that also had nothing usable is refunded too.</li>
         <li>For example, you buy Professional (6 shoots for $39, so $6.50 a shoot). Your first shoot has nothing you'd use, so you develop a second one and keep those headshots. We refund $32.50. If the second shoot had nothing usable either, we refund the full $39.</li>
         <li>Your free first shoot costs nothing, so there's nothing to refund.</li>
+        <li>The offers to keep your free preview (${PREVIEW_OFFERS.map((o) => `${o.name}, $${o.price}`).join("; ")}) aren't covered: you see those headshots before you buy them.</li>
       </ul>
 
       <h2 class="h-3">How to ask for a refund</h2>

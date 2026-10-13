@@ -104,10 +104,13 @@ ok("the original records it", (await f(`/api/shoots/${first}`)).j.shoot.reshootI
   for (let i = 0; i < 2; i++) await f(`/api/shoots/${rid}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(10 + i) }) });
   const check = await f(`/api/shoots/${rid}/check`, { method: "POST", body: "{}" });
   ok("the photo check runs", check.status === 200, `${check.status} ${check.j?.error || ""}`);
-  const tooMany = await f(`/api/shoots/${rid}/generate`, { method: "POST", body: JSON.stringify({ looks: [...LOOKS, { backdrop: "studio-gray", outfit: "charcoal-blazer" }] }) });
-  ok("more looks than the original's are refused", tooMany.status === 400 && tooMany.j.code === "too_many_looks", `${tooMany.status} ${tooMany.j?.code}`);
-  const gen = await f(`/api/shoots/${rid}/generate`, { method: "POST", body: JSON.stringify({ looks: LOOKS }) });
+  // Other looks are asked for (more of them, and different ones): the reshoot
+  // develops the original's looks regardless.
+  const other = [{ backdrop: "studio-gray", outfit: "charcoal-blazer" }, { backdrop: "studio-white", outfit: "navy-suit" }, { backdrop: "studio-white", outfit: "white-shirt" }];
+  const gen = await f(`/api/shoots/${rid}/generate`, { method: "POST", body: JSON.stringify({ looks: other }) });
   ok("the reshoot develops", gen.status === 202, `${gen.status} ${gen.j?.error || ""}`);
+  const same = (a, b) => JSON.stringify(a.map((l) => [l.backdrop, l.outfit]).sort()) === JSON.stringify(b.map((l) => [l.backdrop, l.outfit]).sort());
+  ok("with the original's looks, not the ones asked for", same(gen.j?.shoot?.looks || [], LOOKS) && (gen.j?.shoot?.shots || []).every((t) => LOOKS.some((l) => l.backdrop === t.backdrop && l.outfit === t.outfit)), JSON.stringify(gen.j?.shoot?.looks));
   const after = JSON.parse(fs.readFileSync(userFile(me.id), "utf8"));
   ok("nothing was charged: credits, free shoot and photo checks unchanged", (after.credits || 0) === (before.credits || 0) && after.usage?.freeShootUsed === before.usage?.freeShootUsed && (after.usage?.checks || 0) === (before.usage?.checks || 0), JSON.stringify({ before: before.usage, after: after.usage }));
   const s = await settle(f, rid);

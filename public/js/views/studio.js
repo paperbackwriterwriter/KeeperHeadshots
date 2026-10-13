@@ -555,13 +555,33 @@ export async function renderStudio(ctx, id) {
   // A team shoot uses the team's looks (set by the team admin) and is already
   // paid for: confirm and develop.
   function paintTeamLooks(s) {
-    const focused = focusedId();
     const looks = s.team.looks;
+    paintSetLooks(s, looks, {
+      eyebrow: html`${icon("users")} ${s.team.name}`,
+      title: "Your team's look.",
+      lede: `${s.team.ownerName} chose ${looks.length === 1 ? "this look" : "these looks"} for everyone on the team, so your headshots match. ${looks.length * TAKES_PER_LOOK} headshots, already paid for.`,
+    });
+  }
+
+  // A free reshoot develops the original shoot's looks again, from new selfies.
+  function paintReshootLooks(s) {
+    const looks = s.looks;
+    paintSetLooks(s, looks, {
+      eyebrow: html`${icon("camera")} Free reshoot`,
+      title: looks.length === 1 ? "Your look, reshot." : "Your looks, reshot.",
+      lede: `The same ${looks.length === 1 ? "look" : `${looks.length} looks`} as your first shoot, from your new selfies: ${looks.length * TAKES_PER_LOOK} headshots. Nothing is charged.`,
+    });
+  }
+
+  // Looks already chosen (by the team admin, or by the original shoot): shown,
+  // not edited.
+  function paintSetLooks(s, looks, { eyebrow, title, lede }) {
+    const focused = focusedId();
     const preview = (l) => portraitDataURL("look-" + l.backdrop + l.outfit, { backdrop: l.backdrop, outfit: l.outfit, skin: 2, hair: "short", hairTone: 1 });
     root.innerHTML = html`<main id="main" class="container app-main view-enter looks-page">
       ${stepper(2)}
-      <div class="page-head"><div><p class="eyebrow">${icon("users")} ${s.team.name}</p><h1 class="display h-1" style="margin-top:8px">Your team's look.</h1>
-      <p class="lede" style="margin-top:12px">${s.team.ownerName} chose ${looks.length === 1 ? "this look" : "these looks"} for everyone on the team, so your headshots match. ${looks.length * TAKES_PER_LOOK} headshots, already paid for.</p></div></div>
+      <div class="page-head"><div><p class="eyebrow">${eyebrow}</p><h1 class="display h-1" style="margin-top:8px">${title}</h1>
+      <p class="lede" style="margin-top:12px">${lede}</p></div></div>
       <ol class="look-cards">${looks.map((l, i) => {
         const x = lookFor(l.backdrop, l.outfit);
         return html`<li class="look-card is-set"><img src="${preview(l)}" alt="" /><span class="look-text"><b>Look ${i + 1}</b><span>${x ? `${x.backdrop.name} · ${x.outfit.name}` : ""}</span></span></li>`;
@@ -595,6 +615,7 @@ export async function renderStudio(ctx, id) {
   // added to it), rather than the looks for a new one.
   function paintLooks(s, extra = 0) {
     if (s.team && !extra) return paintTeamLooks(s);
+    if (s.reshootOf && !extra && s.looks?.length) return paintReshootLooks(s);
     const focused = focusedId();
     const reshoot = !extra && !!s.reshootOf;
     const plan = extra || reshoot ? null : state.user?.plan;

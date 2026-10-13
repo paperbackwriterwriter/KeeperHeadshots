@@ -823,8 +823,10 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
   if (LIVE.includes(meta.status)) return res.status(409).json({ error: "This shoot is already in progress." });
   // A shoot is developed once; retries of failed frames go through /resume.
   if (meta.status !== "checked" || (meta.shots || []).length) return res.status(409).json({ error: "This shoot has already been developed. Start a new shoot for new looks." });
-  // A team shoot always uses the team's looks, whatever is sent.
-  const asked = meta.team ? meta.team.looks : req.body?.looks;
+  // A team shoot always uses the team's looks, whatever is sent, and a free
+  // reshoot the original shoot's looks (copied onto it when it was made).
+  const reshootFrom = meta.reshootOf && !meta.team ? await reshootGrant(meta, req.user.id) : null;
+  const asked = meta.team ? meta.team.looks : reshootFrom ? meta.looks : req.body?.looks;
   const looks = (Array.isArray(asked) ? asked : []).map((l) => (l && typeof l === "object" ? lookFor(String(l.backdrop), String(l.outfit)) : null)).filter(Boolean);
   const unique = [...new Map(looks.map((l) => [l.id, l])).values()];
   if (!unique.length) return res.status(400).json({ error: "Pick at least one look." });
