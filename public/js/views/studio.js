@@ -2,7 +2,7 @@
 //   (new) upload -> draft/checking -> checked (photo check + looks) -> generating/reviewing -> done (proofs)
 
 import { $, $$, html, raw, icon, api, state, toast, media, squareMedia, sizeMedia, PROFILE_KIT, busy, spinner, greaseCircle, silhouette, esc, reduceMotion, loadSession } from "../core.js";
-import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, MAX_RESUMES, MIN_CHECK_SCORE, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, PREVIEW_OFFERS, lookFor } from "../shared/catalog.js";
+import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, MAX_RESUMES, MIN_CHECK_SCORE, RECOMMENDED_CHECK_SCORE, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, PREVIEW_OFFERS, lookFor } from "../shared/catalog.js";
 import { portraitDataURL } from "../shared/portrait.js";
 import { aiBanner, planBanner, confirmPurchase } from "./dashboard.js";
 import { currentFormat, formatPicker, formatHrefs, formatName, saveFormat, downloadAll, guardDownloadLinks } from "./format.js";
@@ -191,7 +191,21 @@ export async function renderStudio(ctx, id) {
     $("#runCheck")?.addEventListener("click", runCheck);
     $("#recheck")?.addEventListener("click", runCheck);
     wireAddPhotos();
+    // "Add new selfies" on a retake opens the phone's own picker (take a photo
+    // or choose from the library); the new photos replace the ones marked Replace.
+    $("#retakeFile")?.addEventListener("change", (e) => {
+      const files = [...e.target.files];
+      e.target.value = "";
+      if (files.length) replacePhotos(files);
+    });
     $$("[data-remove-selfie]").forEach((b) => b.addEventListener("click", () => removeSelfie(b.dataset.removeSelfie, b)));
+    // A retake above the minimum: the person may go ahead with these selfies.
+    $("#continueAnyway")?.addEventListener("click", () => {
+      view = "looks";
+      shoot._override = true;
+      paintLooks(shoot);
+      window.scrollTo({ top: 0, behavior: reduceMotion() ? "instant" : "smooth" });
+    });
     $("#toLooks")?.addEventListener("click", () => {
       view = "looks";
       paintLooks(shoot);
@@ -258,7 +272,34 @@ export async function renderStudio(ctx, id) {
     dz.addEventListener("drop", (e) => addPhotos([...e.dataTransfer.files]));
   }
 
-  async function addPhotos(files) {
+  // The photos a retake marks "Replace" (as checkResult shows them).
+  const flaggedFiles = (s) => (s.check?.photos || []).filter((p) => !p.keep || p.score < RECOMMENDED_CHECK_SCORE).map((p) => s.selfies[p.index]?.file).filter(Boolean);
+
+  // New selfies for a retake: the flagged photos make way for them (before
+  // uploading when the set is full, after it otherwise, so a shoot always
+  // keeps at least one photo), then the set is re-checked.
+  async function replacePhotos(files) {
+    const list = files.filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name)).slice(0, MAX_SELFIES);
+    if (!list.length) return toast("Those files aren't photos. Try JPG, PNG or WebP.", "error");
+    const flagged = flaggedFiles(shoot);
+    const drop = async (file) => {
+      try {
+        shoot = (await api(`/api/shoots/${id}/selfies/${encodeURIComponent(file.split("/").pop())}`, { method: "DELETE", signal })).shoot;
+      } catch {}
+    };
+    const btn = $("#retakeBtn");
+    btn?.classList.add("is-busy");
+    while (flagged.length && list.length > MAX_SELFIES - shoot.selfies.length && shoot.selfies.length > 1) await drop(flagged.shift());
+    const added = await addPhotos(list, { recheck: false });
+    btn?.classList.remove("is-busy");
+    if (disposed || !added) return;
+    for (const f of flagged) if (shoot.selfies.length > 1 && shoot.selfies.some((x) => x.file === f)) await drop(f);
+    if (disposed) return;
+    if (state.ai.vision) runCheck();
+    else paintCheck(shoot);
+  }
+
+  async function addPhotos(files, { recheck = true } = {}) {
     const list = files.filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name));
     if (!list.length) return toast("Those files aren't photos. Try JPG, PNG or WebP.", "error");
     const room = MAX_SELFIES - shoot.selfies.length;
@@ -279,16 +320,17 @@ export async function renderStudio(ctx, id) {
     }
     dz?.classList.remove("busy");
     if (disposed) return;
-    if (!added) return refresh();
+    if (!added) return refresh(), 0;
     let data;
     try {
       data = await api(`/api/shoots/${id}`, { signal });
     } catch {
-      return refresh();
+      return refresh(), 0;
     }
-    if (disposed) return;
+    if (disposed) return 0;
     shoot = data.shoot;
     toast(`Added ${added} photo${added === 1 ? "" : "s"}. Re-checking your set…`, "success");
+    if (!recheck) return added;
     if (state.ai.vision) runCheck();
     else paintCheck(shoot);
   }
@@ -370,11 +412,16 @@ export async function renderStudio(ctx, id) {
   // Directions for new selfies when the check asks for a retake: what was
   // wrong with these, then how to take a set that will pass.
   function retakePanel(s, c) {
+    const blocked = c.overall_score < MIN_CHECK_SCORE;
     const direction = (c.retake_direction?.length ? c.retake_direction : c.tips) || [];
     return html`<section class="panel retake-panel" id="retakePanel" aria-labelledby="retakeTitle">
-      <p class="eyebrow">${icon("camera")} Retake your selfies to continue</p>
-      <h2 class="display h-3" id="retakeTitle">Your set scored ${c.overall_score}. A shoot needs ${MIN_CHECK_SCORE} or more.</h2>
-      <p class="muted">Weaker reference photos produce headshots that don't look like you, so we won't start a shoot on them. A few new selfies, taken like this, usually fix it in minutes.</p>
+      <p class="eyebrow">${icon("camera")} ${blocked ? "Retake your selfies to continue" : "New selfies recommended"}</p>
+      ${blocked
+        ? html`<h2 class="display h-3" id="retakeTitle">Your set scored ${c.overall_score}. A shoot needs ${MIN_CHECK_SCORE} or more.</h2>
+          <p class="muted">Below ${MIN_CHECK_SCORE}, headshots won't look enough like you, so we can't start a shoot on these. A few new selfies, taken like this, usually fix it in minutes.</p>`
+        : html`<h2 class="display h-3" id="retakeTitle">Your set scored ${c.overall_score}. A shoot needs ${RECOMMENDED_CHECK_SCORE} or more.</h2>
+          <p class="muted">Selfies scoring under ${RECOMMENDED_CHECK_SCORE} often make headshots that don't quite look like you. A few new selfies, taken like this, usually fix it in minutes, or you can go ahead with the ones you have.</p>
+          <button class="btn btn-ghost btn-sm continue-anyway" type="button" id="continueAnyway">Continue with these selfies anyway</button>`}
       ${direction.length ? html`<h3 class="h-4">What to change</h3><ol class="retake-steps">${direction.map((d) => html`<li>${d}</li>`)}</ol>` : ""}
       <h3 class="h-4">Set up</h3>
       <ul class="retake-setup">
@@ -385,14 +432,14 @@ export async function renderStudio(ctx, id) {
       </ul>
       <h3 class="h-4">Take these ${SHOT_LIST.length}</h3>
       <ol class="shot-list">${SHOT_LIST.map(([t, d]) => html`<li><b>${t}</b><span>${d}</span></li>`)}</ol>
-      <p class="small muted">Then remove the photos marked <b>Replace</b>, add your new ones below and re-check. Re-checks after a retake don't use up a free check.</p>
+      <p class="small muted">Then tap <b>Add new selfies</b> to take them or choose them from your photos. They replace the photos marked <b>Replace</b>, and the set is re-checked straight away. Re-checks after a retake don't use up a free check.</p>
     </section>`;
   }
 
   function checkResult(s) {
     const c = s.check;
     // Checks from before the minimum score are held to it too (as the server does).
-    if (c.verdict !== "retake" && c.overall_score < MIN_CHECK_SCORE) c.verdict = "retake";
+    if (c.verdict !== "retake" && c.overall_score < RECOMMENDED_CHECK_SCORE) c.verdict = "retake";
     const retake = c.verdict === "retake";
     const verdict = { ready: ["Ready to shoot", "badge-success"], usable: ["Usable", "badge-warn"], retake: ["Retake needed", "badge-danger"] }[c.verdict];
     const kept = c.photos.filter((p) => p.keep).length;
@@ -405,7 +452,7 @@ export async function renderStudio(ctx, id) {
           <span class="badge ${verdict[1]}">${icon(c.verdict === "retake" ? "circle-alert" : "check")} ${verdict[0]}</span>
           <h1 class="display h-2" style="margin:14px 0 10px">${c.headline}</h1>
           <p class="muted" style="max-width:62ch">${c.summary}</p>
-          <p class="mono" style="margin-top:14px;color:#a9b1bd">${retake ? `NEW SELFIES NEEDED · ${MIN_CHECK_SCORE}+ TO START YOUR SHOOT` : `${kept} OF ${s.selfies.length} PHOTOS WILL BE USED AS REFERENCES`}</p>
+          <p class="mono" style="margin-top:14px;color:#a9b1bd">${retake ? (c.overall_score < MIN_CHECK_SCORE ? `NEW SELFIES NEEDED · ${MIN_CHECK_SCORE}+ TO START YOUR SHOOT` : `NEW SELFIES RECOMMENDED · ${RECOMMENDED_CHECK_SCORE}+ FOR YOUR BEST LIKENESS`) : `${kept} OF ${s.selfies.length} PHOTOS WILL BE USED AS REFERENCES`}</p>
         </div>
       </section>
 
@@ -416,7 +463,7 @@ export async function renderStudio(ctx, id) {
           return html`<article class="pcheck ${p.keep ? "" : "skip"}" style="--i:${i}">
             <div class="pcheck-img"><img src="${media(selfie.file)}" alt="Your photo ${p.index + 1}" /></div>
             <div class="pcheck-body">
-              <div class="pcheck-top"><span class="pcheck-score tabular">${p.score}</span><span style="display:flex;gap:6px;align-items:center">${retake && (!p.keep || p.score < MIN_CHECK_SCORE) ? html`<span class="badge badge-danger">${icon("refresh-cw")} Replace</span>` : p.keep ? html`<span class="badge badge-success">${icon("check")} Using</span>` : html`<span class="badge badge-danger">${icon("x")} Skipped</span>`}${s.selfies.length > 1 ? html`<button class="rm-inline" data-remove-selfie="${selfie.file}" aria-label="Remove photo ${p.index + 1}" title="Remove photo">${icon("trash-2")}</button>` : ""}</span></div>
+              <div class="pcheck-top"><span class="pcheck-score tabular">${p.score}</span><span style="display:flex;gap:6px;align-items:center">${retake && (!p.keep || p.score < RECOMMENDED_CHECK_SCORE) ? html`<span class="badge badge-danger">${icon("refresh-cw")} Replace</span>` : p.keep ? html`<span class="badge badge-success">${icon("check")} Using</span>` : html`<span class="badge badge-danger">${icon("x")} Skipped</span>`}${s.selfies.length > 1 ? html`<button class="rm-inline" data-remove-selfie="${selfie.file}" aria-label="Remove photo ${p.index + 1}" title="Remove photo">${icon("trash-2")}</button>` : ""}</span></div>
               <div class="meters">
                 ${[["Lighting", p.lighting], ["Sharpness", p.sharpness], ["Visibility", p.face_visibility], ["Expression", p.expression]].map(
                   ([k, v]) => html`<div class="meter" style="--i:${i}"><span>${k}</span><div class="meter-track"><div class="meter-fill" style="--v:${v};--mcol:${meterColor(v)}"></div></div><b>${v}</b></div>`,
@@ -430,12 +477,12 @@ export async function renderStudio(ctx, id) {
       </div>
 
       ${retake ? retakePanel(s, c) : ""}
-      <div style="margin-top:24px">${addPhotosPanel(s, retake ? [] : c.tips || [])}</div>
+      ${retake ? "" : html`<div style="margin-top:24px">${addPhotosPanel(s, c.tips || [])}</div>`}
 
       <div class="actions-bar">
         <div class="btn-pair" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" id="delete">${icon("trash-2")} Delete</button><button class="btn btn-ghost btn-sm" id="recheck">${icon("refresh-cw")} Re-check photos</button></div>
         ${c.verdict === "retake"
-          ? html`<a class="btn btn-flash" href="#addMore">${icon("camera")} Add new selfies</a>`
+          ? html`<label class="btn btn-flash" id="retakeBtn">${icon("camera")} Add new selfies<input type="file" id="retakeFile" accept="image/*" multiple class="sr-only" /></label>`
           : html`<button class="btn btn-flash btn-lg" id="toLooks">${s.team ? "Continue" : "Choose your looks"} ${icon("arrow-right")}</button>`}
       </div>
       <p class="disclaimer" style="margin-top:16px">${icon("info")} Scores are AI estimates of how well each photo will work as a reference — not a judgment of how you look.</p>`;
@@ -480,7 +527,7 @@ export async function renderStudio(ctx, id) {
     $("#develop").addEventListener("click", async (e) => {
       const restore = busy(e.currentTarget, "Setting up…");
       try {
-        const data = await api(`/api/shoots/${id}/generate`, { method: "POST", body: { looks } });
+        const data = await api(`/api/shoots/${id}/generate`, { method: "POST", body: { looks, override: !!shoot._override } });
         shoot = data.shoot;
         paintDevelop(shoot);
         window.scrollTo({ top: 0, behavior: "instant" });
@@ -650,7 +697,7 @@ export async function renderStudio(ctx, id) {
       try {
         const data = extra
           ? await api(`/api/shoots/${id}/more-looks`, { method: "POST", body: { looks } })
-          : await api(`/api/shoots/${id}/generate`, { method: "POST", body: { looks } });
+          : await api(`/api/shoots/${id}/generate`, { method: "POST", body: { looks, override: !!shoot._override } });
         if (data.user) state.user = data.user;
         shoot = data.shoot;
         paintDevelop(shoot);

@@ -20,11 +20,11 @@ import { blogIndex, blogPost, blogImage, syncBlog } from "./lib/blog.js";
 import { searchSite } from "./lib/search.js";
 import { isPreview, isKept, watermark } from "./lib/preview.js";
 import { reviewShoots, sendOffer } from "./lib/outreach.js";
-import { aiStatus, AIError, gateCheck } from "./lib/ai.js";
+import { aiStatus, AIError, gateCheck, checkBlocks } from "./lib/ai.js";
 import { shootQueueCallback, startLocalShootWorker, ensureShootJob, workerJob, runShootWorker, runDueShootJobs } from "./lib/shoot-jobs.js";
 import { listShootPage } from "./lib/shoot-list.js";
 import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, advance, startGeneration, retryFailed, startReview, addLooks } from "./lib/pipeline.js";
-import { lookFor, MAX_LOOKS, MAX_SELFIES, MAX_RESUMES, MIN_CHECK_SCORE, PHOTO_FORMATS, isPreviewOffer } from "./public/js/shared/catalog.js";
+import { lookFor, MAX_LOOKS, MAX_SELFIES, MAX_RESUMES, MIN_CHECK_SCORE, RECOMMENDED_CHECK_SCORE, PHOTO_FORMATS, isPreviewOffer } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
 import { customersSection } from "./public/js/shared/customers.js";
 import { planFor, ownerEmail, creditSource, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, EMAIL_UNCONFIRMED } from "./lib/plan.js";
@@ -807,9 +807,11 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
   if (!meta || !requireAI("imaging", res) || !requireAI("vision", res)) return;
   if (meta.sample) return res.status(400).json({ error: "Sample shoots are read-only." });
   if (!meta.check) return res.status(400).json({ error: "Run the photo check first." });
-  // A set scoring under MIN_CHECK_SCORE (or judged a retake) never develops:
-  // new selfies first. Checks made before the minimum existed are held to it too.
-  if (gateCheck({ ...meta.check }).verdict === "retake") return res.status(400).json({ error: `These photos scored ${meta.check.overall_score}, and a shoot needs ${MIN_CHECK_SCORE} or more so your headshots look like you. Follow the directions on this page, add new selfies and re-check.`, code: "retake_needed" });
+  // Under MIN_CHECK_SCORE a set never develops: new selfies first. A retake
+  // above it (under RECOMMENDED_CHECK_SCORE, or judged one) goes ahead only
+  // when the person chose to continue anyway. Older checks are held to this too.
+  if (checkBlocks(meta.check)) return res.status(400).json({ error: `These photos scored ${meta.check.overall_score}, and a shoot needs at least ${MIN_CHECK_SCORE} so your headshots look like you. Follow the directions on this page, add new selfies and re-check.`, code: "retake_needed" });
+  if (gateCheck({ ...meta.check }).verdict === "retake" && !req.body?.override) return res.status(400).json({ error: `These photos scored ${meta.check.overall_score}; we recommend ${RECOMMENDED_CHECK_SCORE} or more. Add new selfies, or continue with these anyway.`, code: "retake_recommended" });
   if (LIVE.includes(meta.status)) return res.status(409).json({ error: "This shoot is already in progress." });
   // A shoot is developed once; retries of failed frames go through /resume.
   if (meta.status !== "checked" || (meta.shots || []).length) return res.status(409).json({ error: "This shoot has already been developed. Start a new shoot for new looks." });

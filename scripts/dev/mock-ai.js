@@ -33,13 +33,14 @@ const readBody = (req) => new Promise((res) => {
   req.on("end", () => res(d));
 });
 
-// A set of exactly 5 photos scores 62 but comes back "usable", so the
-// server's minimum-score gate (lib/ai.js gateCheck) is exercised.
+// A set of exactly 5 photos scores 62 (under the minimum) and one of exactly
+// 4 scores 70 (under the recommended score), both coming back "usable", so the
+// server's score gates (lib/ai.js gateCheck, checkBlocks) are exercised.
 function checkResult(nImages) {
-  const weak = nImages === 5;
+  const score = { 5: 62, 4: 70 }[nImages] ?? 84;
   return {
-    overall_score: weak ? 62 : 84,
-    verdict: weak ? "usable" : "ready",
+    overall_score: score,
+    verdict: score < 76 ? "usable" : "ready",
     retake_direction: [],
     headline: "A clear, well-lit set — ready for the studio.",
     summary: "Your face is sharp and evenly lit across the set, and the mix of angles gives the model plenty to work with. The first photo is your strongest reference.",
