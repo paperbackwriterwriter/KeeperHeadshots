@@ -150,6 +150,7 @@ function appNav() {
     </div>
     <div class="nav-sheet" id="navSheet">
       <a href="/app" data-link>Your shoots</a><a href="/#pricing">Pricing</a><a href="/contact" data-link>Contact</a><a href="/app/account" data-link>Account</a>
+      <button type="button" class="nav-sheet-signout" data-signout>${icon("log-out")} Sign out</button>
       <a class="btn btn-flash btn-block" href="/app/new" data-link>${icon("plus")} New shoot</a>
     </div>
   </header>`;
@@ -274,8 +275,10 @@ function wireChrome() {
       const key = `${inner.clientWidth}|${getComputedStyle(inner).fontSize}`;
       if (key === fitted) return;
       fitted = key;
-      nav.classList.remove("nav-compact");
+      nav.classList.remove("nav-compact", "nav-tight");
       if (inner.scrollWidth > inner.clientWidth + 1) nav.classList.add("nav-compact");
+      // Still no room (a phone with large text): sign-out moves into the menu.
+      if (inner.scrollWidth > inner.clientWidth + 1) nav.classList.add("nav-tight");
     };
     const sizes = inner && typeof ResizeObserver === "function" ? new ResizeObserver(() => requestAnimationFrame(fit)) : null;
     sizes?.observe(document.documentElement);
@@ -324,7 +327,8 @@ function wireChrome() {
       prev?.();
     };
   }
-  $("#signOut")?.addEventListener("click", async (e) => {
+  // The header's button, or the menu's when the header has no room for it.
+  document.querySelectorAll("#signOut, [data-signout]").forEach((b) => b.addEventListener("click", async (e) => {
     const btn = e.currentTarget;
     const restore = busy(btn, "Signing out…");
     btn.querySelector("span")?.classList.add("hide-m");
@@ -339,7 +343,7 @@ function wireChrome() {
     } finally {
       restore();
     }
-  });
+  }));
 }
 
 // The account changed under an open page (email confirmed by code here or by

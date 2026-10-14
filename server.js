@@ -1675,9 +1675,9 @@ app.get("/media/:sid/:name", mediaUser, async (req, res) => {
 /* ----------------------------- Examples ----------------------------- */
 
 // Marketing example headshots (see lib/examples.js).
-// /examples/<id>.jpg is the original; /examples/<id>.webp?w=180|360|600|900 is a
+// /examples/<id>.jpg is the original; /examples/<id>.webp?w=180|300|360|600|900 is a
 // resized WebP for the pages. Either way the CDN caches the response.
-const EXAMPLE_WIDTHS = [180, 360, 600, 900];
+const EXAMPLE_WIDTHS = [180, 300, 360, 600, 900];
 app.get(/^\/examples\/([a-z0-9-]+)\.(jpg|webp)$/, async (req, res) => {
   const [id, ext] = [req.params[0], req.params[1]];
   // Each distinct URL misses the CDN cache and costs a storage read and a
@@ -1690,7 +1690,9 @@ app.get(/^\/examples\/([a-z0-9-]+)\.(jpg|webp)$/, async (req, res) => {
   if (asked !== query) return res.redirect(301, `/examples/${id}.${ext}${query ? `?${query}` : ""}`);
   const buf = await exampleImage(id);
   if (!buf) return res.status(404).end();
-  res.set("Cache-Control", "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=86400");
+  // A versioned URL (?v=, bumped whenever an example is replaced; see the
+  // README) never changes, so browsers keep it for a year; others for a day.
+  res.set("Cache-Control", v ? "public, max-age=31536000, immutable" : "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=86400");
   if (ext === "jpg") return res.type("image/jpeg").send(buf);
   const out = await sharp(buf).resize({ width: w, withoutEnlargement: true }).webp({ quality: 78, effort: 4 }).toBuffer();
   res.type("image/webp").send(out);

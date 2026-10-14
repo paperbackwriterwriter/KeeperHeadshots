@@ -317,6 +317,11 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .nav-compact .nav-sheet.open { transform: none; opacity: 1; visibility: visible; }
 .nav-compact .nav-sheet a:not(.btn) { display: flex; align-items: center; min-height: 48px; text-decoration: none; font-weight: 600; font-size: var(--fs-md); border-bottom: 1px solid var(--border); }
 .nav-compact .nav-sheet .btn { margin-top: var(--s-4); }
+/* Sign out sits in the menu only when the header has no room for it. */
+.nav-sheet-signout { display: none; }
+.nav-tight #signOut { display: none; }
+.nav-tight .nav-sheet-signout { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 0; border: 0; border-bottom: 1px solid var(--border); background: none; color: inherit; font: inherit; font-weight: 600; font-size: var(--fs-md); text-align: left; cursor: pointer; }
+.nav-tight .nav-sheet-signout svg { width: 18px; height: 18px; }
 
 /* Smallest phones (320px): the signed-in header's logo, account chip, sign-out
    and menu buttons fit on one line. */
@@ -326,7 +331,8 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 }
 
 .user-chip { text-decoration: none; color: var(--text); display: inline-flex; align-items: center; gap: 10px; padding: 4px 6px 4px 4px; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--surface); font-size: var(--fs-sm); font-weight: 600; }
-.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--ink); color: var(--on-ink); display: grid; place-items: center; font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.02em; }
+/* The initials are sized to the circle (px, like it), not to the text size. */
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--ink); color: var(--on-ink); display: grid; place-items: center; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
 
 /* ---------- 6. Reveal motion ---------- */
 [data-reveal] { opacity: 0; transform: translateY(18px); transition: opacity var(--dur-4) var(--ease-out), transform var(--dur-4) var(--ease-out); transition-delay: calc(var(--i, 0) * 80ms); }
@@ -555,6 +561,18 @@ p, li, dd, .lede, figcaption { text-wrap: pretty; }
 
 /* Final CTA + footer */
 .cta-band { border-radius: var(--r-xl); padding: clamp(32px, 6vw, 80px); background: radial-gradient(120% 140% at 100% 0%, rgba(184, 137, 59, 0.35), transparent 50%), radial-gradient(90% 120% at 0% 100%, rgba(20, 33, 61, 0.35), transparent 55%), var(--night); color: var(--paper-100); display: grid; grid-template-columns: 1.3fr auto; gap: var(--s-6); align-items: end; overflow: hidden; position: relative; }
+/* The phone layout (stacked, a full-width button whose label wraps) whenever
+   the band has under 36.5rem: below the 640px media query's width at normal
+   text size, and wider with enlarged text, so the button is never cut off. */
+.container:has(> .cta-band) { container-type: inline-size; }
+/* A long label may wrap rather than be cut off (it stays on one line whenever
+   there's room, which at normal text size is always). */
+.cta-band .btn { white-space: normal; text-align: center; }
+@container (max-width: 36.5rem) {
+  .cta-band { grid-template-columns: minmax(0, 1fr); }
+  .cta-band .btn svg { display: none; }
+  .cta-band .btn { font-size: var(--fs-base); padding-inline: 16px; width: 100%; justify-content: center; white-space: normal; text-wrap: balance; text-align: center; line-height: 1.3; min-height: 56px; border-radius: var(--r-lg); }
+}
 .footer { padding: var(--s-8) 0 var(--s-6); color: var(--text-muted); font-size: var(--fs-sm); }
 .footer-grid { display: grid; grid-template-columns: minmax(0, min(17.5rem, 30%)) repeat(3, minmax(0, 1fr)); gap: var(--s-6); padding-bottom: var(--s-6); border-bottom: 1px solid var(--border); }
 .footer .footer-h { font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--text); margin-bottom: var(--s-3); }
@@ -897,9 +915,16 @@ body:has(.develop-bar) .toasts { bottom: calc(96px + env(safe-area-inset-bottom)
 .best-tag { position: absolute; top: -14px; right: -10px; z-index: 2; background: var(--flash-500); color: #fff; font-family: var(--font-mono); font-size: var(--fs-2xs); letter-spacing: var(--tracking-caps); text-transform: uppercase; padding: 8px 12px; border-radius: var(--r-pill); display: inline-flex; gap: 6px; align-items: center; box-shadow: 0 8px 20px -8px rgba(122, 46, 46, 0.8); transform: rotate(4deg); }
 .best-tag svg { width: 12px; height: 12px; }
 .proof-hero h1 { margin: var(--s-4) 0 var(--s-4); }
-.scoreboard { display: grid; grid-template-columns: repeat(3, 1fr); margin: var(--s-6) 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.scoreboard { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: var(--s-6) 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .scoreboard > div { padding: var(--s-4) var(--s-4) var(--s-4) 0; }
 .scoreboard > div + div { padding-left: var(--s-4); border-left: 1px solid var(--border); }
+/* Stacked, divided by rules, when its column has under 20rem: never at normal
+   text size (a phone's column is 22rem), only with enlarged text. */
+*:has(> .scoreboard) { container-type: inline-size; }
+@container (max-width: 20rem) {
+  .scoreboard { grid-template-columns: minmax(0, 1fr); }
+  .scoreboard > div + div { padding-left: 0; border-left: 0; border-top: 1px solid var(--border); }
+}
 .scoreboard strong small { font-size: 0.4em; font-family: var(--font-body); color: var(--text-muted); margin-left: 2px; }
 .scoreboard strong { display: block; font-family: var(--font-display); font-size: 2.6rem; line-height: 1; font-variant-numeric: tabular-nums lining-nums; }
 .scoreboard span { font-size: var(--fs-xs); color: var(--text-muted); }
@@ -933,7 +958,9 @@ body:has(.develop-bar) .toasts { bottom: calc(96px + env(safe-area-inset-bottom)
 .kit-item b svg { width: 16px; height: 16px; flex: none; margin-top: 1px; }
 .kit-item span { font-size: var(--fs-xs); color: var(--text-muted); }
 .lb-sizes { font-size: var(--fs-sm); color: #a9b1bd; }
-.dl-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* Two across while each has 8.5rem (always on phones at normal text size),
+   stacked when enlarged text needs the room. */
+.dl-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr)); gap: 10px; }
 @media (max-width: 374px) { .dl-buttons, .refs-actions { grid-template-columns: minmax(0, 1fr) !important; } }
 /* Smallest phones: the develop bar (back, "4 headshots", Develop) fits one row. */
 @media (max-width: 374px) {
@@ -942,7 +969,7 @@ body:has(.develop-bar) .toasts { bottom: calc(96px + env(safe-area-inset-bottom)
   .develop-tally strong { font-size: 1.5rem; }
   .develop-tally span { font-size: var(--fs-xs); }
 }
-.dl-buttons .btn { justify-content: center; white-space: nowrap; }
+.dl-buttons .btn { justify-content: center; min-width: 0; padding-inline: 16px; white-space: normal; text-wrap: balance; text-align: center; line-height: 1.25; }
 .dl-buttons .btn:first-child { grid-column: 1 / -1; }
 .lb-sizes a { white-space: nowrap; color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 
@@ -1389,12 +1416,13 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
   /* Pairs and small groups of buttons: equal widths across the row. */
   .btn-pair { display: grid !important; grid-template-columns: 1fr 1fr; width: 100%; }
   .btn-pair > * { justify-content: center; }
-  .refs-actions { display: grid !important; grid-template-columns: 1fr 1fr; width: 100%; }
-  .refs-actions > * { justify-content: center; white-space: nowrap; padding-inline: 8px; }
+  .refs-actions { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr)); width: 100%; }
+  .refs-actions > * { justify-content: center; min-width: 0; white-space: normal; text-align: center; padding-inline: 8px; }
   .refs-actions .score-pill { height: 40px; }
 }
 /* A "Best for" chip with its note beside it; the note wraps in its own column. */
-.best-for { display: flex; gap: 8px; align-items: flex-start; }
+.best-for { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+.best-for > .muted { flex: 1 1 12rem; min-width: 0; }
 .best-for .chip { flex: none; }
 .refs-actions { align-items: center; }
 
@@ -1402,7 +1430,7 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
 .account-page { max-width: 760px; }
 .account-card { display: flex; gap: var(--s-5); align-items: flex-start; }
 .avatar[data-initials]::before { content: attr(data-initials); }
-.avatar-lg { width: 56px; height: 56px; font-size: var(--fs-md); flex: none; }
+.avatar-lg { width: 56px; height: 56px; font-size: 18px; flex: none; }
 .account-facts { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4) var(--s-5); flex: 1; min-width: 0; }
 .account-facts dt { font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-subtle); }
 .account-facts dd { margin: 4px 0 0; font-weight: 600; overflow-wrap: break-word; }

@@ -214,6 +214,20 @@ try {
     assert.equal(snap.photos.complete, true);
     assert.ok(h.keys.every((k) => snap.photos.entries.some((e) => e.key === k)), "the manifest covers every photo");
   });
+  await test("a run that times out reading records keeps the accumulated photo copies", async () => {
+    const before = (await readBackup()).photos.entries.map((e) => e.key).sort();
+    assert.ok(before.length >= 3);
+    const failed = await runBackup({ now, budgetMs: 0 }); // no records read at all
+    assert.equal(failed.successful, false);
+    const kept = (await readBackup(failed.key)).photos.entries.map((e) => e.key).sort();
+    assert.deepEqual(kept, before, "the failed run's manifest still lists every earlier copy");
+    // And the next, partial run still offers every photo for recovery.
+    interceptPut = async (key) => { if (key.startsWith("photo-backups/")) await new Promise((r) => setTimeout(r, 15)); };
+    let next;
+    try { next = await runBackup({ now, budgetMs: 60 }); } finally { interceptPut = null; }
+    const offered = new Set((await readBackup(next.key)).photos.entries.map((e) => e.key));
+    assert.ok(before.every((k) => offered.has(k)), `${offered.size} of ${before.length} offered`);
+  });
 } finally { Object.assign(target, originals); delete process.env.BACKUP_READ_WRITE_TOKEN; }
 await test("preview namespace keeps recovery copies and erasures apart from production", async () => {
   const code = `const s=await import('./lib/storage.js'); const b=await import('./lib/backup.js'); await s.putJSON('shoots/sht_preview.json',{id:'sht_preview',userId:'usr_preview'}); await s.putFile('media/sht_preview/p.jpg',Buffer.from('p')); const r=await b.runBackup(); console.log(r.photos);`;

@@ -96,6 +96,26 @@ const invalidated = !(await storage.getJSON("shoot-catalog/usr_a.json")) && !(aw
 const { listShootPage } = await import("../../lib/shoot-list.js");
 ok("restored records rebuild current indexes so recovered shoots are visible", invalidated && (await listShootPage("usr_a")).shoots.some((s) => s.id === "sht_1") && (await storage.getJSON("showcase/shc_1.json"))?.userId === "usr_a");
 
+// Retention can be shortened by BACKUP_KEEP_DAYS, never made longer than the
+// privacy policy's 30 days.
+{
+  const keepWith = (v) => execFileSync(process.execPath, ["--input-type=module", "-e", 'const { KEEP_DAYS } = await import("./lib/backup.js"); console.log(KEEP_DAYS);'], { env: { ...process.env, DATA_DIR: dir, BACKUP_KEEP_DAYS: v }, encoding: "utf8" }).trim();
+  ok("BACKUP_KEEP_DAYS is capped at 30 days", keepWith("90") === "30" && keepWith("14") === "14" && keepWith("nonsense") === "30", `${keepWith("90")} ${keepWith("14")} ${keepWith("nonsense")}`);
+}
+
+// A contact message past its retention (366 days) isn't brought back by a
+// restore, even from a backup that holds it; a recent one is.
+{
+  const msgKey = (daysAgo) => `contact/${new Date(Date.now() - daysAgo * 86_400_000).toISOString().replace(/[:.]/g, "-")}-${daysAgo}abc.json`;
+  const [oldMsg, newMsg] = [msgKey(366), msgKey(10)];
+  await storage.putJSON(oldMsg, { message: "old" });
+  await storage.putJSON(newMsg, { message: "new" });
+  await runBackup();
+  await storage.del([oldMsg, newMsg]);
+  run("--only", "contact/", "--apply");
+  ok("restore never brings back a contact message past its retention", (await storage.getJSON(oldMsg)) === null && (await storage.getJSON(newMsg))?.message === "new");
+}
+
 // A backup store that can't be reached (store id set, no OIDC token here):
 // tonight's copy still lands in the main store, and it's reported.
 process.env.BACKUP_STORE_ID = "store_unreachable";

@@ -12,6 +12,9 @@ const HERO_SETS = [
 ];
 const CYCLE_MS = 8000;
 const frameSources = (id) => [180, 360, 600].map((w) => `${example(id, w)} ${w}w`).join(", ");
+// The phone hero's selfie and headshot (up to 190px wide): 300px covers
+// high-density screens without downloading the 360px or larger variants.
+const pairSources = (id) => [180, 300, 360].map((w) => `${example(id, w)} ${w}w`).join(", ");
 
 const HERO_FRAMES = [
   ["studio-gray", "navy-suit"], ["glass-office", "charcoal-blazer"], ["city-terrace", "camel-knit"],
@@ -49,9 +52,9 @@ export function renderLanding({ root, hydrate = false }) {
           <p class="eyebrow" data-reveal style="--i:0"><span class="dot"></span>The AI headshot studio</p>
           <h1 class="display h-hero" data-reveal style="--i:1">Professional AI headshots, <em>without</em> the photo shoot.</h1>
           <div class="hero-ba" role="img" aria-label="Example: a casual selfie, and a professional headshot made from it" data-reveal style="--i:2">
-            <figure><img src="${example("hero-selfie", 360)}" alt="" width="360" height="480" fetchpriority="high" /><figcaption>Your selfie</figcaption></figure>
+            <figure><img src="${example("hero-selfie", 360)}" srcset="${pairSources("hero-selfie")}" sizes="min(43vw, 190px)" alt="" width="360" height="480" fetchpriority="high" /><figcaption>Your selfie</figcaption></figure>
             <span class="hero-ba-arrow" aria-hidden="true">${icon("arrow-right")}</span>
-            <figure><img src="${example("hero-2", 360)}" alt="" width="360" height="480" fetchpriority="high" /><figcaption>Your headshot</figcaption></figure>
+            <figure><img src="${example("hero-2", 360)}" srcset="${pairSources("hero-2")}" sizes="min(43vw, 190px)" alt="" width="360" height="480" fetchpriority="high" /><figcaption>Your headshot</figcaption></figure>
           </div>
           <p class="lede" data-reveal style="--i:2">Upload a few selfies. Our AI studio checks your photos, develops studio-quality headshots in the looks you choose, then grades every frame so you know exactly which one to use.</p>
           <div class="hero-ctas" data-reveal style="--i:3">

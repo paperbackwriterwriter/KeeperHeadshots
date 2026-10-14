@@ -18,6 +18,12 @@ export function initPixel({ afterRender } = {}) {
     n.push = n; n.loaded = !0; n.version = "2.0"; n.queue = [];
   })(window);
   /* eslint-enable */
+  // No automatic event setup (Meta scanning the page and wiring up buttons):
+  // every event is sent explicitly, and conversions also go server-side. And
+  // no automatic PageView on in-app navigation: the app sends its own on each
+  // page, so Meta's would count each one twice.
+  window.fbq.disablePushState = true;
+  window.fbq("set", "autoConfig", false, id);
   window.fbq("init", id);
   const load = () => {
     if (optedOut()) return;
@@ -45,11 +51,13 @@ function whenActiveOrIdle(task) {
     if (done) return;
     done = true;
     clearTimeout(timer);
-    ACTIVITY.forEach((e) => window.removeEventListener(e, run, opts));
+    ACTIVITY.forEach((e) => window.removeEventListener(e, onActive, opts));
     task();
   };
-  ACTIVITY.forEach((e) => window.addEventListener(e, run, opts));
   const idle = () => (window.requestIdleCallback ? requestIdleCallback(run, { timeout: 2000 }) : run());
+  // Not inside the interaction itself: once the browser is idle (or 3 s on).
+  const onActive = () => (window.requestIdleCallback ? requestIdleCallback(run, { timeout: 3000 }) : setTimeout(run, 0));
+  ACTIVITY.forEach((e) => window.addEventListener(e, onActive, opts));
   const start = () => (timer = setTimeout(idle, PIXEL_IDLE_MS));
   if (document.readyState === "complete") start();
   else window.addEventListener("load", start, { once: true });

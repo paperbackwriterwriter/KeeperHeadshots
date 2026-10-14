@@ -74,6 +74,72 @@ for (const width of [1280, 901, 390]) {
   }
   ok(`${width}px, text at 200%: no page scrolls sideways`, !wide.length, wide.join(", "));
 }
+// 4. Buttons stay whole at 200% text: none runs past the screen or is cut off
+// by a panel that hides its overflow (the landing pages' closing panels, the
+// signed-in header on a phone, a finished shoot's download buttons).
+const cutOff = (page) => page.evaluate(() => {
+  const out = [];
+  for (const el of document.querySelectorAll("a.btn, button")) {
+    const r = el.getBoundingClientRect();
+    if (!r.width || el.closest("[hidden], dialog:not([open]), .nav-sheet:not(.open), .skip-link") || getComputedStyle(el).visibility === "hidden") continue;
+    let why = r.right > document.documentElement.clientWidth + 1 || r.left < -1 ? "off screen" : null;
+    for (let a = el.parentElement; a && !why && a !== document.body; a = a.parentElement) {
+      const cs = getComputedStyle(a);
+      if (/(hidden|clip)/.test(cs.overflowX)) { const ar = a.getBoundingClientRect(); if (r.right > ar.right + 1 || r.left < ar.left - 1) why = `cut off by .${[...a.classList].join(".")}`; }
+    }
+    if (why) out.push(`${(el.textContent || el.getAttribute("aria-label") || "").trim().replace(/\s+/g, " ").slice(0, 28)} (${why})`);
+  }
+  return out;
+});
+async function at200(ctx, path) {
+  const page = await ctx.newPage();
+  page.on("pageerror", (e) => errs.push(e.message));
+  await page.goto(B + path, { waitUntil: "networkidle" });
+  await page.addStyleTag({ content: "html { font-size: 200% !important; } [data-reveal] { opacity: 1 !important; transform: none !important; }" });
+  await page.waitForTimeout(300);
+  const out = await cutOff(page);
+  await page.close();
+  return out;
+}
+for (const width of [1440, 901]) {
+  const ctx = await browser.newContext({ viewport: { width, height: 900 } });
+  const bad = [];
+  for (const path of ["/", "/linkedin-headshots", "/team-headshots", "/resume-headshots", "/lawyer-headshots"]) bad.push(...(await at200(ctx, path)).map((x) => `${path}: ${x}`));
+  ok(`${width}px, text at 200%: landing-page buttons are whole`, !bad.length, bad.join(" | "));
+  await ctx.close();
+}
+{
+  // A signed-in account with a finished free preview.
+  const sharp = (await import("sharp")).default;
+  const { portraitSVG } = await import("../../public/js/shared/portrait.js");
+  const M = process.env.MOCK || "http://localhost:4010";
+  let cookie = "";
+  const f = async (p, o = {}) => { const r = await fetch(B + p, { ...o, headers: { "content-type": "application/json", cookie } }); const sc = r.headers.get("set-cookie"); if (sc) cookie = sc.split(";")[0]; return r.json().catch(() => null); };
+  const email = `textsize${Date.now()}@x.com`;
+  await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Tess Size", email, password: "password123" }) });
+  const mails = await fetch(`${M}/mock-mail`).then((r) => r.json());
+  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: new URL(mails.filter((m) => m.to.includes(email)).flatMap((m) => m.links).findLast((l) => l.includes("/verify?token="))).searchParams.get("token") }) });
+  const sid = (await f("/api/shoots", { method: "POST", body: "{}" })).shoot.id;
+  for (let i = 0; i < 6; i++) await f(`/api/shoots/${sid}/selfies`, { method: "POST", body: JSON.stringify({ photo: "data:image/jpeg;base64," + (await sharp(Buffer.from(portraitSVG("ts" + i, {}))).resize(900, 1125).jpeg().toBuffer()).toString("base64") }) });
+  await f(`/api/shoots/${sid}/check`, { method: "POST", body: "{}" });
+  await f(`/api/shoots/${sid}/generate`, { method: "POST", body: JSON.stringify({ looks: [{ backdrop: "studio-gray", outfit: "navy-suit" }] }) });
+  for (let i = 0; i < 80; i++) { await new Promise((r) => setTimeout(r, 1000)); if (!["generating", "reviewing"].includes((await f(`/api/shoots/${sid}`)).shoot.status)) break; }
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.addCookies([{ name: cookie.split("=")[0], value: cookie.split("=").slice(1).join("="), url: B }]);
+  const header = await at200(ctx, "/app");
+  ok("390px, text at 200%: the signed-in header fits (sign-out moves into the menu)", !header.length, header.join(" | "));
+  const page = await ctx.newPage();
+  await page.goto(B + "/app", { waitUntil: "networkidle" });
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  await page.waitForTimeout(300);
+  await page.click("#navToggle");
+  const inMenu = await page.locator(".nav-sheet-signout").waitFor({ state: "visible", timeout: 3000 }).then(() => true, () => false);
+  ok("and Sign out is in the menu", inMenu && !(await page.locator("#signOut").isVisible()));
+  await page.close();
+  const results = await at200(ctx, `/app/shoot/${sid}`);
+  ok("390px, text at 200%: a finished shoot's buttons are whole", !results.length, results.join(" | "));
+  await ctx.close();
+}
 ok("no page errors", !errs.length, errs.join("; "));
 await browser.close();
 const failed = results.filter((x) => !x).length;

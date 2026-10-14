@@ -17,6 +17,7 @@
 import "../lib/env.js";
 import { readBackup } from "../lib/backup.js";
 import { restorePhoto, recordErased } from "../lib/photo-backup.js";
+import { contactExpired } from "../lib/cleanup.js";
 import { getJSON, putJSON, createJSON, del } from "../lib/storage.js";
 
 const args = process.argv.slice(2);
@@ -44,6 +45,8 @@ let skipped = 0;
 const rebuild = new Set();
 try {
   for (const k of keys) {
+    // Past its retention (the daily clean-up deletes these): never brought back.
+    if (contactExpired(k)) { skipped++; continue; }
     if (await recordErased(k, snap.records[k])) { skipped++; continue; }
     if (missingOnly && (await getJSON(k)) !== null) {
       skipped++;

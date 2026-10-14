@@ -84,8 +84,13 @@ try {
   const resized = await fetch(BASE + "/examples/hero-1.webp?w=180&v=5");
   assert.equal(resized.status, 200);
   assert.equal((await sharp(Buffer.from(await resized.arrayBuffer())).metadata()).width, 180);
-  assert.match(resized.headers.get("cache-control"), /s-maxage/);
-  pass("180px example variant retains canonical caching and real dimensions");
+  // Versioned (?v=) example URLs are immutable for a year; unversioned ones a day.
+  assert.match(resized.headers.get("cache-control"), /max-age=31536000, immutable/);
+  const unversioned = await fetch(BASE + "/examples/hero-1.webp?w=180");
+  assert.match(unversioned.headers.get("cache-control"), /max-age=86400,.*s-maxage/);
+  const w300 = await fetch(BASE + "/examples/hero-1.webp?w=300&v=5");
+  assert.equal((await sharp(Buffer.from(await w300.arrayBuffer())).metadata()).width, 300);
+  pass("example variants (180 and 300px) keep real dimensions; versioned URLs cache for a year");
   for (const width of [390, 1280]) for (const signedIn of [false, true]) {
     const context = await contextFor({ width, signedIn });
     const page = await context.newPage();
@@ -169,8 +174,12 @@ try {
       await page.waitForTimeout(2500);
       assert.deepEqual(requests, [], "no SDK before interaction or idle");
       await page.evaluate(() => window.scrollBy(0, 300));
-      await page.waitForFunction(() => window.__sdkReady, null, { polling: 50, timeout: 3000 });
+      await page.waitForFunction(() => window.__sdkReady, null, { polling: 50, timeout: 5000 });
       assert.equal(await page.evaluate(() => window.__metaCalls.filter((c) => c[0] === "track" && c[1] === "PageView").length), 1);
+      // Meta's automatic event setup and its own PageViews on navigation are off.
+      const setup = await page.evaluate(() => ({ calls: window.__metaCalls.map((c) => [...c].slice(0, 3)), pushState: window.fbq.disablePushState }));
+      const order = setup.calls.findIndex((c) => c[0] === "set" && c[1] === "autoConfig" && c[2] === false);
+      assert.ok(order >= 0 && order < setup.calls.findIndex((c) => c[0] === "init") && setup.pushState === true, JSON.stringify(setup));
     } else if (mode === "stalled-frames") {
       await page.waitForFunction(() => window.__sdkReady, null, { polling: 50 });
       assert.equal(await page.evaluate(() => window.__metaCalls.filter((c) => c[0] === "track" && c[1] === "PageView").length), 1);
