@@ -44,6 +44,8 @@ try {
           viewport: { width, height: 900 }, reducedMotion: "reduce",
           extraHTTPHeaders: header ? { "Sec-GPC": "1" } : {},
         });
+        // A returning ad visitor (Meta's cookie), so the browser SDK would load (pixel.js pixelWanted).
+        await context.addCookies([{ name: "_fbp", value: "fb.1.1700000000000.1", url: BASE }]);
         // The temporary store has no marketing photos. Use the existing
         // layout audit's illustration fixtures rather than calling real AI.
         await context.route("**/examples/**", async (route) => {

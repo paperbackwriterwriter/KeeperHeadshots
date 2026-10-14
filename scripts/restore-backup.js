@@ -41,24 +41,25 @@ for (const k of keys) byPrefix[k.split("/")[0]] = (byPrefix[k.split("/")[0]] || 
 console.log(byPrefix);
 
 let written = 0;
-let skipped = 0;
+// Why records were left out, so the summary says what happened to each.
+const skipped = { exists: 0, expired: 0, erased: 0 };
 const rebuild = new Set();
 try {
   for (const k of keys) {
     // Past its retention (the daily clean-up deletes these): never brought back.
-    if (contactExpired(k)) { skipped++; continue; }
-    if (await recordErased(k, snap.records[k])) { skipped++; continue; }
+    if (contactExpired(k)) { skipped.expired++; continue; }
+    if (await recordErased(k, snap.records[k])) { skipped.erased++; continue; }
     if (missingOnly && (await getJSON(k)) !== null) {
-      skipped++;
+      skipped.exists++;
       continue;
     }
     if (apply) {
       if (missingOnly) {
-        if (!await createJSON(k, snap.records[k])) { skipped++; continue; }
+        if (!await createJSON(k, snap.records[k])) { skipped.exists++; continue; }
       } else await putJSON(k, snap.records[k]);
       if (!k.startsWith("cancelled/") && !k.startsWith("photo-erased/")) {
         try {
-          if (await recordErased(k, snap.records[k])) { await del(k); skipped++; continue; }
+          if (await recordErased(k, snap.records[k])) { await del(k); skipped.erased++; continue; }
         } catch (err) { await del(k); throw err; }
       }
       // A missing-only restore merges historical records into today's data.
@@ -75,7 +76,12 @@ try {
 } finally {
   if (rebuild.size) await del([...rebuild]);
 }
-console.log(`${apply ? "Restored" : "Would restore"} ${written} records${missingOnly ? ` (${skipped} already exist, left alone)` : ""}.${apply ? "" : " Add --apply to write them."}`);
+const why = [
+  skipped.exists && `${skipped.exists} already exist, left alone`,
+  skipped.expired && `${skipped.expired} past their retention period`,
+  skipped.erased && `${skipped.erased} erased since the backup`,
+].filter(Boolean);
+console.log(`${apply ? "Restored" : "Would restore"} ${written} records${why.length ? ` (skipped: ${why.join("; ")})` : ""}.${apply ? "" : " Add --apply to write them."}`);
 
 if (flag("--photos")) {
   const counts = {};

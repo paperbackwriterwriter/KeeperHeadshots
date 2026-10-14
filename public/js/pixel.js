@@ -6,10 +6,24 @@ import { state, afterPaint } from "./core.js";
 // Either the request header or the browser property can carry the opt-out.
 const optedOut = () => state.meta?.optOut || navigator.globalPrivacyControl;
 
+// Who loads Meta's browser SDK: visitors from a Meta ad (an fbclid in the
+// address they arrived at, or Meta's cookies from an earlier visit), and the
+// sign-up, email confirmation, checkout and checkout-return pages. Everyone
+// else's sign-ups, checkouts and purchases still reach Meta from the server
+// (Conversions API); the SDK's long tasks are kept off their visit.
+const fromAd = /[?&]fbclid=/.test(location.search) || /(?:^|;\s*)_fb[cp]=/.test(document.cookie);
+export const pixelWanted = (path = location.pathname, search = location.search) => fromAd || /^\/(signup|verify|app\/buy\/)/.test(path) || /[?&]checkout=success/.test(search);
+let waiting = false;
+
 export function initPixel({ afterRender } = {}) {
   const id = state.meta?.pixelId;
   // Respect Global Privacy Control (a browser-level "don't share my data" signal).
   if (!id || window.fbq || optedOut()) return;
+  if (!pixelWanted()) {
+    waiting = true; // until the visitor reaches a page that wants it (pixelRoute)
+    return;
+  }
+  waiting = false;
   /* eslint-disable */
   !(function (f, n) {
     if (f.fbq) return;
@@ -39,6 +53,13 @@ export function initPixel({ afterRender } = {}) {
   // purchases also reach Meta from the server (Conversions API, same event IDs).
   if (afterRender) afterRender.then(() => afterPaint(() => whenActiveOrIdle(load)));
   else load();
+}
+
+// After each in-app page change: a visitor who reaches sign-up or checkout
+// gets the SDK from there on (once the page has painted and they're active or
+// it's idle, as at start-up).
+export function pixelRoute() {
+  if (waiting && pixelWanted()) initPixel({ afterRender: Promise.resolve() });
 }
 
 export const PIXEL_IDLE_MS = 4000;

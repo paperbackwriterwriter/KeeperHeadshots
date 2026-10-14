@@ -132,6 +132,13 @@ for (const width of [1440, 901]) {
   await page.goto(B + "/app", { waitUntil: "networkidle" });
   await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
   await page.waitForTimeout(300);
+  // The logo keeps its width and doesn't run into the account controls.
+  const gap = await page.evaluate(() => {
+    const logo = document.querySelector(".nav-inner .logo").getBoundingClientRect();
+    const first = [...document.querySelectorAll(".nav-actions > *")].map((el) => el.getBoundingClientRect()).find((r) => r.width);
+    return { gap: Math.round(first.left - logo.right), logo: Math.round(logo.width), inner: Math.round(document.querySelector(".nav-inner .logo").scrollWidth) };
+  });
+  ok("390px, text at 200%: the logo doesn't overlap the account controls", gap.gap >= 0 && gap.logo >= gap.inner, JSON.stringify(gap));
   await page.click("#navToggle");
   const inMenu = await page.locator(".nav-sheet-signout").waitFor({ state: "visible", timeout: 3000 }).then(() => true, () => false);
   ok("and Sign out is in the menu", inMenu && !(await page.locator("#signOut").isVisible()));

@@ -112,8 +112,9 @@ ok("restored records rebuild current indexes so recovered shoots are visible", i
   await storage.putJSON(newMsg, { message: "new" });
   await runBackup();
   await storage.del([oldMsg, newMsg]);
-  run("--only", "contact/", "--apply");
+  const said = run("--only", "contact/", "--apply").split("\n").find((l) => l.startsWith("Restored"));
   ok("restore never brings back a contact message past its retention", (await storage.getJSON(oldMsg)) === null && (await storage.getJSON(newMsg))?.message === "new");
+  ok("and says why it was skipped (not that it already exists)", /1 past their retention period/.test(said) && !/already exist/.test(said), said);
 }
 
 // A backup store that can't be reached (store id set, no OIDC token here):

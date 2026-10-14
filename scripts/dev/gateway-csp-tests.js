@@ -56,6 +56,8 @@ let browser;
 
 async function setup({ width, oldPolicy = false, routePath = "/", signal = "none" }) {
   const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: "reduce", extraHTTPHeaders: signal === "header" || signal === "both" ? { "Sec-GPC": "1" } : {} });
+  // A returning ad visitor (Meta's cookie), so the browser SDK loads (pixel.js pixelWanted).
+  await context.addCookies([{ name: "_fbp", value: "fb.1.1700000000000.1", url: BASE }]);
   await context.addInitScript((property) => {
     Object.defineProperty(navigator, "globalPrivacyControl", { get: () => property });
     window.__violations = [];

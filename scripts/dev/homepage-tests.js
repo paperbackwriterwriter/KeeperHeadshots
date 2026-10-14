@@ -30,8 +30,10 @@ let browser;
 let passed = 0;
 const pass = (name) => { passed++; console.log(`PASS ${name}`); };
 
-async function contextFor({ width = 390, signedIn = false, scale = 1, stalledFrames = false, failedSession = false } = {}) {
+async function contextFor({ width = 390, signedIn = false, scale = 1, stalledFrames = false, failedSession = false, adVisitor = true } = {}) {
   const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: scale, reducedMotion: "reduce" });
+  // A returning ad visitor (Meta's cookie), so the browser SDK loads (pixel.js pixelWanted).
+  if (adVisitor) await context.addCookies([{ name: "_fbp", value: "fb.1.1700000000000.1", url: BASE }]);
   await context.addInitScript((stalled) => {
     document.addEventListener("DOMContentLoaded", () => {
       window.__initialHeadline = document.querySelector(".hero h1");
@@ -191,6 +193,36 @@ try {
     assert.equal(await page.evaluate(() => document.querySelector(".hero h1") === window.__initialHeadline), true);
     pass(`${mode}: homepage remains usable and queued tracking stays bounded`);
     await context.close();
+  }
+  // Meta's browser SDK loads for visitors from an ad (fbclid) and on sign-up
+  // and checkout; an ordinary visitor's homepage visit never fetches it.
+  {
+    const context = await contextFor({ width: 1280, adVisitor: false });
+    const page = await context.newPage();
+    const requests = [];
+    page.on("request", (r) => r.url().endsWith("/fbevents.js") && requests.push(r.url()));
+    await page.goto(BASE + "/");
+    await page.evaluate(() => window.scrollBy(0, 300));
+    await page.waitForTimeout(5500);
+    assert.deepEqual(requests, [], "no SDK for an ordinary visit");
+    assert.equal(await page.evaluate(() => typeof window.fbq), "undefined");
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.locator('.nav-actions a[href="/signup"]').click();
+    await page.waitForURL(/\/signup$/);
+    await page.locator("#email").click(); // activity: the SDK loads once the browser is idle
+    await page.waitForFunction(() => window.__sdkReady, null, { polling: 50, timeout: 8000 });
+    const views = await page.evaluate(() => window.__metaCalls.filter((c) => c[0] === "track" && c[1] === "PageView").length);
+    assert.equal(requests.length, 1);
+    assert.equal(views, 1, "one PageView, for the sign-up page");
+    pass("ordinary visitor: no ad SDK on the homepage; it loads on reaching sign-up");
+    await context.close();
+    const ad = await contextFor({ width: 390, adVisitor: false });
+    const adPage = await ad.newPage();
+    await adPage.goto(BASE + "/?fbclid=test-click");
+    await adPage.evaluate(() => window.scrollBy(0, 300));
+    await adPage.waitForFunction(() => window.__sdkReady, null, { polling: 50, timeout: 8000 });
+    pass("a visitor from a Meta ad (fbclid) gets the SDK on the homepage");
+    await ad.close();
   }
   console.log(`${passed} homepage cases passed`);
 } finally {

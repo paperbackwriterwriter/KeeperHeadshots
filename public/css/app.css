@@ -286,7 +286,9 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .nav { position: sticky; top: 0; z-index: 50; transition: background-color var(--dur-3) var(--ease-out), box-shadow var(--dur-3) var(--ease-out), backdrop-filter var(--dur-3); }
 .nav.is-scrolled { background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px); box-shadow: 0 1px 0 var(--border); }
 .nav-inner { display: flex; align-items: center; gap: var(--s-5); height: 72px; }
-.logo { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+/* The logo keeps its own width: when the header runs out of room the controls
+   collapse into the menu (app.js), rather than the logo being squeezed. */
+.logo { display: inline-flex; flex: none; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
 .logo-mark { width: 32px; height: 32px; flex: none; color: var(--ink); }
 .logo-word { display: inline-flex; flex-direction: column; gap: 3px; line-height: 1; }
 .logo b { color: var(--ink); font-family: var(--font-display); font-weight: 600; font-size: 1.45rem; letter-spacing: -0.01em; line-height: 0.9; }
@@ -1771,6 +1773,7 @@ textarea.input.share-quote { min-height: 96px; }
   .hero-grid > div:first-child > .lede { order: 4; margin-top: var(--s-5); }
   .hero-grid > div:first-child > .hero-proof { order: 5; }
   .hero-ba figure { margin: 0; position: relative; }
+  .hero-ba picture { display: contents; }
   .hero-ba img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 14px; box-shadow: var(--shadow-md, 0 8px 24px rgba(20, 33, 61, 0.14)); }
   .hero-ba figure:first-child img { transform: rotate(-2deg); }
   .hero-ba figcaption { position: absolute; left: 8px; bottom: 8px; padding: 3px 8px; border-radius: 999px; background: rgba(20, 33, 61, 0.78); color: #f7f2e9; font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.04em; }

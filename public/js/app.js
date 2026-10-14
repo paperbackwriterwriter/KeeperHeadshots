@@ -27,7 +27,7 @@ const renderRealEstate = lazy(() => import("./views/realestate.js"), "renderReal
 const renderResume = lazy(() => import("./views/resume.js"), "renderResume");
 const renderMedical = lazy(() => import("./views/medical.js"), "renderMedical");
 const renderLegal = lazy(() => import("./views/legal-headshots.js"), "renderLegal");
-import { initPixel, pixel } from "./pixel.js";
+import { initPixel, pixel, pixelRoute } from "./pixel.js";
 import { initSearch, searchButton } from "./search.js";
 
 const app = document.getElementById("app");
@@ -245,6 +245,7 @@ async function render({ restoreY = null } = {}) {
   }
   observeReveals(app);
   focusHeading();
+  pixelRoute();
   pixel("PageView");
   if (restoreY != null) requestAnimationFrame(() => window.scrollTo({ top: restoreY, behavior: "instant" }));
   else if (location.hash) requestAnimationFrame(() => document.getElementById(location.hash.slice(1))?.scrollIntoView());
@@ -271,14 +272,22 @@ function wireChrome() {
     // breakpoint. Measured again when the width or the text size changes.
     const inner = nav.querySelector(".nav-inner");
     let fitted = "";
+    // Out of room: the row overflows, or (where a browser squeezes rather than
+    // overflows, as WebKit can) the logo runs into the first visible control.
+    const crowded = () => {
+      if (inner.scrollWidth > inner.clientWidth + 1) return true;
+      const logo = inner.querySelector(".logo")?.getBoundingClientRect();
+      const first = [...inner.querySelectorAll(".nav-links, .nav-actions > *")].map((el) => el.getBoundingClientRect()).find((r) => r.width);
+      return !!(logo && first && logo.right > first.left + 1);
+    };
     const fit = () => {
       const key = `${inner.clientWidth}|${getComputedStyle(inner).fontSize}`;
       if (key === fitted) return;
       fitted = key;
       nav.classList.remove("nav-compact", "nav-tight");
-      if (inner.scrollWidth > inner.clientWidth + 1) nav.classList.add("nav-compact");
+      if (crowded()) nav.classList.add("nav-compact");
       // Still no room (a phone with large text): sign-out moves into the menu.
-      if (inner.scrollWidth > inner.clientWidth + 1) nav.classList.add("nav-tight");
+      if (crowded()) nav.classList.add("nav-tight");
     };
     const sizes = inner && typeof ResizeObserver === "function" ? new ResizeObserver(() => requestAnimationFrame(fit)) : null;
     sizes?.observe(document.documentElement);

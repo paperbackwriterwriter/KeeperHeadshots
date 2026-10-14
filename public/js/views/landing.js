@@ -15,6 +15,14 @@ const frameSources = (id) => [180, 360, 600].map((w) => `${example(id, w)} ${w}w
 // The phone hero's selfie and headshot (up to 190px wide): 300px covers
 // high-density screens without downloading the 360px or larger variants.
 const pairSources = (id) => [180, 300, 360].map((w) => `${example(id, w)} ${w}w`).join(", ");
+// Their displayed width: two columns either side of the arrow (26px, two 10px
+// gaps) in the text column (the page less its 16px gutters, at most 420px).
+const PAIR_SIZES = "calc((min(100vw - 32px, 420px) - 46px) / 2)";
+// The pair shows on phones only (app.css .hero-ba): wider screens get a blank
+// source, so the hidden images aren't downloaded.
+const PHONE_ONLY = `<source media="(min-width: 901px)" srcset="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" />`;
+// The contact sheet's "before" selfie: 38% of the sheet, less its border.
+const POLAROID_SIZES = "(max-width: 900px) min(calc(38vw - 12px), 190px), 205px";
 
 const HERO_FRAMES = [
   ["studio-gray", "navy-suit"], ["glass-office", "charcoal-blazer"], ["city-terrace", "camel-knit"],
@@ -52,9 +60,9 @@ export function renderLanding({ root, hydrate = false }) {
           <p class="eyebrow" data-reveal style="--i:0"><span class="dot"></span>The AI headshot studio</p>
           <h1 class="display h-hero" data-reveal style="--i:1">Professional AI headshots, <em>without</em> the photo shoot.</h1>
           <div class="hero-ba" role="img" aria-label="Example: a casual selfie, and a professional headshot made from it" data-reveal style="--i:2">
-            <figure><img src="${example("hero-selfie", 360)}" srcset="${pairSources("hero-selfie")}" sizes="min(43vw, 190px)" alt="" width="360" height="480" fetchpriority="high" /><figcaption>Your selfie</figcaption></figure>
+            <figure><picture>${raw(PHONE_ONLY)}<img src="${example("hero-selfie", 360)}" srcset="${pairSources("hero-selfie")}" sizes="${PAIR_SIZES}" alt="" width="360" height="480" fetchpriority="high" /></picture><figcaption>Your selfie</figcaption></figure>
             <span class="hero-ba-arrow" aria-hidden="true">${icon("arrow-right")}</span>
-            <figure><img src="${example("hero-2", 360)}" srcset="${pairSources("hero-2")}" sizes="min(43vw, 190px)" alt="" width="360" height="480" fetchpriority="high" /><figcaption>Your headshot</figcaption></figure>
+            <figure><picture>${raw(PHONE_ONLY)}<img src="${example("hero-2", 360)}" srcset="${pairSources("hero-2")}" sizes="${PAIR_SIZES}" alt="" width="360" height="480" fetchpriority="high" /></picture><figcaption>Your headshot</figcaption></figure>
           </div>
           <p class="lede" data-reveal style="--i:2">Upload a few selfies. Our AI studio checks your photos, develops studio-quality headshots in the looks you choose, then grades every frame so you know exactly which one to use.</p>
           <div class="hero-ctas" data-reveal style="--i:3">
@@ -80,7 +88,7 @@ export function renderLanding({ root, hydrate = false }) {
             )}
           </div>
           <figure class="polaroid">
-            <img src="${example("hero-selfie", 360)}" alt="" />
+            <img src="${example("hero-selfie", 360)}" srcset="${pairSources("hero-selfie")}" sizes="${POLAROID_SIZES}" alt="" loading="lazy" decoding="async" />
             <figcaption><span>BEFORE</span><span>SELFIE</span></figcaption>
           </figure>
           <span class="tag-keeper">${icon("badge-check")} Best pick <span class="score" id="heroScore">96</span></span>
@@ -448,7 +456,7 @@ function heroCycle() {
   let visible = !("IntersectionObserver" in window);
   let warmTimer = null;
   let warmed = false;
-  const urls = (i) => [example(`${HERO_SETS[i][0]}-selfie`, 360), ...imgs.map((im, j) => {
+  const urls = (i) => [example(`${HERO_SETS[i][0]}-selfie`, [180, 300, 360].find((w) => w >= selfie.clientWidth * devicePixelRatio) || 360), ...imgs.map((im, j) => {
     const width = [180, 360, 600].find((w) => w >= im.clientWidth * devicePixelRatio) || 600;
     return example(`${HERO_SETS[i][0]}-${j + 1}`, width);
   })];
@@ -471,6 +479,7 @@ function heroCycle() {
     sheet.classList.add("swapping");
     await new Promise((r) => setTimeout(r, reduce ? 0 : 520));
     const [sel, ...frames] = urls(i);
+    selfie.srcset = pairSources(`${HERO_SETS[i][0]}-selfie`);
     selfie.src = sel;
     imgs.forEach((im, j) => {
       im.srcset = frameSources(`${HERO_SETS[i][0]}-${j + 1}`);
