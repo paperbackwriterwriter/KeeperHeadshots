@@ -788,7 +788,9 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
     }
     if (counted) {
       await users.update(req.user.id, (u) => {
-        if (!teamSeat && !extra && planFor(u).checksLeft === 0) throw new PlanError(limitMsg);
+        // (A reserved mailbox check is this request's, whatever another
+        // request has just written to the account's count.)
+        if (!teamSeat && !extra && !mailboxReserved && planFor(u).checksLeft === 0) throw new PlanError(limitMsg);
         const day = u.usage?.checkDay?.date === today ? u.usage.checkDay.n : 0;
         if (day >= DAILY_CHECKS) throw new PlanError(dayMsg, "daily_checks", 429);
         // Shows what's left for the whole mailbox, not just this address.

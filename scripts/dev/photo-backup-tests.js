@@ -184,9 +184,13 @@ try {
   });
   await test("short photo runs resume after the last batch instead of starving later files", async () => {
     const g = await fixture("g"); let writes = 0;
-    interceptPut = async (key) => { if (key.startsWith("photo-backups/")) { writes++; await new Promise((r) => setTimeout(r, 8)); } };
+    // The first batch of copies runs past the deadline, however long the
+    // set-up before it took on a busy machine.
+    let deadline = 0;
+    interceptPut = async (key) => { if (key.startsWith("photo-backups/")) { writes++; await new Promise((r) => setTimeout(r, Math.max(0, deadline - Date.now() + 1))); } };
     const records = {}; for (const key of await storage.list("shoots/")) records[key] = await storage.getJSON(key);
-    const first = await backupPhotos({ records, now, deadline: Date.now() + 20 });
+    deadline = Date.now() + 2000;
+    const first = await backupPhotos({ records, now, deadline });
     const cursor = (await storage.getJSON("cron/photo-backup-state.json"))?.cursor;
     interceptPut = null; assert.ok(!first.passComplete && cursor && writes);
     const second = await backupPhotos({ records, now, deadline: Date.now() + 10_000 });

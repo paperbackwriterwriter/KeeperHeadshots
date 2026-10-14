@@ -139,6 +139,24 @@ for (const width of [1440, 901]) {
   const results = await at200(ctx, `/app/shoot/${sid}`);
   ok("390px, text at 200%: a finished shoot's buttons are whole", !results.length, results.join(" | "));
   await ctx.close();
+  // The preview's buy buttons and the package panel below them.
+  for (const width of [390, 901, 1280]) {
+    const c = await browser.newContext({ viewport: { width, height: 900 } });
+    await c.addCookies([{ name: cookie.split("=")[0], value: cookie.split("=").slice(1).join("="), url: B }]);
+    const p = await c.newPage();
+    p.on("pageerror", (e) => errs.push(e.message));
+    await p.goto(`${B}/app/shoot/${sid}`, { waitUntil: "networkidle" });
+    await p.waitForSelector(".keep-cta");
+    await p.addStyleTag({ content: "html { font-size: 200% !important; }" });
+    await p.waitForTimeout(300);
+    const r = await p.evaluate(() => {
+      const panel = document.querySelector(".upsell"), cta = document.querySelector(".keep-cta");
+      const spill = [...document.querySelectorAll(".keep-cta .btn, .upsell, .upsell *")].filter((el) => { const b = el.getBoundingClientRect(), pb = el.parentElement.getBoundingClientRect(); return b.width && b.right > pb.right + 1; }).map((el) => el.className || el.tagName);
+      return { panel: !!panel, cta: !!cta, wide: document.documentElement.scrollWidth - innerWidth, spill: spill.slice(0, 4) };
+    });
+    ok(`${width}px, text at 200%: a preview's buy buttons and packages fit`, r.panel && r.cta && r.wide <= 0 && !r.spill.length, JSON.stringify(r));
+    await c.close();
+  }
 }
 ok("no page errors", !errs.length, errs.join("; "));
 await browser.close();

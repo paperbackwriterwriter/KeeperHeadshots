@@ -351,6 +351,28 @@ let final;
   ok("a refund during a colleague's photo check doesn't hand a credit back later", left === 0, String(left));
 }
 
+// 9f2. A refund of an older package whose seats are taken, with a newer
+// package's credits on the balance: no new invitation is charged while the
+// taken seat is unpaid (it couldn't be accepted).
+{
+  const adm = await account(`owed-admin${t}@x.com`);
+  const { j } = await adm("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  const sid = new URL(j.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${sid}`, { redirect: "manual" });
+  await adm("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid }) });
+  await adm("/api/team", { method: "POST", body: JSON.stringify({ name: "Owers", looks: LOOKS }) });
+  const joe = `joe${t}@x.com`;
+  const sent = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: `${joe}, owed1.${t}@x.com, owed2.${t}@x.com` }) })).j;
+  await (await account(joe))(`/api/join/${tokenOf(sent.results.find((r) => r.email === joe).link)}`, { method: "POST" });
+  await new Promise((r) => setTimeout(r, 20)); // the second package is the newer one
+  await buy(adm, "starter");
+  await fetch(`${M}/mock-refund/${sid}`);
+  await adm("/api/billing/sync", { method: "POST", body: "{}" });
+  const before = await credits(adm);
+  const inv = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: `owed3.${t}@x.com` }) })).j;
+  ok("an invitation isn't charged while a refund leaves a taken seat unpaid", before === 3 && inv?.results?.[0]?.ok === false && /unpaid/.test(inv.results[0].error) && (await credits(adm)) === 3, `${before} ${JSON.stringify(inv?.results)} → ${await credits(adm)}`);
+}
+
 // 9g. Each address counts towards the hourly invite limit, however they're batched.
 {
   const adm = await account(`batch-admin${t}@x.com`);
