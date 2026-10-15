@@ -76,6 +76,33 @@ for (let i = 0; i < 40 && !["generating", "reviewing", "done"].includes(status);
 }
 ok("and continuing develops the shoot", ["generating", "reviewing", "done"].includes(status), status);
 
+// Straight from upload (the check runs on the page): "Continue anyway" right
+// after the result, then picking looks while the poll started during the
+// check lands, still develops with those looks.
+{
+  const { url } = await f("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  const session = new URL(url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${session}?promo=FREE`, { redirect: "manual" });
+  await f("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: session }) });
+  const fresh = (await f("/api/shoots", { method: "POST", body: "{}" })).shoot.id;
+  for (let i = 0; i < 4; i++) await f(`/api/shoots/${fresh}/selfies`, { method: "POST", body: JSON.stringify({ photo: "data:image/jpeg;base64," + (await jpg(20 + i)).toString("base64") }) });
+  await page.evaluate((sid) => sessionStorage.setItem("ahg-autocheck", sid), fresh);
+  await page.goto(`${B}/app/shoot/${fresh}`);
+  // As soon as the result shows (before that poll), as a quick tap would.
+  await page.waitForSelector("#continueAnyway", { timeout: 30000 });
+  await page.evaluate(() => document.getElementById("continueAnyway").click());
+  await page.evaluate(() => document.getElementById("fillAll").click());
+  await page.waitForTimeout(3500); // past the poll the check scheduled
+  await page.click("#develop");
+  let st = "";
+  for (let i = 0; i < 40 && !["generating", "reviewing", "done"].includes(st); i++) {
+    await page.waitForTimeout(250);
+    st = (await f(`/api/shoots/${fresh}`)).shoot.status;
+  }
+  const looks = (await f(`/api/shoots/${fresh}`)).shoot.looks?.length;
+  ok("continuing straight after an on-page check develops, with the looks picked", ["generating", "reviewing", "done"].includes(st) && looks === 4, `${st} looks=${looks}`);
+}
+
 // Choosing several large photos at once: "Check my photos" stays off until
 // every one is ready, so none is left out of the shoot. Phone-sized photos
 // (8 megapixels), in a page of their own so WebKit on CI isn't holding the

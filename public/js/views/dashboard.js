@@ -77,14 +77,15 @@ export async function confirmPurchase(sessionId) {
     if (res.granted || res.paid) {
       // No Purchase event for a free (100%-off) order; the server sends none either.
       // Meta de-duplicates it with the server's event by its id.
-      if (res.eventId) pixel("Purchase", { value: res.value, currency: "USD" }, res.eventId);
       // A success page opened again later (history, a bookmark): the order
-      // was applied back then, nothing is added now. Stripe's webhook getting
-      // there seconds before this call is still "added".
+      // was applied back then, nothing is added now, and it isn't a purchase
+      // again. Stripe's webhook getting there seconds before this call is
+      // still "added".
       if (!res.granted && res.appliedAt && Date.now() - Date.parse(res.appliedAt) > 2 * 60 * 1000) {
         toast("This payment was already applied to your account.", "info", 7000);
         return res;
       }
+      if (res.eventId) pixel("Purchase", { value: res.value, currency: "USD" }, res.eventId);
       const pkg = PACKAGES.find((p) => p.id === res.packageId);
       const what = res.added || pkg ? `${res.added || pkg.shoots} shoots added to your account.` : res.packageId === "keep-plus" ? "every headshot is yours to keep. Now pick your 2 extra looks." : "your pick is yours to keep, in full resolution.";
       toast(`${res.eventId ? "Payment received" : "Order complete"}: ${what}`, "success", 7000);

@@ -12,18 +12,28 @@ const optedOut = () => state.meta?.optOut || navigator.globalPrivacyControl;
 // else's sign-ups, checkouts and purchases still reach Meta from the server
 // (Conversions API); the SDK's long tasks are kept off their visit.
 const fromAd = /[?&]fbclid=/.test(location.search) || /(?:^|;\s*)_fb[cp]=/.test(document.cookie);
+// The ad click's ID, read now: the SDK loads late, by when an in-app page
+// change may have taken it out of the address bar.
+const fbclid = new URLSearchParams(location.search).get("fbclid");
 export const pixelWanted = (path = location.pathname, search = location.search) => fromAd || /^\/(signup|verify|app\/buy\/)/.test(path) || /[?&]checkout=success/.test(search);
 let waiting = false;
 
-export function initPixel({ afterRender } = {}) {
+// `conversion`: a sign-up or purchase happening on a page that doesn't
+// otherwise load the SDK (a Google sign-up's return, a code typed on /app).
+export function initPixel({ afterRender, conversion = false } = {}) {
   const id = state.meta?.pixelId;
   // Respect Global Privacy Control (a browser-level "don't share my data" signal).
   if (!id || window.fbq || optedOut()) return;
-  if (!pixelWanted()) {
+  if (!conversion && !pixelWanted()) {
     waiting = true; // until the visitor reaches a page that wants it (pixelRoute)
     return;
   }
   waiting = false;
+  // Keep the ad click for Meta (its _fbc cookie, in Meta's own format), as the
+  // SDK would on landing; the server's events read it too (lib/meta.js).
+  if (fbclid && !/(?:^|;\s*)_fbc=/.test(document.cookie)) {
+    document.cookie = `_fbc=fb.1.${Date.now()}.${encodeURIComponent(fbclid)}; path=/; max-age=${90 * 86400}; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`;
+  }
   /* eslint-disable */
   !(function (f, n) {
     if (f.fbq) return;
@@ -89,6 +99,8 @@ function whenActiveOrIdle(task) {
 export const pageUrl = () => location.origin + location.pathname;
 
 export function pixel(name, params = {}, eventId) {
-  if (!window.fbq || optedOut()) return;
+  if (optedOut()) return;
+  if (!window.fbq && waiting && name !== "PageView") initPixel({ afterRender: Promise.resolve(), conversion: true });
+  if (!window.fbq) return;
   window.fbq("track", name, params, eventId ? { eventID: eventId } : undefined);
 }

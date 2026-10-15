@@ -284,10 +284,12 @@ function wireChrome() {
       const key = `${inner.clientWidth}|${getComputedStyle(inner).fontSize}`;
       if (key === fitted) return;
       fitted = key;
-      nav.classList.remove("nav-compact", "nav-tight");
+      nav.classList.remove("nav-compact", "nav-tight", "nav-mark");
       if (crowded()) nav.classList.add("nav-compact");
       // Still no room (a phone with large text): sign-out moves into the menu.
       if (crowded()) nav.classList.add("nav-tight");
+      // And on the narrowest phones, the logo is just its mark.
+      if (crowded()) nav.classList.add("nav-mark");
     };
     const sizes = inner && typeof ResizeObserver === "function" ? new ResizeObserver(() => requestAnimationFrame(fit)) : null;
     sizes?.observe(document.documentElement);

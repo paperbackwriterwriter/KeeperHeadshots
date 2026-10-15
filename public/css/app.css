@@ -324,6 +324,9 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .nav-tight #signOut { display: none; }
 .nav-tight .nav-sheet-signout { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 0; border: 0; border-bottom: 1px solid var(--border); background: none; color: inherit; font: inherit; font-weight: 600; font-size: var(--fs-md); text-align: left; cursor: pointer; }
 .nav-tight .nav-sheet-signout svg { width: 18px; height: 18px; }
+/* Still no room (320px with large text): the wordmark is hidden but still
+   names the link. */
+.nav-mark .nav-inner .logo-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* Smallest phones (320px): the signed-in header's logo, account chip, sign-out
    and menu buttons fit on one line. */

@@ -17,7 +17,7 @@ const browser = process.env.BROWSER === "webkit" ? await webkit.launch() : await
 const errs = [];
 
 // 1. Text at 200%: no header control runs off the screen, and the menu works.
-for (const scheme of ["light", "dark"]) for (const width of [1280, 1440]) {
+for (const scheme of ["light", "dark"]) for (const width of [320, 1280, 1440]) {
   const page = await (await browser.newContext({ viewport: { width, height: 800 }, colorScheme: scheme })).newPage();
   page.on("pageerror", (e) => errs.push(e.message));
   await page.goto(B + "/", { waitUntil: "networkidle" });

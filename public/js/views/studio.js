@@ -100,6 +100,8 @@ export async function renderStudio(ctx, id) {
       pollErrors = 0;
       const prev = shoot;
       shoot = data.shoot;
+      // "Continue with these selfies anyway" holds for the check it answered.
+      if (prev?._override && shoot.status === "checked" && shoot.check?.at === prev.check?.at) shoot._override = true;
       ctx.setTitle(shoot.name);
       paint(prev);
       selfieTips(shoot);
@@ -143,6 +145,8 @@ export async function renderStudio(ctx, id) {
     // (that would replay animations and re-announce the status to screen readers).
     if (prev?.status === "checking" && s.status === "checking") return;
     if (s.status === "draft" || s.status === "checking") return paintCheck(s);
+    // A poll landing while looks are being picked leaves the picks alone.
+    if (s.status === "checked" && view === "looks" && prev?.status === "checked" && $("#develop")) return;
     if (s.status === "checked") return view === "looks" ? paintLooks(s) : paintCheck(s);
     if (s.status === "generating" || s.status === "reviewing") return paintDevelop(s);
     if (s.status === "error") return s.shots.length ? paintDevelop(s) : paintCheck(s);
@@ -223,6 +227,8 @@ export async function renderStudio(ctx, id) {
       const data = await api(`/api/shoots/${id}/check`, { method: "POST" });
       if (disposed) return;
       shoot = data.shoot;
+      // The poll started while this check ran isn't needed: here's its result.
+      clearTimeout(timer);
       paintCheck(shoot);
       toast("Photo check complete.", "success");
       loadSession().catch(() => {});

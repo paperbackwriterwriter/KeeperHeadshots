@@ -48,7 +48,7 @@ try {
   for (const k of keys) {
     // Past its retention (the daily clean-up deletes these): never brought back.
     if (contactExpired(k)) { skipped.expired++; continue; }
-    if (await recordErased(k, snap.records[k])) { skipped.erased++; continue; }
+    if (await recordErased(k, snap.records[k], (key) => snap.records[key])) { skipped.erased++; continue; }
     if (missingOnly && (await getJSON(k)) !== null) {
       skipped.exists++;
       continue;
@@ -59,7 +59,7 @@ try {
       } else await putJSON(k, snap.records[k]);
       if (!k.startsWith("cancelled/") && !k.startsWith("photo-erased/")) {
         try {
-          if (await recordErased(k, snap.records[k])) { await del(k); skipped.erased++; continue; }
+          if (await recordErased(k, snap.records[k], (key) => snap.records[key])) { await del(k); skipped.erased++; continue; }
         } catch (err) { await del(k); throw err; }
       }
       // A missing-only restore merges historical records into today's data.

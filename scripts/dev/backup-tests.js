@@ -117,6 +117,22 @@ ok("restored records rebuild current indexes so recovered shoots are visible", i
   ok("and says why it was skipped (not that it already exists)", /1 past their retention period/.test(said) && !/already exist/.test(said), said);
 }
 
+// A deleted team admin's team and open invitations aren't brought back; a
+// current admin's are.
+{
+  const team = (tid, uid) => ({ id: tid, ownerId: uid, ownerName: "Olive Admin", name: "Acme", invites: { inv_1: { id: "inv_1", email: "invitee@x.com", status: "invited" } } });
+  await storage.putJSON("teams/team_gone.json", team("team_gone", "usr_gone"));
+  await storage.putJSON("invites/tokgone.json", { teamId: "team_gone", inviteId: "inv_1" });
+  await storage.putJSON("teams/team_kept.json", team("team_kept", "usr_kept"));
+  await storage.putJSON("invites/tokkept.json", { teamId: "team_kept", inviteId: "inv_1" });
+  await runBackup();
+  await storage.del(["teams/team_gone.json", "invites/tokgone.json", "teams/team_kept.json", "invites/tokkept.json"]);
+  await storage.putJSON("cancelled/users/usr_gone.json", { at: new Date().toISOString() }); // the admin deleted their account
+  run("--only", "teams/", "--only", "invites/", "--apply");
+  const back = await Promise.all(["teams/team_gone.json", "invites/tokgone.json", "teams/team_kept.json", "invites/tokkept.json"].map((k) => storage.getJSON(k)));
+  ok("restore leaves a deleted admin's team and invitations gone, and brings back a current one's", !back[0] && !back[1] && back[2]?.ownerId === "usr_kept" && back[3]?.teamId === "team_kept", JSON.stringify(back.map(Boolean)));
+}
+
 // A backup store that can't be reached (store id set, no OIDC token here):
 // tonight's copy still lands in the main store, and it's reported.
 process.env.BACKUP_STORE_ID = "store_unreachable";

@@ -219,10 +219,50 @@ try {
     const ad = await contextFor({ width: 390, adVisitor: false });
     const adPage = await ad.newPage();
     await adPage.goto(BASE + "/?fbclid=test-click");
+    // Leaving the landing page in-app before the SDK loads keeps the click (_fbc).
+    await adPage.waitForFunction(() => window.fbq && !window.__sdkReady, null, { polling: 50 });
+    await adPage.evaluate(() => { history.pushState({}, "", "/signup"); });
+    const fbc = (await ad.cookies(BASE)).find((c) => c.name === "_fbc")?.value || "";
+    assert.match(fbc, /^fb\.1\.\d{13}\.test-click$/);
     await adPage.evaluate(() => window.scrollBy(0, 300));
     await adPage.waitForFunction(() => window.__sdkReady, null, { polling: 50, timeout: 8000 });
-    pass("a visitor from a Meta ad (fbclid) gets the SDK on the homepage");
+    pass("a visitor from a Meta ad (fbclid) gets the SDK on the homepage, and the click is kept");
     await ad.close();
+  }
+  // Back from checkout: a Purchase for a fresh order, none for a success link
+  // reopened later (the order was applied back then).
+  for (const [label, ageMs, want] of [["fresh order", 5_000, 1], ["reopened success link", 3 * 86_400_000, 0]]) {
+    const context = await contextFor({ width: 1280, signedIn: true });
+    const user = (await (await context.request.get(BASE + "/api/me")).json()).user;
+    await context.route("**/api/billing/confirm", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ granted: false, paid: true, eventId: "purchase-test", value: 29, packageId: "starter", added: 0, appliedAt: new Date(Date.now() - ageMs).toISOString(), user }) }));
+    const page = await context.newPage();
+    await page.goto(BASE + "/app?checkout=success&session_id=cs_test_reopen");
+    await page.locator(".toast").first().waitFor();
+    await page.evaluate(() => window.scrollBy(0, 200));
+    await page.waitForFunction(() => window.__sdkReady, null, { polling: 50, timeout: 8000 });
+    const purchases = await page.evaluate(() => window.__metaCalls.filter((c) => c[0] === "track" && c[1] === "Purchase").length);
+    assert.equal(purchases, want, label);
+    pass(`checkout return, ${label}: ${want ? "one Purchase" : "no Purchase"}`);
+    await context.close();
+  }
+  // A sign-up completed on a page that doesn't load the SDK (a Google sign-up's
+  // return to /app, a code typed there) still reaches Meta from the browser.
+  {
+    const context = await contextFor({ width: 1280, signedIn: true, adVisitor: false });
+    const page = await context.newPage();
+    await page.goto(BASE + "/app");
+    await page.locator(".shoots").first().waitFor();
+    assert.equal(await page.evaluate(() => typeof window.fbq), "undefined");
+    await page.evaluate(async () => {
+      const { pixel } = await import(new URL("./pixel.js", document.querySelector('script[type="module"][src*="app.js"]').src).href);
+      pixel("CompleteRegistration", {}, "reg-test");
+    });
+    await page.evaluate(() => window.scrollBy(0, 200));
+    await page.waitForFunction(() => window.__sdkReady, null, { polling: 50, timeout: 8000 });
+    const regs = await page.evaluate(() => window.__metaCalls.filter((c) => c[0] === "track" && c[1] === "CompleteRegistration").length);
+    assert.equal(regs, 1);
+    pass("a sign-up confirmed on /app by an ordinary visitor still sends CompleteRegistration");
+    await context.close();
   }
   console.log(`${passed} homepage cases passed`);
 } finally {

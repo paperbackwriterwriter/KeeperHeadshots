@@ -143,7 +143,7 @@ async function checked(f, n) {
   await quoted(`/api/shoots/${qsid}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(93) }) });
   const q = await quoted(`/api/shoots/${qsid}/check`, { method: "POST", body: "{}" });
   const { canonicalEmail } = await import("../../lib/store.js");
-  ok("a quoted address or a trailing dot is the same mailbox", q.status === 429 && canonicalEmail(`${base}@gmail.com.`) === canonicalEmail(`${base}@gmail.com`), `${q.status}`);
+  ok("a quoted address or a trailing dot is the same mailbox", q.status === 429 && [`${base}@gmail.com.`, `"${base}"+x@gmail.com`].every((e) => canonicalEmail(e) === canonicalEmail(`${base}@gmail.com`)), `${q.status}`);
   // Once the free shoot is used, the free allowance is the limit again.
   // (A second draft first: with no shoots left, a new one can't be started.)
   const sid2 = (await f("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;
