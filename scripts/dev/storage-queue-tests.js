@@ -47,5 +47,24 @@ try {
     await assert.rejects(s.updateJSON("corrupt.json", (r) => r), SyntaxError); assert.equal(s.queueSize(), 0);
     await s.putJSON("corrupt.json", { n: 0 }); await s.updateJSON("corrupt.json", (r) => ({ n: r.n + 1 })); assert.equal(s.queueSize(), 0);
   });
+  await test("a Blob write that overlaps another (conflicting operation) is read again and retried", async () => {
+    // A copy on the Blob backend, with a stand-in for the Blob service.
+    const blobFile = path.join(dir, "blob-storage.mjs");
+    await fs.writeFile(blobFile, (await fs.readFile(new URL("../../lib/storage.js", import.meta.url), "utf8")).replace("const useBlob = ", "const useBlob = true || ") + "\nexport const setSdk = (x) => (blobSdk = x);\n");
+    const b = await import(pathToFileURL(blobFile));
+    class BlobPreconditionFailedError extends Error {}
+    let stored = { n: 1 }, etag = 1, puts = 0;
+    b.setSdk({
+      BlobPreconditionFailedError, BlobNotFoundError: class extends Error {},
+      head: async () => ({ etag: String(etag) }),
+      get: async () => ({ statusCode: 200, stream: new Blob([JSON.stringify(stored)]).stream() }),
+      put: async (key, body) => {
+        if (++puts === 1) { stored = { n: 10 }; etag++; throw new Error("Vercel Blob: The conditional request cannot succeed due to a conflicting operation against this resource."); }
+        stored = JSON.parse(body); etag++;
+      },
+    });
+    const out = await b.updateJSON("shoots/sht_x.json", (r) => ({ n: r.n + 1 }));
+    assert.equal(puts, 2); assert.deepEqual(out, { n: 11 }); assert.deepEqual(stored, { n: 11 });
+  });
 } finally { await fs.rm(dir, { recursive: true, force: true }); }
 console.log(`\n${passed}/${passed} passed`);
