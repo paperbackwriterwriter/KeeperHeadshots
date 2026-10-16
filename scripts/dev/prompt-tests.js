@@ -1,6 +1,7 @@
 // DEV/QA ONLY — the headshot brief puts likeness first (lib/ai.js buildPrompt).
 import assert from "node:assert/strict";
-import { buildPrompt, sceneBrief } from "../../lib/ai.js";
+import http from "node:http";
+import { buildPrompt, sceneBrief, qaHeadshot } from "../../lib/ai.js";
 
 const look = { outfit: { prompt: "a navy suit" }, backdrop: { prompt: "a grey studio backdrop", light: "soft key light" } };
 let passed = 0;
@@ -46,4 +47,40 @@ test("a retake's correction comes straight after the likeness rules", () => {
 test("site examples keep their stock poses and expressions", () => {
   assert.match(sceneBrief({ look, take: 0 }).join(" "), /closed-mouth smile that reaches the eyes/);
 });
+// The quality check caches its shared start: instructions and references,
+// identical for every frame of a shoot, with only the candidate after it.
+{
+  const sent = [];
+  const server = http.createServer((req, res) => {
+    let raw = "";
+    req.on("data", (c) => (raw += c)).on("end", () => {
+      sent.push(JSON.parse(raw));
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ id: "msg_t", type: "message", role: "assistant", model: "m", stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 10, output_tokens: 10 },
+        content: [{ type: "text", text: JSON.stringify({ likeness: 9, likeness_notes: "", professional: 9, issues: [], head_box: { top: 0.1, bottom: 0.5, left: 0.3, right: 0.7 }, pass: true, retake_direction: "" }) }] }));
+    });
+  });
+  await new Promise((r) => server.listen(0, r));
+  process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+  process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${server.address().port}`;
+  const ref = (d) => ({ mime: "image/jpeg", data: Buffer.from(d).toString("base64") });
+  const references = [ref("a"), ref("b"), ref("c")];
+  const qaLook = { backdrop: { name: "Studio" }, outfit: { name: "Navy suit" } };
+  await qaHeadshot({ references, candidate: ref("frame1"), look: qaLook });
+  await qaHeadshot({ references, candidate: ref("frame2"), look: { ...qaLook, outfit: { name: "White shirt" } } });
+  server.close();
+  const marked = (b) => b.messages[0].content.findIndex((c) => c.cache_control);
+  const prefix = (b) => JSON.stringify([b.system, b.output_config, b.thinking, b.messages[0].content.slice(0, marked(b) + 1)]);
+  test("quality check marks the last reference photo for caching", () => {
+    assert.equal(sent.length, 2);
+    assert.equal(marked(sent[0]), 3);
+    assert.equal(sent[0].messages[0].content[3].type, "image");
+    assert.deepEqual(sent[0].messages[0].content[3].cache_control, { type: "ephemeral" });
+    assert.equal(sent[0].messages[0].content.filter((c) => c.cache_control).length, 1);
+  });
+  test("two frames share the cached start byte for byte; only the candidate differs", () => {
+    assert.equal(prefix(sent[0]), prefix(sent[1]));
+    assert.notEqual(JSON.stringify(sent[0].messages), JSON.stringify(sent[1].messages));
+  });
+}
 console.log(`\n${passed}/${passed} passed`);
