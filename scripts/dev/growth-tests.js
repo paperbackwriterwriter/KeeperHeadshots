@@ -11,7 +11,7 @@ const ok = (name, cond, extra = "") => (results.push(!!cond), console.log(cond ?
 function client() {
   let cookie = "";
   return async (p, o = {}) => {
-    const r = await fetch(B + p, { redirect: "manual", ...o, headers: { "content-type": "application/json", cookie, ...(o.headers || {}) } });
+    const r = await fetch(B + p, { redirect: "manual", ...o, headers: { "content-type": "application/json", cookie: [cookie, o.cookies].filter(Boolean).join("; "), ...(o.headers || {}) } });
     const sc = r.headers.get("set-cookie");
     if (sc) cookie = sc.split(";")[0];
     let j = null;
@@ -57,6 +57,28 @@ const t = Date.now();
   const f = await account(`half${t}@x.com`);
   const r = await buy(f, "professional", "HALF");
   ok("discounted order reports the amount paid", r.added === 6 && r.value === 19.5 && !!r.eventId, `added=${r.added} value=${r.value}`);
+}
+
+// 3b. The Purchase sent to Meta from the server carries the buyer's browser
+// details (address, browser, Meta cookies), saved when the checkout started,
+// though the payment is confirmed later without that browser's request.
+{
+  const f = await account(`capi${t}@x.com`);
+  const ua = "Mozilla/5.0 (GrowthTest) CapiBrowser/1.0";
+  const { j } = await f("/api/billing/checkout", { method: "POST", cookies: "_fbp=fb.1.1700000000000.42; _fbc=fb.1.1700000000000.adclick", headers: { "user-agent": ua }, body: JSON.stringify({ packageId: "starter" }) });
+  const id = new URL(j.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${id}`, { redirect: "manual" });
+  await f("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: id }) });
+  await new Promise((r) => setTimeout(r, 300));
+  const e = (await fetch(`${M}/mock-meta`).then((r) => r.json())).find((x) => x.event_id === `purchase_${id}`);
+  const u = e?.user_data || {};
+  ok("server Purchase carries the buyer's browser details", u.client_user_agent === ua && !!u.client_ip_address && u.fbp === "fb.1.1700000000000.42" && u.fbc === "fb.1.1700000000000.adclick" && !!u.em, JSON.stringify(u));
+  // With Global Privacy Control on, nothing is saved or sent.
+  const g = await account(`capigpc${t}@x.com`);
+  const r = await g("/api/billing/checkout", { method: "POST", cookies: "_fbp=fb.1.1.9", headers: { "sec-gpc": "1", "user-agent": ua }, body: JSON.stringify({ packageId: "starter" }) });
+  const gid = new URL(r.j.url).pathname.split("/").pop();
+  const md = (await fetch(`${M}/v1/checkout/sessions/${gid}`).then((x) => x.json())).metadata || {};
+  ok("with the privacy signal, no browser details are saved on the checkout", !Object.keys(md).some((k) => k.startsWith("meta_")), JSON.stringify(md));
 }
 
 // 4. The funnel counts each step once per person, and only owners can see it.

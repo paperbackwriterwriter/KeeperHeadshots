@@ -28,7 +28,7 @@ import { lookFor, MAX_LOOKS, MAX_SELFIES, MAX_RESUMES, MIN_CHECK_SCORE, RECOMMEN
 import { seed, DEMO } from "./scripts/seed.js";
 import { customersSection } from "./public/js/shared/customers.js";
 import { planFor, ownerEmail, creditSource, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, EMAIL_UNCONFIRMED } from "./lib/plan.js";
-import { gpc, metaPixelId, track as trackMeta } from "./lib/meta.js";
+import { browserDetails, gpc, metaPixelId, track as trackMeta } from "./lib/meta.js";
 import { runCleanup } from "./lib/cleanup.js";
 import { runBackup } from "./lib/backup.js";
 import { BUILD, BUILD_FILES } from "./lib/build.js";
@@ -1447,7 +1447,7 @@ app.post("/api/billing/checkout", requireUser, async (req, res) => {
       if (isKept(req.user, shootId, shotId)) return res.status(400).json({ error: "That headshot is already yours. Pick another one, or keep them all.", code: "kept" });
     }
   }
-  const checkout = await createCheckout(req.user, packageId, origin, { gpc: gpc(req), embedded, shootId, shotId });
+  const checkout = await createCheckout(req.user, packageId, origin, { gpc: gpc(req), embedded, shootId, shotId, browser: browserDetails(req) });
   // For the one "unfinished checkout" reminder (lib/reminders.js).
   // (Packages only: an offer is reminded about by the preview's "buy" email.)
   if (!shootId) await users.update(req.user.id, (u) => void (u.lastCheckout = { packageId, at: new Date().toISOString() })).catch((err) => console.error("[checkout] record", err.message));
