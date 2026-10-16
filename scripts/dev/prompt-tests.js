@@ -9,9 +9,16 @@ const test = (name, fn) => { fn(); passed++; console.log("PASS", name); };
 test("likeness leads the brief, before wardrobe and set", () => {
   const p = buildPrompt({ look, take: 0, subject: { glasses: false, hair: "Long locs past the shoulders.", smile: "neutral" } });
   assert.ok(p.startsWith("Create a professional headshot") && /Likeness is the top priority/.test(p.split("\n\n")[0]));
-  assert.ok(p.indexOf("Hair and facial hair exactly as in the photos") < p.indexOf("Wardrobe:"));
+  assert.ok(p.indexOf("Hair and facial hair:") < p.indexOf("Wardrobe:"));
   assert.match(p, /never younger, never older/);
   assert.match(p, /In the photos: Long locs past the shoulders\./);
+});
+test("hair may look its best, but stays theirs: identity first", () => {
+  const p = buildPrompt({ look, take: 0, subject: { hair: "Shoulder-length ash-blonde waves with grey." } });
+  assert.match(p, /their own hair, at its best/);
+  assert.match(p, /Preserving their identity is critical/);
+  assert.match(p, /the same colour \(including any grey, highlights or roots\), length, cut, texture and curl pattern/);
+  assert.match(p, /never recolour/);
 });
 test("expression follows the person's own photos, never a stock grin", () => {
   assert.match(buildPrompt({ look, take: 0, subject: { smile: "neutral" } }), /lips closed, no teeth/);
