@@ -499,7 +499,7 @@ export async function renderStudio(ctx, id) {
     // Checks from before the minimum score are held to it too (as the server does).
     if (c.verdict !== "retake" && c.overall_score < RECOMMENDED_CHECK_SCORE) c.verdict = "retake";
     const retake = c.verdict === "retake";
-    const verdict = { ready: ["Ready to shoot", "badge-success"], usable: ["Usable", "badge-warn"], retake: ["Retake needed", "badge-danger"] }[c.verdict];
+    const verdict = { ready: ["Ready to shoot", "badge-success"], usable: ["Usable", "badge-warn"], retake: c.overall_score < MIN_CHECK_SCORE ? ["Retake needed", "badge-danger"] : ["Retake recommended", "badge-warn"] }[c.verdict];
     const kept = c.photos.filter((p) => p.keep).length;
     return html`<section class="verdict">
         <div class="ring" style="--val:0;--col:${scoreColor(c.overall_score)}" data-ring="${c.overall_score}">
@@ -1038,7 +1038,7 @@ export async function renderStudio(ctx, id) {
           <div class="scoreboard">
             <div><strong class="tabular">${r ? keepers : done.length}</strong><span>${r ? "Keepers" : "Headshots"}</span></div>
             <div><strong class="tabular">${avgLikeness}<small>/10</small></strong><span>Avg. likeness</span></div>
-            <div><strong class="tabular">${bestG?.overall ?? "—"}</strong><span>Best score</span></div>
+            <div><strong class="tabular">${bestG?.overall ?? "—"}</strong><span>${isMine ? "Your pick's score" : "Best pick's score"}</span></div>
           </div>
           ${bestG
             ? html`<div class="bars" style="max-width:420px;margin-bottom:24px">${[["Likeness", bestG.likeness], ["Polish", bestG.polish], ["Lighting", bestG.lighting]].map(([k, v]) => html`<div class="bar-row"><span>${k}</span><div class="meter-track"><div class="meter-fill" style="--v:${v};--mcol:var(--teal-600)"></div></div><b>${v}</b></div>`)}</div>
