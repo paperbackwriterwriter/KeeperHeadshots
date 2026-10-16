@@ -118,6 +118,18 @@ try {
   await assert.rejects(startReview(sid, () => { throw new Error("Regrade limit"); }), /Regrade limit/);
   assert.deepEqual(await storage.list(`jobs/shoots/${sid}/`), []);
   pass("a refused regrade discards its uncommitted durable delivery");
+  // Retrying failed frames while a grading is running doesn't start, and
+  // leaves no job behind for the shoot cron to wait on.
+  {
+    const { retryFailed } = await import("../../lib/pipeline.js");
+    const busySid = id("sht");
+    await shoots.create({ ...(await shoots.getMeta(sid)), id: busySid, status: "reviewing", reviewStartedAt: new Date().toISOString(), jobId: null });
+    await retryFailed(busySid);
+    assert.deepEqual(await storage.list(`jobs/shoots/${busySid}/`), []);
+    assert.equal((await shoots.getMeta(busySid)).status, "reviewing");
+    await shoots.updateMeta(busySid, (m) => { m.status = "done"; });
+    pass("a retry refused during a grading leaves no job behind");
+  }
 
   // A Vercel publisher without queue credentials must fail before paid work
   // commits; use the real SDK failure path, never a mocked pipeline function.

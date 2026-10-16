@@ -786,12 +786,15 @@ export async function renderStudio(ctx, id) {
       } catch (err) {
         restore();
         toast(err.message, "error", 7000);
-        // The shoot may have changed in another tab (photos added, check gone):
-        // re-read it, and leave the looks page if it's no longer ready to develop.
+        // The shoot may have changed in another tab (photos added, check gone,
+        // developed, or the extra looks used): re-read the account and the
+        // shoot, which shows it as it now is (developing, results). Only a
+        // shoot that needs a new photo check goes back to the photos.
         if (err.status === 409 || err.status === 400) {
+          await loadSession().catch(() => {});
           const was = shoot;
           await refresh();
-          if (!disposed && shoot !== was && shoot.status !== "checked") {
+          if (!disposed && shoot !== was && ["draft", "checking"].includes(shoot.status)) {
             view = "check";
             paintCheck(shoot);
           }

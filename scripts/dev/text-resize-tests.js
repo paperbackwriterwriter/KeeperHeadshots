@@ -164,6 +164,30 @@ for (const width of [1440, 901]) {
     ok(`${width}px, text at 200%: a preview's buy buttons and packages fit`, r.panel && r.cta && r.wide <= 0 && !r.spill.length, JSON.stringify(r));
     await c.close();
   }
+  // Extra looks used in another tab: this tab's Develop is refused, and it
+  // then shows the shoot as it is (developing), not the photo check, and
+  // stops offering looks that are gone.
+  {
+    const { url } = await f("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "keep-plus", shootId: sid }) });
+    const session = new URL(url).pathname.split("/").pop();
+    await fetch(`${M}/mock-pay/${session}?promo=FREE`, { redirect: "manual" });
+    await f("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: session }) });
+    const c = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    await c.addCookies([{ name: cookie.split("=")[0], value: cookie.split("=").slice(1).join("="), url: B }]);
+    const p = await c.newPage();
+    p.on("pageerror", (e) => errs.push(e.message));
+    await p.goto(`${B}/app/shoot/${sid}`, { waitUntil: "networkidle" });
+    await p.click("#pickExtra"); // the extra looks come suggested
+    await p.waitForSelector("#develop");
+    // The other tab uses them first.
+    const other = await f(`/api/shoots/${sid}/more-looks`, { method: "POST", body: JSON.stringify({ looks: [{ backdrop: "glass-office", outfit: "charcoal-blazer" }, { backdrop: "city-terrace", outfit: "camel-knit" }] }) });
+    await p.click("#develop");
+    await p.waitForFunction(() => !document.getElementById("develop"), null, { timeout: 15000 }).catch(() => {});
+    await p.waitForTimeout(500);
+    const after = await p.evaluate(() => ({ check: !!document.querySelector("#retakePanel, #toLooks, #runCheck"), develop: !!document.getElementById("contact"), offer: !!document.getElementById("pickExtra") }));
+    ok("Develop refused after another tab used the extra looks: this tab shows the shoot developing, without the stale offer", !!other?.shoot && !after.check && after.develop && !after.offer, JSON.stringify(after));
+    await c.close();
+  }
 }
 ok("no page errors", !errs.length, errs.join("; "));
 await browser.close();

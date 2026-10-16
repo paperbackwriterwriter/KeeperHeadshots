@@ -65,6 +65,19 @@ try {
     });
     const out = await b.updateJSON("shoots/sht_x.json", (r) => ({ n: r.n + 1 }));
     assert.equal(puts, 2); assert.deepEqual(out, { n: 11 }); assert.deepEqual(stored, { n: 11 });
+    // A write that landed but still reported a conflict (an SDK retry finding
+    // its own write) isn't applied a second time.
+    for (const message of ["Vercel Blob: The conditional request cannot succeed due to a conflicting operation against this resource.", "precondition"]) {
+      stored = { credits: 5 }; puts = 0;
+      b.setSdk({
+        BlobPreconditionFailedError, BlobNotFoundError: class extends Error {},
+        head: async () => ({ etag: String(etag) }),
+        get: async () => ({ statusCode: 200, stream: new Blob([JSON.stringify(stored)]).stream() }),
+        put: async (key, body) => { puts++; stored = JSON.parse(body); etag++; throw message === "precondition" ? new BlobPreconditionFailedError() : new Error(message); },
+      });
+      const r = await b.updateJSON("users/id/usr_x.json", (u) => ({ ...u, credits: u.credits - 1 }));
+      assert.equal(puts, 1, message); assert.deepEqual(stored, { credits: 4 }); assert.deepEqual(r, { credits: 4 });
+    }
   });
 } finally { await fs.rm(dir, { recursive: true, force: true }); }
 console.log(`\n${passed}/${passed} passed`);

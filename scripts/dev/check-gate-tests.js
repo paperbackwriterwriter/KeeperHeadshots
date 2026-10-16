@@ -65,6 +65,10 @@ async function checked(f, n) {
   const c = check.j?.shoot?.check;
   ok("a set scoring 62 comes back as a retake", check.status === 200 && c?.overall_score === 62 && c?.verdict === "retake", `${check.status} ${c?.overall_score} ${c?.verdict}`);
   ok("with directions and the retake headline", (c?.retake_direction || []).length > 0 && c?.headline === HEADLINE, c?.headline);
+  // The privacy policy: nothing derived from the face is kept. The hair,
+  // glasses and expression notes the brief uses are.
+  const saved = (await f(`/api/shoots/${sid}`)).j.shoot.check?.subject;
+  ok("the check keeps no description of the face", saved && !("description" in saved) && typeof saved.hair === "string", JSON.stringify(saved));
   const after = (await f("/api/me")).j.user.plan.checksLeft;
   ok("the retake didn't use up a free check", after === before, `${before} → ${after}`);
   const gen = await f(`/api/shoots/${sid}/generate`, { method: "POST", body: JSON.stringify({ looks: LOOKS }) });
