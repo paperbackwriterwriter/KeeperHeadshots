@@ -49,7 +49,7 @@ export function openSearch(initial = "") {
     <ul class="search-results" id="searchResults"></ul>
     <div class="search-suggest">
       <p class="small muted">Popular</p>
-      <div class="search-chips">${["Pricing", "Free preview", "LinkedIn photo", "What to wear", "Refunds", "Team headshots"].map((q) => html`<button type="button" class="chip" data-q="${q}">${q}</button>`)}</div>
+      <div class="search-chips">${["Pricing", "Guarantee", "LinkedIn photo", "What to wear", "Refunds", "Team headshots"].map((q) => html`<button type="button" class="chip" data-q="${q}">${q}</button>`)}</div>
     </div>`.v;
   document.body.appendChild(dialog);
   const input = dialog.querySelector("input");

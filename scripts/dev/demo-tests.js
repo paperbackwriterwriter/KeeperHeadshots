@@ -155,7 +155,7 @@ try {
     assert.equal(await page.locator("script[src*='js.stripe.com']").count(), 0);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     await page.screenshot({ path: `${OUT}/checkout-${width}.png`, fullPage: true });
-    await page.getByRole("link", { name: "Create free account" }).click();
+    await page.getByRole("link", { name: "Create your account" }).click();
     await page.waitForURL("**/signup?next=*");
     assert.equal(new URL(page.url()).searchParams.get("next"), "/app/buy/professional");
     await assertSignedOut();

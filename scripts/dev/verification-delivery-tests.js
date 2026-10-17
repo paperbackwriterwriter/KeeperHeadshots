@@ -21,6 +21,9 @@ for (const key of Object.keys(process.env)) {
 Object.assign(process.env, {
   DATA_DIR: dir, SESSION_SECRET: crypto.randomBytes(32).toString("hex"),
   VERCEL: "1", VERCEL_ENV: "preview", NODE_ENV: "test",
+  // The confirm-your-email banner this checks gates the free shoot, so it's
+  // only shown while one is offered (lib/plan.js).
+  FREE_SHOOT_OFFERED: "1",
 });
 let delivery = "sent";
 const messages = [];

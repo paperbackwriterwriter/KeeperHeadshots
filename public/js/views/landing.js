@@ -1,6 +1,6 @@
 import { $, $$, html, icon, raw, greaseCircle, state, logoMark, wordmark, example } from "../core.js";
 import { customersInner } from "../shared/customers.js";
-import { BACKDROPS, OUTFITS, PACKAGES, PREVIEW_OFFERS } from "../shared/catalog.js";
+import { BACKDROPS, OUTFITS, PACKAGES } from "../shared/catalog.js";
 import { FAQ } from "../shared/faq.js";
 
 // People the hero rotates through: a selfie plus nine headshots each, the
@@ -66,12 +66,12 @@ export function renderLanding({ root, hydrate = false }) {
           </div>
           <p class="lede" data-reveal style="--i:2">Upload a few selfies. Our AI studio checks your photos, develops studio-quality headshots in the looks you choose, then grades every frame so you know exactly which one to use.</p>
           <div class="hero-ctas" data-reveal style="--i:3">
-            <a class="btn btn-flash btn-lg" href="${cta}" data-link>${state.user ? "Create your headshots" : "Try it free"} ${icon("arrow-right")}</a>
+            <a class="btn btn-flash btn-lg" href="${cta}" data-link>${state.user ? "Create your headshots" : "Get your headshots"} ${icon("arrow-right")}</a>
             <a class="btn btn-ghost btn-lg" href="/#how">See how it works</a>
           </div>
           <div class="hero-proof" data-reveal style="--i:4">
             <div class="proof-item"><strong class="tabular">&lt; 15 min</strong><span>typical turnaround</span></div>
-            <div class="proof-item"><strong>Free</strong><span>preview, keep yours from $${PREVIEW_OFFERS[0].price}</span></div>
+            <div class="proof-item"><strong class="tabular">From $${PACKAGES[0].price}</strong><span>${PACKAGES[0].shoots} shoots, one-time, no subscription</span></div>
             <div class="proof-item"><strong class="tabular">Money-back</strong><span>guarantee on your first package</span></div>
           </div>
         </div>
@@ -107,7 +107,7 @@ export function renderLanding({ root, hydrate = false }) {
         <div class="stats">
           ${[
             ["3", "AI passes on every shoot"],
-            ["4", "Looks per paid shoot"],
+            ["4", "Looks per shoot"],
             ["< 15 min", "Typical turnaround"],
             ["$29", "vs. $200+ at a studio"],
           ].map(([n, l], i) => html`<div class="stat" data-reveal style="--i:${i}"><div class="num">${n}</div><div class="lbl">${l}</div></div>`)}
@@ -200,7 +200,7 @@ export function renderLanding({ root, hydrate = false }) {
           <div class="compare-col">
             <h3 class="h-4">Keeper Headshots</h3>
             <dl class="compare-list">
-            ${[["Cost", "From $8.99"], ["Turnaround", "Under 15 minutes"], ["Backdrops & outfits", "Up to 4 looks per shoot"], ["Number of photos", "Up to 8 per shoot"], ["Help choosing", "Every frame graded"]].map(
+            ${[["Cost", `From $${PACKAGES[0].price}`], ["Turnaround", "Under 15 minutes"], ["Backdrops & outfits", "Up to 4 looks per shoot"], ["Number of photos", "Up to 8 per shoot"], ["Help choosing", "Every frame graded"]].map(
               ([k, v]) => html`<div class="compare-row"><dt>${k}</dt><dd class="hi">${v}</dd></div>`,
             )}
             </dl>
@@ -236,14 +236,8 @@ export function renderLanding({ root, hydrate = false }) {
             <p class="eyebrow" data-reveal>Pricing</p>
             <h2 class="display h-1" data-reveal style="--i:1;margin-top:16px">One payment. <em>No</em> subscription.</h2>
           </div>
-          <p class="lede" data-reveal style="--i:2">Start with a free preview and keep only what you like, or pick a package. Your first package is covered by our <a class="link" href="/refunds" data-link><span class="nowrap">money-back</span> guarantee</a>.</p>
+          <p class="lede" data-reveal style="--i:2">Pick a package and get up to 4 looks and 8 headshots in every shoot, with no watermark. Your first package is covered by our <a class="link" href="/refunds" data-link><span class="nowrap">money-back</span> guarantee</a>.</p>
         </div>
-        <div class="start-free-wrap"><div class="start-free" data-reveal>
-          <div class="sf-step"><span class="sf-amt">$0</span><div><b>Free preview</b><span>2 looks, 4 headshots. No card needed.</span></div></div>
-          ${PREVIEW_OFFERS.map((o) => html`<div class="sf-step ${o.popular ? "sf-pop" : ""}"><span class="sf-amt">$${o.price}</span><div><b>${o.name}</b><span>${o.looks ? `Every headshot from your preview, plus ${o.looks} new looks.` : "The one headshot you like best, full resolution."}</span></div></div>`)}
-          <a class="btn btn-flash" href="${cta}" data-link>Try it free ${icon("arrow-right")}</a>
-        </div></div>
-        <p class="pricing-or">Need more shoots? Packages include every look and headshot:</p>
         <div class="pricing">
           ${PACKAGES.map(
             (p, i) => html`<article class="plan ${p.popular ? "plan-pop" : ""}" data-reveal style="--i:${i}">

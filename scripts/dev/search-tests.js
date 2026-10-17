@@ -28,7 +28,7 @@ ok("sign-up isn't a result", !searchSite("create your account").some((r) => r.ur
 }
 {
   const prices = searchSite("price").filter((r) => r.type === "Pricing").map((r) => r.snippet);
-  ok("price snippets read as one sentence (no capitals mid-list)", prices.length >= 4 && prices.every((s) => !/[:,] (Up|Full|Our|Best|Great|The|Every)\b/.test(s)) && prices.some((s) => /LinkedIn/.test(s)), prices.join(" | "));
+  ok("price snippets read as one sentence (no capitals mid-list)", prices.length >= 3 && prices.every((s) => !/[:,] (Up|Full|Our|Best|Great|The|Every)\b/.test(s)) && prices.some((s) => /LinkedIn/.test(s)), prices.join(" | "));
 }
 
 // Every FAQ result's #anchor exists on the page it links to.

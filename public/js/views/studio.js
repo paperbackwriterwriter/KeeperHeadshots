@@ -972,8 +972,8 @@ export async function renderStudio(ctx, id) {
 
     if (s.sample || plan?.tier === "demo") {
       return html`<section class="upsell" id="upgrade" aria-labelledby="upsellTitle">
-        <div><p class="eyebrow">Your turn</p><h2 class="display h-2" id="upsellTitle">Make headshots like these from your own selfies.</h2><p class="upsell-sub">Your first shoot is a free preview: 2 looks, 4 headshots, checked and graded by AI.</p></div>
-        <div class="upsell-actions"><a class="btn btn-flash btn-lg" href="/signup" data-link>Create free account ${icon("arrow-right")}</a></div>
+        <div><p class="eyebrow">Your turn</p><h2 class="display h-2" id="upsellTitle">Make headshots like these from your own selfies.</h2><p class="upsell-sub">Every paid shoot has up to ${MAX_LOOKS_ALL} looks and ${MAX_LOOKS_ALL * TAKES_PER_LOOK} headshots, checked and graded by AI, with no watermark. Packages start at $${PACKAGES[0].price}, and your first one is covered by our money-back guarantee.</p></div>
+        <div class="upsell-actions">${state.user && !state.user.demo ? html`<a class="btn btn-flash btn-lg" href="/#pricing">See packages ${icon("arrow-right")}</a>` : html`<a class="btn btn-flash btn-lg" href="/signup" data-link>Create your account ${icon("arrow-right")}</a>`}</div>
       </section>`;
     }
     if (plan?.tier === "paid") {
@@ -1369,6 +1369,9 @@ function renderUpload({ root, navigate }) {
   // Leaving mid-upload cancels the rest (and removes the half-made shoot).
   const aborter = new AbortController();
   const signal = aborter.signal;
+  // No shoots to spend (customers pay up front): the packages come first, so
+  // nobody chooses photos only to be turned away at the check.
+  const mustBuy = !reshootOf && state.user?.plan?.tier === "none";
   root.innerHTML = html`<main id="main" class="container app-main view-enter">
     ${stepper(0)}
     ${aiBanner()}
@@ -1382,7 +1385,9 @@ function renderUpload({ root, navigate }) {
           : html`<p class="eyebrow">New shoot</p>
         <h1 class="display h-1" style="margin:8px 0 12px">Start with a few selfies.</h1>
         <p class="lede" style="margin-bottom:28px">Add 1–${MAX_SELFIES} recent photos of just you. More angles and expressions help the studio nail your likeness.</p>`}
-        <label class="dropzone" id="dz">
+        ${mustBuy
+          ? html`<a class="btn btn-flash btn-lg" href="/#pricing" id="seePackages">${icon("arrow-right")} See packages</a>`
+          : html`<label class="dropzone" id="dz">
           <input type="file" id="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple aria-describedby="dzHelp" />
           <div>
             <span class="dz-icon">${icon("image-plus")}</span>
@@ -1394,7 +1399,7 @@ function renderUpload({ root, navigate }) {
         <div class="actions-bar">
           <span class="mono muted tabular" id="count">0 / ${MAX_SELFIES} PHOTOS</span>
           <button class="btn btn-flash btn-lg" id="go" disabled>${icon("scan-face")} Check my photos</button>
-        </div>
+        </div>`}
       </div>
       <aside class="panel" aria-labelledby="guideTitle">
         <h2 class="h-4" id="guideTitle">What makes a great reference</h2>
@@ -1410,19 +1415,21 @@ function renderUpload({ root, navigate }) {
       </aside>
     </div>
   </main>`.v;
+  if (mustBuy) return () => aborter.abort();
 
   const dz = $("#dz");
   const input = $("#file");
   const thumbs = $("#thumbs");
   const go = $("#go");
-  // Demo accounts, unconfirmed emails and accounts without a shoot left can't
-  // start one. Read fresh each time: confirming the email on this page (the
+  // Demo accounts, accounts without a shoot (buy a package first) and, while a
+  // free shoot is offered, unconfirmed emails can't start one. Read fresh each time: confirming the email on this page (the
   // code box in the banner) changes the answer without reloading.
   const canStart = () => (reshootOf ? !state.user?.demo : state.user?.plan?.canDevelop !== false);
   const whyNot = () => {
     const plan = state.user?.plan || {};
-    if (plan.tier === "demo") return "The demo account is read-only. Create a free account to try it with your own photos.";
+    if (plan.tier === "demo") return "The demo account is read-only. Create an account and choose a package to use your own photos.";
     if (plan.needsEmail) return "Confirm your email first: enter the 6-digit code from our email in the box at the top of this page.";
+    if (plan.tier === "none" && !plan.started) return "Choose a package first: each shoot has up to 4 looks and 8 headshots, and your first package is covered by our money-back guarantee.";
     return state.user?.purchased ? "You're out of shoots. Buy a package to start another." : "You've used your free shoot. Buy a package to start another.";
   };
 

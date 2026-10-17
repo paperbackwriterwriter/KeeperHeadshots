@@ -58,7 +58,7 @@ export function renderBuy({ root }, packageId) {
     // Don't ask Stripe to create a payment form for a read-only account.
     // A sample's shoot IDs cannot carry over to the visitor's new account.
     const next = offer ? "/app/new" : location.pathname + location.search;
-    shell(html`<p class="eyebrow">Checkout</p><h1 class="display h-2">Create your account to continue.</h1><p class="lede">The demo account is read-only. Create a free account to choose ${offer ? pkg.name : `the ${pkg.name} package`} or try your own headshots first.</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><a class="btn btn-flash" href="${`/signup?next=${encodeURIComponent(next)}`}" data-link>Create free account ${icon("arrow-right")}</a><a class="btn btn-ghost" href="/app" data-link>Back to the demo</a></div>`);
+    shell(html`<p class="eyebrow">Checkout</p><h1 class="display h-2">Create your account to continue.</h1><p class="lede">The demo account is read-only. Create your account to choose ${offer ? pkg.name : `the ${pkg.name} package`}. Your first package is covered by our money-back guarantee.</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><a class="btn btn-flash" href="${`/signup?next=${encodeURIComponent(next)}`}" data-link>Create your account ${icon("arrow-right")}</a><a class="btn btn-ghost" href="/app" data-link>Back to the demo</a></div>`);
     return;
   }
   if (offer && (!shootId || (pkg.id === "keep" && !shotId))) {

@@ -365,7 +365,8 @@ if (process.env.DATA_DIR) {
   const html = await fetch(B + "/linkedin-headshots").then((r) => r.text());
   const blocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
   const agg = blocks.flatMap((b) => [].concat(b["@graph"] || b)).map((b) => b.offers).find((o) => o?.["@type"] === "AggregateOffer");
-  ok("landing page offers start at the preview price", agg?.lowPrice === "8.99" && agg?.highPrice === "49" && agg?.offerCount === "5", JSON.stringify(agg));
+  // (Only the packages: the offers to keep a free preview aren't public prices.)
+  ok("landing page offers start at the cheapest package", agg?.lowPrice === "29" && agg?.highPrice === "49" && agg?.offerCount === "3", JSON.stringify(agg));
 }
 
 // 23. Email copy for edge counts and several team looks.
@@ -379,7 +380,7 @@ if (process.env.DATA_DIR) {
   const phish = mail.teamInviteEmail({ ownerName: "Payroll: re-verify at keeper-pay.xyz", teamName: "Payroll: re-verify at keeper-pay.xyz today", link: "https://x/join/t", looks: ["Studio Gray · White Shirt"] });
   ok("a name or team name that reads like a web address isn't sent", !/keeper-pay/i.test(phish.subject + phish.text + phish.html) && phish.subject === "Your team admin invited you to get your team headshot" && /they see only/.test(phish.text), phish.subject);
   const v = mail.verificationEmail({ name: "Sam", link: "https://x/verify?token=t", code: "123456" });
-  ok("the confirmation email calls it a preview shoot", /free preview shoot/.test(v.text) && !/free headshot shoot/.test(v.html));
+  ok("the confirmation email only asks to confirm the address (no free shoot)", /to confirm your email address/.test(v.text) && !/free/i.test(v.subject + v.text + v.html));
   // Marketing law: reminder and offer emails carry the postal address; account emails needn't.
   const rem = mail.reminderEmail({ kind: "develop", name: "Sam", link: "https://x/app", pricing: "https://x/#pricing", unsubscribe: "https://x/unsubscribe?token=t" });
   const off = mail.offerEmail({ name: "Sam", code: "KEEP20", discount: "20% off", until: "Sunday", link: "https://x/app", pricing: "https://x/#pricing", usedFree: true, preview: true, unsubscribe: "https://x/unsubscribe?token=t" });

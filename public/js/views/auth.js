@@ -39,7 +39,7 @@ export function renderAuth({ root, navigate }, mode) {
       <div class="auth-form view-enter">
         <p class="eyebrow"><span class="dot"></span>${isUp ? "Step 1 of 3" : "Welcome back"}</p>
         <h1 class="display h-2">${isUp ? "Create your account" : "Sign in to your studio"}</h1>
-        <p class="muted">${isUp ? "Your shoots, photo checks and proofs are saved here." : "Pick up where you left off — your proofs are waiting."}</p>
+        <p class="muted">${isUp ? (dest.startsWith("/join") ? "Your shoots, photo checks and proofs are saved here." : `Then ${dest.startsWith("/app/buy/") ? "check out" : "choose a package"} and upload a few selfies. Your first package is covered by our money-back guarantee.`) : "Pick up where you left off — your proofs are waiting."}</p>
         ${showGoogle
           ? html`<a class="btn btn-google btn-lg btn-block" href="${googleHref}" id="googleBtn">${GOOGLE_G} Continue with Google</a>
         <div class="auth-or" role="separator"><span>or use your email</span></div>`
@@ -145,6 +145,8 @@ export function renderAuth({ root, navigate }, mode) {
         if (res.verificationSent === true) toast(`Welcome, ${first}. We emailed a 6-digit code to ${res.user.email}: enter it to unlock your free shoot.`, "success", 9000);
         else toast("Your account is ready, but we couldn't send the confirmation email. Request another from your studio in a minute, or contact us for help.", "error", 9000);
       }
+      // Customers pay up front: a new account starts by choosing a package.
+      else if (res.user.plan?.tier === "none" && !res.user.plan.started && !dest.startsWith("/join") && !dest.startsWith("/app/buy/")) toast(`Welcome, ${first}. Choose a package to start your first shoot.`, "success", 7000);
       else toast(`Welcome, ${first}. Let's make some headshots.`, "success");
       navigate(dest);
     } catch (err) {

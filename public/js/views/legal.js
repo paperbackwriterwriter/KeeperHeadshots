@@ -4,7 +4,7 @@ import { CONTACT_EMAIL } from "./contact.js";
 
 // Privacy Policy and Terms of Service. Keep these in step with what the code
 // actually does (lib/meta.js, lib/billing.js, lib/store.js, lib/ai.js).
-export const LEGAL_UPDATED = "September 29, 2026";
+export const LEGAL_UPDATED = "October 17, 2026";
 
 const mail = html`<a class="link" href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>`;
 
@@ -47,9 +47,9 @@ export function renderPrivacy({ root }) {
       <ul>
         <li>To run the studio: check your photos, create your headshots, run our quality check on every headshot, and show you the results.</li>
         <li>To manage your account and purchases, including refunds, and to send account emails such as the link that confirms your email address and a note when your headshots are ready.</li>
-        <li>To send at most two reminder emails: one if your photos pass the check but you haven't developed them, and one after your free shoot or if you start a checkout and don't finish it. Every reminder has a link to stop them, and you can turn them off on your <a class="link" href="/app/account" data-link>Account page</a>. Now and then we may also email an offer, such as a discount code, to people who signed up but haven't bought; the same link and setting stop those too.</li>
+        <li>To send at most two reminder emails: one if your photos pass the check but you haven't developed them, and one if you start a checkout and don't finish it (or, if you have one, after a free preview shoot). Every reminder has a link to stop them, and you can turn them off on your <a class="link" href="/app/account" data-link>Account page</a>. Now and then we may also email an offer, such as a discount code, to people who signed up but haven't bought; the same link and setting stop those too.</li>
         <li>To answer your messages and help with your shoots.</li>
-        <li>To keep the service secure and prevent fraud and abuse, including misuse of the free shoot.</li>
+        <li>To keep the service secure and prevent fraud and abuse, including misuse of free preview shoots.</li>
         <li>To measure how well our ads work (see "Advertising and cookies" below).</li>
         <li>To meet our legal, tax and accounting obligations.</li>
       </ul>
@@ -100,7 +100,7 @@ export function renderPrivacy({ root }) {
         <li><b>Cancellation records:</b> after deletion, we keep a cancellation marker against the random account and shoot numbers, or a scrambled photo filename, so a background worker or backup restore cannot bring back deleted data. These markers contain no names, email addresses, photos or headshots.</li>
         <li><b>Unfinished shoots:</b> a shoot that was never developed, and hasn't been changed for 90 days, is deleted automatically with its selfies.</li>
         <li><b>Account details:</b> while your account is open. You can delete your account at any time on your <a class="link" href="/app/account" data-link>Account page</a>. That removes your account and all your shoots, selfies and headshots straight away. If you email us instead, we'll do it within 30 days. Our nightly backups hold account and shoot records for 30 days, so a deleted record can remain in a backup for up to 30 days.</li>
-        <li><b>Free-shoot record:</b> if you used your free shoot, we keep a scrambled (hashed) copy of your email address after your account is deleted, with a note that the free shoot was used. That stops the free shoot being claimed twice. It doesn't include your name, photos or anything else. The count of free photo checks used by an email inbox is kept the same way, so that variations of one address (like name+1@…) share the free checks.</li>
+        <li><b>Free-shoot record:</b> if you used a free shoot (we offered one to new accounts until October 2026), we keep a scrambled (hashed) copy of your email address after your account is deleted, with a note that the free shoot was used. That stops a free shoot being claimed twice. It doesn't include your name, photos or anything else. The count of free photo checks used by an email inbox is kept the same way, so that variations of one address (like name+1@…) share one allowance.</li>
         <li><b>Shared headshots:</b> if you shared a headshot for our home page, until you take it down, delete that shoot, delete your account, or the package that paid for it is fully refunded (yours, or your team admin's for a team shoot).</li>
         <li><b>Purchase records:</b> as long as tax and accounting rules require, usually up to 7 years.</li>
         <li><b>Messages:</b> the copy stored from the contact form is deleted automatically after 12 months. Replies we exchange by email stay in our inbox as a record of the conversation. To limit how many messages can be sent from one connection, we count messages per hour against a scrambled (hashed) form of your IP address; those counts are deleted after 2 days.</li>
@@ -146,12 +146,12 @@ export function renderTerms({ root }) {
       <p>These terms are an agreement between you and Keeper Headshots ("we", "us"), based in Iowa, USA. By creating an account or using keeperheadshots.com, you agree to these terms and to our <a class="link" href="/privacy" data-link>Privacy Policy</a>. You must be at least 18 years old to use Keeper Headshots.</p>
 
       <h2 class="h-3">2. The service</h2>
-      <p>Keeper Headshots uses AI to create professional headshots from photos you upload. Each shoot checks your photos, creates headshots in the looks you choose, runs a quality check on every headshot and grades the results. New accounts get one free shoot. Paid packages add more shoots.</p>
+      <p>Keeper Headshots uses AI to create professional headshots from photos you upload. Each shoot checks your photos, creates headshots in the looks you choose, runs a quality check on every headshot and grades the results. Shoots come in paid packages, bought before you start a shoot. Your first package is covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>.</p>
+      <p>New accounts no longer get a free shoot. If you already have a free preview shoot from before, it stays a preview: its headshots carry a watermark and are provided at a reduced size. Keeping your pick ($8.99) unlocks that one headshot at full resolution; keeping them all ($14.99) or buying any package unlocks every headshot from the preview. Free shoots were limited to one per person.</p>
 
       <h2 class="h-3">3. Your account</h2>
       <ul>
         <li>Give accurate information and keep your password private. You're responsible for what happens in your account.</li>
-        <li>The free shoot is a preview: its headshots carry a watermark and are provided at a reduced size. Keeping your pick ($8.99) unlocks that one headshot at full resolution; keeping them all ($14.99) or buying any package unlocks every headshot from the preview. The free shoot is limited to one per person. Please don't create extra accounts to get more free shoots.</li>
         <li>Tell us straight away at ${mail} if you think someone else has used your account.</li>
       </ul>
 

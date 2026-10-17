@@ -30,6 +30,19 @@ export function renderAccount({ root, navigate }) {
       </dl>
     </section>
     ${u.plan?.tier === "owner" ? html`<p class="small" style="margin-top:12px"><a class="link" href="/app/funnel" data-link>Sales funnel</a>: sign-ups, photo checks, shoots and purchases by day. <a class="link" href="/app/showcase" data-link>Customer results</a>: headshots offered for the home page (owner only).</p>` : ""}
+    ${u.demo || u.emailVerified
+      ? ""
+      : html`<section class="panel prefs" data-verify-panel aria-labelledby="verify-title">
+      <h2 class="h-3" id="verify-title">Confirm your email</h2>
+      <p class="muted">Confirm ${u.email} with the 6-digit code or link in the email we sent when you signed up. Check your spam folder too.</p>
+      <form class="verify-code" data-verify-code novalidate>
+        <label class="sr-only" for="verifyCode">6-digit code</label>
+        <input class="input" id="verifyCode" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" placeholder="123 456" aria-describedby="verifyCodeErr" />
+        <button class="btn btn-flash" type="submit">Confirm</button>
+        <span class="field-error" id="verifyCodeErr" role="alert" hidden></span>
+      </form>
+      <p class="verify-resend">Need an email? <button class="link-btn" type="button" data-resend-verify>Send confirmation email</button></p>
+    </section>`}
     <p class="small muted" style="margin-top:12px">Need to change your name or email? <a class="link" href="/contact?topic=general" data-link>Contact us</a>. Your data and rights are explained in our <a class="link" href="/privacy" data-link>Privacy Policy</a>.</p>
 
     ${u.demo
@@ -60,7 +73,7 @@ export function renderAccount({ root, navigate }) {
       ? ""
       : html`<section class="panel prefs" aria-labelledby="reminders-title">
       <h2 class="h-3" id="reminders-title">Reminder emails</h2>
-      <p class="muted">At most two reminders, ever: one if your photos pass the check but you haven't developed them, and one after your free shoot or an unfinished checkout. If you haven't bought, we may occasionally email an offer, such as a discount code; this switch stops those too. Emails about your account and orders always arrive.</p>
+      <p class="muted">At most two reminders, ever: one if your photos pass the check but you haven't developed them, and one after an unfinished checkout (or, if you have one, after a free preview shoot). If you haven't bought, we may occasionally email an offer, such as a discount code; this switch stops those too. Emails about your account and orders always arrive.</p>
       <label class="check"><input type="checkbox" id="remindersOn" ${u.emailReminders !== false ? raw("checked") : ""} /> <span>Send me reminder emails</span></label>
     </section>`}
 

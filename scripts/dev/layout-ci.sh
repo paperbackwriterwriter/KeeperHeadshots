@@ -19,7 +19,9 @@ trap cleanup EXIT
 MOCK_QA_FAIL=none MOCK_DELAY_MS=600 node scripts/dev/mock-ai.js >"$WORK/mock.log" 2>&1 &
 PIDS+=($!)
 M=http://localhost:4010
-env DATA_DIR="$WORK/data" PORT=3100 SESSION_SECRET=layout-audit-secret-layout-audit-secret \
+# FREE_SHOOT_OFFERED=1: the audit's accounts get free previews to screenshot
+# (customers now pay up front, but those who already have a preview keep it).
+env FREE_SHOOT_OFFERED=1 DATA_DIR="$WORK/data" PORT=3100 SESSION_SECRET=layout-audit-secret-layout-audit-secret \
   ANTHROPIC_API_KEY=sk-ant-test ANTHROPIC_BASE_URL=$M GEMINI_API_KEY=test GEMINI_BASE_URL=$M \
   RESEND_API_KEY=re_test RESEND_BASE_URL=$M META_PIXEL_ID=123456 META_CAPI_TOKEN=tok META_GRAPH_BASE=$M \
   STRIPE_SECRET_KEY=sk_test_mock STRIPE_API_BASE=$M STRIPE_PUBLISHABLE_KEY=pk_test_mockmockmock \
@@ -41,5 +43,6 @@ BROWSER="$BROWSER" node scripts/dev/gateway-csp-tests.js "$OUT/gateway-csp" || s
 BROWSER="$BROWSER" node scripts/dev/dashboard-history-tests.js "$OUT/dashboard-history" || status=$?
 BROWSER="$BROWSER" node scripts/dev/retake-flow-tests.js "$OUT/retake-flow" || status=$?
 BROWSER="$BROWSER" node scripts/dev/text-resize-tests.js "$OUT/text-resize" || status=$?
+BROWSER="$BROWSER" node scripts/dev/pay-first-browser-tests.js "$OUT/pay-first" || status=$?
 if [ $status -ne 0 ]; then echo "== server log"; tail -40 "$WORK/server.log"; fi
 exit $status

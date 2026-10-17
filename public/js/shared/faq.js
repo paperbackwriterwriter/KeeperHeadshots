@@ -1,13 +1,10 @@
 // Shared by the landing page and the server (FAQPage structured data), so the
 // two always match.
-import { PACKAGES, PREVIEW_OFFERS } from "./catalog.js";
-
-const [KEEP_ONE, KEEP_ALL] = PREVIEW_OFFERS;
-const FROM = Math.min(...PACKAGES.map((p) => p.price));
+import { PACKAGES, MAX_LOOKS, TAKES_PER_LOOK } from "./catalog.js";
 
 export const FAQ = [
-  ["Can I try it for free?", `Yes. Your first shoot is a free preview: 2 looks, 4 headshots, checked and graded like any other shoot, so you see exactly how you'll look before you pay. Preview headshots carry a watermark. Keep your favorite at full resolution for $${KEEP_ONE.price}, keep them all and add ${KEEP_ALL.looks} more looks for $${KEEP_ALL.price}, or choose a package from $${FROM} for more shoots. No card is needed for the preview.`],
-  ["What photos should I upload?", "Between one and six recent photos where your face is clearly visible — ideally a mix of angles and expressions, taken in decent light. No sunglasses, group photos or heavy filters. Our AI photo check reviews every upload and tells you exactly what to fix before you spend a cent of rendering time."],
+  ["How much does it cost?", `Packages are one-time payments, with no subscription: ${PACKAGES.map((p) => `${p.name}, ${p.shoots} shoots for $${p.price}`).join("; ")}. Every shoot has up to ${MAX_LOOKS} looks and ${MAX_LOOKS * TAKES_PER_LOOK} headshots, checked and graded, with no watermark. Your first package is covered by our money-back guarantee: if none of the headshots from your first paid shoot are usable, tell us within 30 days of purchase.`],
+  ["What photos should I upload?", "Between one and six recent photos where your face is clearly visible — ideally a mix of angles and expressions, taken in decent light. No sunglasses, group photos or heavy filters. Our AI photo check reviews every upload and tells you exactly what to fix before your headshots are developed."],
   ["How long does it take?", "Your photo check comes back in seconds. Rendering a shoot usually takes a few minutes; you can watch each frame develop live, then our AI retoucher grades the set and picks your best shot."],
   ["Will the headshots actually look like me?", "Likeness is the whole game. We pass your best reference photos to the image model with strict instructions to preserve your features, and every finished headshot is scored for likeness against your originals. Anything that drifts is flagged as a retake."],
   ["Who owns the photos?", "You do. Use your headshots anywhere — LinkedIn, your company site, print, press kits. We never use your photos to train models, and never in our marketing unless you choose to share one."],

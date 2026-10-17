@@ -18,7 +18,7 @@ export function aiBanner() {
   return html`<div class="banner banner-warn" role="status">${icon("circle-alert")}<div><b>The AI studio is temporarily unavailable.</b>Photo checks and new shoots will be back shortly. Sample shoots below still show the full experience.</div></div>`;
 }
 
-// Explains what the account can do right now (free shoot, demo, credits).
+// Explains what the account can do right now (packages, demo, credits).
 // `mode` "blocked": only while the account can't develop (the banner goes
 // once it can). Marked data-plan-banner so app.js can swap it in place when
 // the account changes (email confirmed in another tab, a purchase).
@@ -26,7 +26,7 @@ export function planBanner(mode = "always") {
   const plan = state.user?.plan;
   if (!plan || (mode === "blocked" && plan.canDevelop)) return "";
   if (plan.tier === "demo")
-    return html`<div class="banner banner-info" data-plan-banner="${mode}">${icon("info")}<div><b>You're exploring the demo account.</b>It's read-only, so you can browse the sample shoots. Create a free account to try it with your own photos; your first shoot is a free preview.</div><a class="btn btn-sm btn-flash" href="/signup" data-link id="demoSignup">Create free account</a></div>`;
+    return html`<div class="banner banner-info" data-plan-banner="${mode}">${icon("info")}<div><b>You're exploring the demo account.</b>It's read-only, so you can browse the sample shoots. To use your own photos, create an account and choose a package; your first package is covered by our money-back guarantee.</div><a class="btn btn-sm btn-flash" href="/signup" data-link id="demoSignup">Create account</a></div>`;
   if (plan.needsEmail)
     return html`<div class="banner banner-warn verify-banner" data-plan-banner="${mode}">${icon("mail")}<div><b>Confirm your email to unlock your free shoot.</b>Confirm ${state.user.email} with the 6-digit code or link in your confirmation email. You can request an email below. Check your spam folder too.
       <form class="verify-code" data-verify-code novalidate>
@@ -38,6 +38,9 @@ export function planBanner(mode = "always") {
       <p class="verify-resend">Need an email? <button class="link-btn" type="button" data-resend-verify>Send confirmation email</button></p></div></div>`;
   if (plan.tier === "trial")
     return html`<div class="banner banner-info" data-plan-banner="${mode}">${icon("sparkles")}<div><b>Your first shoot is a free preview.</b>Up to 2 looks, which makes 4 headshots, each checked and graded by AI.</div></div>`;
+  // A brand-new customer (never bought, never had a free shoot): packages come first.
+  if (plan.tier === "none" && !plan.started)
+    return html`<div class="banner banner-info" data-plan-banner="${mode}">${icon("sparkles")}<div><b>Choose a package to start.</b>Packages start at $${PACKAGES[0].price} for ${PACKAGES[0].shoots} shoots. Each shoot has up to 4 looks and 8 headshots, no watermark, and your first package is covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>.</div><a class="btn btn-sm btn-flash" href="/#pricing">See packages</a></div>`;
   if (plan.tier === "none")
     return html`<div class="banner banner-warn" data-plan-banner="${mode}">${icon("circle-alert")}<div><b>You're out of shoots.</b>Buy a package to develop more. Your shoots stay in your account.</div><a class="btn btn-sm btn-flash" href="/#pricing">Buy shoots</a></div>`;
   if (plan.tier === "paid")

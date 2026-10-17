@@ -1,10 +1,10 @@
 # Keeper Headshots
 
-> Keeper Headshots (keeperheadshots.com) is an online AI headshot studio. You upload a few selfies and get studio-quality professional headshots in a few minutes, for LinkedIn, résumés, company websites and print. Every photo is checked before rendering, every headshot is scored for likeness against your own photos, and the set is graded so you know which one to use. The first shoot is a free preview (keep your favorite headshot for $8.99); paid packages are one-time payments from $29, with no subscription.
+> Keeper Headshots (keeperheadshots.com) is an online AI headshot studio. You upload a few selfies and get studio-quality professional headshots in a few minutes, for LinkedIn, résumés, company websites and print. Every photo is checked before rendering, every headshot is scored for likeness against your own photos, and the set is graded so you know which one to use. Shoots come in one-time packages from $29, with no subscription, and the first package is covered by a money-back guarantee.
 
 ## How it works
 
-1. Create an account and confirm your email address.
+1. Create an account and choose a package.
 2. Upload one to six recent photos where your face is clearly visible. An AI photo check reviews them in seconds and says what to fix.
 3. Choose up to four looks (a backdrop and an outfit, e.g. Studio Gray with a navy suit, Library with a black turtleneck).
 4. The studio develops two headshots per look, usually within a few minutes. Each one is checked for likeness and retaken automatically if it drifts.
@@ -14,12 +14,11 @@ Every headshot downloads as a full-resolution 3:4 portrait (websites, print, bus
 
 ## Pricing
 
-- Free preview shoot: up to 2 looks, after confirming your email. Keep your favorite headshot from it at full resolution for $8.99, or all of them for $14.99 with 2 more looks added to the same shoot; any package also includes them.
 - Starter: $29 one-time, 3 shoots (up to 24 headshots).
 - Professional: $39 one-time, 6 shoots (up to 48 headshots). Most popular.
 - Executive: $49 one-time, 12 shoots (up to 96 headshots). About $4 a person for teams.
 - Each paid shoot has up to 4 looks and 8 headshots. Shoots don't expire while the account is open.
-- Money-back guarantee on the first paid package: if none of the headshots from the first paid shoot are usable, tell us within 30 days of purchase for a refund, less any later shoots kept. The $8.99 and $14.99 offers to keep a free preview are not covered (the headshots are seen before buying).
+- Money-back guarantee on the first paid package: if none of the headshots from the first paid shoot are usable, tell us within 30 days of purchase for a refund, less any later shoots kept.
 
 ## Privacy
 

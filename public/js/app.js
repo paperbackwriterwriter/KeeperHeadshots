@@ -197,7 +197,8 @@ async function render({ restoreY = null } = {}) {
     return;
   }
   // Sign-in comes back to the same page, query included (e.g. /app/buy/pro?x).
-  if (route.auth && !state.user) return navigate(`/signin?next=${encodeURIComponent(path + location.search)}`, { replace: true });
+  // Buying a package is how new customers start, so that goes to sign-up.
+  if (route.auth && !state.user) return navigate(`/${path.startsWith("/app/buy/") ? "signup" : "signin"}?next=${encodeURIComponent(path + location.search)}`, { replace: true });
   // The demo's signup links must leave its shared session before opening
   // the guest-only form. Keep the URL (including a chosen package) intact.
   if (path === "/signup" && state.user?.demo) {
@@ -367,6 +368,8 @@ async function accountChanged() {
     const next = planBanner(el.dataset.planBanner);
     el.outerHTML = next ? next.v : "";
   });
+  // The account page's "Confirm your email" panel goes once it's confirmed.
+  if (state.user?.emailVerified) document.querySelectorAll("[data-verify-panel]").forEach((el) => el.remove());
   document.dispatchEvent(new CustomEvent("ahg:user-changed"));
 }
 const accountSig = (u) => JSON.stringify(u ? [u.id, u.emailVerified, u.plan, u.previewsUnlocked, u.kept, u.extraLooks, u.photoFormat, u.emailReminders] : null);
@@ -415,7 +418,7 @@ function signedOut() {
 }
 document.addEventListener("ahg:signed-out", signedOut);
 
-// "Resend email" buttons (dashboard banner, verify page) for email confirmation.
+// "Resend email" buttons (dashboard banner, account page, verify page) for email confirmation.
 document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-resend-verify]");
   if (!btn || btn.disabled) return;
@@ -424,7 +427,7 @@ document.addEventListener("click", async (e) => {
     const res = await api("/api/auth/verify/resend", { method: "POST" });
     if (res.status === "already") {
       state.user = res.user;
-      toast("Your email is already confirmed. Your free shoot is ready.", "success");
+      toast(res.user?.plan?.freeShootAvailable ? "Your email is already confirmed. Your free shoot is ready." : "Your email is already confirmed.", "success");
       // On the verify page itself, re-running it would show "couldn't confirm".
       if (location.pathname === "/verify") return navigate("/app");
       return accountChanged();
@@ -439,7 +442,7 @@ document.addEventListener("click", async (e) => {
 });
 
 // The 6-digit code from the confirmation email, typed into the banner
-// (views/dashboard.js planBanner). Confirms the signed-in account.
+// (views/dashboard.js planBanner, or the account page). Confirms the signed-in account.
 document.addEventListener("submit", async (e) => {
   const form = e.target.closest("form[data-verify-code]");
   if (!form) return;
@@ -459,7 +462,7 @@ document.addEventListener("submit", async (e) => {
     const res = await api("/api/auth/verify/code", { method: "POST", body: { code } });
     state.user = res.user;
     if (res.status === "verified") pixel("CompleteRegistration", {}, res.eventId);
-    toast("Email confirmed. Your free shoot is ready.", "success", 6000);
+    toast(res.user?.plan?.freeShootAvailable ? "Email confirmed. Your free shoot is ready." : "Email confirmed. Thank you.", "success", 6000);
     // Swaps just the banners, so a page in progress (photos being picked on
     // /app/new) keeps its state.
     await accountChanged();

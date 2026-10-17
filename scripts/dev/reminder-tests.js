@@ -57,6 +57,20 @@ await users.update(buyer.id, (u) => void (u.usage = { freeShootUsed: freeShoot }
   await storage.putJSON(`shoots/${retakeShoot}.json`, { ...(await shoots.getMeta(retakeShoot)), check: { at: ago(3), ok: false, verdict: "retake" }, updatedAt: ago(3) });
   ok("photos that need a retake get no 'ready to develop' nudge", !(await dueReminder(await fresh(retake))));
   ok("free shoot done, nothing bought → buy reminder", (await dueReminder(await fresh(buyer)))?.kind === "buy");
+  // Customers pay up front (lib/plan.js, without the FREE_SHOOT_OFFERED=1
+  // that ci.sh sets): photos checked with nothing to develop them with get
+  // the develop reminder as "choose a package"; a used free shoot doesn't.
+  {
+    const was = process.env.FREE_SHOOT_OFFERED;
+    process.env.FREE_SHOOT_OFFERED = "0";
+    const due = await dueReminder(await fresh(dev));
+    ok("pay-first: checked, never bought → develop reminder to choose a package", due?.kind === "develop" && due.needsPackage === true, JSON.stringify(due));
+    const used = await person("usedfree", { usage: { freeShootUsed: "sht_gone" } });
+    await shoot(used, { days: 3 });
+    ok("pay-first: but not after a used free shoot", !(await dueReminder(await fresh(used))));
+    if (was === undefined) delete process.env.FREE_SHOOT_OFFERED;
+    else process.env.FREE_SHOOT_OFFERED = was;
+  }
 
   const tooSoon = await person("soon");
   await shoot(tooSoon, { days: 0.2 });

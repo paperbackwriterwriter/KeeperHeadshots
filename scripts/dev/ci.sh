@@ -31,8 +31,13 @@ MOCK_QA_FAIL=none node scripts/dev/mock-ai.js >"$MOCKLOG" 2>&1 &
 PIDS+=($!)
 
 M=http://localhost:4010
+# Customers pay up front (lib/plan.js FREE_SHOOT_OFFERED is off). Most suites
+# below exercise the free preview, which people who already have one keep, so
+# 3100 and 3101 turn the free shoot back on (FREE_SHOOT_OFFERED=1); 3102 runs
+# as production does, for pay-first-tests.js (which also makes its earlier
+# previews on 3100: the three share one store).
 server() {
-  env DATA_DIR="$DATA" PORT="$1" SESSION_SECRET=ci-session-secret-ci-session-secret \
+  env FREE_SHOOT_OFFERED="${2:-1}" DATA_DIR="$DATA" PORT="$1" SESSION_SECRET=ci-session-secret-ci-session-secret \
     ANTHROPIC_API_KEY=sk-ant-test ANTHROPIC_BASE_URL=$M GEMINI_API_KEY=test GEMINI_BASE_URL=$M \
     RESEND_API_KEY=re_test RESEND_BASE_URL=$M META_PIXEL_ID=123456 META_CAPI_TOKEN=tok META_GRAPH_BASE=$M \
     STRIPE_SECRET_KEY=sk_test_mock STRIPE_API_BASE=$M STRIPE_PUBLISHABLE_KEY=pk_test_mockmockmock \
@@ -43,11 +48,15 @@ server() {
 }
 server 3100
 server 3101
+server 3102 0
 for i in $(seq 1 60); do
-  curl -sf localhost:3100/api/version >/dev/null && curl -sf localhost:3101/api/version >/dev/null && curl -s localhost:4010 >/dev/null && break
+  curl -sf localhost:3100/api/version >/dev/null && curl -sf localhost:3101/api/version >/dev/null && curl -sf localhost:3102/api/version >/dev/null && curl -s localhost:4010 >/dev/null && break
   sleep 0.5
 done
 
+# Suites that read plans in their own process (reminder-tests.js…) match the
+# 3100/3101 servers.
+export FREE_SHOOT_OFFERED=1
 status=0
 run() {
   echo "== $1"
@@ -87,6 +96,7 @@ run render-race env MOCKLOG="$MOCKLOG" EMAIL=owner-ci@example.com node scripts/d
 run slots env MOCKLOG="$MOCKLOG" RENDER_SLOTS=3 node scripts/dev/slots-test.js
 run durable-shoots node scripts/dev/durable-shoot-tests.js
 run history-queries node scripts/dev/history-query-tests.js
+run pay-first env FREE_SHOOT_OFFERED=0 BASE=http://localhost:3102 PREVIEW_BASE=http://localhost:3100 node scripts/dev/pay-first-tests.js
 
 if [ $status -ne 0 ]; then
   echo "== server log (3100)"; tail -60 "$WORK/server-3100.log"

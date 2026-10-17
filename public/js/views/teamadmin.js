@@ -43,7 +43,7 @@ export async function renderTeamAdmin({ root, navigate }) {
   const u = state.user;
   // Read fresh: confirming the email on this page (the code box) or in another
   // tab unlocks it without a reload (app.js "ahg:user-changed").
-  const lockedNow = () => (state.user?.demo ? "The demo account can't order for a team. Create a free account to try it." : state.user?.plan?.needsEmail ? "email" : "");
+  const lockedNow = () => (state.user?.demo ? "The demo account can't order for a team. Create an account to order for yours." : state.user?.plan?.needsEmail ? "email" : "");
   // An unconfirmed email gets the banner with the 6-digit code box.
   const lockBanner = () => {
     const locked = lockedNow();
