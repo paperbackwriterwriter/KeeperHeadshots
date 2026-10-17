@@ -78,6 +78,12 @@ const t = Date.now();
   const r = await g("/api/billing/checkout", { method: "POST", cookies: "_fbp=fb.1.1.9", headers: { "sec-gpc": "1", "user-agent": ua }, body: JSON.stringify({ packageId: "starter" }) });
   const gid = new URL(r.j.url).pathname.split("/").pop();
   const md = (await fetch(`${M}/v1/checkout/sessions/${gid}`).then((x) => x.json())).metadata || {};
+  // A Meta cookie too long for Stripe (here ending in an emoji at the cut)
+  // is left out; the checkout still opens.
+  const h = await account(`capilong${t}@x.com`);
+  const long = await h("/api/billing/checkout", { method: "POST", cookies: `_fbp=${"a".repeat(499)}%F0%9F%98%80; _fbc=fb.1.1.ok`, headers: { "user-agent": ua }, body: JSON.stringify({ packageId: "starter" }) });
+  const lmd = long.status === 200 ? (await fetch(`${M}/v1/checkout/sessions/${new URL(long.j.url).pathname.split("/").pop()}`).then((x) => x.json())).metadata || {} : {};
+  ok("an over-long Meta cookie is left out and the checkout still opens", long.status === 200 && !lmd.meta_fbp && lmd.meta_fbc === "fb.1.1.ok" && lmd.meta_ua === ua, JSON.stringify({ status: long.status, keys: Object.keys(lmd) }));
   ok("with the privacy signal, no browser details are saved on the checkout", !Object.keys(md).some((k) => k.startsWith("meta_")), JSON.stringify(md));
 }
 

@@ -67,17 +67,43 @@ try {
     assert.equal(puts, 2); assert.deepEqual(out, { n: 11 }); assert.deepEqual(stored, { n: 11 });
     // A write that landed but still reported a conflict (an SDK retry finding
     // its own write) isn't applied a second time.
+    // (The stand-in keeps the exact bytes written, as Blob does.)
     for (const message of ["Vercel Blob: The conditional request cannot succeed due to a conflicting operation against this resource.", "precondition"]) {
-      stored = { credits: 5 }; puts = 0;
+      let raw = JSON.stringify({ credits: 5 }); puts = 0;
       b.setSdk({
         BlobPreconditionFailedError, BlobNotFoundError: class extends Error {},
         head: async () => ({ etag: String(etag) }),
-        get: async () => ({ statusCode: 200, stream: new Blob([JSON.stringify(stored)]).stream() }),
-        put: async (key, body) => { puts++; stored = JSON.parse(body); etag++; throw message === "precondition" ? new BlobPreconditionFailedError() : new Error(message); },
+        get: async () => ({ statusCode: 200, stream: new Blob([raw]).stream() }),
+        put: async (key, body) => { puts++; raw = body; etag++; throw message === "precondition" ? new BlobPreconditionFailedError() : new Error(message); },
       });
       const r = await b.updateJSON("users/id/usr_x.json", (u) => ({ ...u, credits: u.credits - 1 }));
-      assert.equal(puts, 1, message); assert.deepEqual(stored, { credits: 4 }); assert.deepEqual(r, { credits: 4 });
+      assert.equal(puts, 1, message); assert.deepEqual(JSON.parse(raw), { credits: 4 }); assert.deepEqual(r, { credits: 4 });
+      assert.deepEqual(await b.getJSON("users/id/usr_x.json"), { credits: 4 });
     }
+  });
+  await test("a write that lost to another writer saving the same value is retried, not counted as done", async () => {
+    // Two requests add 1 to the same counter from the same version: both
+    // compute {n:2}. The other one lands first; ours gets a conflict, and the
+    // record holds the value we meant to write, but not our write. A rate
+    // limit or a one-time grant must count both.
+    const blobFile = path.join(dir, "blob-storage2.mjs");
+    await fs.writeFile(blobFile, (await fs.readFile(new URL("../../lib/storage.js", import.meta.url), "utf8")).replace("const useBlob = ", "const useBlob = true || ") + "\nexport const setSdk = (x) => (blobSdk = x);\n");
+    const b = await import(pathToFileURL(blobFile));
+    class BlobPreconditionFailedError extends Error {}
+    let raw = JSON.stringify({ n: 1 }), etag = 1, puts = 0;
+    b.setSdk({
+      BlobPreconditionFailedError, BlobNotFoundError: class extends Error {},
+      head: async () => ({ etag: String(etag) }),
+      get: async () => ({ statusCode: 200, stream: new Blob([raw]).stream() }),
+      put: async (key, body, opts) => {
+        puts++;
+        if (puts === 1) { raw = JSON.stringify({ n: 2 }); etag++; throw new BlobPreconditionFailedError(); }
+        if (opts.ifMatch !== String(etag)) throw new BlobPreconditionFailedError();
+        raw = body; etag++;
+      },
+    });
+    const out = await b.updateJSON("ratelimit/signin.json", (r) => ({ n: r.n + 1 }));
+    assert.deepEqual(out, { n: 3 }); assert.deepEqual(JSON.parse(raw), { n: 3 }); assert.equal(puts, 2);
   });
 } finally { await fs.rm(dir, { recursive: true, force: true }); }
 console.log(`\n${passed}/${passed} passed`);

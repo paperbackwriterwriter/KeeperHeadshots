@@ -44,6 +44,8 @@ page.on("pageerror", (e) => errs.push(e.message));
 await page.goto(`${B}/app/shoot/${sid}`);
 await page.waitForSelector("#retakePanel");
 ok("a set under the minimum shows the retake directions", (await page.locator("#retakePanel h2").innerText()).includes(String(MIN_CHECK_SCORE)));
+const ringLow = await page.locator(".verdict .ring").getAttribute("style");
+ok("a set under the minimum has a red score ring, like its badge", /--col:\s*#ff8a73/.test(ringLow), ringLow);
 ok("with no way to continue without new selfies", !(await page.locator("#toLooks, #continueAnyway").count()));
 ok("the photos to replace are marked", (await page.locator(".pcheck .badge:has-text('Replace')").count()) === flagged.length && flagged.length > 0);
 ok("the file input takes photos from the camera or the library", (await page.getAttribute("#retakeFile", "accept")) === "image/*" && (await page.getAttribute("#retakeFile", "capture")) === null);
@@ -61,6 +63,8 @@ ok("and the set is re-checked, passing", after.check.overall_score >= RECOMMENDE
 await page.goto(`${B}/app/shoot/${soft}`);
 await page.waitForSelector("#retakePanel");
 const title = await page.locator("#retakeTitle").innerText();
+const ringMid = await page.locator(".verdict .ring").getAttribute("style");
+ok("a set that can continue anyway has an amber score ring", /--col:\s*#f5b94a/.test(ringMid), ringMid);
 ok("a set of 70 says what we recommend, not what a shoot needs", title.includes("scored 70") && title.includes(`We recommend ${RECOMMENDED_CHECK_SCORE} or more`) && !title.includes("needs"), title);
 const order = await page.evaluate(() => { const h = document.getElementById("retakeTitle"), b = document.getElementById("continueAnyway"); return !!b && !!(h.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) && b.previousElementSibling?.tagName === "P"; });
 ok("'Continue with these selfies anyway' follows the heading and its paragraph", order && (await page.locator("#continueAnyway").innerText()).trim() === "Continue with these selfies anyway");

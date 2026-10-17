@@ -217,6 +217,8 @@ export async function renderTeamAdmin({ root, navigate }) {
         } catch (err) {
           restore();
           toast(err.message, "error", 7000);
+          // Accepted in the meantime: show the team as it is now.
+          if (err.status === 409) await load().then(() => !disposed && data.team && paintTeam(), () => {});
         }
       }),
     );

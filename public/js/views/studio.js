@@ -48,7 +48,8 @@ const lookName = (b, o) => {
   return l ? `${l.backdrop.name} · ${l.outfit.name}` : "";
 };
 
-const scoreColor = (n) => (n >= 80 ? "#6fdca8" : n >= 60 ? "#f5b94a" : "#ff8a73");
+// Red where a set can't start a shoot, matching its "Retake needed" badge.
+const scoreColor = (n) => (n >= 80 ? "#6fdca8" : n >= MIN_CHECK_SCORE ? "#f5b94a" : "#ff8a73");
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const gradeLabel = (g) => ({ keeper: "Keeper", solid: "Solid", retake: "Retake" })[g] || g;
 // Changes whenever a frame moves stage, so the contact sheet repaints it.
