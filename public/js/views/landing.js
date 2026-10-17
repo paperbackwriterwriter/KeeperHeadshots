@@ -258,7 +258,7 @@ export function renderLanding({ root, hydrate = false }) {
             </article>`,
           )}
         </div>
-        <p class="guarantee">${icon("shield-check")}<span>Money-back guarantee: if none of the headshots from your first paid shoot are usable, tell us within 30 days and we'll refund the package, less any later shoots you kept. <a class="link" href="/refunds" data-link>See the terms</a></span></p>
+        <p class="guarantee">${icon("shield-check")}<span>Money-back guarantee: if none of the headshots from your first paid shoot are usable, tell us within 30 days of purchase and we'll refund the package, less any later shoots you kept. <a class="link" href="/refunds" data-link>See the terms</a></span></p>
         <div class="teams" id="teams" data-reveal>
           <div style="display:flex;gap:16px;align-items:flex-start">
             <span class="t-ic">${icon("users")}</span>

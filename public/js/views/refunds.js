@@ -17,7 +17,7 @@ export function renderRefunds({ root }) {
 
       <div class="policy-callout">
         ${icon("shield-check")}
-        <div><b>The short version</b><span>If none of the headshots from your first paid shoot are usable, tell us within 30 days and we'll refund the package to your original payment method, less any later shoots whose headshots you kept. No forms, no hoops.</span></div>
+        <div><b>The short version</b><span>If none of the headshots from your first paid shoot are usable, tell us within 30 days of purchase and we'll refund the package to your original payment method, less any later shoots whose headshots you kept. No forms, no hoops.</span></div>
       </div>
 
       <h2 class="h-3">What's covered</h2>
