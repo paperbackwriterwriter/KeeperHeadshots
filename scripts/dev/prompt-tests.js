@@ -23,6 +23,7 @@ test("hair may look its best, but stays theirs: identity first", () => {
   // Grooming, not a haircut: the length is spelled out.
   assert.match(p, /This is grooming, not a new haircut/);
   assert.match(p, /hair that falls past the shoulders still falls past the shoulders/);
+  assert.match(p, /short or cropped hair stays just as short and close to the head, never grown longer, thicker or swept back/);
   assert.doesNotMatch(p, /stylist|flattering shape/);
 });
 test("the photo check's hair note goes in as one short line", () => {
@@ -43,6 +44,21 @@ test("a retake's correction comes straight after the likeness rules", () => {
   const at = p.indexOf("Correct this first");
   assert.ok(at > p.indexOf("Hair and facial hair") && at < p.indexOf("Wardrobe:"));
   assert.doesNotMatch(buildPrompt({ look, take: 1, subject: {} }), /Correct this first/);
+});
+test("the face keeps its width: the common narrowing named, no slimming pose", () => {
+  const p = buildPrompt({ look, take: 0, subject: { smile: "closed" } });
+  assert.match(p, /most common mistake is a narrower, slimmer face/);
+  assert.match(p, /match the wider, fuller version/);
+  assert.match(p, /including any redness or ruddiness — never lighter, paler or more even/);
+  assert.doesNotMatch(p, /chin slightly forward and down/);
+  assert.match(p, /chin level/);
+});
+test("glasses keep the same frames, described in one short line", () => {
+  const p = buildPrompt({ look, take: 0, subject: { glasses: true, glasses_style: "Thin rectangular\nsilver wire frames. " + "x".repeat(300) } });
+  assert.match(p, /thin wire frames stay thin wire frames, never swapped for thicker, bolder or black frames/);
+  const note = /Their frames: ([^\n]*)/.exec(p)[1];
+  assert.ok(note.startsWith("Thin rectangular silver wire frames.") && note.length <= 120 + 40);
+  assert.doesNotMatch(buildPrompt({ look, take: 0, subject: { glasses: false, glasses_style: "" } }), /Their frames|glasses/);
 });
 test("site examples keep their stock poses and expressions", () => {
   assert.match(sceneBrief({ look, take: 0 }).join(" "), /closed-mouth smile that reaches the eyes/);
