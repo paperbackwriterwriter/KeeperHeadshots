@@ -61,7 +61,7 @@ ok("and the set is re-checked, passing", after.check.overall_score >= RECOMMENDE
 await page.goto(`${B}/app/shoot/${soft}`);
 await page.waitForSelector("#retakePanel");
 const title = await page.locator("#retakeTitle").innerText();
-ok("a set of 70 says what a shoot needs", title.includes("scored 70") && title.includes(`needs ${RECOMMENDED_CHECK_SCORE} or more`), title);
+ok("a set of 70 says what we recommend, not what a shoot needs", title.includes("scored 70") && title.includes(`We recommend ${RECOMMENDED_CHECK_SCORE} or more`) && !title.includes("needs"), title);
 const order = await page.evaluate(() => { const h = document.getElementById("retakeTitle"), b = document.getElementById("continueAnyway"); return !!b && !!(h.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) && b.previousElementSibling?.tagName === "P"; });
 ok("'Continue with these selfies anyway' follows the heading and its paragraph", order && (await page.locator("#continueAnyway").innerText()).trim() === "Continue with these selfies anyway");
 await page.locator("#continueAnyway").scrollIntoViewIfNeeded();

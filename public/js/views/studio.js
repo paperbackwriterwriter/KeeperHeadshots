@@ -477,7 +477,7 @@ export async function renderStudio(ctx, id) {
         : blocked
         ? html`<h2 class="display h-3" id="retakeTitle">Your set scored ${c.overall_score}. A shoot needs ${MIN_CHECK_SCORE} or more.</h2>
           <p class="muted">Below ${MIN_CHECK_SCORE}, headshots won't look enough like you, so we can't start a shoot on these. A few new selfies, taken like this, usually fix it in minutes.</p>`
-        : html`<h2 class="display h-3" id="retakeTitle">Your set scored ${c.overall_score}. A shoot needs ${RECOMMENDED_CHECK_SCORE} or more.</h2>
+        : html`<h2 class="display h-3" id="retakeTitle">Your set scored ${c.overall_score}. We recommend ${RECOMMENDED_CHECK_SCORE} or more.</h2>
           <p class="muted">Selfies scoring under ${RECOMMENDED_CHECK_SCORE} often make headshots that don't quite look like you. A few new selfies, taken like this, usually fix it in minutes, or you can go ahead with the ones you have.</p>
           <button class="btn btn-ghost btn-sm continue-anyway" type="button" id="continueAnyway">Continue with these selfies anyway</button>`}
       ${direction.length ? html`<h3 class="h-4">What to change</h3><ol class="retake-steps">${direction.map((d) => html`<li>${d}</li>`)}</ol>` : ""}
