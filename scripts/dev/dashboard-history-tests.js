@@ -21,7 +21,7 @@ const { default: app } = await import("../../server.js");
 delete process.env.VERCEL;
 const user = { id: "usr_history_browser", email: "history-browser@example.com", name: "Maya Okafor", password: await hashPassword("password123"), emailVerified: true, createdAt: new Date().toISOString() };
 await users.create(user);
-for (let i = 0; i < 7; i++) await shoots.create({ id: `sht_browser_${i}`, userId: user.id, name: `Portrait session ${i + 1}`, createdAt: new Date(Date.UTC(2026, 9, i + 1)).toISOString(), status: ["draft", "checked", "error"][i % 3], shots: [], selfies: [] });
+for (let i = 0; i < 7; i++) await shoots.create({ id: `sht_browser_${i}`, userId: user.id, name: `Portrait session ${i + 1}`, createdAt: new Date(Date.UTC(2026, 9, i + 1)).toISOString(), status: ["draft", "checked", "error"][i % 3], ...(i % 3 === 1 ? { check: { overall_score: i === 1 ? 62 : 80 } } : {}), shots: [], selfies: [] });
 const server = app.listen(0, "127.0.0.1");
 await new Promise((r) => server.once("listening", r));
 const BASE = `http://127.0.0.1:${server.address().port}`;
@@ -78,6 +78,10 @@ try {
     assert.equal(links.at(-1), "/app/shoot/sht_browser_0");
     await screenshot(page, `complete-${width}.png`);
     pass(`pagination preserves ordering, retries without duplicates and hides at the end at ${width}px`);
+    const badge = (id) => page.locator(`a.shoot-card[href="/app/shoot/${id}"] .badge-row .badge`).first().innerText();
+    assert.match(await badge("sht_browser_1"), /Retake needed/i);
+    assert.match(await badge("sht_browser_4"), /Choose looks/i);
+    pass(`a checked set under the minimum score reads "Retake needed", not "Choose looks", at ${width}px`);
     if (width === 1280) for (const w of [320, 375, 390, 412, 768, 1024, 1280, 1440]) {
       await page.setViewportSize({ width: w, height: 900 });
       await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));

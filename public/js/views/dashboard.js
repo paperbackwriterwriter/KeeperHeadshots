@@ -1,6 +1,6 @@
 import { html, icon, api, state, media, relTime, toast, example, spinner, busy } from "../core.js";
 import { pixel } from "../pixel.js";
-import { PACKAGES } from "../shared/catalog.js";
+import { PACKAGES, MIN_CHECK_SCORE } from "../shared/catalog.js";
 
 const STATUS = {
   draft: ["badge", "Photo check pending"],
@@ -38,6 +38,9 @@ export function planBanner(mode = "always") {
       <p class="verify-resend">Need an email? <button class="link-btn" type="button" data-resend-verify>Send confirmation email</button></p></div></div>`;
   if (plan.tier === "trial")
     return html`<div class="banner banner-info" data-plan-banner="${mode}">${icon("sparkles")}<div><b>Your first shoot is a free preview.</b>Up to 2 looks, which makes 4 headshots, each checked and graded by AI.</div></div>`;
+  // Invited by a team: that shoot is the team's; more of their own need a package.
+  if (plan.tier === "none" && plan.teamMember)
+    return html`<div class="banner banner-info" data-plan-banner="${mode}">${icon("users")}<div><b>Your team has paid for your headshot shoot.</b>To start more shoots of your own, choose a package.</div><a class="btn btn-sm btn-ghost" href="/#pricing">See packages</a></div>`;
   // A brand-new customer (never bought, never had a free shoot): packages come first.
   if (plan.tier === "none" && !plan.started)
     return html`<div class="banner banner-info" data-plan-banner="${mode}">${icon("sparkles")}<div><b>Choose a package to start.</b>Packages start at $${PACKAGES[0].price} for ${PACKAGES[0].shoots} shoots. Each shoot has up to 4 looks and 8 headshots, no watermark, and your first package is covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>.</div><a class="btn btn-sm btn-flash" href="/#pricing">See packages</a></div>`;
@@ -148,7 +151,8 @@ export async function renderDashboard({ root, navigate }) {
   }
 
   const cards = (items) => html`${items.map((s, i) => {
-    const [cls, label] = STATUS[s.status] || STATUS.draft;
+    // A set scoring under the minimum can't go on to looks until it's retaken.
+    const [cls, label] = s.status === "checked" && s.checkScore != null && s.checkScore < MIN_CHECK_SCORE ? ["badge badge-danger", "Retake needed"] : STATUS[s.status] || STATUS.draft;
     return html`<a class="shoot-card view-enter" href="/app/shoot/${s.id}" data-link style="animation-delay:${Math.min(i, 8) * 70}ms">
       <div class="shoot-cover">
         ${s.cover ? html`<img src="${media(s.cover)}" alt="" loading="lazy" />` : ""}

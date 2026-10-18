@@ -27,7 +27,7 @@ import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, adv
 import { lookFor, MAX_LOOKS, MAX_SELFIES, MAX_RESUMES, MIN_CHECK_SCORE, RECOMMENDED_CHECK_SCORE, PHOTO_FORMATS, isPreviewOffer } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
 import { customersSection } from "./public/js/shared/customers.js";
-import { planFor, ownerEmail, creditSource, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, EMAIL_UNCONFIRMED } from "./lib/plan.js";
+import { planFor, ownerEmail, creditSource, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, CHOOSE_PACKAGE, EMAIL_UNCONFIRMED } from "./lib/plan.js";
 import { browserDetails, gpc, metaPixelId, track as trackMeta } from "./lib/meta.js";
 import { runCleanup } from "./lib/cleanup.js";
 import { runBackup } from "./lib/backup.js";
@@ -616,7 +616,7 @@ app.post("/api/shoots", requireUser, async (req, res) => {
   const plan = planFor(req.user);
   if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
   if (plan.needsEmail) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
-  if (!plan.canDevelop) throw new PlanError(NO_SHOOTS_LEFT);
+  if (!plan.canDevelop) throw new PlanError(plan.started ? NO_SHOOTS_LEFT : CHOOSE_PACKAGE);
   const mine = await shoots.forUser(req.user.id);
   const drafts = mine.filter((s) => !s.sample && !(s.shots || []).length).length;
   if (drafts >= MAX_DRAFTS) return res.status(409).json({ error: `You have ${drafts} shoots that haven't been developed yet. Develop or delete one to start another.`, code: "too_many_drafts" });
@@ -938,7 +938,7 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
         } else if (p.freeShootAvailable && unique.length > FREE.looks) {
           throw new PlanError(`Your free shoot includes up to ${FREE.looks} looks. Remove ${unique.length - FREE.looks} to continue.`, "too_many_looks", 400);
         } else {
-          throw new PlanError(NO_SHOOTS_LEFT);
+          throw new PlanError(p.started ? NO_SHOOTS_LEFT : CHOOSE_PACKAGE);
         }
         u.developing = { ...u.developing, [meta.id]: paidBy ? { charged, paidBy } : charged };
       });
@@ -1201,6 +1201,10 @@ const lookNames = (looks) => looks.map((l) => {
 function teamAdminOnly(req, res) {
   if (req.user.demo) throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
   if (planFor(req.user).needsEmail) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
+  // Invitations go out in this person's name with their address to reply
+  // to, so the address must be theirs (customers no longer confirm it to
+  // get started, so this is checked here).
+  if (!ownsMailbox(req.user)) throw new PlanError("Confirm your email address before setting up a team: enter the 6-digit code from our email on your Account page.", "email_unconfirmed", 403);
   return true;
 }
 

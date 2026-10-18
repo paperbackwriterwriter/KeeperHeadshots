@@ -68,6 +68,21 @@ await users.update(buyer.id, (u) => void (u.usage = { freeShootUsed: freeShoot }
     const used = await person("usedfree", { usage: { freeShootUsed: "sht_gone" } });
     await shoot(used, { days: 3 });
     ok("pay-first: but not after a used free shoot", !(await dueReminder(await fresh(used))));
+    // A team member's checked team shoot is paid for by the team: the plain
+    // develop reminder, not "choose a package".
+    const member = await person("member");
+    const teamShoot = await shoot(member, { days: 3 });
+    await storage.putJSON(`shoots/${teamShoot}.json`, { ...(await shoots.getMeta(teamShoot)), team: "team_x", updatedAt: ago(3) });
+    const mDue = await dueReminder(await fresh(member));
+    ok("pay-first: a team member's checked team shoot → develop reminder, no package needed", mDue?.kind === "develop" && mDue.needsPackage === false, JSON.stringify(mDue));
+    await users.update(member.id, (u) => void (u.remindersOff = ago(0))); // keeps the run counts in section 3
+    // Another address for a mailbox whose free shoot was used is a new
+    // customer now, not a returning one.
+    const { freeClaimKey } = await import("../../lib/store.js");
+    await storage.putJSON(freeClaimKey(`jo.claim${t}@gmail.com`), { userId: "usr_old", shootId: "sht_old" });
+    const variant = await person("variant", { email: `joclaim${t}+new@gmail.com`, usage: {} });
+    const vu = await fresh(variant);
+    ok("pay-first: a sign-up on another form of a used address doesn't inherit the old free shoot", !vu.usage?.freeShootUsed, JSON.stringify(vu.usage));
     if (was === undefined) delete process.env.FREE_SHOOT_OFFERED;
     else process.env.FREE_SHOOT_OFFERED = was;
   }

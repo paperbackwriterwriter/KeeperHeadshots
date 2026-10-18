@@ -102,7 +102,8 @@ const t = Date.now();
 
 // 2. A new account, confirmed or not: no free shoot, nothing to confirm
 // first, and no shoot until it buys a package.
-const sam = await account(`sam${t}@x.com`, "Sam Pay");
+const samEmail = `sam${t}@x.com`;
+const sam = await account(samEmail, "Sam Pay");
 {
   const me = (await sam("/api/me")).j.user;
   const p = me.plan;
@@ -110,7 +111,7 @@ const sam = await account(`sam${t}@x.com`, "Sam Pay");
   ok("no free shoot, and confirming the email isn't asked for", p.freeShootAvailable === false && !p.needsEmail && me.emailVerified === false, JSON.stringify(p));
   ok("it's marked as a brand-new customer (not out of shoots)", p.started === false);
   const r = await sam("/api/shoots", { method: "POST", body: "{}" });
-  ok("creating a shoot needs a package first (402)", r.status === 402 && r.j?.code === "payment_required" && /Buy a package/.test(r.j?.error || ""), `${r.status} ${JSON.stringify(r.j)}`);
+  ok("creating a shoot needs a package first (402), said as a first step, not 'out of shoots'", r.status === 402 && r.j?.code === "payment_required" && /Choose a package to start your first shoot/.test(r.j?.error || "") && !/out of shoots/.test(r.j?.error || ""), `${r.status} ${JSON.stringify(r.j)}`);
   const cleo = await account(`cleo${t}@x.com`, "Cleo Confirmed", { verify: true });
   const cp = (await cleo("/api/me")).j.user;
   ok("a confirmed new account gets no free shoot either", cp.emailVerified === true && cp.plan.tier === "none" && cp.plan.canDevelop === false && cp.plan.freeShootAvailable === false && !cp.plan.needsEmail, JSON.stringify(cp.plan));
@@ -143,8 +144,13 @@ const sam = await account(`sam${t}@x.com`, "Sam Pay");
   ok("and download without the preview name", dl.status === 200 && !/preview/.test(dl.disp), dl.disp);
   const me = (await sam("/api/me")).j.user;
   ok("one shoot used, two left", me.plan.credits === 2 && me.emailVerified === false, JSON.stringify(me.plan));
+  // Invitations go out in the admin's name with their address to reply to,
+  // so a team needs a confirmed address (shoots of their own don't).
+  const early = await sam("/api/team", { method: "POST", body: JSON.stringify({ name: "Sam Co", looks: [LOOKS4[0]] }) });
+  ok("an unconfirmed customer can't set up a team until they confirm their address", early.status === 403 && /Confirm your email address/.test(early.j?.error || ""), `${early.status} ${JSON.stringify(early.j?.error || "")}`);
+  await sam("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(samEmail) }) });
   const team = await sam("/api/team", { method: "POST", body: JSON.stringify({ name: "Sam Co", looks: [LOOKS4[0]] }) });
-  ok("an unconfirmed paying customer can set up a team", team.status === 200, `${team.status} ${JSON.stringify(team.j?.error || "")}`);
+  ok("once confirmed, they can", team.status === 200, `${team.status} ${JSON.stringify(team.j?.error || "")}`);
 }
 
 // 4. An account that already has a finished free preview (made while free
