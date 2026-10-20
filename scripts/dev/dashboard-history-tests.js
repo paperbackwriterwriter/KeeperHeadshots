@@ -124,6 +124,25 @@ try {
     await context.close();
     pass("the dashboard picks up a shoot changed in another tab when it comes back into view");
   }
+  {
+    // Left open in view with nothing in progress, it still checks about once a minute.
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: "reduce" });
+    await context.route(/^https:\/\//, (r) => r.abort());
+    assert.equal((await context.request.post(BASE + "/api/auth/signin", { data: { email: user.email, password: "password123" } })).status(), 200);
+    // (Nothing in progress: the shoot the test above started is put back.)
+    await shoots.updateMeta("sht_browser_6", (m) => { m.status = "draft"; return m; });
+    const page = await context.newPage();
+    await page.clock.install();
+    await page.goto(BASE + "/app");
+    const card = 'a.shoot-card[href="/app/shoot/sht_browser_4"] .badge-row .badge';
+    await page.locator(card).first().waitFor();
+    assert.match(await page.locator(card).first().innerText(), /Choose looks/i);
+    await shoots.updateMeta("sht_browser_4", (m) => { m.status = "generating"; return m; });
+    await page.clock.runFor(61_000);
+    await page.waitForFunction((sel) => /Developing/i.test(document.querySelector(sel)?.textContent || ""), card, { timeout: 5000 });
+    await context.close();
+    pass("an open dashboard picks up a shoot started elsewhere within about a minute");
+  }
   console.log(`${passed}/${passed} passed`);
 } finally {
   await browser?.close();
