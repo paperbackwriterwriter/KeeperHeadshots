@@ -606,6 +606,12 @@ if (process.env.DATA_DIR) {
   const me = await fetch(B + "/api/me");
   ok("public pages carry a short CDN cache, APIs don't", /max-age=60/.test(home.headers.get("vercel-cdn-cache-control") || "") && !home.headers.get("set-cookie") && !me.headers.get("vercel-cdn-cache-control"), `${home.headers.get("vercel-cdn-cache-control")} / ${me.headers.get("vercel-cdn-cache-control")}`);
 }
+// 29a. Browsers and crawlers that ask for /favicon.ico get the icon.
+{
+  const ico = await fetch(B + "/favicon.ico");
+  const bytes = Buffer.from(await ico.arrayBuffer());
+  ok("/favicon.ico is served", ico.status === 200 && bytes.readUInt16LE(2) === 1 && bytes.readUInt16LE(4) >= 1, `${ico.status} ${ico.headers.get("content-type")}`);
+}
 
 // 28. A body nested deeper than the guard looks is refused, not a crash.
 {

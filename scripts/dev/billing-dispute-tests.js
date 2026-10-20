@@ -26,6 +26,8 @@ for (const key of Object.keys(process.env)) if (/^(BLOB_|BACKUP_|STRIPE_|STORAGE
 Object.assign(process.env, { DATA_DIR: dir, STRIPE_SECRET_KEY: "sk_test_dispute", STRIPE_WEBHOOK_SECRET: "whsec_dispute_tests", STRIPE_API_BASE: `http://127.0.0.1:${stripeStub.address().port}` });
 const { default: Stripe } = await import("stripe");
 const { users } = await import("../../lib/store.js");
+const storage = await import("../../lib/storage.js");
+const today = async () => (await storage.getJSON(`stats/days/${new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" })}.json`)) || {};
 const { handleWebhook } = await import("../../lib/billing.js");
 
 let passed = 0;
@@ -54,12 +56,16 @@ try {
     const u = await me();
     assert.equal(u.credits, 0);
     assert.equal(u.purchases[0].refunded, true);
+    assert.equal((await today()).refunds, 2900);
   });
   await test("winning the chargeback gives the shoots and the purchase back", async () => {
     await send("charge.dispute.closed", dispute("won"));
     const u = await me();
     assert.equal(u.credits, 3);
     assert.ok(!u.purchases[0].refunded);
+    const day = await today();
+    assert.equal(day.refunds, 0, "the funnel's refund total");
+    assert.equal(day.refunded, 0, "refunded orders");
   });
   await test("a late or repeated dispute event after the win changes nothing", async () => {
     await send("charge.dispute.funds_withdrawn", dispute("won"));

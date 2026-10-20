@@ -88,6 +88,7 @@ run e2e node scripts/dev/api-e2e.js
 run team node scripts/dev/team-tests.js
 run billing-deleted node scripts/dev/billing-deleted-tests.js
 run billing-dispute node scripts/dev/billing-dispute-tests.js
+run billing-team-refund node scripts/dev/billing-team-refund-tests.js
 run reminders node scripts/dev/reminder-tests.js
 run showcase node scripts/dev/showcase-tests.js
 run blog node scripts/dev/blog-tests.js

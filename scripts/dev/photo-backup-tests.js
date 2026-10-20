@@ -197,6 +197,18 @@ try {
     assert.equal(second.complete, true); assert.equal(await storage.getJSON("cron/photo-backup-state.json"), null);
     assert.ok(second.entries.some((e) => e.uid === g.uid));
   });
+  await test("a temporary storage error on one photo is tried again, not counted as a failed backup", async () => {
+    await fixture("r");
+    let failed = 0;
+    interceptPut = async (key) => { if (key.startsWith("photo-backups/") && key.includes("usr_r/") && failed++ === 0) throw new Error("Vercel Blob: Failed to fetch blob: 500 Internal Server Error"); };
+    const records = {}; for (const key of await storage.list("shoots/")) records[key] = await storage.getJSON(key);
+    let out;
+    try { out = await backupPhotos({ records, now, deadline: Date.now() + 20_000 }); }
+    finally { interceptPut = null; }
+    assert.equal(failed > 1, true);
+    assert.equal(out.failed, 0, JSON.stringify(out.failed));
+    assert.ok(out.entries.some((e) => e.uid === "usr_r"));
+  });
   await test("time-limited nights accumulate photo copies into a full recovery point with the newest records", async () => {
     const h = await fixture("k");
     await storage.putJSON(`users/id/${h.uid}.json`, { id: h.uid, email: "k@example.com", note: "v1" });

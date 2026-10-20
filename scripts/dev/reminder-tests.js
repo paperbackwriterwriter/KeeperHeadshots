@@ -224,6 +224,25 @@ await users.update(buyer.id, (u) => void (u.usage = { freeShootUsed: freeShoot }
   ok("the unsubscribe page isn't indexed", /noindex/.test((await (await fetch(`${B}/unsubscribe`)).text()) + ((await fetch(`${B}/unsubscribe`)).headers.get("x-robots-tag") || "")));
 }
 
+// The hand-sent discount offer: not to team members, one per inbox, and not
+// to an inbox that has already bought under another address.
+{
+  const { offerRecipients } = await import("../../lib/outreach.js");
+  const member = await person("offerteam", { joinedTeam: "team_x" });
+  await person("offerbuyer", { email: `offer.buyer${t}@gmail.com`, purchases: [{ sessionId: "cs_x", shoots: 3, at: ago(5) }], credits: 3 });
+  const other = await person("offerbuyer2", { email: `offerbuyer${t}+2@gmail.com` });
+  const one = await person("offerfresh1", { email: `offer.fresh${t}@gmail.com` });
+  const two = await person("offerfresh2", { email: `offerfresh${t}+x@gmail.com` });
+  const ids = (await offerRecipients(`OFFER${t}`)).map((u) => u.id);
+  ok("the discount offer skips team members", !ids.includes(member.id));
+  ok("and an inbox that already bought under another address", !ids.includes(other.id));
+  ok("and goes once per inbox", [one.id, two.id].filter((x) => ids.includes(x)).length === 1, JSON.stringify(ids.filter((x) => [one.id, two.id].includes(x))));
+  const sentTo = ids.includes(one.id) ? one : two;
+  await users.update(sentTo.id, (u) => void (u.offers = { [`OFFER${t}`]: new Date().toISOString() }));
+  const later = (await offerRecipients(`OFFER${t}`)).map((u) => u.id);
+  ok("and not again to that inbox's other address on a later send", !later.includes(one.id) && !later.includes(two.id));
+}
+
 fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true });
 const passed = results.filter(Boolean).length;
 console.log(`\n${passed}/${results.length} passed`);

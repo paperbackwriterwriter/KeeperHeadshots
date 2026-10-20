@@ -139,6 +139,12 @@ export async function renderDashboard({ root, navigate }) {
     return;
   }
   grid.removeAttribute("aria-busy");
+  // The account changed while listing (marked as a team member): its banner too.
+  if (data.user) {
+    state.user = data.user;
+    const banner = planBanner();
+    root.querySelector("[data-plan-banner]")?.replaceWith(document.createRange().createContextualFragment(banner ? banner.v : ""));
+  }
 
   if (!data.shoots.length && !data.nextCursor) {
     grid.outerHTML = html`<div class="empty view-enter">

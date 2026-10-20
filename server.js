@@ -595,7 +595,11 @@ const summary = (s) => ({
 
 app.get("/api/shoots", requireUser, async (req, res) => {
   const page = await listShootPage(req.user.id, { cursor: req.query.cursor ?? null, limit: req.query.limit === undefined ? 24 : Number(req.query.limit) });
-  res.json({ shoots: page.shoots.map(summary), nextCursor: page.nextCursor });
+  // Members who joined a team before accounts recorded it (lib/teams.js
+  // accept sets joinedTeam): a team shoot here says they're on one.
+  const teamShoot = !req.user.joinedTeam && page.shoots.find((s) => s.team?.id);
+  const user = teamShoot ? await users.update(req.user.id, (u) => (u.joinedTeam ? UNCHANGED : void (u.joinedTeam = teamShoot.team.id))).catch(() => null) : null;
+  res.json({ shoots: page.shoots.map(summary), nextCursor: page.nextCursor, ...(user ? { user: publicUser(user) } : {}) });
 });
 
 // Managed shoots move through durable deliveries even with no open browser.

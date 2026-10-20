@@ -143,6 +143,21 @@ try {
     await context.close();
     pass("an open dashboard picks up a shoot started elsewhere within about a minute");
   }
+  {
+    // A member who joined a team before accounts recorded it sees the team banner.
+    const member = { id: "usr_old_member", email: "old-member@example.com", name: "Old Member", password: await hashPassword("password123"), emailVerified: true, createdAt: new Date().toISOString() };
+    await users.create(member);
+    await shoots.create({ id: "sht_old_member", userId: member.id, name: "Team headshot", createdAt: new Date().toISOString(), status: "draft", paidWith: "team", team: { id: "team_old", inviteId: "inv_old", name: "Old Team" }, shots: [], selfies: [] });
+    const context = await browser.newContext({ viewport: { width: 390, height: 900 }, reducedMotion: "reduce" });
+    await context.route(/^https:\/\//, (r) => r.abort());
+    assert.equal((await context.request.post(BASE + "/api/auth/signin", { data: { email: member.email, password: "password123" } })).status(), 200);
+    const page = await context.newPage();
+    await page.goto(BASE + "/app");
+    await page.waitForFunction(() => /Your team has paid/.test(document.querySelector("[data-plan-banner]")?.textContent || ""), null, { timeout: 5000 });
+    assert.equal((await users.byId(member.id)).joinedTeam, "team_old");
+    await context.close();
+    pass("a member who joined a team before 18 Oct gets the team banner");
+  }
   console.log(`${passed}/${passed} passed`);
 } finally {
   await browser?.close();
