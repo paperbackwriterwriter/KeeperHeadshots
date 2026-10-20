@@ -191,4 +191,22 @@ export async function renderDashboard({ root, navigate }) {
     } catch (err) { if (grid.isConnected) toast(err.message, "error"); }
     finally { restore(); }
   });
+
+  // A shoot can be checked or developed from another tab or device: while one
+  // is in progress, check back every 15 seconds (while this tab is in view),
+  // and check once whenever the tab comes back into view. Redraw on a change.
+  const sig = (list) => list.map((s) => `${s.id}:${s.status}:${s.bestScore ?? ""}:${s.checkScore ?? ""}`).join();
+  const inProgress = () => data.shoots.some((s) => ["checking", "generating", "reviewing"].includes(s.status));
+  let checking = false;
+  const refresh = async () => {
+    if (!grid.isConnected || checking || document.visibilityState !== "visible") return;
+    checking = true;
+    try {
+      const fresh = await api("/api/shoots");
+      if (grid.isConnected && location.pathname === "/app" && sig(fresh.shoots) !== sig(data.shoots)) navigate("/app", { replace: true });
+    } catch {} finally { checking = false; }
+  };
+  const onVisible = () => (grid.isConnected ? refresh() : document.removeEventListener("visibilitychange", onVisible));
+  document.addEventListener("visibilitychange", onVisible);
+  const timer = setInterval(() => (grid.isConnected && inProgress() ? refresh() : clearInterval(timer)), 15000);
 }

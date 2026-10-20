@@ -149,22 +149,23 @@ ok("the original records it", (await f(`/api/shoots/${first}`)).j.shoot.reshootI
   const start = await left();
   for (let i = 0; i < 3; i++) await h(`/api/shoots/${rid}/check`, { method: "POST", body: "{}" });
   const afterFree = await left();
-  await h(`/api/shoots/${rid}/check`, { method: "POST", body: "{}" });
+  const fourth = await h(`/api/shoots/${rid}/check`, { method: "POST", body: "{}" });
   const afterFourth = await left();
   ok("a reshoot's first 3 checks are free", afterFree === start, `${start} → ${afterFree}`);
-  ok("a 4th counts as usual", afterFourth === start - 1, `${afterFree} → ${afterFourth}`);
+  // (Customers pay up front: with no package, a 4th isn't run at all.)
+  ok("a 4th is like any other shoot's: with no package, it asks to buy", fourth.status === 402 && /Buy a package/.test(fourth.j?.error || "") && afterFourth === afterFree, `${fourth.status} ${afterFree} → ${afterFourth}`);
   // Deleting the reshoot and making it again doesn't give the free checks back.
   await h(`/api/shoots/${rid}`, { method: "DELETE" });
   const again = (await h(`/api/shoots/${sid}/reshoot`, { method: "POST", body: "{}" })).j.shoot.id;
   await h(`/api/shoots/${again}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(21) }) });
-  await h(`/api/shoots/${again}/check`, { method: "POST", body: "{}" });
-  const afterRemade = await left();
-  ok("a remade reshoot doesn't get 3 more free checks", afterRemade === afterFourth - 1, `${afterFourth} → ${afterRemade}`);
+  const remade = await h(`/api/shoots/${again}/check`, { method: "POST", body: "{}" });
+  ok("a remade reshoot doesn't get 3 more free checks", remade.status === 402, `${remade.status} ${remade.j?.error || ""}`);
   await h(`/api/shoots/${sid}`, { method: "DELETE" });
   const orphan = (await h(`/api/shoots/${again}`)).j.shoot;
   ok("deleting the original makes its reshoot an ordinary shoot", !orphan.reshootOf && !orphan.reshootLooks);
   const gen = await h(`/api/shoots/${again}/generate`, { method: "POST", body: JSON.stringify({ looks: LOOKS.slice(0, 1) }) });
-  ok("which develops like any other (here: no shoots left, so it asks to buy)", gen.status === 402 && !/reshoot/i.test(gen.j?.error || ""), `${gen.status} ${gen.j?.error}`);
+  // (Its photos were never checked: with no package they can't be, and it can't develop.)
+  ok("which is treated like any other (here: no shoots left, so it can't develop)", [400, 402].includes(gen.status) && !/reshoot/i.test(gen.j?.error || ""), `${gen.status} ${gen.j?.error}`);
 }
 
 const failed = results.filter((x) => !x).length;

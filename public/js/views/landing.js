@@ -7,6 +7,13 @@ import { FAQ } from "../shared/faq.js";
 // best pick's score, and which frame (0-8) is circled as the best pick. Frames
 // 6 and 7 sit under the selfie polaroid and 2 under the "Best pick" tag, so
 // the pick moves around the others.
+// The FAQ answers are plain text (they also feed the page's structured data);
+// on the page, the mention of the refund policy links to it.
+const faqAnswer = (a) => {
+  const [before, after] = a.split("our refund policy page");
+  return after === undefined ? a : html`${before}our <a class="link" href="/refunds" data-link>refund policy page</a>${after}`;
+};
+
 const HERO_SETS = [
   ["hero", 96, 1], ["p1", 95, 5], ["p2", 94, 0], ["p3", 97, 8], ["p4", 95, 3], ["p5", 96, 4], ["p6", 94, 1], ["p7", 95, 5], ["p8", 97, 0],
 ];
@@ -275,7 +282,7 @@ export function renderLanding({ root, hydrate = false }) {
           <p class="lede" data-reveal style="--i:2;margin-top:20px">Still unsure? <a class="link" href="/contact" data-link>Contact us</a> or email <a class="link" href="mailto:hello@keeperheadshots.com">hello@keeperheadshots.com</a>.</p>
         </div>
         <div class="faq-list">
-          ${FAQ.map(([q, a], i) => html`<details data-reveal style="--i:${i % 3}" ${i === 0 ? raw("open") : ""}><summary>${q}${icon("chevron-down")}</summary><p>${a}</p></details>`)}
+          ${FAQ.map(([q, a], i) => html`<details data-reveal style="--i:${i % 3}" ${i === 0 ? raw("open") : ""}><summary>${q}${icon("chevron-down")}</summary><p>${faqAnswer(a)}</p></details>`)}
         </div>
       </div>
     </section>

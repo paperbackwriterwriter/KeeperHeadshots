@@ -41,9 +41,11 @@ export function renderBuy({ root }, packageId) {
   const shootId = offer ? q.get("shoot") || "" : null;
   // "Keep your pick" is for one headshot of that shoot.
   const shotId = offer ? q.get("shot") || "" : null;
-  const back = offer ? `/app/shoot/${shootId}` : "/app";
+  // Bought from the team page: Stripe sends the admin back there.
+  const toTeam = !offer && q.get("return") === "team";
+  const back = offer ? `/app/shoot/${shootId}` : toTeam ? "/app/team" : "/app";
   const headline = offer ? `${pkg.name}: $${pkg.price}` : `${pkg?.name}: ${pkg?.shoots} shoots for $${pkg?.price}`;
-  const body = (extra) => ({ packageId: pkg.id, ...(offer ? { shootId, ...(pkg.id === "keep" ? { shotId } : {}) } : {}), pageUrl: pageUrl(), ...extra });
+  const body = (extra) => ({ packageId: pkg.id, ...(offer ? { shootId, ...(pkg.id === "keep" ? { shotId } : {}) } : {}), ...(toTeam ? { returnTo: "team" } : {}), pageUrl: pageUrl(), ...extra });
   let disposed = false;
   let checkout = null;
   const shell = (body) =>

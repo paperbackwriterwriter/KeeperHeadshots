@@ -281,6 +281,25 @@ if (process.env.DATA_DIR) {
   ok("guessing is limited", limited);
 }
 
+// 15f. Deleting and re-creating the account (or using another form of the
+// same Gmail address) doesn't buy more code guesses: 20 a day per inbox.
+{
+  const base = `cap${t}`;
+  const forms = [`${base}@gmail.com`, `${base.slice(0, 2)}.${base.slice(2)}@gmail.com`, `${base}+again@gmail.com`];
+  let wrong = 0, limitedAt = null;
+  for (const [n, email] of forms.entries()) {
+    const c = client();
+    const ip = { "x-forwarded-for": `198.51.100.${(t % 200) + n}` };
+    await c("/api/auth/signup", { method: "POST", headers: ip, body: JSON.stringify({ name: "Cap Test", email, password: "password123" }) });
+    for (let i = 0; i < 8 && limitedAt === null; i++) {
+      const r = await c("/api/auth/verify/code", { method: "POST", headers: ip, body: JSON.stringify({ code: "111111" }) });
+      if (r.status === 429) limitedAt = wrong;
+      else if (r.status === 400) wrong++;
+    }
+  }
+  ok("code guesses are capped per inbox across re-created accounts", limitedAt === 20, `limited after ${limitedAt} wrong tries`);
+}
+
 // 16. At most 20 undeveloped shoots per account.
 {
   const f = await account(`drafts${t}@x.com`);
@@ -552,6 +571,33 @@ if (process.env.DATA_DIR) {
   const reset = await resetFrom(owner, email, "the-real-owner-7");
   const after = await credits(owner);
   ok("a takeover during a develop's charge gives the credit back", reset.status === 200 && after === before, `${reset.status} credits ${before}->${after}`);
+}
+
+// 27e. Customers pay before confirming their address, so a takeover from
+// another device keeps shoots with finished headshots (and what was bought
+// for them), and still removes drafts.
+if (process.env.DATA_DIR) {
+  const maker = jarClient();
+  const email = `paidwork${t}@x.com`;
+  await maker("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Paying Customer", email, password: "password123" }) });
+  const done = await shootWithSelfie(maker);
+  const draft = await shootWithSelfie(maker);
+  const metaFile = `${process.env.DATA_DIR}/shoots/${done}.json`;
+  const meta = JSON.parse(fs.readFileSync(metaFile, "utf8"));
+  meta.shots = [{ id: "shot_paidwork1" }];
+  meta.status = "done";
+  fs.writeFileSync(metaFile, JSON.stringify(meta));
+  fs.mkdirSync(`${process.env.DATA_DIR}/shots/${done}`, { recursive: true });
+  fs.writeFileSync(`${process.env.DATA_DIR}/shots/${done}/shot_paidwork1.json`, JSON.stringify({ id: "shot_paidwork1", status: "done", file: `${done}/finished.jpg` }));
+  const userFile = `${process.env.DATA_DIR}/users/id/${(await maker("/api/me")).j.user.id}.json`;
+  const u = JSON.parse(fs.readFileSync(userFile, "utf8"));
+  u.kept = { [done]: ["shot_paidwork1"], [draft]: ["shot_x"] };
+  fs.writeFileSync(userFile, JSON.stringify(u));
+  const owner = jarClient();
+  const reset = await resetFrom(owner, email, "the-real-owner-5");
+  const ids = ((await owner("/api/shoots")).j.shoots || []).map((s) => s.id);
+  const me = (await owner("/api/me")).j.user;
+  ok("a takeover keeps shoots with finished headshots, and removes drafts", reset.status === 200 && ids.includes(done) && !ids.includes(draft) && JSON.stringify(Object.keys(me.kept)) === JSON.stringify([done]), `${reset.status} shoots=${ids} kept=${Object.keys(me.kept || {})}`);
 }
 
 // 29. Public pages may be cached by Vercel's CDN briefly; API answers aren't.

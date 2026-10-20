@@ -378,10 +378,12 @@ async function markVerified(user, req) {
 app.post("/api/auth/verify/code", requireUser, async (req, res) => {
   if (ownsMailbox(req.user)) return res.json({ status: "already", user: publicUser(req.user) });
   // Guessing limits: a few tries an hour per account and per connection, and
-  // 20 in all per account, after which only the emailed link works.
+  // 20 in all per account, after which only the emailed link works. A daily
+  // limit per mailbox (Gmail dots and +tags count as one) stops someone
+  // deleting and re-creating the account to get fresh tries.
   const tooMany = { error: "Too many tries. Use the link in the email instead, or wait a while.", code: "rate_limited" };
-  // The three counters are independent writes: made together, not one by one.
-  const limits = await Promise.all([overLimit("verifycode", req.user.id, 8), overLimit("verifycodeaddr", hashId(req.user.email), 8), overLimit("verifycodeip", req.ip || "unknown", 30)]);
+  // The four counters are independent writes: made together, not one by one.
+  const limits = await Promise.all([overLimit("verifycode", req.user.id, 8), overLimit("verifycodeaddr", hashId(req.user.email), 8), overLimit("verifycodeip", req.ip || "unknown", 30), overLimit("verifycodemailbox", canonicalEmail(req.user.email), 20, DAY_MS)]);
   if (limits.some(Boolean)) return res.status(429).json(tooMany);
   // Counting the try and confirming the address are one write.
   let spent = false;
@@ -744,6 +746,10 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   const freeReshoot = !!reshootOriginal && (reshootOriginal.reshootChecks || 0) < RESHOOT_FREE_CHECKS;
   // (A seat the admin's refund left unpaid is the person's own check again.)
   const teamSeat = (!!meta.team && meta.paidWith === "team" && (await teams.seatPaid(meta).catch(() => false))) || freeReshoot;
+  // Customers pay up front: with no package (and no free shoot), a shoot
+  // can't be developed, so its photos aren't checked either (each check is a
+  // paid AI call). Team shoots and free reshoots still are.
+  if (plan.tier === "none" && !teamSeat) throw new PlanError(plan.started ? "Buy a package to check photos and develop this shoot." : CHOOSE_PACKAGE);
   // Before the free shoot (no address for this mailbox has had it), checks
   // past the free allowance come from a daily one instead, so nobody is left
   // unable to see a result without buying.
@@ -1321,15 +1327,20 @@ app.post("/api/join/:token", requireUser, async (req, res) => {
 
 // The inbox's owner took over, from another device, an account someone else
 // made with their address and never confirmed (password reset or Google
-// sign-in). What that person uploaded isn't theirs to keep: every shoot, its
-// photos and headshots go. Purchases stay (they're payment records), and so
-// does the balance. A takeover from the device that made the account is its
+// sign-in). What that person uploaded isn't theirs to keep: drafts and
+// unfinished shoots go, with their photos. Shoots with finished headshots
+// stay: customers pay before confirming their address now, so those are most
+// likely the owner's own paid work. Purchases stay (they're payment records),
+// and so does the balance. A takeover from the device that made the account is its
 // owner, and keeps everything. An account confirmed by a team invitation keeps
 // its shoots too: they're a member's paid work, and the admin can't win a seat
 // back by taking over an address they invited.
 async function purgeForTakeover(userId) {
-  const list = await shoots.forUser(userId);
+  const finished = async (meta) => ((await shoots.get(meta.id))?.shots || []).some((shot) => shot.status === "done" && shot.file);
+  const list = [];
+  for (const meta of await shoots.forUser(userId)) if (!await finished(meta)) list.push(meta);
   if (!list.length) return 0;
+  const gone = new Set(list.map((meta) => meta.id));
   for (const meta of list) if (meta.team && !(meta.shots || []).length) await teams.returnSeat(meta).catch((err) => console.error("[takeover] return seat", meta.id, err.message));
   await showcase.removeForUser(userId).catch(() => {});
   for (const meta of list) await shoots.remove(meta);
@@ -1338,9 +1349,11 @@ async function purgeForTakeover(userId) {
   let freeBack = null;
   const owner = await users.update(userId, (u) => {
     freeBack = null;
-    delete u.kept;
-    delete u.extraLooks;
+    for (const field of ["kept", "extraLooks"]) {
+      if (u[field]) u[field] = Object.fromEntries(Object.entries(u[field]).filter(([sid]) => !gone.has(sid)));
+    }
     for (const [sid, memo] of Object.entries(u.developing || {})) {
+      if (!gone.has(sid)) continue;
       const kind = typeof memo === "object" ? memo?.charged : memo;
       if (kind === "credit") teams.giveBack(u);
       if (kind === "free" && u.usage?.freeShootUsed === sid) {
@@ -1348,7 +1361,7 @@ async function purgeForTakeover(userId) {
         freeBack = sid;
       }
     }
-    delete u.developing;
+    if (u.developing) for (const sid of gone) delete u.developing[sid];
   }).catch(() => null);
   if (freeBack && owner) {
     const freeKey = freeClaimKey(owner.email);
@@ -1451,7 +1464,7 @@ app.post("/api/billing/checkout", requireUser, async (req, res) => {
       if (isKept(req.user, shootId, shotId)) return res.status(400).json({ error: "That headshot is already yours. Pick another one, or keep them all.", code: "kept" });
     }
   }
-  const checkout = await createCheckout(req.user, packageId, origin, { gpc: gpc(req), embedded, shootId, shotId, browser: browserDetails(req) });
+  const checkout = await createCheckout(req.user, packageId, origin, { gpc: gpc(req), embedded, shootId, shotId, toTeam: req.body?.returnTo === "team", browser: browserDetails(req) });
   // For the one "unfinished checkout" reminder (lib/reminders.js).
   // (Packages only: an offer is reminded about by the preview's "buy" email.)
   if (!shootId) await users.update(req.user.id, (u) => void (u.lastCheckout = { packageId, at: new Date().toISOString() })).catch((err) => console.error("[checkout] record", err.message));

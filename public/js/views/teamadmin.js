@@ -1,7 +1,7 @@
 import { $, $$, html, raw, icon, api, state, toast, busy, media, squareMedia, sizeMedia } from "../core.js";
 import { BACKDROPS, OUTFITS, MAX_LOOKS, PACKAGES } from "../shared/catalog.js";
 import { downloadAll } from "./format.js";
-import { planBanner } from "./dashboard.js";
+import { planBanner, confirmPurchase } from "./dashboard.js";
 
 // /app/team: a team admin sets the team's look, invites colleagues by email
 // (each invite uses one of their shoots) and collects everyone's headshots.
@@ -27,6 +27,14 @@ const lookLabel = (l) => `${BACKDROPS.find((b) => b.id === l.backdrop)?.name || 
 export async function renderTeamAdmin({ root, navigate }) {
   let data;
   let disposed = false;
+  // Back from Stripe after buying from this page: confirm it here.
+  const q = new URLSearchParams(location.search);
+  const outcome = q.get("checkout");
+  if (outcome) {
+    navigate("/app/team", { replace: true, silent: true });
+    if (outcome === "cancelled") toast("Checkout cancelled. You haven't been charged.", "info");
+    else await confirmPurchase(q.get("session_id"));
+  }
   const load = async () => {
     data = await api("/api/team");
     if (data.user) state.user = data.user; // a lapsed invitation may just have handed a shoot back
@@ -129,7 +137,7 @@ export async function renderTeamAdmin({ root, navigate }) {
           <textarea class="input" id="emails" rows="2" placeholder="alex@company.com, sam@company.com"></textarea>
           <button class="btn btn-ink" id="sendInvites" ${lockedNow() ? raw("disabled") : ""}>${icon("send")} Send invites</button>
         </form>
-        ${credits === "0" ? html`<p class="small">No shoots left to give. <a class="link" href="/app/buy/${PACKAGES[PACKAGES.length - 1].id}" data-link>Buy ${PACKAGES[PACKAGES.length - 1].name} (${PACKAGES[PACKAGES.length - 1].shoots} shoots)</a> or <a class="link" href="/#pricing">see all packages</a>.</p>` : ""}
+        ${credits === "0" ? html`<p class="small">No shoots left to give. <a class="link" href="/app/buy/${PACKAGES[PACKAGES.length - 1].id}?return=team" data-link>Buy ${PACKAGES[PACKAGES.length - 1].name} (${PACKAGES[PACKAGES.length - 1].shoots} shoots)</a> or <a class="link" href="/#pricing">see all packages</a>.</p>` : ""}
       </section>
 
       <section aria-labelledby="membersTitle" style="margin-top:32px">

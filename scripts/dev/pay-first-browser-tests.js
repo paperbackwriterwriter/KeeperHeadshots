@@ -48,6 +48,8 @@ try {
     assert.equal(await page.locator("#dz, #file, #go").count(), 0);
     assert.equal(await page.locator("#seePackages").getAttribute("href"), "/#pricing");
     assert.match(await page.locator("[data-plan-banner]").innerText(), /Choose a package to start/);
+    assert.match(await page.locator("main h1").innerText(), /Choose a package first/);
+    assert.doesNotMatch(await page.locator("main").innerText(), /Start with a few selfies/);
     assert.doesNotMatch(await page.locator("main").innerText(), /free (preview|shoot)/i);
     await page.screenshot({ path: path.join(OUT, "new-shoot-390.png"), fullPage: true });
   });

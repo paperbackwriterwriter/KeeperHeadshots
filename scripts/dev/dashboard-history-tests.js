@@ -108,6 +108,22 @@ try {
     await context.close();
   }
   pass("loaded history has no horizontal overflow at eight supported widths");
+  {
+    // A shoot started in another tab shows up when this one comes back into view.
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: "reduce" });
+    await context.route(/^https:\/\//, (r) => r.abort());
+    assert.equal((await context.request.post(BASE + "/api/auth/signin", { data: { email: user.email, password: "password123" } })).status(), 200);
+    const page = await context.newPage();
+    await page.goto(BASE + "/app");
+    const badge = page.locator('a.shoot-card[href="/app/shoot/sht_browser_6"] .badge-row .badge').first();
+    await badge.waitFor();
+    assert.match(await badge.innerText(), /Photo check pending/i);
+    await shoots.updateMeta("sht_browser_6", (m) => { m.status = "generating"; return m; });
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await page.waitForFunction(() => /Developing/i.test(document.querySelector('a.shoot-card[href="/app/shoot/sht_browser_6"] .badge-row .badge')?.textContent || ""), null, { timeout: 5000 });
+    await context.close();
+    pass("the dashboard picks up a shoot changed in another tab when it comes back into view");
+  }
   console.log(`${passed}/${passed} passed`);
 } finally {
   await browser?.close();

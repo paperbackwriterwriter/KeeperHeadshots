@@ -151,6 +151,21 @@ const sam = await account(samEmail, "Sam Pay");
   await sam("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(samEmail) }) });
   const team = await sam("/api/team", { method: "POST", body: JSON.stringify({ name: "Sam Co", looks: [LOOKS4[0]] }) });
   ok("once confirmed, they can", team.status === 200, `${team.status} ${JSON.stringify(team.j?.error || "")}`);
+  // Buying more shoots from the team page comes back to the team page.
+  const more = await sam("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter", returnTo: "team" }) });
+  const sess = more.status === 200 ? new URL(more.j.url).pathname.split("/").pop() : "";
+  const back = sess ? (await fetch(`${M}/mock-pay/${sess}?promo=FREE`, { redirect: "manual" })).headers.get("location") || "" : "";
+  ok("a package bought from the team page returns to the team page", /\/app\/team\?checkout=success/.test(back), `${more.status} ${back}`);
+}
+
+// 3b. A draft made while free shoots were offered (or any draft on an account
+// with no package) can't use photo checks: it couldn't be developed.
+{
+  const f = await account(`drafty${t}@x.com`, "Old Draft", { verify: true, base: PB });
+  const id = (await f("/api/shoots", { method: "POST", body: "{}" }, PB)).j.shoot.id;
+  await f(`/api/shoots/${id}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(8) }) }, PB);
+  const check = await f(`/api/shoots/${id}/check`, { method: "POST", body: "{}" });
+  ok("an account with no package can't run photo checks on an old draft", check.status === 402 && /Choose a package/.test(check.j?.error || ""), `${check.status} ${JSON.stringify(check.j?.error || "")}`);
 }
 
 // 4. An account that already has a finished free preview (made while free

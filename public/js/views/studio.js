@@ -491,7 +491,7 @@ export async function renderStudio(ctx, id) {
       </ul>
       <h3 class="h-4">Take these ${SHOT_LIST.length}</h3>
       <ol class="shot-list">${SHOT_LIST.map(([t, d]) => html`<li><b>${t}</b><span>${d}</span></li>`)}</ol>
-      <p class="small muted">Then tap <b>Add new selfies</b> to take them or choose them from your photos. They replace the photos marked <b>Replace</b>, and the set is re-checked straight away. Re-checks after a retake don't use up a free check.</p>
+      <p class="small muted">Then tap <b>Add new selfies</b> to take them or choose them from your photos. They replace the photos marked <b>Replace</b>, and the set is re-checked straight away. Re-checks after a retake don't use up one of your photo checks.</p>
     </section>`;
   }
 
@@ -982,6 +982,13 @@ export async function renderStudio(ctx, id) {
         <div class="upsell-actions"><a class="btn btn-flash btn-lg" href="/app/new" data-link>${icon("plus")} Start another shoot</a><a class="btn btn-ghost-inverse btn-lg" href="/#pricing">Buy more</a></div>
       </section>`;
     }
+    // A team member's shoot was paid for by their team.
+    if (s.paidWith === "team") {
+      return html`<section class="upsell" id="upgrade" aria-labelledby="upsellTitle">
+        <div><p class="eyebrow">Your own shoots</p><h2 class="display h-2" id="upsellTitle">Want more headshots of your own?</h2><p class="upsell-sub">Your team paid for this shoot. Each package of your own has shoots with up to ${MAX_LOOKS_ALL} looks and ${MAX_LOOKS_ALL * TAKES_PER_LOOK} headshots.</p></div>
+        ${pkgs}
+      </section>`;
+    }
     return html`<section class="upsell" id="upgrade" aria-labelledby="upsellTitle">
       <div>
         <p class="eyebrow">${isLocked(s) ? "Or go further" : "Upgrade"}</p>
@@ -1382,7 +1389,11 @@ function renderUpload({ root, navigate }) {
           ? html`<p class="eyebrow">${icon("camera")} Free reshoot</p>
         <h1 class="display h-1" style="margin:8px 0 12px">New selfies, on us.</h1>
         <p class="lede" style="margin-bottom:28px">Some of your headshots didn't look enough like you, so this shoot is free, with the same looks. Add 1–${MAX_SELFIES} new photos: soft daylight on your face, a few angles, and the expressions you'd use at work.</p>`
-          : html`<p class="eyebrow">New shoot</p>
+          : mustBuy
+            ? html`<p class="eyebrow">New shoot</p>
+        <h1 class="display h-1" style="margin:8px 0 12px">Choose a package first.</h1>
+        <p class="lede" style="margin-bottom:28px">Then add 1–${MAX_SELFIES} recent photos of just you. More angles and expressions help the studio nail your likeness.</p>`
+            : html`<p class="eyebrow">New shoot</p>
         <h1 class="display h-1" style="margin:8px 0 12px">Start with a few selfies.</h1>
         <p class="lede" style="margin-bottom:28px">Add 1–${MAX_SELFIES} recent photos of just you. More angles and expressions help the studio nail your likeness.</p>`}
         ${mustBuy

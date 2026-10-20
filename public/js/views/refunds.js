@@ -12,7 +12,7 @@ export function renderRefunds({ root }) {
     <article class="policy">
       <p class="eyebrow"><span class="dot"></span>Refund policy</p>
       <h1 class="display h-1" style="margin-top:12px">Our <span class="nowrap">money-back</span> guarantee</h1>
-      <p class="lede">If none of the headshots from your first paid shoot are usable, we'll refund your package, less only the later shoots whose headshots you kept.</p>
+      <p class="lede">If none of the headshots from your first paid shoot are usable, tell us within 30 days of purchase and we'll refund your package, less only the later shoots whose headshots you kept.</p>
       <p class="small muted">Last updated ${POLICY_UPDATED}</p>
 
       <div class="policy-callout">

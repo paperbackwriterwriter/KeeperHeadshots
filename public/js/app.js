@@ -583,7 +583,9 @@ loadSession()
       if (googleReturn === "google") toast(`Welcome back, ${first}.`, "success");
       else {
         if (googleReturn === "google-new" && Date.now() - Date.parse(state.user.createdAt) < 10 * 60 * 1000) pixel("CompleteRegistration", {}, `reg_${state.user.id}`);
-        toast(googleReturn === "google-new" ? `Welcome, ${first}. Let's make some headshots.` : `Welcome back, ${first}. Your email is confirmed.`, "success", 6000);
+        // (The same welcome as an email sign-up: customers pay up front.)
+        const fresh = state.user.plan?.tier === "none" && !state.user.plan.started;
+        toast(googleReturn === "google-new" ? (fresh ? `Welcome, ${first}. Choose a package to start your first shoot.` : `Welcome, ${first}. Let's make some headshots.`) : `Welcome back, ${first}. Your email is confirmed.`, "success", 6000);
       }
     }
   });
