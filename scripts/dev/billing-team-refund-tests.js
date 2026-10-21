@@ -24,6 +24,7 @@ Object.assign(process.env, { DATA_DIR: dir, STRIPE_SECRET_KEY: "sk_test_team", S
 const { default: Stripe } = await import("stripe");
 const { users, shoots } = await import("../../lib/store.js");
 const teams = await import("../../lib/teams.js");
+const { updateJSON } = await import("../../lib/storage.js");
 const { handleWebhook } = await import("../../lib/billing.js");
 const { BACKDROPS, OUTFITS } = await import("../../public/js/shared/catalog.js");
 
@@ -45,10 +46,10 @@ const buy = async (uid, sid, at) => {
   // Purchases are ordered by time (lib/plan.js creditLots).
   await users.update(uid, (u) => void (u.purchases.find((p) => p.sessionId === sid).at = at));
 };
-const refund = async (sid) => {
+const refund = async (sid, amount = 2900) => {
   const s = sessions.get(sid);
-  s.payment_intent.latest_charge.amount_refunded = 2900;
-  await send("charge.refunded", { id: s.payment_intent.latest_charge.id, object: "charge", payment_intent: s.payment_intent.id, amount: 2900, amount_refunded: 2900 });
+  s.payment_intent.latest_charge.amount_refunded = amount;
+  await send("charge.refunded", { id: s.payment_intent.latest_charge.id, object: "charge", payment_intent: s.payment_intent.id, amount: 2900, amount_refunded: amount });
 };
 const person = async (uid, email) => {
   await users.create({ id: uid, email, name: uid, createdAt: new Date().toISOString(), emailVerified: true, usage: {} });
@@ -94,6 +95,51 @@ try {
     assert.deepEqual(after, [false, false]);
     await refund("cs_test_pkgC"); // a repeated webhook changes nothing
   });
+
+  for (const [kind, amount, legacy] of [["full", 2900, false], ["partial", 966, false], ["legacy", 2900, true]]) {
+    await test(`admin deletion after a ${kind} refund preserves another package's paid seat`, async () => {
+      const uid = `usr_delete_${kind}`;
+      const a = `cs_delete_${kind}_A`, b = `cs_delete_${kind}_B`;
+      await person(uid, `${kind}-admin@example.com`);
+      await buy(uid, a, "2026-10-01T00:00:00Z");
+      await teams.saveTeam(await users.byId(uid), { name: "Deletion Team", looks: [look] });
+      const joined = [];
+      for (const [i, at] of [[1, "2026-10-02T00:00:00Z"], [2, "2026-10-04T00:00:00Z"]]) {
+        if (i === 2) {
+          // The other two A credits were spent on the admin's own shoots.
+          await users.update(uid, (u) => void (u.credits = 0));
+          await buy(uid, b, "2026-10-03T00:00:00Z");
+        }
+        const admin = await users.byId(uid);
+        const email = `${kind}-member${i}@example.com`;
+        const { invite: inv } = await teams.invite(admin, email);
+        const member = await person(`usr_${kind}_member${i}`, email);
+        const { shootId } = await teams.accept(member, inv.token);
+        assert.equal((await shoots.getMeta(shootId)).team.paidBy, i === 1 ? a : b);
+        // Make B the newer seat, without depending on clock resolution.
+        await updateJSON(`teams/${admin.teamId}.json`, (t) => {
+          t.invites[inv.id].joinedAt = at;
+          if (legacy && i === 1) delete t.invites[inv.id].paidBy;
+          return t;
+        });
+        if (legacy && i === 1) await shoots.updateMeta(shootId, (m) => void delete m.team.paidBy);
+        joined.push(shootId);
+      }
+      const paid = () => Promise.all(joined.map(async (sid) => teams.seatPaid(await shoots.getMeta(sid))));
+      await refund(a, amount);
+      const admin = await users.byId(uid);
+      assert.equal(admin.creditsOwed, 1);
+      assert.deepEqual(await paid(), [false, true]);
+      // Same ordering as POST /api/account/delete.
+      await users.beginRemoval(uid);
+      await teams.removeTeam(admin.teamId);
+      await users.remove(admin);
+      assert.equal(await users.byId(uid), null);
+      assert.deepEqual(await paid(), [false, true], "deletion must not move the refund restriction onto package B's seat");
+      await refund(a, amount); // webhook retries after deletion must preserve it too
+      assert.deepEqual(await paid(), [false, true]);
+    });
+  }
 } finally {
   stripeStub.close();
   await fs.rm(dir, { recursive: true, force: true });

@@ -373,6 +373,42 @@ let final;
   ok("an invitation isn't charged while a refund leaves a taken seat unpaid", before === 3 && inv?.results?.[0]?.ok === false && /unpaid/.test(inv.results[0].error) && (await credits(adm)) === 3, `${before} ${JSON.stringify(inv?.results)} → ${await credits(adm)}`);
 }
 
+// A refunded package's taken seats stay unpaid when the admin deletes their
+// account; a newer seat another package paid for can still develop.
+{
+  const adm = await account(`delete-refund-admin${t}@x.com`);
+  const order = await adm("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  const sid = new URL(order.j.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${sid}`, { redirect: "manual" });
+  await adm("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sid }) });
+  await adm("/api/team", { method: "POST", body: JSON.stringify({ name: "Refund Deletion", looks: LOOKS }) });
+  const seats = [];
+  for (const i of [0, 1, 2, 3]) {
+    if (i === 3) await buy(adm, "starter");
+    const email = `delete-refund-member${i}.${t}@x.com`;
+    const sent = await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: email }) });
+    const member = await account(email);
+    const seat = (await member(`/api/join/${tokenOf(sent.j.results[0].link)}`, { method: "POST" })).j.shootId;
+    seats.push({ member, seat });
+  }
+  for (const i of [0, 3]) {
+    const { member, seat } = seats[i];
+    await member(`/api/shoots/${seat}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(80 + i) }) });
+    await member(`/api/shoots/${seat}/check`, { method: "POST", body: "{}" });
+    for (let w = 0; w < 60 && (await member(`/api/shoots/${seat}`)).j.shoot.status === "checking"; w++) await new Promise((r) => setTimeout(r, 250));
+  }
+  await fetch(`${M}/mock-refund/${sid}`);
+  await adm("/api/billing/sync", { method: "POST", body: "{}" });
+  const develop = ({ member, seat }) => member(`/api/shoots/${seat}/generate`, { method: "POST", body: JSON.stringify({ looks: LOOKS }) });
+  const before = await develop(seats[0]);
+  ok("a refunded package's older team seat is unpaid before admin deletion", before.status === 402 && before.j?.code === "team_unpaid", `${before.status} ${JSON.stringify(before.j)}`);
+  const del = await adm("/api/account/delete", { method: "POST", body: JSON.stringify({ password: "password123" }) });
+  const unpaid = await develop(seats[0]);
+  const paid = await develop(seats[3]);
+  ok("admin deletion keeps the refunded package's seat unpaid", del.status === 200 && unpaid.status === 402 && unpaid.j?.code === "team_unpaid", `${del.status} ${unpaid.status} ${JSON.stringify(unpaid.j)}`);
+  ok("another package's newer team seat still develops after admin deletion", paid.status === 202, `${paid.status} ${JSON.stringify(paid.j?.error)}`);
+}
+
 // 9g. Each address counts towards the hourly invite limit, however they're batched.
 {
   const adm = await account(`batch-admin${t}@x.com`);
