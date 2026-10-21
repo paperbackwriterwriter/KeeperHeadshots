@@ -24,7 +24,7 @@ Object.assign(process.env, { DATA_DIR: dir, STRIPE_SECRET_KEY: "sk_test_team", S
 const { default: Stripe } = await import("stripe");
 const { users, shoots } = await import("../../lib/store.js");
 const teams = await import("../../lib/teams.js");
-const { updateJSON } = await import("../../lib/storage.js");
+const { getJSON, updateJSON } = await import("../../lib/storage.js");
 const { handleWebhook } = await import("../../lib/billing.js");
 const { BACKDROPS, OUTFITS } = await import("../../public/js/shared/catalog.js");
 
@@ -56,6 +56,38 @@ const person = async (uid, email) => {
   return users.byId(uid);
 };
 const look = { backdrop: BACKDROPS[0].id, outfit: OUTFITS[0].id };
+
+const deletedTeam = async (tag, count = 3) => {
+  const uid = `usr_retry_${tag}`, a = `cs_retry_${tag}_A`, b = `cs_retry_${tag}_B`;
+  await person(uid, `${tag}-admin@example.com`);
+  await buy(uid, a, "2026-10-01T00:00:00Z");
+  await teams.saveTeam(await users.byId(uid), { name: "Retry Team", looks: [look] });
+  const joined = [];
+  for (let i = 0; i <= count; i++) {
+    if (i === count) {
+      // Any remaining A credits were spent on the admin's own shoots.
+      await users.update(uid, (u) => void (u.credits = 0));
+      await buy(uid, b, "2026-10-03T00:00:00Z");
+    }
+    const admin = await users.byId(uid), email = `${tag}-member${i}@example.com`;
+    const { invite } = await teams.invite(admin, email);
+    const member = await person(`usr_${tag}_${i}`, email);
+    joined.push((await teams.accept(member, invite.token)).shootId);
+    assert.equal((await shoots.getMeta(joined.at(-1))).team.paidBy, i === count ? b : a);
+    await updateJSON(`teams/${admin.teamId}.json`, (t) => {
+      t.invites[invite.id].joinedAt = `2026-10-02T00:00:0${i}Z`;
+      return t;
+    });
+  }
+  const admin = await users.byId(uid);
+  await teams.removeTeam(admin.teamId);
+  await users.remove(admin);
+  return {
+    uid, a, b, joined,
+    paid: () => Promise.all(joined.map(async (sid) => teams.seatPaid(await shoots.getMeta(sid)))),
+    record: () => getJSON(`teams/gone/${uid}.json`),
+  };
+};
 
 try {
   await test("refunding one package leaves the team seats another package paid for", async () => {
@@ -140,6 +172,83 @@ try {
       assert.deepEqual(await paid(), [false, true]);
     });
   }
+
+  await test("a failed refund webhook retries its pending seats without touching another package", async () => {
+    const f = await deletedTeam("webhook", 2);
+    const session = sessions.get(f.a);
+    session.payment_intent.latest_charge.amount_refunded = 2900;
+    const payload = JSON.stringify({ id: "evt_retry_same_delivery", object: "event", type: "charge.refunded", data: { object: {
+      id: session.payment_intent.latest_charge.id, object: "charge", payment_intent: session.payment_intent.id, amount: 2900, amount_refunded: 2900,
+    } } });
+    // Exercise the real HTTP handler, with the exact same signed event retried.
+    Object.assign(process.env, { VERCEL: "1", SESSION_SECRET: "team-refund-retry-test-session-secret" });
+    const { default: app } = await import("../../server.js");
+    const server = app.listen(0, "127.0.0.1");
+    await new Promise((r) => server.once("listening", r));
+    const deliver = () => fetch(`http://127.0.0.1:${server.address().port}/api/billing/webhook`, {
+      method: "POST", headers: { "content-type": "application/json", "stripe-signature": new Stripe("sk_test_team").webhooks.generateTestHeaderString({ payload, secret: process.env.STRIPE_WEBHOOK_SECRET }) }, body: payload,
+    });
+    const original = shoots.updateMeta;
+    let failures = 0;
+    shoots.updateMeta = async (...args) => {
+      if (args[0] === f.joined[0] && failures++ === 0) throw new Error("temporary seat storage failure");
+      return original(...args);
+    };
+    try {
+      const first = await deliver();
+      assert.ok(first.status >= 400, "a storage failure must not acknowledge the webhook as successful");
+      assert.deepEqual(await f.paid(), [true, false, true]);
+      const pending = await f.record();
+      assert.equal(pending.handled[f.a] || 0, 0);
+      assert.equal(pending.pending[f.a].seats.length, 2);
+      shoots.updateMeta = original;
+      assert.equal((await deliver()).status, 200);
+      assert.deepEqual(await f.paid(), [false, false, true]);
+      assert.equal((await f.record()).handled[f.a], 3);
+      assert.ok(!(await f.record()).pending?.[f.a]);
+      assert.equal((await deliver()).status, 200);
+      assert.deepEqual(await f.paid(), [false, false, true]);
+    } finally {
+      shoots.updateMeta = original;
+      await new Promise((r) => server.close(r));
+    }
+  });
+
+  await test("a failed completion write retries a partial refund without taking an extra seat", async () => {
+    const f = await deletedTeam("checkpoint");
+    const original = fs.rename;
+    let writes = 0;
+    fs.rename = async (from, to) => {
+      if (to === path.join(dir, `teams/gone/${f.uid}.json`) && ++writes === 2) throw new Error("temporary refund checkpoint failure");
+      return original(from, to);
+    };
+    try {
+      await assert.rejects(refund(f.a, 966), /temporary refund checkpoint failure/);
+    } finally { fs.rename = original; }
+    assert.equal(writes, 2);
+    assert.deepEqual(await f.paid(), [true, true, false, true]);
+    assert.equal((await f.record()).pending[f.a].refundedShoots, 1);
+    await refund(f.a, 966);
+    await refund(f.a, 966);
+    assert.deepEqual(await f.paid(), [true, true, false, true]);
+    assert.equal((await f.record()).handled[f.a], 1);
+    assert.ok(!(await f.record()).pending?.[f.a]);
+  });
+
+  await test("concurrent larger and older refunds resume pending work without double deductions", async () => {
+    const f = await deletedTeam("concurrent");
+    const original = shoots.updateMeta;
+    shoots.updateMeta = async () => { throw new Error("temporary pending refund failure"); };
+    try { await assert.rejects(refund(f.a, 966), /temporary pending refund failure/); }
+    finally { shoots.updateMeta = original; }
+    assert.deepEqual(await f.paid(), [true, true, true, true]);
+    await Promise.all([1, 3, 2, 3].map((target) => teams.unpaySeatsOfGoneOwner(f.uid, f.a, target)));
+    assert.deepEqual(await f.paid(), [false, false, false, true]);
+    assert.equal((await f.record()).handled[f.a], 3);
+    assert.ok(!(await f.record()).pending?.[f.a]);
+    assert.equal(await teams.unpaySeatsOfGoneOwner(f.uid, f.a, 1), 0);
+    assert.deepEqual(await f.paid(), [false, false, false, true]);
+  });
 } finally {
   stripeStub.close();
   await fs.rm(dir, { recursive: true, force: true });
