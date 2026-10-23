@@ -221,6 +221,44 @@ try {
     assert.equal(out.failed, 0, JSON.stringify(out.failed));
     assert.ok(out.entries.some((e) => e.uid === "usr_r"));
   });
+  await test("the nightly copy lists the backup store's erasure markers once instead of reading them per photo", async () => {
+    const v = await fixture("v");
+    // An erasure recorded only in the backup store still stops the copy.
+    const vInfo = { uid: v.uid, sid: v.sid };
+    remote.set(`photo-erased/shoots/${v.sid}.json`, Buffer.from('{"erased":true}'));
+    const records = {}; for (const key of await storage.list("shoots/")) records[key] = await storage.getJSON(key);
+    let reads = 0;
+    interceptGet = async (key) => { if (key.startsWith("photo-erased/")) reads++; };
+    let out;
+    try { out = await backupPhotos({ records, now, deadline: Date.now() + 20_000 }); }
+    finally { interceptGet = null; remote.delete(`photo-erased/shoots/${vInfo.sid}.json`); }
+    assert.equal(reads, 0, `${reads} marker reads`);
+    assert.ok(!out.entries.some((e) => e.uid === v.uid && !e.carried), "the erased shoot isn't copied");
+  });
+  await test("a photo that can't be copied tonight but was copied yesterday doesn't fail the backup", async () => {
+    await fixture("s");
+    const records = {}; for (const key of await storage.list("shoots/")) records[key] = await storage.getJSON(key);
+    await backupPhotos({ records, now: now - 86_400_000, deadline: Date.now() + 20_000 }); // yesterday's copies
+    let tries = 0;
+    interceptPut = async (key) => { if (key.startsWith("photo-backups/usr_s/")) { tries++; throw new Error("Vercel Blob: Failed to fetch blob: 500 Internal Server Error"); } };
+    let out;
+    try { out = await backupPhotos({ records, now, deadline: Date.now() + 20_000 }); }
+    finally { interceptPut = null; }
+    assert.ok(tries > 3, `${tries} tries`); // the quick retries, then once more at the end
+    assert.equal(out.failed, 0, "covered by yesterday's copy");
+    assert.equal(out.complete, true);
+    assert.ok(out.entries.some((e) => e.uid === "usr_s" && e.carried));
+  });
+  await test("a new photo that can't be copied at all still fails the backup", async () => {
+    await fixture("u");
+    const records = {}; for (const key of await storage.list("shoots/")) records[key] = await storage.getJSON(key);
+    interceptPut = async (key) => { if (key.startsWith("photo-backups/usr_u/")) throw new Error("Vercel Blob: Failed to fetch blob: 500 Internal Server Error"); };
+    let out;
+    try { out = await backupPhotos({ records, now, deadline: Date.now() + 20_000 }); }
+    finally { interceptPut = null; }
+    assert.ok(out.failed >= 1);
+    assert.equal(out.complete, false);
+  });
   await test("time-limited nights accumulate photo copies into a full recovery point with the newest records", async () => {
     const h = await fixture("k");
     await storage.putJSON(`users/id/${h.uid}.json`, { id: h.uid, email: "k@example.com", note: "v1" });
