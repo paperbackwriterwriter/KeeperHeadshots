@@ -15,9 +15,15 @@ const session = {
   client_reference_id: "usr_dispute0001", metadata: { userId: "usr_dispute0001", packageId: "starter", shoots: "3" }, total_details: {},
   payment_intent: { id: "pi_dispute01", object: "payment_intent", latest_charge: { id: "ch_dispute01", object: "charge", amount: 2900, amount_refunded: 0 } },
 };
+// A second buyer who had used all 3 shoots before disputing.
+const spent = {
+  ...session, id: "cs_test_dispute02", client_reference_id: "usr_dispute0002", metadata: { ...session.metadata, userId: "usr_dispute0002" },
+  payment_intent: { id: "pi_dispute02", object: "payment_intent", latest_charge: { id: "ch_dispute02", object: "charge", amount: 2900, amount_refunded: 0 } },
+};
 const stripeStub = http.createServer((req, res) => {
   res.setHeader("content-type", "application/json");
-  if (req.url.startsWith("/v1/checkout/sessions")) return res.end(JSON.stringify({ object: "list", data: [session], has_more: false }));
+  const pi = new URL(req.url, "http://x").searchParams.get("payment_intent");
+  if (req.url.startsWith("/v1/checkout/sessions")) return res.end(JSON.stringify({ object: "list", data: [session, spent].filter((s) => s.payment_intent.id === pi), has_more: false }));
   res.statusCode = 404;
   res.end("{}");
 });
@@ -67,10 +73,25 @@ try {
     assert.equal(day.refunds, 0, "the funnel's refund total");
     assert.equal(day.refunded, 0, "refunded orders");
   });
-  await test("a late or repeated dispute event after the win changes nothing", async () => {
-    await send("charge.dispute.funds_withdrawn", dispute("won"));
+  await test("a late or repeated dispute event after the win changes nothing, in the funnel either", async () => {
     await send("charge.dispute.funds_reinstated", dispute("won"));
+    await send("charge.dispute.funds_withdrawn", dispute("needs_response"));
+    await send("charge.dispute.closed", dispute("won"));
     assert.equal((await me()).credits, 3);
+    const day = await today();
+    assert.equal(day.refunds, 0, "the funnel's refund total");
+    assert.equal(day.refunded, 0, "refunded orders");
+  });
+  await test("winning a dispute over shoots already used gives back nothing extra", async () => {
+    await users.create({ id: "usr_dispute0002", email: "spent@example.com", name: "Spent", createdAt: new Date().toISOString(), emailVerified: true, usage: {} });
+    await send("checkout.session.completed", spent);
+    await users.update("usr_dispute0002", (u) => void (u.credits = 0)); // all 3 developed
+    const d = { id: "dp_dispute02", object: "dispute", amount: 2900, charge: "ch_dispute02", payment_intent: "pi_dispute02" };
+    await send("charge.dispute.funds_withdrawn", { ...d, status: "needs_response" });
+    await send("charge.dispute.closed", { ...d, status: "won" });
+    const u = await users.byId("usr_dispute0002");
+    assert.equal(u.credits, 0);
+    assert.ok(!u.purchases[0].refunded);
   });
 } finally {
   stripeStub.close();

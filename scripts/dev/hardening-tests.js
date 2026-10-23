@@ -582,6 +582,13 @@ if (process.env.DATA_DIR) {
   await maker("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Paying Customer", email, password: "password123" }) });
   const done = await shootWithSelfie(maker);
   const draft = await shootWithSelfie(maker);
+  const developing = await shootWithSelfie(maker);
+  const devFile = `${process.env.DATA_DIR}/shoots/${developing}.json`;
+  const devMeta = JSON.parse(fs.readFileSync(devFile, "utf8"));
+  devMeta.shots = [{ id: "shot_paidwork2" }];
+  devMeta.status = "generating";
+  fs.writeFileSync(devFile, JSON.stringify(devMeta));
+  const selfie = (await maker(`/api/shoots/${done}`)).j?.shoot?.selfies?.[0]?.file;
   const metaFile = `${process.env.DATA_DIR}/shoots/${done}.json`;
   const meta = JSON.parse(fs.readFileSync(metaFile, "utf8"));
   meta.shots = [{ id: "shot_paidwork1" }];
@@ -598,6 +605,10 @@ if (process.env.DATA_DIR) {
   const ids = ((await owner("/api/shoots")).j.shoots || []).map((s) => s.id);
   const me = (await owner("/api/me")).j.user;
   ok("a takeover keeps shoots with finished headshots, and removes drafts", reset.status === 200 && ids.includes(done) && !ids.includes(draft) && JSON.stringify(Object.keys(me.kept)) === JSON.stringify([done]), `${reset.status} shoots=${ids} kept=${Object.keys(me.kept || {})}`);
+  ok("and a shoot still developing", ids.includes(developing), `shoots=${ids}`);
+  const after = (await owner(`/api/shoots/${done}`)).j?.shoot;
+  const selfieMedia = await owner(`/media/${selfie}`, { headers: { accept: "image/*" } });
+  ok("but not the selfies the earlier holder uploaded", !!selfie && (after?.selfies || []).length === 0 && selfieMedia.status === 404, `${(after?.selfies || []).length} ${selfieMedia.status}`);
 }
 
 // 29. Public pages may be cached by Vercel's CDN briefly; API answers aren't.

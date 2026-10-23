@@ -4,7 +4,7 @@ import { CONTACT_EMAIL } from "./contact.js";
 import { PREVIEW_OFFERS } from "../shared/catalog.js";
 
 // The written terms behind the "money-back guarantee" shown on the site.
-export const POLICY_UPDATED = "October 17, 2026";
+export const POLICY_UPDATED = "October 20, 2026";
 
 export function renderRefunds({ root }) {
   root.innerHTML = html`

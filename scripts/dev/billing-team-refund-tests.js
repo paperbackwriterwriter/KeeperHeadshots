@@ -249,6 +249,43 @@ try {
     assert.equal(await teams.unpaySeatsOfGoneOwner(f.uid, f.a, 1), 0);
     assert.deepEqual(await f.paid(), [false, false, false, true]);
   });
+  await test("one package's refund debt doesn't block seats of a package whose refund left no debt", async () => {
+    const uid = "usr_debt_split";
+    await person(uid, "split-admin@example.com");
+    await buy(uid, "cs_split_A", "2026-10-05T00:00:00Z");
+    await buy(uid, "cs_split_B", "2026-10-06T00:00:00Z");
+    await teams.saveTeam(await users.byId(uid), { name: "Split Team", looks: [look] });
+    const join = async (i) => {
+      const { invite } = await teams.invite(await users.byId(uid), `split${i}@example.com`);
+      return (await teams.accept(await person(`usr_split_${i}`, `split${i}@example.com`), invite.token)).shootId;
+    };
+    const aSeat = await join(1); // paid by A (the oldest package with shoots left)
+    await refund("cs_split_A", 967); // one of A's shoots, out of its unused ones: no debt
+    await join(2); // A's last shoot
+    const bSeat = await join(3); // paid by B
+    await users.update(uid, (u) => void (u.credits = 0)); // B's other two spent on the admin's own shoots
+    await refund("cs_split_B"); // B fully refunded: its seat is now owed
+    assert.ok((await users.byId(uid)).creditsOwed > 0);
+    assert.equal(await teams.seatPaid(await shoots.getMeta(aSeat)), true, "A's seat");
+    assert.equal(await teams.seatPaid(await shoots.getMeta(bSeat)), false, "B's seat");
+  });
+
+  await test("a deleted admin's earlier refund isn't counted twice when the refund grows", async () => {
+    const uid = "usr_grown_refund";
+    await person(uid, "grown-admin@example.com");
+    await buy(uid, "cs_grown", "2026-10-07T00:00:00Z");
+    await teams.saveTeam(await users.byId(uid), { name: "Grown Team", looks: [look] });
+    const { invite } = await teams.invite(await users.byId(uid), "grown1@example.com");
+    const seat = (await teams.accept(await person("usr_grown_1", "grown1@example.com"), invite.token)).shootId;
+    await refund("cs_grown", 967); // 1 shoot, out of the 2 unused
+    const admin = await users.byId(uid);
+    await teams.removeTeam(admin.teamId);
+    await users.remove(admin);
+    await refund("cs_grown", 1934); // 2 shoots: the second is the last unused one
+    assert.equal(await teams.seatPaid(await shoots.getMeta(seat)), true);
+    await refund("cs_grown"); // the whole package: now the seat isn't paid for
+    assert.equal(await teams.seatPaid(await shoots.getMeta(seat)), false);
+  });
 } finally {
   stripeStub.close();
   await fs.rm(dir, { recursive: true, force: true });

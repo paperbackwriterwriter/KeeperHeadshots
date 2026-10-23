@@ -144,6 +144,9 @@ const sam = await account(samEmail, "Sam Pay");
   ok("and download without the preview name", dl.status === 200 && !/preview/.test(dl.disp), dl.disp);
   const me = (await sam("/api/me")).j.user;
   ok("one shoot used, two left", me.plan.credits === 2 && me.emailVerified === false, JSON.stringify(me.plan));
+  await new Promise((r) => setTimeout(r, 500));
+  const ready = (await mails()).filter((m) => m.to.includes(samEmail.toLowerCase()) && /headshots are ready/i.test(m.subject));
+  ok("a paying customer who hasn't confirmed still gets the headshots-ready email", ready.length === 1, `${ready.length}`);
   // Invitations go out in the admin's name with their address to reply to,
   // so a team needs a confirmed address (shoots of their own don't).
   const early = await sam("/api/team", { method: "POST", body: JSON.stringify({ name: "Sam Co", looks: [LOOKS4[0]] }) });

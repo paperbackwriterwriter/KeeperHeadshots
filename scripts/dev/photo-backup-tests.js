@@ -197,6 +197,18 @@ try {
     assert.equal(second.complete, true); assert.equal(await storage.getJSON("cron/photo-backup-state.json"), null);
     assert.ok(second.entries.some((e) => e.uid === g.uid));
   });
+  await test("a day's worth of expired copies is pruned in batches, well inside the time budget", async () => {
+    const oldDay = new Date(now - 30 * 86_400_000).toISOString().slice(0, 10);
+    const many = Array.from({ length: 250 }, (_, i) => `photo-backups/usr_bulk${i}/sht_bulk${i}/${"b".repeat(60)}${String(i).padStart(4, "0")}/${oldDay}.jpg`);
+    for (const k of many) remote.set(k, Buffer.from("x"));
+    const realDel = target.del; let calls = 0;
+    target.del = async (keys) => { calls++; return realDel(keys); };
+    let out;
+    try { out = await maintainPhotoBackups({ now }); } finally { target.del = realDel; }
+    assert.equal(out.complete, true);
+    assert.ok(many.every((k) => !remote.has(k)));
+    assert.ok(calls <= 4, `${calls} delete calls`);
+  });
   await test("a temporary storage error on one photo is tried again, not counted as a failed backup", async () => {
     await fixture("r");
     let failed = 0;

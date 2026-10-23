@@ -1331,18 +1331,31 @@ app.post("/api/join/:token", requireUser, async (req, res) => {
 
 // The inbox's owner took over, from another device, an account someone else
 // made with their address and never confirmed (password reset or Google
-// sign-in). What that person uploaded isn't theirs to keep: drafts and
-// unfinished shoots go, with their photos. Shoots with finished headshots
-// stay: customers pay before confirming their address now, so those are most
-// likely the owner's own paid work. Purchases stay (they're payment records),
-// and so does the balance. A takeover from the device that made the account is its
+// sign-in). What that person uploaded isn't theirs to keep: drafts go, with
+// their photos, and so do the uploaded selfies of finished shoots. Shoots
+// that were developed (paid for) stay, with their headshots: customers pay
+// before confirming their address now, so those are most likely the owner's
+// own paid work. (A shoot still developing keeps its selfies until it's done:
+// its frames are rendered from them.) Purchases stay (they're payment
+// records), and so does the balance. A takeover from the device that made the account is its
 // owner, and keeps everything. An account confirmed by a team invitation keeps
 // its shoots too: they're a member's paid work, and the admin can't win a seat
 // back by taking over an address they invited.
 async function purgeForTakeover(userId) {
-  const finished = async (meta) => ((await shoots.get(meta.id))?.shots || []).some((shot) => shot.status === "done" && shot.file);
   const list = [];
-  for (const meta of await shoots.forUser(userId)) if (!await finished(meta)) list.push(meta);
+  const kept = [];
+  for (const meta of await shoots.forUser(userId)) ((meta.shots || []).length ? kept : list).push(meta);
+  for (const meta of kept) {
+    if (meta.status !== "done" || !(meta.selfies || []).length) continue;
+    let files = [];
+    await shoots.updateMeta(meta.id, (m) => {
+      files = (m.selfies || []).map((s) => s.file);
+      if (!files.length) return false;
+      m.selfies = [];
+      if (m.check?.photos) m.check.photos = [];
+    }).catch((err) => console.error("[takeover] selfies", meta.id, err.message));
+    for (const file of files) await deleteMedia(file).catch((err) => console.error("[takeover] selfie", file, err.message));
+  }
   if (!list.length) return 0;
   const gone = new Set(list.map((meta) => meta.id));
   for (const meta of list) if (meta.team && !(meta.shots || []).length) await teams.returnSeat(meta).catch((err) => console.error("[takeover] return seat", meta.id, err.message));
