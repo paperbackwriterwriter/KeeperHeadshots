@@ -270,6 +270,32 @@ try {
     assert.equal(await teams.seatPaid(await shoots.getMeta(bSeat)), false, "B's seat");
   });
 
+  await test("a won chargeback's package doesn't count as owing when another package's refund leaves debt", async () => {
+    const uid = "usr_won_dispute";
+    await person(uid, "won-admin@example.com");
+    await buy(uid, "cs_won_A", "2026-10-08T00:00:00Z");
+    await teams.saveTeam(await users.byId(uid), { name: "Won Team", looks: [look] });
+    const join = async (i) => {
+      const { invite } = await teams.invite(await users.byId(uid), `won${i}@example.com`);
+      return (await teams.accept(await person(`usr_won_${i}`, `won${i}@example.com`), invite.token)).shootId;
+    };
+    const aSeat = await join(1); // paid by A
+    await users.update(uid, (u) => void (u.credits = 0)); // A's other two spent on the admin's own shoots
+    const pi = sessions.get("cs_won_A").payment_intent;
+    const dispute = (status) => ({ id: "dp_won_A", object: "dispute", amount: 2900, charge: pi.latest_charge.id, payment_intent: pi.id, status });
+    await send("charge.dispute.funds_withdrawn", dispute("needs_response")); // A's seat now owed
+    assert.equal((await users.byId(uid)).creditsOwed, 1);
+    await send("charge.dispute.closed", dispute("won")); // and settled again
+    assert.ok(!(await users.byId(uid)).creditsOwed);
+    await buy(uid, "cs_won_B", "2026-10-09T00:00:00Z");
+    const bSeat = await join(2); // paid by B
+    await users.update(uid, (u) => void (u.credits = 0));
+    await refund("cs_won_B"); // B fully refunded: its seat is owed
+    assert.ok((await users.byId(uid)).creditsOwed > 0);
+    assert.equal(await teams.seatPaid(await shoots.getMeta(aSeat)), true, "A's seat");
+    assert.equal(await teams.seatPaid(await shoots.getMeta(bSeat)), false, "B's seat");
+  });
+
   await test("a deleted admin's earlier refund isn't counted twice when the refund grows", async () => {
     const uid = "usr_grown_refund";
     await person(uid, "grown-admin@example.com");

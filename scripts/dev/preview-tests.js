@@ -104,6 +104,10 @@ let previewBytes = 0;
   }
   const selfie = await get(pat, `/media/${shoot.selfies[0].file}`);
   ok("selfies are never watermarked", selfie.status === 200 && /immutable/.test(selfie.cache), selfie.cache);
+  // Squares and sizes are for headshots: a selfie's would be a copy left behind when it's deleted.
+  const selfieSq = await get(pat, `/media/${shoot.selfies[0].file}?square=1`);
+  const selfieLi = await get(pat, `/media/${shoot.selfies[0].file}?size=linkedin`);
+  ok("a selfie has no square or sized copy", selfieSq.status === 404 && selfieLi.status === 404, `${selfieSq.status} ${selfieLi.status}`);
   const share = await pat("/api/showcase", { method: "POST", body: JSON.stringify({ shootId: shoot.id, shotId: shot.id, name: "Pat", consent: true }) });
   ok("a preview can't be shared to the home page", share.status === 402 && share.j?.code === "preview");
 }

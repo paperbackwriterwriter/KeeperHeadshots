@@ -1426,7 +1426,15 @@ function renderUpload({ root, navigate }) {
       </aside>
     </div>
   </main>`.v;
-  if (mustBuy) return () => aborter.abort();
+  if (mustBuy) {
+    // A package bought in another tab: show the upload area instead of "Choose a package first".
+    const onBought = () => state.user?.plan?.tier !== "none" && navigate(location.pathname + location.search, { replace: true });
+    document.addEventListener("ahg:user-changed", onBought);
+    return () => {
+      aborter.abort();
+      document.removeEventListener("ahg:user-changed", onBought);
+    };
+  }
 
   const dz = $("#dz");
   const input = $("#file");

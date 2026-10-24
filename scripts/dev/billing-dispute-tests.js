@@ -15,6 +15,11 @@ const session = {
   client_reference_id: "usr_dispute0001", metadata: { userId: "usr_dispute0001", packageId: "starter", shoots: "3" }, total_details: {},
   payment_intent: { id: "pi_dispute01", object: "payment_intent", latest_charge: { id: "ch_dispute01", object: "charge", amount: 2900, amount_refunded: 0 } },
 };
+// A third buyer, partly refunded before a dispute over the rest.
+const partial = {
+  ...session, id: "cs_test_dispute03", client_reference_id: "usr_dispute0003", metadata: { ...session.metadata, userId: "usr_dispute0003" },
+  payment_intent: { id: "pi_dispute03", object: "payment_intent", latest_charge: { id: "ch_dispute03", object: "charge", amount: 2900, amount_refunded: 0 } },
+};
 // A second buyer who had used all 3 shoots before disputing.
 const spent = {
   ...session, id: "cs_test_dispute02", client_reference_id: "usr_dispute0002", metadata: { ...session.metadata, userId: "usr_dispute0002" },
@@ -23,7 +28,7 @@ const spent = {
 const stripeStub = http.createServer((req, res) => {
   res.setHeader("content-type", "application/json");
   const pi = new URL(req.url, "http://x").searchParams.get("payment_intent");
-  if (req.url.startsWith("/v1/checkout/sessions")) return res.end(JSON.stringify({ object: "list", data: [session, spent].filter((s) => s.payment_intent.id === pi), has_more: false }));
+  if (req.url.startsWith("/v1/checkout/sessions")) return res.end(JSON.stringify({ object: "list", data: [session, spent, partial].filter((s) => s.payment_intent.id === pi), has_more: false }));
   res.statusCode = 404;
   res.end("{}");
 });
@@ -92,6 +97,28 @@ try {
     const u = await users.byId("usr_dispute0002");
     assert.equal(u.credits, 0);
     assert.ok(!u.purchases[0].refunded);
+  });
+  await test("a dispute won before its chargeback was booked leaves an earlier refund in the funnel", async () => {
+    await users.create({ id: "usr_dispute0003", email: "partial@example.com", name: "Partial", createdAt: new Date().toISOString(), emailVerified: true, usage: {} });
+    await send("checkout.session.completed", partial);
+    const before = (await today()).refunds || 0;
+    partial.payment_intent.latest_charge.amount_refunded = 1000;
+    await send("charge.refunded", { id: "ch_dispute03", object: "charge", payment_intent: "pi_dispute03", amount: 2900, amount_refunded: 1000 });
+    assert.equal((await today()).refunds, before + 1000);
+    const d = { id: "dp_dispute03", object: "dispute", amount: 1900, charge: "ch_dispute03", payment_intent: "pi_dispute03" };
+    await send("charge.dispute.closed", { ...d, status: "won" }); // its funds_withdrawn comes later (a retry)
+    await send("charge.dispute.funds_withdrawn", { ...d, status: "needs_response" });
+    assert.equal((await today()).refunds, before + 1000, "the $10 refund still counts");
+  });
+  await test("a won dispute after a partial refund takes only the dispute's share off the funnel", async () => {
+    const before = (await today()).refunds || 0;
+    const d = { id: "dp_dispute04", object: "dispute", amount: 1900, charge: "ch_dispute03", payment_intent: "pi_dispute03" };
+    // (Payment 03's earlier dispute was won, so a fresh one isn't booked; reset that for this case.)
+    await storage.updateJSON("payments/cs_test_dispute03.json", (r) => { delete r.disputesWon; return r; });
+    await send("charge.dispute.funds_withdrawn", { ...d, status: "needs_response" });
+    assert.equal((await today()).refunds, before + 1900);
+    await send("charge.dispute.closed", { ...d, status: "won" });
+    assert.equal((await today()).refunds, before, "only the $19 dispute comes off");
   });
 } finally {
   stripeStub.close();

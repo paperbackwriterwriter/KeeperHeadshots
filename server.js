@@ -1645,6 +1645,9 @@ app.get("/media/:sid/:name", mediaUser, async (req, res) => {
   // The member, or their team admin for a finished headshot (never selfies).
   if (meta.userId !== req.user.id && !(await teams.adminMayView(req.user, meta, `${sid}/${name}`))) return res.status(404).end();
   const base = name.replace(/\.\w+$/, "");
+  // Squares and sizes are for headshots: a selfie's would be a copy that
+  // outlives the selfie when it's deleted.
+  if ((req.query.square || req.query.size) && (meta.selfies || []).some((p) => p.file === `${sid}/${name}`)) return res.status(404).end();
   const shotFor = async () => (await shoots.get(sid))?.shots.find((s) => s.file === `${sid}/${name}`);
   // A free preview's files get the watermark until the account buys
   // (lib/preview.js): every file of the shoot except its selfies, including

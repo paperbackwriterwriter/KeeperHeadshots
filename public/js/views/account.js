@@ -152,6 +152,8 @@ export function renderAccount({ root, navigate }) {
     const u2 = state.user;
     if (!u2) return;
     if (!rem.disabled) rem.checked = u2.emailReminders !== false;
+    const left = $(".account-facts div:last-child dd", root);
+    if (left) left.textContent = shootsLeft(u2.plan, u2.plan?.credits || 0);
     const radio = $(`input[name="photoFormat"][value="${currentFormat()}"]`, root);
     if (radio) radio.checked = true;
   };
