@@ -1,4 +1,4 @@
-import { html, icon, api, state, media, relTime, toast, example, spinner, busy } from "../core.js";
+import { html, icon, api, state, media, relTime, toast, example, spinner, busy, showRefundNotice } from "../core.js";
 import { pixel } from "../pixel.js";
 import { PACKAGES, MIN_CHECK_SCORE } from "../shared/catalog.js";
 
@@ -110,6 +110,7 @@ export async function renderDashboard({ root, navigate }) {
       .then((res) => {
         if (res.added || res.removed) {
           state.user = res.user;
+          showRefundNotice();
           if (res.added) toast(`${res.added} purchased shoots added to your account.`, "success", 7000);
           // Refresh the dashboard only if the person is still on it.
           if (location.pathname === "/app") navigate("/app", { replace: true });

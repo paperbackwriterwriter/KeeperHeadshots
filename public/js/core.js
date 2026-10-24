@@ -264,3 +264,31 @@ export const silhouette = () =>
 // Where sign-in may send people back to: an app page or a team invitation,
 // on this site only.
 export const safeNext = (next) => (typeof next === "string" && /^\/(app(\/|$|\?)|join$)/.test(next) ? next : null);
+
+// Once per refund (lib/auth.js refundNotice): its shoots came off the balance.
+let refundNoticeShown = false;
+export function showRefundNotice() {
+  const n = state.user?.refundNotice;
+  if (!n || refundNoticeShown || state.user.demo) return;
+  refundNoticeShown = true;
+  toast(`A refund was applied: ${n} ${n === 1 ? "shoot" : "shoots"} removed from your account.`, "info", 8000);
+  api("/api/account/preferences", { method: "POST", body: { refundSeen: true } })
+    .then((r) => {
+      if (r?.user && state.user?.id === r.user.id) state.user = r.user;
+    })
+    .catch(() => {})
+    .finally(() => (refundNoticeShown = false));
+}
+
+// The header's account chip after a name change (here or in another tab).
+export function refreshUserChip() {
+  const chip = document.querySelector(".user-chip");
+  const name = state.user?.name;
+  if (!chip || !name) return;
+  const first = name.split(" ")[0];
+  chip.setAttribute("aria-label", `Your account: ${first}`);
+  const avatar = chip.querySelector(".avatar");
+  if (avatar) avatar.dataset.initials = initials(name);
+  const label = chip.querySelector(".hide-m");
+  if (label) label.textContent = first;
+}

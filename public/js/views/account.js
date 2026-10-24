@@ -1,4 +1,4 @@
-import { $, $$, html, raw, esc, icon, state, api, toast, busy, initials } from "../core.js";
+import { $, $$, html, raw, esc, icon, state, api, toast, busy, initials, refreshUserChip } from "../core.js";
 import { CONTACT_EMAIL } from "./contact.js";
 import { PHOTO_FORMATS } from "../shared/catalog.js";
 import { currentFormat, formatName, saveFormat } from "./format.js";
@@ -23,7 +23,14 @@ export function renderAccount({ root, navigate }) {
     <section class="panel account-card">
       <span class="avatar avatar-lg" aria-hidden="true">${initials(u.name)}</span>
       <dl class="account-facts">
-        <div><dt>Name</dt><dd>${u.name}</dd></div>
+        <div><dt>Name</dt><dd><span id="nameText">${u.name}</span>${u.demo ? "" : html` <button class="link-btn" type="button" id="editName">Edit</button>`}
+          <form class="name-edit" id="nameForm" novalidate hidden>
+            <label class="sr-only" for="nameInput">Your name</label>
+            <input class="input" id="nameInput" name="name" autocomplete="name" maxlength="80" value="${u.name}" aria-describedby="nameErr" />
+            <button class="btn btn-flash btn-sm" type="submit">Save</button>
+            <button class="btn btn-ghost btn-sm" type="button" id="cancelName">Cancel</button>
+            <span class="field-error" id="nameErr" role="alert" hidden></span>
+          </form></dd></div>
         <div><dt>Email</dt><dd>${raw(esc(u.email).replace("@", "@<wbr>"))}</dd></div>
         <div><dt>Member since</dt><dd>${u.createdAt ? date(u.createdAt) : "—"}</dd></div>
         <div><dt>Shoots left</dt><dd>${shootsLeft(u.plan, credits)}</dd></div>
@@ -34,7 +41,7 @@ export function renderAccount({ root, navigate }) {
       ? ""
       : html`<section class="panel prefs" data-verify-panel aria-labelledby="verify-title">
       <h2 class="h-3" id="verify-title">Confirm your email</h2>
-      <p class="muted">Confirm ${u.email} with the 6-digit code or link in the email we sent when you signed up. Check your spam folder too.</p>
+      <p class="muted">Confirm ${u.email} with the 6-digit code or link in the email we sent when you signed up. Check your spam folder too. Confirming shows the address is yours, so this account and its headshots stay with you.</p>
       <form class="verify-code" data-verify-code novalidate>
         <label class="sr-only" for="verifyCode">6-digit code</label>
         <input class="input" id="verifyCode" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" placeholder="123 456" aria-describedby="verifyCodeErr" />
@@ -43,7 +50,7 @@ export function renderAccount({ root, navigate }) {
       </form>
       <p class="verify-resend">Need an email? <button class="link-btn" type="button" data-resend-verify>Send confirmation email</button></p>
     </section>`}
-    <p class="small muted" style="margin-top:12px">Need to change your name or email? <a class="link" href="/contact?topic=general" data-link>Contact us</a>. Your data and rights are explained in our <a class="link" href="/privacy" data-link>Privacy Policy</a>.</p>
+    <p class="small muted" style="margin-top:12px">Need to change your email? <a class="link" href="/contact?topic=general" data-link>Contact us</a>. Your data and rights are explained in our <a class="link" href="/privacy" data-link>Privacy Policy</a>.</p>
 
     ${u.demo
       ? ""
@@ -145,6 +152,42 @@ export function renderAccount({ root, navigate }) {
       wireShareRemove(slot, () => (slot.innerHTML = ""));
     })
     .catch(() => {});
+  // Name: edited in place.
+  const nameForm = $("#nameForm", root);
+  const nameErr = $("#nameErr", root);
+  const editName = $("#editName", root);
+  const showNameForm = (open) => {
+    nameForm.hidden = !open;
+    $("#nameText", root).hidden = open;
+    editName.hidden = open;
+    nameErr.hidden = true;
+    if (open) {
+      $("#nameInput", root).value = state.user.name;
+      $("#nameInput", root).focus();
+    } else editName.focus();
+  };
+  editName?.addEventListener("click", () => showNameForm(true));
+  $("#cancelName", root)?.addEventListener("click", () => showNameForm(false));
+  nameForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = $("#nameInput", root).value.trim();
+    const save = $('button[type="submit"]', nameForm);
+    const restore = busy(save, "Saving…");
+    try {
+      const r = await api("/api/account/preferences", { method: "POST", body: { name } });
+      state.user = r.user;
+      $("#nameText", root).textContent = r.user.name;
+      $(".avatar", root).textContent = initials(r.user.name);
+      refreshUserChip();
+      showNameForm(false);
+      toast("Name updated.", "success");
+    } catch (err) {
+      nameErr.textContent = err.message;
+      nameErr.hidden = false;
+    } finally {
+      restore();
+    }
+  });
   const rem = $("#remindersOn", root);
   // Changed in another tab: show the account's settings as they are now.
   const onUser = () => {
@@ -152,6 +195,10 @@ export function renderAccount({ root, navigate }) {
     const u2 = state.user;
     if (!u2) return;
     if (!rem.disabled) rem.checked = u2.emailReminders !== false;
+    if (nameForm?.hidden) {
+      $("#nameText", root).textContent = u2.name;
+      $(".avatar", root).textContent = initials(u2.name);
+    }
     const left = $(".account-facts div:last-child dd", root);
     if (left) left.textContent = shootsLeft(u2.plan, u2.plan?.credits || 0);
     const radio = $(`input[name="photoFormat"][value="${currentFormat()}"]`, root);

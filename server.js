@@ -5,8 +5,8 @@ import sharp from "sharp";
 import cookieParser from "cookie-parser";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { users, shoots, id, readMedia, writeMedia, deleteMedia, freeClaimKey, mailboxChecks, canonicalEmail } from "./lib/store.js";
-import { backend, createJSON, getJSON, putJSON, updateJSON, del, UNCHANGED } from "./lib/storage.js";
+import { users, shoots, id, readMedia, writeMedia, deleteMedia, dropSelfies, freeClaimKey, mailboxChecks, canonicalEmail } from "./lib/store.js";
+import { backend, createJSON, getJSON, putJSON, updateJSON, del, list as listKeys, UNCHANGED } from "./lib/storage.js";
 import { runReminders, checkUnsubscribeToken } from "./lib/reminders.js";
 import { ogImage } from "./lib/og.js";
 import * as showcase from "./lib/showcase.js";
@@ -325,10 +325,11 @@ app.get("/api/auth/google/callback", async (req, res) => {
         u.emailVerified = true;
         u.emailVerifiedAt = now;
         delete u.emailVerifiedVia;
+        if (newlyVerified && !sameDevice) takenOver(u, now);
       }
     }).catch((err) => (err instanceof google.GoogleError ? null : Promise.reject(err)));
     if (!user) return back("failed"); // deleted meanwhile, or linked elsewhere
-    if (newlyVerified && !sameDevice) await purgeForTakeover(user.id);
+    if (newlyVerified && !sameDevice) await purgeForTakeover(user.id).catch((err) => console.error("[takeover] purge (resumed tonight)", user.id, err.message));
   }
   if (created) background(recordStep("signup", user).catch(noteStats));
   if (newlyVerified) {
@@ -526,11 +527,12 @@ app.post("/api/auth/password/reset", async (req, res) => {
     if (newlyVerified) {
       u.emailVerified = true;
       u.emailVerifiedAt = at;
+      if (!sameDevice) takenOver(u, at);
     }
     delete u.emailVerifiedVia;
   });
   if (used) return invalid();
-  if (newlyVerified && !sameDevice) await purgeForTakeover(user.id);
+  if (newlyVerified && !sameDevice) await purgeForTakeover(user.id).catch((err) => console.error("[takeover] purge (resumed tonight)", user.id, err.message));
   // Proving they own the inbox lifts any sign-in lock on the address.
   const lift = (r) => {
     r.ips = {};
@@ -1341,25 +1343,43 @@ app.post("/api/join/:token", requireUser, async (req, res) => {
 // owner, and keeps everything. An account confirmed by a team invitation keeps
 // its shoots too: they're a member's paid work, and the admin can't win a seat
 // back by taking over an address they invited.
+// The account records the takeover (takeoverPurge, set with the
+// confirmation) and a marker lists it for the nightly clean-up, so a purge
+// that fails partway, or a shoot still developing, is finished later. Only
+// shoots made before the takeover are touched: never the new holder's own.
+const TAKEOVERS = "takeovers/";
+// Recorded with the confirmation itself: what the purge removes is what came
+// before this moment. Browsers the earlier holder signed in from stop counting
+// as known devices for the sign-in limits (lib/auth.js knownDevice).
+function takenOver(u, at) {
+  u.takeoverPurge = at;
+  u.deviceEpoch = (u.deviceEpoch || 0) + 1;
+}
 async function purgeForTakeover(userId) {
+  const user = await users.byId(userId);
+  if (!user) return 0;
+  const since = user.takeoverPurge || new Date().toISOString();
+  await putJSON(`${TAKEOVERS}${userId}.json`, { at: since }).catch((err) => console.error("[takeover] marker", userId, err.message));
   const list = [];
   const kept = [];
-  for (const meta of await shoots.forUser(userId)) ((meta.shots || []).length ? kept : list).push(meta);
+  for (const meta of await shoots.forUser(userId)) if ((meta.createdAt || "") < since) ((meta.shots || []).length ? kept : list).push(meta);
+  // Their headshots stay; the selfies go now, or once a shoot still
+  // developing finishes (lib/pipeline.js, its frames are rendered from them).
+  let developing = 0;
   for (const meta of kept) {
-    if (meta.status !== "done" || !(meta.selfies || []).length) continue;
-    let files = [];
-    await shoots.updateMeta(meta.id, (m) => {
-      files = (m.selfies || []).map((s) => s.file);
-      if (!files.length) return false;
-      m.selfies = [];
-      if (m.check?.photos) m.check.photos = [];
-    }).catch((err) => console.error("[takeover] selfies", meta.id, err.message));
-    for (const file of files) await deleteMedia(file).catch((err) => console.error("[takeover] selfie", file, err.message));
+    if (!(meta.selfies || []).length) continue;
+    if (["done", "error"].includes(meta.status)) await dropSelfies(meta.id);
+    else {
+      developing++;
+      await shoots.updateMeta(meta.id, (m) => (m.dropSelfies ? false : void (m.dropSelfies = true)));
+      // It may have finished meanwhile.
+      await dropSelfies(meta.id, { whenFinished: true });
+    }
   }
-  if (!list.length) return 0;
+  // Their shared headshot (name and words) goes too.
+  await showcase.removeForUserBefore(userId, since);
   const gone = new Set(list.map((meta) => meta.id));
   for (const meta of list) if (meta.team && !(meta.shots || []).length) await teams.returnSeat(meta).catch((err) => console.error("[takeover] return seat", meta.id, err.message));
-  await showcase.removeForUser(userId).catch(() => {});
   for (const meta of list) await shoots.remove(meta);
   // A develop caught mid-charge (its shoot is gone now) gives its charge back,
   // as a failed develop would: the balance stays with the account.
@@ -1379,13 +1399,35 @@ async function purgeForTakeover(userId) {
       }
     }
     if (u.developing) for (const sid of gone) delete u.developing[sid];
+    // Done, unless a shoot is still developing (the clean-up checks again).
+    if (!developing) delete u.takeoverPurge;
   }).catch(() => null);
   if (freeBack && owner) {
     const freeKey = freeClaimKey(owner.email);
     if ((await getJSON(freeKey).catch(() => null))?.shootId === freeBack) await del(freeKey).catch(() => {});
   }
-  console.log("[takeover] removed", list.length, "shoot(s) made before the address was confirmed", userId);
+  if (!developing) await del(`${TAKEOVERS}${userId}.json`).catch(() => {});
+  if (list.length) console.log("[takeover] removed", list.length, "shoot(s) made before the address was confirmed", userId);
   return list.length;
+}
+// The nightly clean-up finishes takeovers left part-done.
+async function resumeTakeovers(deadline) {
+  const report = { checked: 0, finished: 0, failed: 0 };
+  for (const key of await listKeys(TAKEOVERS)) {
+    if (Date.now() > deadline) break;
+    const uid = key.slice(TAKEOVERS.length).replace(/\.json$/, "");
+    report.checked++;
+    try {
+      const user = await users.byId(uid);
+      if (!user?.takeoverPurge) await del(key);
+      else await purgeForTakeover(uid);
+      if (!(await users.byId(uid))?.takeoverPurge) report.finished++;
+    } catch (err) {
+      report.failed++;
+      console.error("[takeover] resume", uid, err.message);
+    }
+  }
+  return report;
 }
 
 app.post("/api/account/delete", requireUser, async (req, res) => {
@@ -1425,12 +1467,19 @@ app.post("/api/account/preferences", requireUser, async (req, res) => {
   if (req.user.demo) return res.status(403).json({ error: DEMO_READ_ONLY, code: "demo_read_only" });
   const want = req.body?.photoFormat;
   const reminders = req.body?.reminders;
-  if (want === undefined && typeof reminders !== "boolean") return res.status(400).json({ error: "Nothing to change." });
+  const name = req.body?.name;
+  // The refund notice was shown (lib/auth.js refundNotice): don't show it again.
+  const refundSeen = req.body?.refundSeen === true;
+  if (want === undefined && typeof reminders !== "boolean" && name === undefined && !refundSeen) return res.status(400).json({ error: "Nothing to change." });
   if (want !== undefined && !PHOTO_FORMATS.some((f) => f.id === want)) return res.status(400).json({ error: "Choose portrait, square or both." });
+  if (name !== undefined && !nameOk(name)) return res.status(400).json({ error: "Use just your name (2 to 80 characters, no links).", field: "name" });
+  const at = new Date().toISOString();
   const user = await users.update(req.user.id, (u) => {
     if (want !== undefined) u.photoFormat = want;
     if (reminders === true) delete u.remindersOff;
-    if (reminders === false) u.remindersOff = u.remindersOff || new Date().toISOString();
+    if (reminders === false) u.remindersOff = u.remindersOff || at;
+    if (name !== undefined) u.name = name.trim().replace(/\s+/g, " ");
+    if (refundSeen) u.refunds = (u.refunds || []).map((r) => (r.noticeSeenAt ? r : { ...r, noticeSeenAt: at }));
   });
   res.json({ user: publicUser(user) });
 });
@@ -1894,6 +1943,7 @@ function cronOnly(req, res, next) {
 // Storage clean-up (lib/cleanup.js).
 app.get("/api/cron/cleanup", cronOnly, async (req, res) => {
   const report = await runCleanup({ budgetMs: 180_000 });
+  report.takeovers = await resumeTakeovers(Date.now() + 30_000).catch((err) => (console.error("[takeover] resume", err.message), { error: err.message }));
   console.log("[cleanup]", JSON.stringify(report));
   // Then the day's reminder emails (lib/reminders.js), resuming where the
   // last run stopped. A problem here never undoes the clean-up.

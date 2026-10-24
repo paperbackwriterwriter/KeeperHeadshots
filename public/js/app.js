@@ -1,4 +1,4 @@
-import { $, html, icon, logoMark, wordmark, state, loadSession, api, toast, busy, initials, observeReveals, reduceMotion, updateReady, safeNext, SIGNED_OUT_MESSAGE, afterPaint } from "./core.js";
+import { $, html, icon, logoMark, wordmark, state, loadSession, api, toast, showRefundNotice, refreshUserChip, busy, initials, observeReveals, reduceMotion, updateReady, safeNext, SIGNED_OUT_MESSAGE, afterPaint } from "./core.js";
 // Page code loads on demand, so each page downloads only its own view. (The
 // server adds a modulepreload hint for the first page's view; lib/seo.js.)
 const lazy = (load, name) => async (...args) => (await load())[name](...args);
@@ -370,9 +370,11 @@ async function accountChanged() {
   });
   // The account page's "Confirm your email" panel goes once it's confirmed.
   if (state.user?.emailVerified) document.querySelectorAll("[data-verify-panel]").forEach((el) => el.remove());
+  refreshUserChip();
   document.dispatchEvent(new CustomEvent("ahg:user-changed"));
+  showRefundNotice();
 }
-const accountSig = (u) => JSON.stringify(u ? [u.id, u.emailVerified, u.plan, u.previewsUnlocked, u.kept, u.extraLooks, u.photoFormat, u.emailReminders] : null);
+const accountSig = (u) => JSON.stringify(u ? [u.id, u.emailVerified, u.plan, u.previewsUnlocked, u.kept, u.extraLooks, u.photoFormat, u.emailReminders, u.refundNotice, u.name] : null);
 let lastAccountSync = 0;
 async function syncAccount() {
   if (!state.user || document.visibilityState !== "visible" || Date.now() - lastAccountSync < 4000) return;
@@ -575,6 +577,7 @@ loadSession()
   .finally(() => {
     // Not on a password reset link: nothing may see that URL's one-time token.
     const rendering = render();
+    rendering.then(showRefundNotice);
     initSearch();
     if (location.pathname !== "/reset") initPixel({ afterRender: rendering });
     rendering.then(() => afterPaint(loadAnalytics));

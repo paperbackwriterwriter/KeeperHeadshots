@@ -247,6 +247,9 @@ if (process.env.DATA_DIR) {
   const odd = await (await fetch(B + "/blog?post=%3Cscript%3E")).text();
   ok("an odd post value gets the plain blog page", odd.includes('<link rel="canonical" href="https://keeperheadshots.com/blog" />') && !odd.includes("%3Cscript"));
   ok("article addresses load the blog", (await fetch(B + "/blog/some-article")).status === 200 && (await fetch(B + "/blog/not.an.article")).status === 404);
+  // Without the feed, any address is accepted too: kept out of search the same way.
+  const loose = await (await fetch(B + "/blog/some-article")).text();
+  ok("an article address without the feed is kept out of search", loose.includes('<link rel="canonical" href="https://keeperheadshots.com/blog" />') && loose.includes('<meta name="robots" content="noindex, follow" />'));
 }
 
 // 15d. /llms.txt (a summary for AI search tools) is served and its prices
@@ -609,6 +612,26 @@ if (process.env.DATA_DIR) {
   const after = (await owner(`/api/shoots/${done}`)).j?.shoot;
   const selfieMedia = await owner(`/media/${selfie}`, { headers: { accept: "image/*" } });
   ok("but not the selfies the earlier holder uploaded", !!selfie && (after?.selfies || []).length === 0 && selfieMedia.status === 404, `${(after?.selfies || []).length} ${selfieMedia.status}`);
+  // The developing shoot still needs its selfies for its frames: they're
+  // marked to go when it finishes, and the takeover stays on record (with a
+  // marker for the nightly clean-up) until then.
+  const dev = JSON.parse(fs.readFileSync(devFile, "utf8"));
+  const takenOver = JSON.parse(fs.readFileSync(userFile, "utf8"));
+  ok("a developing shoot keeps its selfies until it finishes", dev.dropSelfies === true && (dev.selfies || []).length > 0 && !!takenOver.takeoverPurge && fs.existsSync(`${process.env.DATA_DIR}/takeovers/${takenOver.id}.json`), `${dev.dropSelfies} ${(dev.selfies || []).length} ${takenOver.takeoverPurge}`);
+  ok("and the earlier holder's browsers stop counting as known devices", takenOver.deviceEpoch === 1, `${takenOver.deviceEpoch}`);
+}
+
+// 27f. Customers change their own name (not their email) on the account page.
+{
+  const f = client();
+  await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Old Name", email: `rename${t}@x.com`, password: "password123" }) });
+  const renamed = await f("/api/account/preferences", { method: "POST", body: JSON.stringify({ name: "  New   Name " }) });
+  const link = await f("/api/account/preferences", { method: "POST", body: JSON.stringify({ name: "Visit https://spam.example" }) });
+  const short = await f("/api/account/preferences", { method: "POST", body: JSON.stringify({ name: "x" }) });
+  const seen = await f("/api/account/preferences", { method: "POST", body: JSON.stringify({ refundSeen: true }) });
+  ok("a customer can change their name", renamed.status === 200 && renamed.j?.user?.name === "New Name", `${renamed.status} ${renamed.j?.user?.name}`);
+  ok("but not to a link or a single letter", link.status === 400 && short.status === 400 && (await f("/api/me")).j.user.name === "New Name", `${link.status} ${short.status}`);
+  ok("marking the refund notice seen works with no refunds", seen.status === 200 && seen.j?.user?.refundNotice === 0, `${seen.status}`);
 }
 
 // 29. Public pages may be cached by Vercel's CDN briefly; API answers aren't.
