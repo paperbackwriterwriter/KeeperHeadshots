@@ -161,7 +161,7 @@ app.post("/api/auth/signup", async (req, res) => {
   const { name, email, password } = req.body || {};
   const errors = {};
   if (!name || String(name).trim().length < 2) errors.name = "Tell us what to call you.";
-  else if (String(name).trim().length > 80 || /https?:|www\.|[<>\u0000-\u001f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/i.test(String(name))) errors.name = "Use just your name (up to 80 characters, no links).";
+  else if (String(name).trim().length > 80 || /https?:|www\.|[<>\u0000-\u001f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/i.test(String(name))) errors.name = "Use just your name (up to 80 characters, no links or symbols like < >).";
   if (!isEmail(email)) errors.email = "Enter a valid email address.";
   if (!password || String(password).length < 8) errors.password = "Use at least 8 characters.";
   else if (String(password).length > 200) errors.password = "Use 200 characters or fewer.";
@@ -1505,7 +1505,7 @@ app.post("/api/account/preferences", requireUser, async (req, res) => {
   const refundSeen = typeof req.body?.refundSeen === "string" && req.body.refundSeen.length <= 40 ? req.body.refundSeen : req.body?.refundSeen === true ? new Date().toISOString() : null;
   if (want === undefined && typeof reminders !== "boolean" && name === undefined && !refundSeen) return res.status(400).json({ error: "Nothing to change." });
   if (want !== undefined && !PHOTO_FORMATS.some((f) => f.id === want)) return res.status(400).json({ error: "Choose portrait, square or both." });
-  if (name !== undefined && !nameOk(name)) return res.status(400).json({ error: "Use just your name (2 to 80 characters, no links).", field: "name" });
+  if (name !== undefined && !nameOk(name)) return res.status(400).json({ error: "Use just your name (2 to 80 characters, no links or symbols like < >).", field: "name" });
   const at = new Date().toISOString();
   const user = await users.update(req.user.id, (u) => {
     if (want !== undefined) u.photoFormat = want;
