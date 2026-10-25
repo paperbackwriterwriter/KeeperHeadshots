@@ -326,6 +326,9 @@ app.get("/api/auth/google/callback", async (req, res) => {
         u.emailVerifiedAt = now;
         delete u.emailVerifiedVia;
         if (newlyVerified && !sameDevice) takenOver(u, now);
+        // Confirmed only by an invitation: the earlier holder's browsers stop
+        // counting as known devices too.
+        else if (!sameDevice) u.deviceEpoch = (u.deviceEpoch || 0) + 1;
       }
     }).catch((err) => (err instanceof google.GoogleError ? null : Promise.reject(err)));
     if (!user) return back("failed"); // deleted meanwhile, or linked elsewhere
@@ -528,7 +531,7 @@ app.post("/api/auth/password/reset", async (req, res) => {
       u.emailVerified = true;
       u.emailVerifiedAt = at;
       if (!sameDevice) takenOver(u, at);
-    }
+    } else if (!ownsMailbox(u) && !sameDevice) u.deviceEpoch = (u.deviceEpoch || 0) + 1; // confirmed only by an invitation
     delete u.emailVerifiedVia;
   });
   if (used) return invalid();
@@ -605,6 +608,9 @@ app.get("/api/shoots", requireUser, async (req, res) => {
 });
 
 // Managed shoots move through durable deliveries even with no open browser.
+// An earlier holder's selfies kept on a shoot developing after a takeover
+// (purgeForTakeover) aren't listed (nor served: /media).
+const shown = (shoot) => (Array.isArray(shoot?.dropSelfies) ? { ...shoot, selfies: (shoot.selfies || []).filter((p) => !shoot.dropSelfies.includes(p.file)), dropSelfies: undefined } : shoot);
 app.get("/api/shoots/:id", requireUser, async (req, res) => {
   const shoot = await ownShoot(req, res);
   if (!shoot) return;
@@ -613,11 +619,11 @@ app.get("/api/shoots/:id", requireUser, async (req, res) => {
   // itself; frame and review claims keep any frame from rendering twice.
   const busy = (shoot.shots || []).some((s) => s.status === "rendering" && Date.now() - Date.parse(s.startedAt) < 90_000)
     || (shoot.status === "reviewing" && shoot.reviewWorkerAt && Date.now() - Date.parse(shoot.reviewWorkerAt) < 90_000);
-  if (!LIVE.includes(shoot.status) || (shoot.jobId && busy)) return res.json({ shoot });
+  if (!LIVE.includes(shoot.status) || (shoot.jobId && busy)) return res.json({ shoot: shown(shoot) });
   // Upgrade earlier live shoots to a durable delivery.
   if (!shoot.jobId) await ensureShootJob(shoot.id).catch((err) => console.error("[shoot-job] upgrade", shoot.id, err.message));
   const moved = await advance(shoot.id, shoot).catch((err) => (console.error("[advance]", shoot.id, err.message), null));
-  res.json({ shoot: await shoots.get(shoot.id) || moved || shoot });
+  res.json({ shoot: shown(await shoots.get(shoot.id) || moved || shoot) });
 });
 
 app.post("/api/shoots", requireUser, async (req, res) => {
@@ -1006,9 +1012,13 @@ async function countRefundedCheck(user) {
 // Extra looks bought with a preview offer ("Preview + 2 more looks"): they're
 // added to that shoot and developed. The credit is taken first, atomically,
 // and given back if the shoot can't take them.
+// Frames are rendered from the shoot's selfies: without them (removed at a
+// takeover, server.js purgeForTakeover) there's nothing to render from.
+const NO_SELFIES = "This shoot's selfies were removed, so it can't develop more headshots. Start a new shoot with your own selfies.";
 app.post("/api/shoots/:id/more-looks", requireUser, async (req, res) => {
   const meta = await ownShoot(req, res, { full: false });
   if (!meta || !requireAI("imaging", res) || !requireAI("vision", res)) return;
+  if (!(meta.selfies || []).length) return res.status(409).json({ error: NO_SELFIES, code: "no_selfies" });
   const have = req.user.extraLooks?.[meta.id] || 0;
   if (!have) return res.status(400).json({ error: "This shoot has no extra looks to add." });
   if (LIVE.includes(meta.status)) return res.status(409).json({ error: "This shoot is still in progress." });
@@ -1048,6 +1058,7 @@ app.post("/api/shoots/:id/resume", requireUser, async (req, res) => {
   if (LIVE.includes(shoot.status)) return res.status(409).json({ error: "This shoot is still in progress." });
   // Pending frames on a stopped shoot (an interrupted retry) are resumable too.
   if (!shoot.shots.some((s) => s.status === "error" || s.status === "pending")) return res.status(400).json({ error: "Nothing to resume." });
+  if (!(shoot.selfies || []).length) return res.status(409).json({ error: NO_SELFIES, code: "no_selfies" });
   // Retries are free, but capped so a shoot that keeps failing can't loop forever.
   // Counted atomically; a second click in the same moment is ignored, not counted.
   let refused = null;
@@ -1138,6 +1149,7 @@ app.post("/api/shoots/:id/review", requireUser, async (req, res) => {
   const shoot = await ownShoot(req, res);
   if (!shoot || !requireAI("vision", res)) return;
   if (!shoot.shots.some((s) => s.status === "done")) return res.status(400).json({ error: "There are no finished headshots to grade yet." });
+  if (!(shoot.selfies || []).length) return res.status(409).json({ error: "This shoot's selfies were removed, so its headshots can't be graded against them again.", code: "no_selfies" });
   if (LIVE.includes(shoot.status)) return res.status(409).json({ error: "This shoot is still in progress." });
   const plan = planFor(req.user);
   if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
@@ -1359,19 +1371,38 @@ async function purgeForTakeover(userId) {
   const user = await users.byId(userId);
   if (!user) return 0;
   const since = user.takeoverPurge || new Date().toISOString();
-  await putJSON(`${TAKEOVERS}${userId}.json`, { at: since }).catch((err) => console.error("[takeover] marker", userId, err.message));
+  // What the earlier holder left, recorded the first time: each shoot made
+  // before the takeover, with the selfies it had then. A later run (the
+  // nightly clean-up) touches only those, never the new holder's own photos.
+  const markerKey = `${TAKEOVERS}${userId}.json`;
+  let plan = (await getJSON(markerKey).catch(() => null))?.plan;
+  if (!plan) {
+    plan = {};
+    for (const meta of await shoots.forUser(userId)) if ((meta.createdAt || "") < since) plan[meta.id] = (meta.selfies || []).map((p) => p.file);
+    await putJSON(markerKey, { at: since, plan }).catch((err) => console.error("[takeover] marker", userId, err.message));
+  }
   const list = [];
   const kept = [];
-  for (const meta of await shoots.forUser(userId)) if ((meta.createdAt || "") < since) ((meta.shots || []).length ? kept : list).push(meta);
-  // Their headshots stay; the selfies go now, or once a shoot still
-  // developing finishes (lib/pipeline.js, its frames are rendered from them).
+  for (const [sid, files] of Object.entries(plan)) {
+    const meta = await shoots.getMeta(sid);
+    if (!meta || meta.userId !== userId) continue;
+    const theirs = new Set(files);
+    // A draft with photos the new holder added since is theirs now: left alone.
+    if (!(meta.shots || []).length) {
+      if ((meta.selfies || []).every((p) => theirs.has(p.file))) list.push(meta);
+      else console.warn("[takeover] draft changed since the takeover, left as is", sid);
+    } else kept.push({ meta, files });
+  }
+  // Their headshots stay; the selfies go now, or once the shoot has developed
+  // (lib/pipeline.js): one still developing, or failed and waiting for a
+  // retry, renders its frames from them.
   let developing = 0;
-  for (const meta of kept) {
-    if (!(meta.selfies || []).length) continue;
-    if (["done", "error"].includes(meta.status)) await dropSelfies(meta.id);
+  for (const { meta, files } of kept) {
+    if (!(meta.selfies || []).some((p) => files.includes(p.file))) continue;
+    if (meta.status === "done") await dropSelfies(meta.id, { only: files });
     else {
-      developing++;
-      await shoots.updateMeta(meta.id, (m) => (m.dropSelfies ? false : void (m.dropSelfies = true)));
+      if (meta.status !== "error") developing++;
+      await shoots.updateMeta(meta.id, (m) => (Array.isArray(m.dropSelfies) ? false : void (m.dropSelfies = files)));
       // It may have finished meanwhile.
       await dropSelfies(meta.id, { whenFinished: true });
     }
@@ -1465,11 +1496,13 @@ app.post("/api/account/delete", requireUser, async (req, res) => {
 // (every headshot is always available as both).
 app.post("/api/account/preferences", requireUser, async (req, res) => {
   if (req.user.demo) return res.status(403).json({ error: DEMO_READ_ONLY, code: "demo_read_only" });
+  if (await overLimit("prefs", req.user.id, 60)) return res.status(429).json({ error: "Too many changes in a short time. Please wait a little and try again." });
   const want = req.body?.photoFormat;
   const reminders = req.body?.reminders;
   const name = req.body?.name;
   // The refund notice was shown (lib/auth.js refundNotice): don't show it again.
-  const refundSeen = req.body?.refundSeen === true;
+  // (Up to the newest refund the notice showed: lib/auth.js refundNoticeAt.)
+  const refundSeen = typeof req.body?.refundSeen === "string" && req.body.refundSeen.length <= 40 ? req.body.refundSeen : req.body?.refundSeen === true ? new Date().toISOString() : null;
   if (want === undefined && typeof reminders !== "boolean" && name === undefined && !refundSeen) return res.status(400).json({ error: "Nothing to change." });
   if (want !== undefined && !PHOTO_FORMATS.some((f) => f.id === want)) return res.status(400).json({ error: "Choose portrait, square or both." });
   if (name !== undefined && !nameOk(name)) return res.status(400).json({ error: "Use just your name (2 to 80 characters, no links).", field: "name" });
@@ -1479,7 +1512,7 @@ app.post("/api/account/preferences", requireUser, async (req, res) => {
     if (reminders === true) delete u.remindersOff;
     if (reminders === false) u.remindersOff = u.remindersOff || at;
     if (name !== undefined) u.name = name.trim().replace(/\s+/g, " ");
-    if (refundSeen) u.refunds = (u.refunds || []).map((r) => (r.noticeSeenAt ? r : { ...r, noticeSeenAt: at }));
+    if (refundSeen) u.refunds = (u.refunds || []).map((r) => (r.noticeSeenAt || (r.at || "") > refundSeen ? r : { ...r, noticeSeenAt: at }));
   });
   res.json({ user: publicUser(user) });
 });
@@ -1697,6 +1730,9 @@ app.get("/media/:sid/:name", mediaUser, async (req, res) => {
   // Squares and sizes are for headshots: a selfie's would be a copy that
   // outlives the selfie when it's deleted.
   if ((req.query.square || req.query.size) && (meta.selfies || []).some((p) => p.file === `${sid}/${name}`)) return res.status(404).end();
+  // An earlier holder's selfies on a shoot still developing after a takeover
+  // (purgeForTakeover): kept only for its frames, not shown.
+  if (Array.isArray(meta.dropSelfies) && meta.dropSelfies.includes(`${sid}/${name}`)) return res.status(404).end();
   const shotFor = async () => (await shoots.get(sid))?.shots.find((s) => s.file === `${sid}/${name}`);
   // A free preview's files get the watermark until the account buys
   // (lib/preview.js): every file of the shoot except its selfies, including

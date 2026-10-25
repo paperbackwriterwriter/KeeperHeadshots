@@ -235,7 +235,7 @@ export function relTime(iso) {
 }
 
 export const initials = (name) =>
-  String(name || "?")
+  (String(name || "").replace(/[^\p{L}\p{N}\s]/gu, "").trim() || "?")
     .split(/\s+/)
     .map((p) => [...p][0])
     .slice(0, 2)
@@ -272,7 +272,7 @@ export function showRefundNotice() {
   if (!n || refundNoticeShown || state.user.demo) return;
   refundNoticeShown = true;
   toast(`A refund was applied: ${n} ${n === 1 ? "shoot" : "shoots"} removed from your account.`, "info", 8000);
-  api("/api/account/preferences", { method: "POST", body: { refundSeen: true } })
+  api("/api/account/preferences", { method: "POST", body: { refundSeen: state.user.refundNoticeAt || true } })
     .then((r) => {
       if (r?.user && state.user?.id === r.user.id) state.user = r.user;
     })
@@ -291,4 +291,6 @@ export function refreshUserChip() {
   if (avatar) avatar.dataset.initials = initials(name);
   const label = chip.querySelector(".hide-m");
   if (label) label.textContent = first;
+  // Pages that greet by name (the dashboard).
+  document.querySelectorAll("[data-first-name]").forEach((el) => (el.textContent = first));
 }

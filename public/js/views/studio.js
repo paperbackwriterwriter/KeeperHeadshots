@@ -1090,13 +1090,15 @@ export async function renderStudio(ctx, id) {
       ${upgradeBand(s, done.length)}
 
       <section class="panel" style="margin-top:48px;display:flex;gap:24px;align-items:center;justify-content:space-between;flex-wrap:wrap">
-        <div>
+        ${s.selfies.length
+          ? html`<div>
           <p class="eyebrow">References used</p>
           <div class="refs" style="margin-top:10px">${s.selfies.map((p, i) => html`<img src="${media(p.file)}" alt="Reference photo ${i + 1}" loading="lazy" />`)}</div>
-        </div>
+        </div>`
+          : html`<div><p class="eyebrow">References used</p><p class="small muted" style="margin-top:10px">The reference photos for this shoot were removed.</p></div>`}
         <div class="refs-actions" style="display:flex;gap:10px;flex-wrap:wrap">
           ${s.check ? html`<span class="score-pill g-${s.check.overall_score >= 80 ? "keeper" : s.check.overall_score >= 60 ? "solid" : "retake"}"><i></i>Photo check ${s.check.overall_score}</span>` : ""}
-          ${s.sample ? "" : html`<button class="btn btn-ghost btn-sm" id="regradeAll" title="Run the AI grading again on these headshots">${icon("refresh-cw")} Re-grade</button><button class="btn btn-ghost btn-sm" id="delete">${icon("trash-2")} Delete shoot</button>`}
+          ${s.sample ? "" : html`${s.selfies.length ? html`<button class="btn btn-ghost btn-sm" id="regradeAll" title="Run the AI grading again on these headshots">${icon("refresh-cw")} Re-grade</button>` : ""}<button class="btn btn-ghost btn-sm" id="delete">${icon("trash-2")} Delete shoot</button>`}
           <a class="btn btn-ink btn-sm" href="/app/new" data-link>${icon("plus")} New shoot</a>
         </div>
       </section>

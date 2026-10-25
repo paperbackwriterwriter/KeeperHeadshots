@@ -121,7 +121,7 @@ export async function renderDashboard({ root, navigate }) {
   const first = state.user.name.split(" ")[0];
   root.innerHTML = html`<main id="main" class="container app-main">
     <div class="page-head">
-      <div><p class="eyebrow">Your studio</p><h1 class="display h-1" style="margin-top:8px">${greeting()}, ${first}.</h1></div>
+      <div><p class="eyebrow">Your studio</p><h1 class="display h-1" style="margin-top:8px">${greeting()}, <span data-first-name>${first}</span>.</h1></div>
       <a class="btn btn-flash btn-lg" href="/app/new" data-link>${icon("plus")} New shoot</a>
     </div>
     ${aiBanner()}

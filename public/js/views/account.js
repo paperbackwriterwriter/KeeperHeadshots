@@ -161,6 +161,9 @@ export function renderAccount({ root, navigate }) {
     $("#nameText", root).hidden = open;
     editName.hidden = open;
     nameErr.hidden = true;
+    // Changed in another tab meanwhile: show it as it is now.
+    $("#nameText", root).textContent = state.user.name;
+    $(".avatar", root).textContent = initials(state.user.name);
     if (open) {
       $("#nameInput", root).value = state.user.name;
       $("#nameInput", root).focus();
@@ -168,6 +171,7 @@ export function renderAccount({ root, navigate }) {
   };
   editName?.addEventListener("click", () => showNameForm(true));
   $("#cancelName", root)?.addEventListener("click", () => showNameForm(false));
+  nameForm?.addEventListener("keydown", (e) => e.key === "Escape" && showNameForm(false));
   nameForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const name = $("#nameInput", root).value.trim();

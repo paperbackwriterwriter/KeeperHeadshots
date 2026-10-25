@@ -1446,6 +1446,10 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
 .name-edit[hidden] { display: none; }
 .name-edit .input { flex: 1 1 12em; min-width: 0; min-height: 40px; }
 .name-edit .field-error { flex-basis: 100%; margin: 0; }
+/* A long name with no spaces wraps rather than widening the page. */
+.page-head > div { min-width: 0; }
+.page-head h1, .account-facts dd { overflow-wrap: anywhere; }
+.user-chip .hide-m { max-width: 12em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .danger-zone { margin-top: var(--s-8); padding-top: var(--s-6); border-top: 1px solid var(--border); }
 .danger-zone h2 { margin: 0 0 var(--s-3); }
 .danger-zone > p { color: var(--text-muted); max-width: 60ch; margin: 0 0 var(--s-5); }

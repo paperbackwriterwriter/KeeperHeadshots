@@ -12,7 +12,7 @@ import path from "node:path";
 const dir = await fs.mkdtemp(path.join(os.tmpdir(), "keeper-takeover-"));
 for (const key of Object.keys(process.env)) if (/^(BLOB_|BACKUP_|STRIPE_|STORAGE_NAMESPACE$)/.test(key)) delete process.env[key];
 Object.assign(process.env, { DATA_DIR: dir, SESSION_SECRET: "takeover-tests-secret-takeover-tests" });
-const { shoots, saveMedia, readMedia, dropSelfies } = await import("../../lib/store.js");
+const { shoots, saveMedia, readMedia, writeMedia, deleteMedia, dropSelfies } = await import("../../lib/store.js");
 const { setSession, knownDevice, publicUser } = await import("../../lib/auth.js");
 
 let passed = 0;
@@ -22,7 +22,7 @@ try {
   await test("a developing shoot marked at takeover keeps its selfies until it finishes, then loses them", async () => {
     const sid = "sht_takeover01";
     const file = await saveMedia(sid, Buffer.from("selfie"));
-    await shoots.saveMeta({ id: sid, userId: "usr_takeover01", status: "generating", createdAt: new Date().toISOString(), selfies: [{ file }], check: { photos: [{ file }] }, dropSelfies: true });
+    await shoots.saveMeta({ id: sid, userId: "usr_takeover01", status: "generating", createdAt: new Date().toISOString(), selfies: [{ file }], check: { photos: [{ file }] }, dropSelfies: [file] });
     assert.equal(await dropSelfies(sid, { whenFinished: true }), 0, "still developing");
     assert.equal((await shoots.getMeta(sid)).selfies.length, 1);
     await shoots.updateMeta(sid, (m) => void (m.status = "done"));
@@ -32,6 +32,32 @@ try {
     assert.equal(meta.check.photos.length, 0);
     assert.ok(!meta.dropSelfies);
     assert.equal(await readMedia(file), null, "the photo itself is gone");
+  });
+  await test("a failed shoot waiting for its retry keeps its selfies", async () => {
+    const sid = "sht_takeover05";
+    const file = await saveMedia(sid, Buffer.from("selfie"));
+    await shoots.saveMeta({ id: sid, userId: "usr_takeover05", status: "error", createdAt: new Date().toISOString(), selfies: [{ file }], dropSelfies: [file] });
+    assert.equal(await dropSelfies(sid, { whenFinished: true }), 0);
+    assert.ok(await readMedia(file));
+  });
+  await test("only the photos recorded at the takeover go, not ones added since", async () => {
+    const sid = "sht_takeover06";
+    const theirs = await saveMedia(sid, Buffer.from("earlier holder"));
+    const mine = await saveMedia(sid, Buffer.from("new holder"));
+    await shoots.saveMeta({ id: sid, userId: "usr_takeover06", status: "done", createdAt: new Date().toISOString(), selfies: [{ file: theirs }, { file: mine }] });
+    assert.equal(await dropSelfies(sid, { only: [theirs] }), 1);
+    assert.deepEqual((await shoots.getMeta(sid)).selfies.map((p) => p.file), [mine]);
+    assert.ok(await readMedia(mine));
+  });
+  await test("deleting a photo deletes its cached square and sizes too", async () => {
+    const sid = "sht_takeover07";
+    const file = await saveMedia(sid, Buffer.from("selfie"));
+    const stem = file.replace(/\.jpg$/, "");
+    for (const copy of [`${stem}-sq.jpg`, `${stem}-li.jpg`, `${stem}-banner.jpg`, `${stem}-sig.png`]) await writeMedia(copy, Buffer.from("copy"));
+    const other = await saveMedia(sid, Buffer.from("another"));
+    await deleteMedia(file);
+    for (const copy of [`${stem}-sq.jpg`, `${stem}-li.jpg`, `${stem}-banner.jpg`, `${stem}-sig.png`]) assert.equal(await readMedia(copy), null, copy);
+    assert.ok(await readMedia(other), "other photos stay");
   });
   await test("a finished shoot that wasn't taken over keeps its selfies", async () => {
     const sid = "sht_takeover02";
@@ -54,6 +80,10 @@ try {
     assert.equal(publicUser({ ...base, refunds: [{ sessionId: "cs_1", shootsRemoved: 2, at, noticeSeenAt: at }] }).refundNotice, 0);
     assert.equal(publicUser({ ...base, refunds: [{ sessionId: "cs_1", shootsRemoved: 2, at, disputed: true }] }).refundNotice, 0);
     assert.equal(publicUser({ ...base, refunds: [{ sessionId: "cs_1", shootsRemoved: 2, at: "2026-10-01T00:00:00.000Z" }] }).refundNotice, 0);
+    // What came off the balance, not shoots already spent.
+    assert.equal(publicUser({ ...base, refunds: [{ sessionId: "cs_1", shootsRemoved: 3, creditsTaken: 1, owedAdded: 0, at }] }).refundNotice, 1);
+    assert.equal(publicUser({ ...base, refunds: [{ sessionId: "cs_1", shootsRemoved: 3, creditsTaken: 0, owedAdded: 0, at }] }).refundNotice, 0);
+    assert.equal(publicUser({ ...base, refunds: [{ sessionId: "cs_1", shootsRemoved: 2, at }] }).refundNoticeAt, at);
   });
 } finally {
   await fs.rm(dir, { recursive: true, force: true });

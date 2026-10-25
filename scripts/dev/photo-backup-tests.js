@@ -249,7 +249,7 @@ try {
     assert.equal(out.complete, true);
     assert.ok(out.entries.some((e) => e.uid === "usr_s" && e.carried));
   });
-  await test("a photo whose copy fails a second night in a row raises the alert, without failing the backup", async () => {
+  await test("a photo whose copy fails a second night raises the alert, without failing the backup", async () => {
     await fixture("r");
     const records = {}; for (const key of await storage.list("shoots/")) records[key] = await storage.getJSON(key);
     await backupPhotos({ records, now: now - 2 * 86_400_000, deadline: Date.now() + 20_000 }); // copied two days ago
@@ -260,14 +260,14 @@ try {
     let first, second;
     try {
       first = await backupPhotos({ records, now: now - 86_400_000, deadline: Date.now() + 20_000 });
-      assert.ok(!errors.some((e) => /nights in a row/.test(e)), "not after one night");
+      assert.ok(!errors.some((e) => /failed on \d+ nights/.test(e)), "not after one night");
       second = await backupPhotos({ records, now, deadline: Date.now() + 20_000 });
     } finally { interceptPut = null; console.error = logError; }
     assert.equal(first.failed, 0);
     assert.equal(second.failed, 0, "the earlier copy still covers it");
     assert.equal(second.complete, true);
     assert.ok(second.repeatFailures >= 1);
-    assert.ok(errors.some((e) => /copy failed 2 nights in a row/.test(e)), errors.join("\n"));
+    assert.ok(errors.some((e) => /copy failed on 2 nights/.test(e)), errors.join("\n"));
   });
   await test("a new photo that can't be copied at all still fails the backup", async () => {
     await fixture("u");

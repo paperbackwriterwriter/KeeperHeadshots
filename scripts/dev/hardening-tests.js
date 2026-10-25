@@ -586,6 +586,13 @@ if (process.env.DATA_DIR) {
   const done = await shootWithSelfie(maker);
   const draft = await shootWithSelfie(maker);
   const developing = await shootWithSelfie(maker);
+  // A paid develop whose frames all failed, waiting for a free retry.
+  const errored = await shootWithSelfie(maker);
+  const errFile = `${process.env.DATA_DIR}/shoots/${errored}.json`;
+  const errMeta = JSON.parse(fs.readFileSync(errFile, "utf8"));
+  errMeta.shots = [{ id: "shot_paidwork3" }];
+  errMeta.status = "error";
+  fs.writeFileSync(errFile, JSON.stringify(errMeta));
   const devFile = `${process.env.DATA_DIR}/shoots/${developing}.json`;
   const devMeta = JSON.parse(fs.readFileSync(devFile, "utf8"));
   devMeta.shots = [{ id: "shot_paidwork2" }];
@@ -617,8 +624,16 @@ if (process.env.DATA_DIR) {
   // marker for the nightly clean-up) until then.
   const dev = JSON.parse(fs.readFileSync(devFile, "utf8"));
   const takenOver = JSON.parse(fs.readFileSync(userFile, "utf8"));
-  ok("a developing shoot keeps its selfies until it finishes", dev.dropSelfies === true && (dev.selfies || []).length > 0 && !!takenOver.takeoverPurge && fs.existsSync(`${process.env.DATA_DIR}/takeovers/${takenOver.id}.json`), `${dev.dropSelfies} ${(dev.selfies || []).length} ${takenOver.takeoverPurge}`);
+  ok("a developing shoot keeps its selfies until it finishes", Array.isArray(dev.dropSelfies) && dev.dropSelfies.length === 1 && (dev.selfies || []).length > 0 && !!takenOver.takeoverPurge && fs.existsSync(`${process.env.DATA_DIR}/takeovers/${takenOver.id}.json`), `${dev.dropSelfies} ${(dev.selfies || []).length} ${takenOver.takeoverPurge}`);
   ok("and the earlier holder's browsers stop counting as known devices", takenOver.deviceEpoch === 1, `${takenOver.deviceEpoch}`);
+  const err = JSON.parse(fs.readFileSync(errFile, "utf8"));
+  const marker = JSON.parse(fs.readFileSync(`${process.env.DATA_DIR}/takeovers/${takenOver.id}.json`, "utf8"));
+  ok("a failed shoot keeps its selfies for its retry, marked to go once it develops", (err.selfies || []).length === 1 && Array.isArray(err.dropSelfies) && err.dropSelfies.length === 1, `${(err.selfies || []).length} ${JSON.stringify(err.dropSelfies)}`);
+  ok("the takeover records which shoots and photos were the earlier holder's", JSON.stringify(Object.keys(marker.plan || {}).sort()) === JSON.stringify([done, draft, developing, errored].sort()), JSON.stringify(Object.keys(marker.plan || {})));
+  const devSelfie = dev.selfies?.[0]?.file;
+  ok("the earlier holder's selfies on a developing shoot aren't shown meanwhile", !!devSelfie && (await owner(`/media/${devSelfie}`)).status === 404);
+  const regrade = await owner(`/api/shoots/${done}/review`, { method: "POST", body: "{}" });
+  ok("a shoot whose selfies are gone can't be regraded or extended against nothing", regrade.status === 409 && regrade.j?.code === "no_selfies", `${regrade.status} ${regrade.j?.code}`);
 }
 
 // 27f. Customers change their own name (not their email) on the account page.
