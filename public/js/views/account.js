@@ -188,6 +188,7 @@ export function renderAccount({ root, navigate }) {
     } catch (err) {
       nameErr.textContent = err.message;
       nameErr.hidden = false;
+      $("#nameInput", root).focus();
     } finally {
       restore();
     }

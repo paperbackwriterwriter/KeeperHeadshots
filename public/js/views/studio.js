@@ -892,7 +892,7 @@ export async function renderStudio(ctx, id) {
       ${stepper(3)}
       <div class="develop-head">
         <div><p class="eyebrow" id="devEyebrow">${s.status === "error" ? "Paused" : html`<span class="dot"></span>Live`} · ${s.name}</p><h1 class="display h-1" style="margin-top:8px" id="devTitle">${c.title}</h1><p class="lede" style="margin-top:10px" id="devSub">${c.sub}</p></div>
-        <div id="devActions">${developActions(s)}</div>
+        <div id="devActions" data-status="${s.status}">${developActions(s)}</div>
       </div>
       <div class="progress" role="progressbar" aria-label="Development progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(c.pct)}"><div id="bar" style="width:${c.pct}%"></div></div>
       <div class="contact" id="contact">${s.shots.map((t, i) => frameHTML(t, i))}</div>
@@ -946,8 +946,13 @@ export async function renderStudio(ctx, id) {
     $("#devSub").textContent = c.sub;
     $("#bar").style.width = `${c.pct}%`;
     $(".progress").setAttribute("aria-valuenow", String(Math.round(c.pct)));
-    if (s.status === "reviewing" && !$("#devActions .badge")) {
-      $("#devActions").innerHTML = developActions(s).v;
+    // Paused → developing again (a retry), or on to grading: label and actions follow.
+    const actions = $("#devActions");
+    if (actions.dataset.status !== s.status) {
+      actions.dataset.status = s.status;
+      actions.innerHTML = developActions(s).v;
+      $("#devEyebrow").innerHTML = html`${s.status === "error" ? "Paused" : html`<span class="dot"></span>Live`} · ${s.name}`.v;
+      wireDevelopActions();
     }
   }
 
@@ -1095,7 +1100,7 @@ export async function renderStudio(ctx, id) {
           <p class="eyebrow">References used</p>
           <div class="refs" style="margin-top:10px">${s.selfies.map((p, i) => html`<img src="${media(p.file)}" alt="Reference photo ${i + 1}" loading="lazy" />`)}</div>
         </div>`
-          : html`<div><p class="eyebrow">References used</p><p class="small muted" style="margin-top:10px">The reference photos for this shoot were removed.</p></div>`}
+          : html`<div><p class="eyebrow">Selfies</p><p class="small muted" style="margin-top:10px">The selfies for this shoot were removed.</p></div>`}
         <div class="refs-actions" style="display:flex;gap:10px;flex-wrap:wrap">
           ${s.check ? html`<span class="score-pill g-${s.check.overall_score >= 80 ? "keeper" : s.check.overall_score >= 60 ? "solid" : "retake"}"><i></i>Photo check ${s.check.overall_score}</span>` : ""}
           ${s.sample ? "" : html`${s.selfies.length ? html`<button class="btn btn-ghost btn-sm" id="regradeAll" title="Run the AI grading again on these headshots">${icon("refresh-cw")} Re-grade</button>` : ""}<button class="btn btn-ghost btn-sm" id="delete">${icon("trash-2")} Delete shoot</button>`}

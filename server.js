@@ -5,7 +5,7 @@ import sharp from "sharp";
 import cookieParser from "cookie-parser";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { users, shoots, id, readMedia, writeMedia, deleteMedia, dropSelfies, freeClaimKey, mailboxChecks, canonicalEmail } from "./lib/store.js";
+import { users, shoots, id, readMedia, writeMedia, deleteMedia, dropSelfies, shootFinished, freeClaimKey, mailboxChecks, canonicalEmail } from "./lib/store.js";
 import { backend, createJSON, getJSON, putJSON, updateJSON, del, list as listKeys, UNCHANGED } from "./lib/storage.js";
 import { runReminders, checkUnsubscribeToken } from "./lib/reminders.js";
 import { ogImage } from "./lib/og.js";
@@ -105,6 +105,8 @@ app.post("/api/internal/shoot-worker", (req, res) => {
 app.use("/api/shoots", (req, res, next) => {
   const json = res.json.bind(res);
   res.json = (body) => {
+    // (An earlier holder's selfies kept after a takeover: purgeForTakeover.)
+    if (body?.shoot) body = { ...body, shoot: shown(body.shoot) };
     if (body?.shoot?.jobId) {
       const { jobId, ...shoot } = body.shoot;
       body = { ...body, shoot };
@@ -161,7 +163,7 @@ app.post("/api/auth/signup", async (req, res) => {
   const { name, email, password } = req.body || {};
   const errors = {};
   if (!name || String(name).trim().length < 2) errors.name = "Tell us what to call you.";
-  else if (String(name).trim().length > 80 || /https?:|www\.|[<>\u0000-\u001f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/i.test(String(name))) errors.name = "Use just your name (up to 80 characters, no links or symbols like < >).";
+  else if (String(name).trim().length > 80 || /https?:|www\.|[<>\u0000-\u001f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/i.test(String(name))) errors.name = "Use just your name (2 to 80 characters, no links or symbols like < >).";
   if (!isEmail(email)) errors.email = "Enter a valid email address.";
   if (!password || String(password).length < 8) errors.password = "Use at least 8 characters.";
   else if (String(password).length > 200) errors.password = "Use 200 characters or fewer.";
@@ -309,6 +311,9 @@ app.get("/api/auth/google/callback", async (req, res) => {
     }
     // Taken over from the browser that made the account: it's the same person.
     const sameDevice = originDevice(req, user);
+    // Listed for the nightly clean-up before the takeover is recorded, so a
+    // purge that fails before it starts is still finished later.
+    if (!sameDevice && user.emailVerified === false) await putJSON(`${TAKEOVERS}${user.id}.json`, { at: now });
     user = await users.update(user.id, (u) => {
       newlyVerified = false;
       if (u.googleSub && u.googleSub !== profile.sub) throw new google.GoogleError("linked to another Google account");
@@ -516,6 +521,8 @@ app.post("/api/auth/password/reset", async (req, res) => {
   let newlyVerified = false;
   // Reset from the browser that made the account: it's the same person.
   const sameDevice = originDevice(req, user);
+  // Listed for the nightly clean-up first (purgeForTakeover).
+  if (!sameDevice && user.emailVerified === false) await putJSON(`${TAKEOVERS}${user.id}.json`, { at });
   const updated = await users.update(user.id, (u) => {
     // Another request already used this link (the password changed since we checked).
     used = u.password !== user.password;
@@ -582,7 +589,8 @@ async function ownShoot(req, res, { full = true } = {}) {
   return shoot;
 }
 
-const summary = (s) => ({
+const summary = (s) => summaryOf(shown(s));
+const summaryOf = (s) => ({
   id: s.id,
   name: s.name,
   status: s.status,
@@ -610,7 +618,11 @@ app.get("/api/shoots", requireUser, async (req, res) => {
 // Managed shoots move through durable deliveries even with no open browser.
 // An earlier holder's selfies kept on a shoot developing after a takeover
 // (purgeForTakeover) aren't listed (nor served: /media).
-const shown = (shoot) => (Array.isArray(shoot?.dropSelfies) ? { ...shoot, selfies: (shoot.selfies || []).filter((p) => !shoot.dropSelfies.includes(p.file)), dropSelfies: undefined } : shoot);
+function shown(shoot) {
+  if (!Array.isArray(shoot?.dropSelfies)) return shoot;
+  const { subject, ...check } = shoot.check || {};
+  return { ...shoot, selfies: (shoot.selfies || []).filter((p) => !shoot.dropSelfies.includes(p.file)), check: shoot.check ? { ...check, photos: [] } : shoot.check, dropSelfies: undefined };
+}
 app.get("/api/shoots/:id", requireUser, async (req, res) => {
   const shoot = await ownShoot(req, res);
   if (!shoot) return;
@@ -1375,41 +1387,52 @@ async function purgeForTakeover(userId) {
   // before the takeover, with the selfies it had then. A later run (the
   // nightly clean-up) touches only those, never the new holder's own photos.
   const markerKey = `${TAKEOVERS}${userId}.json`;
-  let plan = (await getJSON(markerKey).catch(() => null))?.plan;
+  // (A failed read stops here, to be tried again: a plan made later would
+  // count the new holder's photos as the earlier holder's.)
+  const marker = await getJSON(markerKey);
+  let plan = marker?.plan;
   if (!plan) {
     plan = {};
     for (const meta of await shoots.forUser(userId)) if ((meta.createdAt || "") < since) plan[meta.id] = (meta.selfies || []).map((p) => p.file);
-    await putJSON(markerKey, { at: since, plan }).catch((err) => console.error("[takeover] marker", userId, err.message));
+    await putJSON(markerKey, { at: since, plan });
   }
   const list = [];
   const kept = [];
+  // Their drafts removed by an earlier, unfinished run: what goes with them
+  // (a charge caught mid-develop, kept headshots) is settled below too.
+  const removedBefore = [];
   for (const [sid, files] of Object.entries(plan)) {
     const meta = await shoots.getMeta(sid);
+    if (!meta) removedBefore.push(sid);
     if (!meta || meta.userId !== userId) continue;
     const theirs = new Set(files);
     // A draft with photos the new holder added since is theirs now: left alone.
     if (!(meta.shots || []).length) {
       if ((meta.selfies || []).every((p) => theirs.has(p.file))) list.push(meta);
-      else console.warn("[takeover] draft changed since the takeover, left as is", sid);
+      // A draft the new holder has added photos to stays theirs, without the
+      // earlier holder's.
+      else await dropSelfies(sid, { only: files });
     } else kept.push({ meta, files });
   }
   // Their headshots stay; the selfies go now, or once the shoot has developed
   // (lib/pipeline.js): one still developing, or failed and waiting for a
   // retry, renders its frames from them.
+  // A month on, whatever is still waiting (a retry never asked for) goes.
+  const overdue = Date.now() - Date.parse(since) > 30 * DAY_MS;
   let developing = 0;
   for (const { meta, files } of kept) {
     if (!(meta.selfies || []).some((p) => files.includes(p.file))) continue;
-    if (meta.status === "done") await dropSelfies(meta.id, { only: files });
+    if (overdue || (await shootFinished(meta.id))) await dropSelfies(meta.id, { only: files });
     else {
-      if (meta.status !== "error") developing++;
+      developing++;
       await shoots.updateMeta(meta.id, (m) => (Array.isArray(m.dropSelfies) ? false : void (m.dropSelfies = files)));
       // It may have finished meanwhile.
-      await dropSelfies(meta.id, { whenFinished: true });
+      if (await dropSelfies(meta.id, { whenFinished: true })) developing--;
     }
   }
   // Their shared headshot (name and words) goes too.
   await showcase.removeForUserBefore(userId, since);
-  const gone = new Set(list.map((meta) => meta.id));
+  const gone = new Set([...list.map((meta) => meta.id), ...removedBefore]);
   for (const meta of list) if (meta.team && !(meta.shots || []).length) await teams.returnSeat(meta).catch((err) => console.error("[takeover] return seat", meta.id, err.message));
   for (const meta of list) await shoots.remove(meta);
   // A develop caught mid-charge (its shoot is gone now) gives its charge back,
@@ -1432,12 +1455,12 @@ async function purgeForTakeover(userId) {
     if (u.developing) for (const sid of gone) delete u.developing[sid];
     // Done, unless a shoot is still developing (the clean-up checks again).
     if (!developing) delete u.takeoverPurge;
-  }).catch(() => null);
+  });
   if (freeBack && owner) {
     const freeKey = freeClaimKey(owner.email);
     if ((await getJSON(freeKey).catch(() => null))?.shootId === freeBack) await del(freeKey).catch(() => {});
   }
-  if (!developing) await del(`${TAKEOVERS}${userId}.json`).catch(() => {});
+  if (!developing) await del(markerKey).catch(() => {});
   if (list.length) console.log("[takeover] removed", list.length, "shoot(s) made before the address was confirmed", userId);
   return list.length;
 }

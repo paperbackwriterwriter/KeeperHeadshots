@@ -593,6 +593,8 @@ if (process.env.DATA_DIR) {
   errMeta.shots = [{ id: "shot_paidwork3" }];
   errMeta.status = "error";
   fs.writeFileSync(errFile, JSON.stringify(errMeta));
+  fs.mkdirSync(`${process.env.DATA_DIR}/shots/${errored}`, { recursive: true });
+  fs.writeFileSync(`${process.env.DATA_DIR}/shots/${errored}/shot_paidwork3.json`, JSON.stringify({ id: "shot_paidwork3", status: "error" }));
   const devFile = `${process.env.DATA_DIR}/shoots/${developing}.json`;
   const devMeta = JSON.parse(fs.readFileSync(devFile, "utf8"));
   devMeta.shots = [{ id: "shot_paidwork2" }];
@@ -632,6 +634,9 @@ if (process.env.DATA_DIR) {
   ok("the takeover records which shoots and photos were the earlier holder's", JSON.stringify(Object.keys(marker.plan || {}).sort()) === JSON.stringify([done, draft, developing, errored].sort()), JSON.stringify(Object.keys(marker.plan || {})));
   const devSelfie = dev.selfies?.[0]?.file;
   ok("the earlier holder's selfies on a developing shoot aren't shown meanwhile", !!devSelfie && (await owner(`/media/${devSelfie}`)).status === 404);
+  const listed = ((await owner("/api/shoots")).j?.shoots || []).find((x) => x.id === developing);
+  const renamed = await owner(`/api/shoots/${developing}`, { method: "PATCH", body: JSON.stringify({ name: "Mine now" }) });
+  ok("nor listed anywhere else (shoot list, rename)", listed && listed.selfieCount === 0 && listed.cover !== devSelfie && renamed.status === 200 && (renamed.j?.shoot?.selfies || []).length === 0 && !renamed.j?.shoot?.dropSelfies, `${JSON.stringify(listed)} ${renamed.status} ${(renamed.j?.shoot?.selfies || []).length}`);
   const regrade = await owner(`/api/shoots/${done}/review`, { method: "POST", body: "{}" });
   ok("a shoot whose selfies are gone can't be regraded or extended against nothing", regrade.status === 409 && regrade.j?.code === "no_selfies", `${regrade.status} ${regrade.j?.code}`);
 }

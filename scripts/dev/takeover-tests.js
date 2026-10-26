@@ -12,7 +12,8 @@ import path from "node:path";
 const dir = await fs.mkdtemp(path.join(os.tmpdir(), "keeper-takeover-"));
 for (const key of Object.keys(process.env)) if (/^(BLOB_|BACKUP_|STRIPE_|STORAGE_NAMESPACE$)/.test(key)) delete process.env[key];
 Object.assign(process.env, { DATA_DIR: dir, SESSION_SECRET: "takeover-tests-secret-takeover-tests" });
-const { shoots, saveMedia, readMedia, writeMedia, deleteMedia, dropSelfies } = await import("../../lib/store.js");
+const { shoots, saveMedia, readMedia, writeMedia, deleteMedia, dropSelfies, shootFinished } = await import("../../lib/store.js");
+const { MAX_RESUMES } = await import("../../public/js/shared/catalog.js");
 const { setSession, knownDevice, publicUser } = await import("../../lib/auth.js");
 
 let passed = 0;
@@ -36,9 +37,23 @@ try {
   await test("a failed shoot waiting for its retry keeps its selfies", async () => {
     const sid = "sht_takeover05";
     const file = await saveMedia(sid, Buffer.from("selfie"));
-    await shoots.saveMeta({ id: sid, userId: "usr_takeover05", status: "error", createdAt: new Date().toISOString(), selfies: [{ file }], dropSelfies: [file] });
+    await shoots.saveMeta({ id: sid, userId: "usr_takeover05", status: "error", createdAt: new Date().toISOString(), selfies: [{ file }], dropSelfies: [file], shots: [{ id: "shot_e1" }] });
+    await shoots.saveShot(sid, { id: "shot_e1", status: "error" });
     assert.equal(await dropSelfies(sid, { whenFinished: true }), 0);
     assert.ok(await readMedia(file));
+  });
+  await test("so does a developed shoot with failed frames still to retry, until its retries run out", async () => {
+    const sid = "sht_takeover08";
+    const file = await saveMedia(sid, Buffer.from("selfie"));
+    await shoots.saveMeta({ id: sid, userId: "usr_takeover08", status: "done", createdAt: new Date().toISOString(), selfies: [{ file }], dropSelfies: [file], shots: [{ id: "shot_d1" }, { id: "shot_d2" }] });
+    await shoots.saveShot(sid, { id: "shot_d1", status: "done", file: `${sid}/x.jpg` });
+    await shoots.saveShot(sid, { id: "shot_d2", status: "error" });
+    assert.equal(await shootFinished(sid), false);
+    assert.equal(await dropSelfies(sid, { whenFinished: true }), 0);
+    assert.ok(await readMedia(file));
+    await shoots.updateMeta(sid, (m) => void (m.resumes = MAX_RESUMES));
+    assert.equal(await shootFinished(sid), true);
+    assert.equal(await dropSelfies(sid, { whenFinished: true }), 1);
   });
   await test("only the photos recorded at the takeover go, not ones added since", async () => {
     const sid = "sht_takeover06";
