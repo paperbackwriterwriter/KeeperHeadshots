@@ -149,7 +149,9 @@ let gina;
   ok("a forged 'next' in the flow cookie is ignored", cb.location === "/app?auth=google", cb.location);
 }
 
-// 4. An existing, confirmed password account is linked, password kept.
+// 4. An existing, confirmed password account is linked. From another browser
+// (not the one that made it), a password someone else may have set goes, with
+// every other session; from the browser that made it, nothing changes.
 {
   const email = `pat-${run}@example.com`;
   const f = client();
@@ -160,11 +162,20 @@ let gina;
   const { back } = await google(g, { sub: `g-pat-${run}`, email, name: "Patricia Lee" });
   const cb = await g(back());
   const me = (await g("/api/me")).j.user;
-  ok("existing confirmed account: plain sign-in", cb.location === "/app?auth=google" && me?.id === before.id, cb.location);
-  ok("…now linked, password kept, name unchanged", me.google === true && me.hasPassword === true && me.name === "Pat Lee");
-  ok("…the other session still works", (await f("/api/me")).j.user?.id === before.id);
+  ok("existing confirmed account from another browser: signed in, told why", cb.location === "/app?auth=google-secured" && me?.id === before.id, cb.location);
+  ok("…now linked, the old password removed, name unchanged", me.google === true && me.hasPassword === false && me.name === "Pat Lee");
+  ok("…other sessions are signed out", !(await f("/api/me")).j.user);
   const pw = await client()("/api/auth/signin", { method: "POST", body: JSON.stringify({ email, password: "password123" }) });
-  ok("…and so does the password", pw.status === 200);
+  ok("…and the old password no longer signs in", pw.status === 401);
+
+  const email2 = `pam-${run}@example.com`;
+  const h = client();
+  await h("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Pam Lee", email: email2, password: "password123" }) });
+  await h("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email2) }) });
+  const same = await google(h, { sub: `g-pam-${run}`, email: email2, name: "Pam Lee" });
+  const cb2 = await h(same.back());
+  const me2 = (await h("/api/me")).j.user;
+  ok("from the browser that made the account: plain sign-in, password kept", cb2.location === "/app?auth=google" && me2?.google === true && me2?.hasPassword === true, cb2.location);
 }
 
 // 5. An unconfirmed account made by someone else with this address: the

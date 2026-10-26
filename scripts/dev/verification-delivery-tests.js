@@ -127,7 +127,7 @@ try {
       await page.reload();
       await banner.waitFor({ state: "visible" });
       assert.doesNotMatch(await banner.innerText(), /we (emailed|sent)/i);
-      assert.match(await btn.innerText(), /Send confirmation email/);
+      assert.match(await btn.innerText(), /Send another/);
       assert.equal((await me()).id, data.user.id);
       pass(`${width}px ${mode} delivery stays accurate and offers an email request after reload`);
 

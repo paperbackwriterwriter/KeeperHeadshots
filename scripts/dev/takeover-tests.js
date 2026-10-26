@@ -12,7 +12,7 @@ import path from "node:path";
 const dir = await fs.mkdtemp(path.join(os.tmpdir(), "keeper-takeover-"));
 for (const key of Object.keys(process.env)) if (/^(BLOB_|BACKUP_|STRIPE_|STORAGE_NAMESPACE$)/.test(key)) delete process.env[key];
 Object.assign(process.env, { DATA_DIR: dir, SESSION_SECRET: "takeover-tests-secret-takeover-tests" });
-const { shoots, saveMedia, readMedia, writeMedia, deleteMedia, dropSelfies, shootFinished } = await import("../../lib/store.js");
+const { users, shoots, saveMedia, readMedia, writeMedia, deleteMedia, dropSelfies, shootFinished } = await import("../../lib/store.js");
 const { MAX_RESUMES } = await import("../../public/js/shared/catalog.js");
 const { setSession, knownDevice, publicUser } = await import("../../lib/auth.js");
 
@@ -30,7 +30,7 @@ try {
     assert.equal(await dropSelfies(sid, { whenFinished: true }), 1);
     const meta = await shoots.getMeta(sid);
     assert.equal(meta.selfies.length, 0);
-    assert.equal(meta.check.photos.length, 0);
+    assert.equal(meta.check, null, "its photo check goes with its selfies");
     assert.ok(!meta.dropSelfies);
     assert.equal(await readMedia(file), null, "the photo itself is gone");
   });
@@ -63,6 +63,17 @@ try {
     assert.equal(await dropSelfies(sid, { only: [theirs] }), 1);
     assert.deepEqual((await shoots.getMeta(sid)).selfies.map((p) => p.file), [mine]);
     assert.ok(await readMedia(mine));
+  });
+  await test("extra looks bought for a shoot that loses all its selfies become a shoot on the account", async () => {
+    const sid = "sht_takeover09";
+    const file = await saveMedia(sid, Buffer.from("selfie"));
+    await users.create({ id: "usr_takeover09", email: "looks@example.com", name: "Looks", createdAt: new Date().toISOString(), emailVerified: true, usage: {}, credits: 0, extraLooks: { [sid]: 2 } });
+    await shoots.saveMeta({ id: sid, userId: "usr_takeover09", status: "done", createdAt: new Date().toISOString(), selfies: [{ file }], check: { overall_score: 84, photos: [{ index: 0 }] } });
+    assert.equal(await dropSelfies(sid, { only: [file] }), 1);
+    const u = await users.byId("usr_takeover09");
+    assert.equal(u.credits, 1);
+    assert.ok(!u.extraLooks?.[sid]);
+    assert.equal((await shoots.getMeta(sid)).check, null, "the earlier photo check (and its score) goes too");
   });
   await test("deleting a photo deletes its cached square and sizes too", async () => {
     const sid = "sht_takeover07";

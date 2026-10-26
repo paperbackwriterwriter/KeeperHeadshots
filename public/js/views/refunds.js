@@ -4,7 +4,7 @@ import { CONTACT_EMAIL } from "./contact.js";
 import { PREVIEW_OFFERS } from "../shared/catalog.js";
 
 // The written terms behind the "money-back guarantee" shown on the site.
-export const POLICY_UPDATED = "October 20, 2026";
+export const POLICY_UPDATED = "October 26, 2026";
 
 export function renderRefunds({ root }) {
   root.innerHTML = html`
@@ -24,6 +24,7 @@ export function renderRefunds({ root }) {
       <ul>
         <li>Your first paid package, whichever you choose: Starter, Professional or Executive. The guarantee applies once per person.</li>
         <li>If none of the headshots from the <b>first paid shoot</b> in your package are ones you'd use professionally, we refund the <b>full package price</b>, less any shoots you developed after it and kept. A later shoot that also had nothing usable is refunded too.</li>
+        <li>Team packages are covered the same way: the guarantee is for the first package you buy. Shoots used by colleagues whose headshots they kept count as kept shoots.</li>
         <li>For example, you buy Professional (6 shoots for $39, so $6.50 a shoot). Your first shoot has nothing you'd use, so you develop a second one and keep those headshots. We refund $32.50. If the second shoot had nothing usable either, we refund the full $39.</li>
         <li>If you have a free preview shoot from before we asked customers to pay up front, the offers to keep it (${PREVIEW_OFFERS.map((o) => `${o.name}, $${o.price}`).join("; ")}) aren't covered: you see those headshots before you buy them.</li>
       </ul>

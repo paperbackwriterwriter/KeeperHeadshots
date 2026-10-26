@@ -566,7 +566,7 @@ function loadAnalytics() {
 const googleReturn = (() => {
   const params = new URLSearchParams(location.search);
   const kind = params.get("auth");
-  if (!/^google(-new|-verified)?$/.test(kind || "")) return null;
+  if (!/^google(-new|-verified|-secured)?$/.test(kind || "")) return null;
   params.delete("auth");
   history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
   return kind;
@@ -584,6 +584,8 @@ loadSession()
     if (googleReturn && state.user) {
       const first = state.user.name.split(" ")[0];
       if (googleReturn === "google") toast(`Welcome back, ${first}.`, "success");
+      // (server.js: Google linked for the first time on another browser.)
+      else if (googleReturn === "google-secured") toast(`Welcome back, ${first}. To keep your account safe, we signed you out everywhere else and removed the old password. You can set a new one from your account page.`, "success", 9000);
       else {
         if (googleReturn === "google-new" && Date.now() - Date.parse(state.user.createdAt) < 10 * 60 * 1000) pixel("CompleteRegistration", {}, `reg_${state.user.id}`);
         // (The same welcome as an email sign-up: customers pay up front.)

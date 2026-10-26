@@ -294,6 +294,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
   let user = await users.byEmail(profile.email);
   let created = false;
   let newlyVerified = false;
+  let passwordDropped = false;
   if (!user) {
     const local = profile.email.split("@")[0].replace(/[^\p{L}\p{N} ._'-]/gu, " ").trim();
     const name = [profile.name, profile.givenName, local].find(nameOk)?.trim() || "Keeper member";
@@ -316,9 +317,22 @@ app.get("/api/auth/google/callback", async (req, res) => {
     if (!sameDevice && user.emailVerified === false) await putJSON(`${TAKEOVERS}${user.id}.json`, { at: now });
     user = await users.update(user.id, (u) => {
       newlyVerified = false;
+      passwordDropped = false;
       if (u.googleSub && u.googleSub !== profile.sub) throw new google.GoogleError("linked to another Google account");
       if (u.googleSub === profile.sub && ownsMailbox(u)) return UNCHANGED;
+      const firstLink = !u.googleSub;
       u.googleSub = profile.sub;
+      // Google linked for the first time, from a browser that didn't make
+      // the account: a password someone else set on this address (and their
+      // sessions) mustn't outlive the inbox owner signing in. The owner can
+      // set a password again with a reset link.
+      if (firstLink && ownsMailbox(u) && u.password && !sameDevice) {
+        delete u.password;
+        u.sessionVersion = (u.sessionVersion || 0) + 1;
+        u.revokedSessions = [];
+        u.deviceEpoch = (u.deviceEpoch || 0) + 1;
+        passwordDropped = true;
+      }
       // Nobody had proved this inbox was theirs (never confirmed, or only
       // confirmed by accepting a team invitation someone else sent): whoever
       // set the password may not be its owner, so it goes, with their sessions.
@@ -350,7 +364,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
   // CompleteRegistration with the server's event id (deduplicated); an
   // existing account confirmed this way is counted by the server's event.
   const dest = next || (created ? "/app/new" : "/app");
-  res.redirect(302, `${dest}${dest.includes("?") ? "&" : "?"}auth=${created ? "google-new" : newlyVerified ? "google-verified" : "google"}`);
+  res.redirect(302, `${dest}${dest.includes("?") ? "&" : "?"}auth=${created ? "google-new" : newlyVerified ? "google-verified" : passwordDropped ? "google-secured" : "google"}`);
 });
 
 app.post("/api/auth/verify", async (req, res) => {
@@ -620,8 +634,8 @@ app.get("/api/shoots", requireUser, async (req, res) => {
 // (purgeForTakeover) aren't listed (nor served: /media).
 function shown(shoot) {
   if (!Array.isArray(shoot?.dropSelfies)) return shoot;
-  const { subject, ...check } = shoot.check || {};
-  return { ...shoot, selfies: (shoot.selfies || []).filter((p) => !shoot.dropSelfies.includes(p.file)), check: shoot.check ? { ...check, photos: [] } : shoot.check, dropSelfies: undefined };
+  // (Its photo check, score included, is of those selfies.)
+  return { ...shoot, selfies: (shoot.selfies || []).filter((p) => !shoot.dropSelfies.includes(p.file)), check: null, dropSelfies: undefined };
 }
 app.get("/api/shoots/:id", requireUser, async (req, res) => {
   const shoot = await ownShoot(req, res);

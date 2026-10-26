@@ -35,7 +35,7 @@ export function planBanner(mode = "always") {
         <button class="btn btn-flash" type="submit">Confirm</button>
         <span class="field-error" id="verifyCodeErr" role="alert" hidden></span>
       </form>
-      <p class="verify-resend">Need an email? <button class="link-btn" type="button" data-resend-verify>Send confirmation email</button></p></div></div>`;
+      <p class="verify-resend">Didn't get it? <button class="link-btn" type="button" data-resend-verify>Send another</button></p></div></div>`;
   if (plan.tier === "trial")
     return html`<div class="banner banner-info" data-plan-banner="${mode}">${icon("sparkles")}<div><b>Your first shoot is a free preview.</b>Up to 2 looks, which makes 4 headshots, each checked and graded by AI.</div></div>`;
   // Invited by a team: that shoot is the team's; more of their own need a package.

@@ -48,7 +48,7 @@ export function renderAccount({ root, navigate }) {
         <button class="btn btn-flash" type="submit">Confirm</button>
         <span class="field-error" id="verifyCodeErr" role="alert" hidden></span>
       </form>
-      <p class="verify-resend">Need an email? <button class="link-btn" type="button" data-resend-verify>Send confirmation email</button></p>
+      <p class="verify-resend">Didn't get it? <button class="link-btn" type="button" data-resend-verify>Send another</button></p>
     </section>`}
     <p class="small muted" style="margin-top:12px">Need to change your email? <a class="link" href="/contact?topic=general" data-link>Contact us</a>. Your data and rights are explained in our <a class="link" href="/privacy" data-link>Privacy Policy</a>.</p>
 
