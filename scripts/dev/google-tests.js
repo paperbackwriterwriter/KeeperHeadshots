@@ -189,11 +189,27 @@ let gina;
   const { back } = await google(owner, { sub: `g-victim-${run}`, email, name: "Real Owner" });
   const cb = await owner(back());
   const me = (await owner("/api/me")).j.user;
-  ok("the owner signs in with Google: confirmed", cb.location === "/app?auth=google-verified" && me?.emailVerified === true, cb.location);
+  ok("the owner signs in with Google: confirmed, and told the password went", cb.location === "/app?auth=google-secured" && me?.emailVerified === true, cb.location);
   ok("…the stranger's password is gone", me.hasPassword === false);
   ok("…the stranger's session ended", !(await stranger("/api/me")).j.user);
   const pw = await client()("/api/auth/signin", { method: "POST", body: JSON.stringify({ email, password: "stranger-password" }) });
   ok("…and their password no longer signs in", pw.status === 401);
+}
+
+// 5b. An unconfirmed account, signed in with Google from the browser that made
+// it: the same person, so the password and other sessions are kept.
+{
+  const email = `samebrowser-${run}@example.com`;
+  const h = client();
+  const up = await h("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Sam Same", email, password: "same-password" }) });
+  ok("an unconfirmed account made in this browser", up.status === 201 && up.j.user.emailVerified === false);
+  const other = client();
+  await other("/api/auth/signin", { method: "POST", body: JSON.stringify({ email, password: "same-password" }) });
+  const { back } = await google(h, { sub: `g-same-${run}`, email, name: "Sam Same" });
+  const cb = await h(back());
+  const me = (await h("/api/me")).j.user;
+  ok("…Google from the same browser confirms it and keeps the password", cb.location === "/app?auth=google-verified" && me?.emailVerified === true && me?.hasPassword === true, cb.location);
+  ok("…and the person's other session", !!(await other("/api/me")).j.user);
 }
 
 // 6. Deleting a Google-only account: typing its email confirms.

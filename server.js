@@ -335,12 +335,16 @@ app.get("/api/auth/google/callback", async (req, res) => {
       }
       // Nobody had proved this inbox was theirs (never confirmed, or only
       // confirmed by accepting a team invitation someone else sent): whoever
-      // set the password may not be its owner, so it goes, with their sessions.
+      // set the password may not be its owner, so it goes, with their sessions
+      // (unless this is the browser that made the account: the same person).
       if (!ownsMailbox(u)) {
         newlyVerified = u.emailVerified === false;
-        if (u.password) delete u.password;
-        u.sessionVersion = (u.sessionVersion || 0) + 1;
-        u.revokedSessions = [];
+        if (!sameDevice) {
+          if (u.password) passwordDropped = true;
+          delete u.password;
+          u.sessionVersion = (u.sessionVersion || 0) + 1;
+          u.revokedSessions = [];
+        }
         u.emailVerified = true;
         u.emailVerifiedAt = now;
         delete u.emailVerifiedVia;
@@ -364,7 +368,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
   // CompleteRegistration with the server's event id (deduplicated); an
   // existing account confirmed this way is counted by the server's event.
   const dest = next || (created ? "/app/new" : "/app");
-  res.redirect(302, `${dest}${dest.includes("?") ? "&" : "?"}auth=${created ? "google-new" : newlyVerified ? "google-verified" : passwordDropped ? "google-secured" : "google"}`);
+  res.redirect(302, `${dest}${dest.includes("?") ? "&" : "?"}auth=${created ? "google-new" : passwordDropped ? "google-secured" : newlyVerified ? "google-verified" : "google"}`);
 });
 
 app.post("/api/auth/verify", async (req, res) => {

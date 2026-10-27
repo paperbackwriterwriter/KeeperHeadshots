@@ -25,10 +25,19 @@ const spent = {
   ...session, id: "cs_test_dispute02", client_reference_id: "usr_dispute0002", metadata: { ...session.metadata, userId: "usr_dispute0002" },
   payment_intent: { id: "pi_dispute02", object: "payment_intent", latest_charge: { id: "ch_dispute02", object: "charge", amount: 2900, amount_refunded: 0 } },
 };
+// Two buyers of "keep + 2 more looks" whose looks became a shoot when the
+// shoot's selfies were removed (lib/store.js dropSelfies): one refunded, one disputed.
+const looksSession = (n) => ({
+  ...session, id: `cs_test_looks0${n}`, amount_total: 1499, client_reference_id: `usr_looks00000${n}`,
+  metadata: { userId: `usr_looks00000${n}`, packageId: "keep-plus", shoots: "0", shootId: `sht_looks00000${n}`, looks: "2" },
+  payment_intent: { id: `pi_looks0${n}`, object: "payment_intent", latest_charge: { id: `ch_looks0${n}`, object: "charge", amount: 1499, amount_refunded: 0 } },
+});
+const looks1 = looksSession(1);
+const looks2 = looksSession(2);
 const stripeStub = http.createServer((req, res) => {
   res.setHeader("content-type", "application/json");
   const pi = new URL(req.url, "http://x").searchParams.get("payment_intent");
-  if (req.url.startsWith("/v1/checkout/sessions")) return res.end(JSON.stringify({ object: "list", data: [session, spent, partial].filter((s) => s.payment_intent.id === pi), has_more: false }));
+  if (req.url.startsWith("/v1/checkout/sessions")) return res.end(JSON.stringify({ object: "list", data: [session, spent, partial, looks1, looks2].filter((s) => s.payment_intent.id === pi), has_more: false }));
   res.statusCode = 404;
   res.end("{}");
 });
@@ -36,8 +45,9 @@ await new Promise((r) => stripeStub.listen(0, "127.0.0.1", r));
 for (const key of Object.keys(process.env)) if (/^(BLOB_|BACKUP_|STRIPE_|STORAGE_NAMESPACE$)/.test(key)) delete process.env[key];
 Object.assign(process.env, { DATA_DIR: dir, STRIPE_SECRET_KEY: "sk_test_dispute", STRIPE_WEBHOOK_SECRET: "whsec_dispute_tests", STRIPE_API_BASE: `http://127.0.0.1:${stripeStub.address().port}` });
 const { default: Stripe } = await import("stripe");
-const { users } = await import("../../lib/store.js");
+const { users, shoots, saveMedia, dropSelfies } = await import("../../lib/store.js");
 const storage = await import("../../lib/storage.js");
+const { publicUser } = await import("../../lib/auth.js");
 const today = async () => (await storage.getJSON(`stats/days/${new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" })}.json`)) || {};
 const { handleWebhook } = await import("../../lib/billing.js");
 
@@ -119,6 +129,40 @@ try {
     assert.equal((await today()).refunds, before + 1900);
     await send("charge.dispute.closed", { ...d, status: "won" });
     assert.equal((await today()).refunds, before, "only the $19 dispute comes off");
+  });
+  // Bought 2 extra looks, then the shoot's selfies went (a takeover): the looks became 1 shoot.
+  const looksBecameShoot = async (s) => {
+    const uid = s.metadata.userId, sid = s.metadata.shootId;
+    await users.create({ id: uid, email: `${uid}@example.com`, name: "L", createdAt: new Date().toISOString(), emailVerified: true, usage: {} });
+    const file = await saveMedia(sid, Buffer.from("selfie"));
+    await shoots.saveMeta({ id: sid, userId: uid, status: "done", createdAt: new Date().toISOString(), selfies: [{ file }], looks: [{ backdrop: "a", outfit: "b" }], shots: [], preview: true });
+    await send("checkout.session.completed", s);
+    assert.deepEqual((await users.byId(uid)).extraLooks, { [sid]: 2 });
+    await dropSelfies(sid, { only: [file] });
+    const u = await users.byId(uid);
+    assert.equal(u.credits, 1);
+    assert.ok(!u.extraLooks?.[sid]);
+    return uid;
+  };
+  await test("a full refund of extra looks that became a shoot takes that shoot back", async () => {
+    const uid = await looksBecameShoot(looks1);
+    looks1.payment_intent.latest_charge.amount_refunded = 1499;
+    await send("charge.refunded", { ...looks1.payment_intent.latest_charge, payment_intent: "pi_looks01" });
+    const u = await users.byId(uid);
+    assert.equal(u.credits, 0);
+    assert.equal(u.purchases[0].refunded, true);
+    assert.equal(publicUser(u).refundNotice, 1, "the customer is told the shoot went");
+    assert.equal(publicUser(u).refundNotice, 1, "the customer is told the shoot went");
+  });
+  await test("a won dispute over looks that became a shoot gives back the shoot, not the looks too", async () => {
+    const uid = await looksBecameShoot(looks2);
+    const d = { id: "dp_looks02", object: "dispute", amount: 1499, charge: "ch_looks02", payment_intent: "pi_looks02" };
+    await send("charge.dispute.funds_withdrawn", { ...d, status: "needs_response" });
+    assert.equal((await users.byId(uid)).credits, 0);
+    await send("charge.dispute.closed", { ...d, status: "won" });
+    const u = await users.byId(uid);
+    assert.equal(u.credits, 1);
+    assert.ok(!u.extraLooks?.[looks2.metadata.shootId]);
   });
 } finally {
   stripeStub.close();
