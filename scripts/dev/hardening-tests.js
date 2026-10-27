@@ -40,16 +40,27 @@ const t = Date.now();
   await owner("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Link Owner", email, password: "password123" }) });
   const token = await verifyToken(email);
   const stranger = client();
-  const r = await stranger("/api/auth/verify", { method: "POST", body: JSON.stringify({ token }) });
+  // Another browser is asked whether it made the account first.
+  const asked = await stranger("/api/auth/verify", { method: "POST", body: JSON.stringify({ token }) });
+  ok("verify link in another browser asks who made the account", asked.status === 200 && asked.j?.status === "ask", `${asked.status} ${asked.j?.status}`);
+  const r = await stranger("/api/auth/verify", { method: "POST", body: JSON.stringify({ token, created: true }) });
   const me = await stranger("/api/me");
   ok("verify link confirms without signing the opener in", r.status === 200 && r.j?.status === "verified" && !r.setCookie && me.j?.user === null, `${r.status} cookie=${r.setCookie} me=${me.j?.user?.email || null}`);
+  const maker = await owner("/api/me");
+  ok("…and \"yes\" leaves the maker signed in, now confirmed", maker.j?.user?.emailVerified === true, JSON.stringify(maker.j?.user?.emailVerified));
   // Someone else who is signed in keeps their own session.
   const other = await account(`other${t}@x.com`);
   const email2 = `link2${t}@x.com`;
   await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Link Two", email: email2, password: "password123" }) });
-  const r2 = await other("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email2) }) });
+  const r2 = await other("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email2), created: true }) });
   const me2 = await other("/api/me");
   ok("verify link keeps a signed-in visitor in their own account", r2.j?.status === "verified" && me2.j?.user?.email === `other${t}@x.com`, me2.j?.user?.email);
+  // The browser that made the account isn't asked.
+  const email3 = `link3${t}@x.com`;
+  const same = client();
+  await same("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Link Three", email: email3, password: "password123" }) });
+  const r3 = await same("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email3) }) });
+  ok("verify link in the browser that made the account confirms straight away", r3.j?.status === "verified", r3.j?.status);
 }
 
 // 2. Parallel wrong passwords: every guess counts, so no more than 10 get through.
@@ -641,6 +652,60 @@ if (process.env.DATA_DIR) {
   ok("a shoot whose selfies are gone can't be regraded or extended against nothing", regrade.status === 409 && regrade.j?.code === "no_selfies", `${regrade.status} ${regrade.j?.code}`);
 }
 
+// 27g. The confirmation link, opened by the inbox's owner who didn't make the
+// account ("No, it wasn't me"): the maker is signed out, their password goes,
+// and so do the selfies they uploaded.
+{
+  const maker = jarClient();
+  const email = `notme${t}@x.com`;
+  await maker("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Squatter", email, password: "password123" }) });
+  const sid = await shootWithSelfie(maker);
+  const selfie = (await maker(`/api/shoots/${sid}`)).j?.shoot?.selfies?.[0]?.file;
+  await new Promise((r) => setTimeout(r, 300));
+  const link = (await mailFor(email)).flatMap((m) => m.links).findLast((l) => l.includes("/verify?token="));
+  const inbox = jarClient();
+  const no = await inbox("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: new URL(link).searchParams.get("token"), created: false }) });
+  ok("\"No, it wasn't me\" hands the account to the inbox's owner", no.status === 200 && no.j?.status === "secured" && no.j?.email === email && !no.j?.user, JSON.stringify(no.j));
+  ok("…signing out the maker", !(await maker("/api/me")).j?.user);
+  const pw = await client()("/api/auth/signin", { method: "POST", body: JSON.stringify({ email, password: "password123" }) });
+  ok("…whose password no longer signs in", pw.status === 401, String(pw.status));
+  // (A draft goes entirely: it had nothing but their selfies.)
+  const metaFile = `${process.env.DATA_DIR}/shoots/${sid}.json`;
+  const meta = process.env.DATA_DIR && fs.existsSync(metaFile) ? JSON.parse(fs.readFileSync(metaFile, "utf8")) : null;
+  const gone = process.env.DATA_DIR ? !fs.existsSync(`${process.env.DATA_DIR}/media/${selfie}`) : true;
+  ok("…and whose selfies are removed", !!selfie && gone && !(meta?.selfies || []).some((x) => x.file === selfie), `${JSON.stringify(meta?.selfies)} gone=${gone}`);
+  const again = await inbox("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: new URL(link).searchParams.get("token"), created: false }) });
+  ok("…once: the link then says it's already confirmed", again.j?.status === "already", again.j?.status);
+}
+
+// 27h. A password reset from another browser on a confirmed account: the
+// browsers that knew the old password stop counting as known devices.
+if (process.env.DATA_DIR) {
+  const dev = jarClient();
+  const email = `epoch${t}@x.com`;
+  await dev("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Epoch Owner", email, password: "password123" }) });
+  await dev("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email) }) });
+  const uid = (await dev("/api/me")).j.user.id;
+  const reset = await resetFrom(jarClient(), email, "a-new-password-1");
+  const u = JSON.parse(fs.readFileSync(`${process.env.DATA_DIR}/users/id/${uid}.json`, "utf8"));
+  ok("a reset from another browser on a confirmed account renews the known devices", reset.status === 200 && u.emailVerified === true && u.deviceEpoch === 1, `${reset.status} ${u.deviceEpoch}`);
+}
+
+// 27i. Requests that change something are refused when another site sends
+// them (its page's Origin), even as a "simple" form-style request.
+{
+  const f = await account(`origin${t}@x.com`);
+  const evil = await f("/api/auth/signout-all", { method: "POST", headers: { "content-type": "text/plain", origin: "https://evil.example" }, body: "{}" });
+  const sub = await f("/api/account/preferences", { method: "POST", headers: { origin: "https://shop.keeperheadshots.com.evil.example" }, body: JSON.stringify({ name: "Pwned Name" }) });
+  const nul = await f("/api/account/preferences", { method: "POST", headers: { origin: "null" }, body: JSON.stringify({ name: "Pwned Name" }) });
+  const still = await f("/api/me");
+  ok("a request from another site's page is refused", evil.status === 403 && sub.status === 403 && nul.status === 403 && !!still.j?.user && still.j.user.name !== "Pwned Name", `${evil.status} ${sub.status} ${nul.status}`);
+  const own = await f("/api/account/preferences", { method: "POST", headers: { origin: B }, body: JSON.stringify({ name: "Own Page" }) });
+  ok("…while one from the site's own page goes through", own.status === 200, String(own.status));
+  const addr = await f("/api/account/preferences", { method: "POST", body: JSON.stringify({ name: "Visit shop.io today" }) });
+  ok("a name with a web address is refused when changing it", addr.status === 400 && addr.j?.field === "name", String(addr.status));
+}
+
 // 27f. Customers change their own name (not their email) on the account page.
 {
   const f = client();
@@ -675,12 +740,17 @@ if (process.env.DATA_DIR) {
   ok("a deeply nested body is refused with 400", r.status === 400, String(r.status));
 }
 
-// 29. A name with commas or "@" can't add recipients to an email: the display name is quoted.
+// 29. A name with commas can't add recipients to an email: the display name
+// is quoted. Names with "@" or a web address are refused outright.
 {
   const email = `comma${t}@x.com`;
-  await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Jo, attacker@evil.example, Smith", email, password: "password123" }) });
+  await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Jo, Attacker, Smith", email, password: "password123" }) });
   const m = (await mailFor(email)).find((x) => x.rawTo);
-  ok("an email's display name is quoted", m && m.rawTo.length === 1 && m.rawTo[0].startsWith('"Jo, attacker@evil.example, Smith" <') && m.to.length === 1, JSON.stringify(m?.rawTo));
+  ok("an email's display name is quoted", m && m.rawTo.length === 1 && m.rawTo[0].startsWith('"Jo, Attacker, Smith" <') && m.to.length === 1, JSON.stringify(m?.rawTo));
+  for (const name of ["Jo attacker@evil.example", "Jo from evil.com"]) {
+    const r = await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name, email: `addr${t}-${name.length}@x.com`, password: "password123" }) });
+    ok(`a name like "${name}" is refused at sign-up`, r.status === 400 && !!r.j?.fields?.name, String(r.status));
+  }
 }
 
 // 30. Several develop requests at once on a stale claim: exactly one goes

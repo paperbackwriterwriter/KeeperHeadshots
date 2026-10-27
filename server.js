@@ -92,6 +92,22 @@ app.use("/api", (req, res, next) => {
   res.set("X-App-Build", BUILD);
   next();
 });
+// Requests that change something come from this site's own pages. Browsers
+// name the page's origin on them, so one sent from another site (or another
+// subdomain) is refused, whatever its cookies would allow. Callers that
+// aren't a page in a browser (Stripe, Vercel's jobs, mail apps' one-click
+// unsubscribe) send no Origin.
+app.use("/api", (req, res, next) => {
+  const origin = req.headers.origin;
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method) || origin === undefined) return next();
+  let host = null;
+  try {
+    host = new URL(origin).host;
+  } catch {}
+  if (host && (host === req.headers.host || host === req.headers["x-forwarded-host"])) return next();
+  console.warn("[origin] refused", req.method, req.path, String(origin).slice(0, 100));
+  res.status(403).json({ error: "This request didn't come from a Keeper Headshots page. Reload the page and try again.", code: "cross_origin" });
+});
 // One link of a shoot's worker chain (lib/shoot-jobs.js), started by a signed
 // request from this deployment. It answers at once and works in the background.
 app.post("/api/internal/shoot-worker", (req, res) => {
@@ -163,7 +179,7 @@ app.post("/api/auth/signup", async (req, res) => {
   const { name, email, password } = req.body || {};
   const errors = {};
   if (!name || String(name).trim().length < 2) errors.name = "Tell us what to call you.";
-  else if (String(name).trim().length > 80 || /https?:|www\.|[<>\u0000-\u001f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/i.test(String(name))) errors.name = "Use just your name (2 to 80 characters, no links or symbols like < >).";
+  else if (String(name).trim().length > 80 || /https?:|www\.|\.(com|net|org|io|co|ly|me)\b|[<>@\u0000-\u001f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/i.test(String(name))) errors.name = "Use just your name (2 to 80 characters, no links or symbols like < >).";
   if (!isEmail(email)) errors.email = "Enter a valid email address.";
   if (!password || String(password).length < 8) errors.password = "Use at least 8 characters.";
   else if (String(password).length > 200) errors.password = "Use 200 characters or fewer.";
@@ -261,7 +277,7 @@ app.post("/api/auth/signin", async (req, res) => {
 // removed and its other sessions end: the inbox's owner takes it over.
 const safeNextPath = (next) => (typeof next === "string" && /^\/(app(\/|$|\?)|join$)/.test(next) ? next : null);
 const googleRedirectUri = (req) => `${appOrigin(req)}/api/auth/google/callback`;
-const nameOk = (s) => typeof s === "string" && s.trim().length >= 2 && s.trim().length <= 80 && !/https?:|www\.|[<>\u0000-\u001f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/i.test(s);
+const nameOk = (s) => typeof s === "string" && s.trim().length >= 2 && s.trim().length <= 80 && !/https?:|www\.|\.(com|net|org|io|co|ly|me)\b|[<>@\u0000-\u001f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/i.test(s);
 const googleCookie = { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" || !!process.env.VERCEL, path: "/api/auth/google" };
 
 app.get("/api/auth/google", (req, res) => {
@@ -380,6 +396,32 @@ app.post("/api/auth/verify", async (req, res) => {
   // it would let someone send their own unclicked link to another person and
   // have that person work, and upload photos, inside the sender's account.)
   if (error === "expired") return res.status(410).json({ error: "This confirmation link has expired. Ask for a new one below.", code: "expired", signedIn: me?.id === user.id });
+  // Opened in a browser that didn't make the account (and isn't signed in to
+  // it): the inbox's owner may not be who signed up with this address, so
+  // the page asks first. "No" hands the account to the inbox's owner, as a
+  // reset or Google sign-in from another browser does (purgeForTakeover).
+  const sameDevice = me?.id === user.id || originDevice(req, user);
+  const created = req.body?.created;
+  if (!sameDevice && created !== true && created !== false) return res.json({ status: "ask" });
+  if (!sameDevice && created === false) {
+    const at = new Date().toISOString();
+    const unconfirmed = user.emailVerified === false;
+    if (unconfirmed) await putJSON(`${TAKEOVERS}${user.id}.json`, { at });
+    let newlyVerified = false;
+    const updated = await users.update(user.id, (u) => {
+      newlyVerified = u.emailVerified === false;
+      delete u.password;
+      u.sessionVersion = (u.sessionVersion || 0) + 1;
+      u.revokedSessions = [];
+      confirmEmail(u);
+      if (newlyVerified) takenOver(u, at);
+      else u.deviceEpoch = (u.deviceEpoch || 0) + 1; // confirmed only by an invitation
+    });
+    if (newlyVerified) await purgeForTakeover(user.id).catch((err) => console.error("[takeover] purge (resumed tonight)", user.id, err.message));
+    console.log("[verify] taken over by the inbox's owner", user.id);
+    const eventId = newlyVerified ? afterVerified(updated, req) : undefined;
+    return res.json({ status: "secured", email: updated.email, user: me ? publicUser(me) : null, eventId });
+  }
   const { updated, eventId } = await markVerified(user, req);
   res.json({ status: "verified", user: me?.id === user.id ? publicUser(updated) : me ? publicUser(me) : null, eventId });
 });
@@ -556,7 +598,7 @@ app.post("/api/auth/password/reset", async (req, res) => {
       u.emailVerified = true;
       u.emailVerifiedAt = at;
       if (!sameDevice) takenOver(u, at);
-    } else if (!ownsMailbox(u) && !sameDevice) u.deviceEpoch = (u.deviceEpoch || 0) + 1; // confirmed only by an invitation
+    } else if (!sameDevice) u.deviceEpoch = (u.deviceEpoch || 0) + 1; // the browsers that knew the old password stop counting as known devices
     delete u.emailVerifiedVia;
   });
   if (used) return invalid();

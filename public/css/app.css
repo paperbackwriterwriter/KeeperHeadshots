@@ -294,6 +294,12 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .logo b { color: var(--ink); font-family: var(--font-display); font-weight: 600; font-size: 1.45rem; letter-spacing: -0.01em; line-height: 0.9; }
 .logo span { font-size: 0.5625rem; font-weight: 700; letter-spacing: 0.34em; text-transform: uppercase; color: var(--accent-text); }
 .nav-links { display: flex; gap: 4px; margin-left: var(--s-5); }
+/* The scrolled bar is see-through: over a dark section it turns grey, so its
+   lighter text darkens to keep AA contrast there. */
+@media (prefers-color-scheme: light) {
+  .nav.is-scrolled .nav-links a:not(:hover) { color: var(--ink-700); }
+  .nav.is-scrolled .logo span { color: #6b5020; }
+}
 .nav-links a { white-space: nowrap; text-decoration: none; font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); padding: 8px 12px; border-radius: var(--r-pill); transition: color var(--dur-2), background-color var(--dur-2); }
 .nav-links a:hover { color: var(--text); background: color-mix(in srgb, var(--ink) 6%, transparent); }
 .nav-actions { margin-left: auto; display: flex; align-items: center; gap: var(--s-2); }

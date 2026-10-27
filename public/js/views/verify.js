@@ -37,17 +37,49 @@ export async function renderVerify({ root, navigate }) {
     <div class="verify-actions"><button class="btn btn-flash btn-lg" type="button" id="confirmEmail">${icon("mail-check")} Confirm my email</button></div>`);
   const btn = root.querySelector("#confirmEmail");
   btn.focus();
-  btn.addEventListener("click", async () => {
-    const restore = busy(btn, "Confirming…");
+  btn.addEventListener("click", () => send(btn, "Confirming…"));
+
+  async function send(button, label, created) {
+    const restore = busy(button, label);
     let res;
     try {
-      res = await api("/api/auth/verify", { method: "POST", body: { token, pageUrl: pageUrl() } });
+      res = await api("/api/auth/verify", { method: "POST", body: { token, pageUrl: pageUrl(), ...(created === undefined ? {} : { created }) } });
     } catch (err) {
       restore();
       return fail(err);
     }
+    if (res.status === "ask") return ask();
+    if (res.status === "secured") return secured(res);
     done(res);
-  });
+  }
+
+  // Opened in a browser that didn't make the account (server.js): whoever
+  // signed up with this address may not be the inbox's owner.
+  function ask() {
+    shell(html`<div class="verify-icon">${icon("circle-help")}</div><h1 class="display h-2">Did you create this account?</h1>
+      <p class="lede">Someone signed up for Keeper Headshots with this email address. If it was you, on another phone or computer, confirm it. If it wasn't, the account becomes yours: we sign out whoever made it, remove their password and delete the selfies they uploaded.</p>
+      <div class="verify-actions">
+        <button class="btn btn-flash btn-lg" type="button" id="createdYes">${icon("mail-check")} Yes, I created it</button>
+        <button class="btn btn-ghost btn-lg" type="button" id="createdNo">No, it wasn't me</button>
+      </div>`);
+    const yes = root.querySelector("#createdYes");
+    const no = root.querySelector("#createdNo");
+    root.querySelector("h1").setAttribute("tabindex", "-1");
+    root.querySelector("h1").focus();
+    yes.addEventListener("click", () => send(yes, "Confirming…", true));
+    no.addEventListener("click", () => send(no, "Securing…", false));
+  }
+
+  function secured(res) {
+    if (res.eventId) pixel("CompleteRegistration", {}, res.eventId);
+    shell(html`
+      <div class="verify-icon verify-icon-ok">${icon("shield-check")}</div>
+      <h1 class="display h-2">The account is yours now.</h1>
+      <p class="lede">Your email is confirmed. Whoever made the account has been signed out, their password removed and the selfies they uploaded deleted. Set your own password to sign in.</p>
+      <div class="verify-actions">
+        <a class="btn btn-flash btn-lg" href="/forgot-password?email=${encodeURIComponent(res.email || "")}" data-link>${icon("lock")} Set a password ${icon("arrow-right")}</a>
+      </div>`);
+  }
 
   function done(res) {
     if (res.user) state.user = res.user;
