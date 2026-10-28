@@ -155,6 +155,9 @@ export function renderAuth({ root, navigate }, mode) {
       if (err.data?.fields) setErrors(err.data.fields);
       alertBox.innerHTML = `${icon("circle-alert").v}<span>${err.message.replace(/</g, "&lt;")}</span>`;
       alertBox.hidden = false;
+      // (The submit button was disabled while busy: put focus on the field to fix.)
+      const first = err.data?.fields && Object.keys(err.data.fields)[0];
+      if (first) $(`#${first}`)?.focus();
     }
   }
 

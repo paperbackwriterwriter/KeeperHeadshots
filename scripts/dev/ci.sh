@@ -37,7 +37,7 @@ M=http://localhost:4010
 # as production does, for pay-first-tests.js (which also makes its earlier
 # previews on 3100: the three share one store).
 server() {
-  env FREE_SHOOT_OFFERED="${2:-1}" DATA_DIR="$DATA" PORT="$1" SESSION_SECRET=ci-session-secret-ci-session-secret \
+  env FREE_SHOOT_OFFERED="${2:-1}" DATA_DIR="$DATA" PORT="$1" SESSION_SECRET=ci-session-secret-ci-session-secret SIGNUP_LIMIT_EXEMPT_IPS=127.0.0.1,::1,::ffff:127.0.0.1 \
     ANTHROPIC_API_KEY=sk-ant-test ANTHROPIC_BASE_URL=$M GEMINI_API_KEY=test GEMINI_BASE_URL=$M \
     RESEND_API_KEY=re_test RESEND_BASE_URL=$M META_PIXEL_ID=123456 META_CAPI_TOKEN=tok META_GRAPH_BASE=$M \
     STRIPE_SECRET_KEY=sk_test_mock STRIPE_API_BASE=$M STRIPE_PUBLISHABLE_KEY=pk_test_mockmockmock \

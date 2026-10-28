@@ -678,6 +678,7 @@ if (process.env.DATA_DIR) {
   ok("…once: the link then says it's already confirmed", again.j?.status === "already", again.j?.status);
 }
 
+
 // 27h. A password reset from another browser on a confirmed account: the
 // browsers that knew the old password stop counting as known devices.
 if (process.env.DATA_DIR) {
@@ -747,8 +748,8 @@ if (process.env.DATA_DIR) {
   await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Jo, Attacker, Smith", email, password: "password123" }) });
   const m = (await mailFor(email)).find((x) => x.rawTo);
   ok("an email's display name is quoted", m && m.rawTo.length === 1 && m.rawTo[0].startsWith('"Jo, Attacker, Smith" <') && m.to.length === 1, JSON.stringify(m?.rawTo));
-  for (const name of ["Jo attacker@evil.example", "Jo from evil.com"]) {
-    const r = await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name, email: `addr${t}-${name.length}@x.com`, password: "password123" }) });
+  for (const [i, name] of ["Jo attacker@evil.example", "Jo from evil.com", "evil\uff0ecom Smith", "Bob evil.c\u00adom"].entries()) {
+    const r = await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name, email: `addr${t}-${i}@x.com`, password: "password123" }) });
     ok(`a name like "${name}" is refused at sign-up`, r.status === 400 && !!r.j?.fields?.name, String(r.status));
   }
 }

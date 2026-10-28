@@ -209,6 +209,12 @@ try {
     const confirmed = page.waitForResponse((r) => new URL(r.url()).pathname === "/api/auth/verify");
     await btn.click();
     assert.equal((await confirmed).status(), 200);
+    // The account was made elsewhere (by the API above), so this browser is
+    // asked first (server.js /api/auth/verify).
+    await page.getByRole("heading", { name: "Did you create this account?" }).waitFor();
+    assert.equal((await users.byId(user.id)).emailVerified, false);
+    await screenshot(page, "link-ask-390.png");
+    await page.locator("#createdYes").click();
     await page.getByRole("heading", { name: "Email confirmed." }).waitFor();
     assert.equal((await users.byId(user.id)).emailVerified, true);
     await screenshot(page, "link-confirmed-390.png");

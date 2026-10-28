@@ -151,7 +151,10 @@ const SIGNIN_WINDOW_MS = 15 * 60 * 1000;
 const SIGNIN_MAX_FAILS = 10; // per network (IP)
 const SIGNIN_MAX_TOTAL = 100; // from everywhere (not for a browser that signed in to it before)
 const SIGNIN_MAX_PER_IP = 60; // wrong passwords on any addresses from one network
-const SIGNUP_MAX_PER_IP = 120; // new accounts from one network in an hour
+const SIGNUP_MAX_PER_IP = 120; // new accounts from one network in a clock hour
+// Addresses the per-network limit doesn't apply to: only the test servers
+// (scripts/dev/ci.sh) set this, for their own localhost; never set in production.
+const SIGNUP_LIMIT_EXEMPT = new Set(String(process.env.SIGNUP_LIMIT_EXEMPT_IPS || "").split(",").map((s) => s.trim()).filter(Boolean));
 const SIGNUP_MAX_PER_MAILBOX = 3; // a day, counting Gmail dots and +tags as one inbox
 const DUMMY_HASH = await hashPassword("not-a-real-password");
 
@@ -179,7 +182,7 @@ app.post("/api/auth/signup", async (req, res) => {
   const { name, email, password } = req.body || {};
   const errors = {};
   if (!name || String(name).trim().length < 2) errors.name = "Tell us what to call you.";
-  else if (String(name).trim().length > 80 || /https?:|www\.|\.(com|net|org|io|co|ly|me)\b|[<>@\u0000-\u001f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/i.test(String(name))) errors.name = "Use just your name (2 to 80 characters, no links or symbols like < >).";
+  else if (String(name).trim().length > 80 || NAME_BAD.test(String(name).normalize("NFKC"))) errors.name = "Use just your name (2 to 80 characters, no links or symbols like < >).";
   if (!isEmail(email)) errors.email = "Enter a valid email address.";
   if (!password || String(password).length < 8) errors.password = "Use at least 8 characters.";
   else if (String(password).length > 200) errors.password = "Use 200 characters or fewer.";
@@ -189,7 +192,7 @@ app.post("/api/auth/signup", async (req, res) => {
   if (!human.ok) return res.status(400).json({ error: "We couldn't confirm you're a person. Please complete the security check and try again.", code: "bot_check" });
   // A script making accounts to flood an inbox with codes (one mailbox under
   // many +tags) or to burn through email sends is stopped here.
-  if (await overLimit("signup", req.ip, SIGNUP_MAX_PER_IP)) return res.status(429).json({ error: "Too many new accounts from your network right now. Please try again later." });
+  if (!SIGNUP_LIMIT_EXEMPT.has(req.ip) && (await overLimit("signup", req.ip, SIGNUP_MAX_PER_IP))) return res.status(429).json({ error: "Too many new accounts from your network right now. Please try again later." });
   const exists = () => res.status(400).json({ error: "Please fix the highlighted fields.", fields: { email: "An account with this email already exists. Sign in instead?" } });
   if (await users.byEmail(email)) return exists();
   if (await overLimit("signupmail", canonicalEmail(email), SIGNUP_MAX_PER_MAILBOX, DAY_MS)) return res.status(429).json({ error: "This inbox has created a few accounts today. Sign in to one of them, or try again tomorrow.", fields: { email: "This inbox has created a few accounts today. Sign in instead?" } });
@@ -277,7 +280,9 @@ app.post("/api/auth/signin", async (req, res) => {
 // removed and its other sessions end: the inbox's owner takes it over.
 const safeNextPath = (next) => (typeof next === "string" && /^\/(app(\/|$|\?)|join$)/.test(next) ? next : null);
 const googleRedirectUri = (req) => `${appOrigin(req)}/api/auth/google/callback`;
-const nameOk = (s) => typeof s === "string" && s.trim().length >= 2 && s.trim().length <= 80 && !/https?:|www\.|\.(com|net|org|io|co|ly|me)\b|[<>@\u0000-\u001f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/i.test(s);
+// (Checked in NFKC form, so look-alike dots and letters count as the real ones.)
+const NAME_BAD = /https?:|www\.|\.(com|net|org|io|co|ly|me)\b|[<>@\u0000-\u001f\u00ad\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/i;
+const nameOk = (s) => typeof s === "string" && s.trim().length >= 2 && s.trim().length <= 80 && !NAME_BAD.test(s.normalize("NFKC"));
 const googleCookie = { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" || !!process.env.VERCEL, path: "/api/auth/google" };
 
 app.get("/api/auth/google", (req, res) => {
@@ -402,13 +407,20 @@ app.post("/api/auth/verify", async (req, res) => {
   // reset or Google sign-in from another browser does (purgeForTakeover).
   const sameDevice = me?.id === user.id || originDevice(req, user);
   const created = req.body?.created;
-  if (!sameDevice && created !== true && created !== false) return res.json({ status: "ask" });
+  // (purges: whether "No" also removes what the maker added; an account
+  // confirmed by a team invitation keeps its shoots, as with a reset.)
+  if (!sameDevice && created !== true && created !== false) return res.json({ status: "ask", purges: user.emailVerified === false });
   if (!sameDevice && created === false) {
     const at = new Date().toISOString();
     const unconfirmed = user.emailVerified === false;
     if (unconfirmed) await putJSON(`${TAKEOVERS}${user.id}.json`, { at });
     let newlyVerified = false;
+    let raced = false;
     const updated = await users.update(user.id, (u) => {
+      newlyVerified = false;
+      // Confirmed meanwhile ("Yes" from another tab, or the code): that stands.
+      raced = ownsMailbox(u);
+      if (raced) return UNCHANGED;
       newlyVerified = u.emailVerified === false;
       delete u.password;
       u.sessionVersion = (u.sessionVersion || 0) + 1;
@@ -417,10 +429,14 @@ app.post("/api/auth/verify", async (req, res) => {
       if (newlyVerified) takenOver(u, at);
       else u.deviceEpoch = (u.deviceEpoch || 0) + 1; // confirmed only by an invitation
     });
+    if (raced) {
+      if (unconfirmed) await del(`${TAKEOVERS}${user.id}.json`).catch(() => {});
+      return res.json({ status: "already", user: me ? publicUser(me) : null });
+    }
     if (newlyVerified) await purgeForTakeover(user.id).catch((err) => console.error("[takeover] purge (resumed tonight)", user.id, err.message));
     console.log("[verify] taken over by the inbox's owner", user.id);
     const eventId = newlyVerified ? afterVerified(updated, req) : undefined;
-    return res.json({ status: "secured", email: updated.email, user: me ? publicUser(me) : null, eventId });
+    return res.json({ status: "secured", purged: newlyVerified, email: updated.email, user: me ? publicUser(me) : null, eventId });
   }
   const { updated, eventId } = await markVerified(user, req);
   res.json({ status: "verified", user: me?.id === user.id ? publicUser(updated) : me ? publicUser(me) : null, eventId });

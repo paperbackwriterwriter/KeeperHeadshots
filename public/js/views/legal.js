@@ -4,7 +4,7 @@ import { CONTACT_EMAIL } from "./contact.js";
 
 // Privacy Policy and Terms of Service. Keep these in step with what the code
 // actually does (lib/meta.js, lib/billing.js, lib/store.js, lib/ai.js).
-export const LEGAL_UPDATED = "October 26, 2026";
+export const LEGAL_UPDATED = "October 28, 2026";
 
 const mail = html`<a class="link" href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>`;
 
@@ -94,7 +94,7 @@ export function renderPrivacy({ root }) {
 
       <h2 class="h-3">How long we keep it</h2>
       <ul>
-        <li><b>Photos and headshots:</b> until you delete the shoot, or until your account is deleted. Deleting a shoot removes its selfies and headshots from active storage straight away. If someone confirms an email address before its owner does and the owner later proves the address is theirs, the selfies and unfinished shoots added before that are removed; finished headshots stay with the account.</li>
+        <li><b>Photos and headshots:</b> until you delete the shoot, or until your account is deleted. Deleting a shoot removes its selfies and headshots from active storage straight away. If someone signs up with an email address that isn't theirs and, before the account is confirmed, the address's owner proves it is theirs, the selfies and unfinished shoots added before that are removed; finished headshots stay with the account.</li>
         <li><b>Photo backups:</b> we keep private recovery copies of selfies, headshots and shared customer photos for up to seven days. Deleting a photo, shoot, shared headshot or account also requests deletion of its recovery copies and prevents them from being restored. If backup storage is temporarily unavailable, we retry deletion; a recovery copy can remain until it is deleted or expires.</li>
         <li><b>Cancellation records:</b> after deletion, we keep a cancellation marker against the random account and shoot numbers, or a scrambled photo filename, so a background worker or backup restore cannot bring back deleted data. These markers contain no names, email addresses, photos or headshots.</li>
         <li><b>Unfinished shoots:</b> a shoot that was never developed, and hasn't been changed for 90 days, is deleted automatically with its selfies.</li>

@@ -27,7 +27,7 @@
     "sanitize-html": "2.17.7",
     "sharp": "^0.35.4",
     "stripe": "^22.6.2",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "playwright": "^1.63.0"
@@ -38,6 +38,9 @@
   },
   "private": true,
   "overrides": {
+    "@vercel/cli-config": {
+      "zod": "^4.6.7"
+    },
     "sanitize-html": {
       "htmlparser2": "^8.0.2"
     }

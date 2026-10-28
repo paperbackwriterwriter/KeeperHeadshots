@@ -251,7 +251,7 @@ export async function renderStudio(ctx, id) {
     const room = MAX_SELFIES - s.selfies.length;
     return html`<section class="panel add-more" id="addMore" aria-labelledby="addMoreTitle">
       <div class="add-more-copy">
-        <h3 class="h-4" id="addMoreTitle">${icon("image-plus")} ${s.selfies.length ? "Add more photos" : "Add photos"}</h3>
+        <h2 class="h-4" id="addMoreTitle">${icon("image-plus")} ${s.selfies.length ? "Add more photos" : "Add photos"}</h2>
         <p class="small muted">${s.selfies.length ? html`Your ${s.selfies.length} photo${s.selfies.length === 1 ? "" : "s"} stay${s.selfies.length === 1 ? "s" : ""} in this shoot. Add ${room ? `up to ${room} more` : "more after removing one"} and we'll re-check the whole set.` : `This shoot has no photos yet. Add 1 to ${MAX_SELFIES} recent photos of just you, then run the photo check.`}</p>
         ${tips.length ? html`<ul class="tips" style="margin-top:14px">${tips.map((t) => html`<li>${icon("arrow-right")}<span>${t}</span></li>`)}</ul>` : ""}
       </div>
