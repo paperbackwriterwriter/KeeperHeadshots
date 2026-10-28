@@ -156,7 +156,7 @@ let gina;
   const email = `pat-${run}@example.com`;
   const f = client();
   await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Pat Lee", email, password: "password123" }) });
-  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email) }) });
+  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(email) }) });
   const before = (await f("/api/me")).j.user;
   const g = client();
   const { back } = await google(g, { sub: `g-pat-${run}`, email, name: "Patricia Lee" });
@@ -171,7 +171,7 @@ let gina;
   const email2 = `pam-${run}@example.com`;
   const h = client();
   await h("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Pam Lee", email: email2, password: "password123" }) });
-  await h("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email2) }) });
+  await h("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(email2) }) });
   const same = await google(h, { sub: `g-pam-${run}`, email: email2, name: "Pam Lee" });
   const cb2 = await h(same.back());
   const me2 = (await h("/api/me")).j.user;
@@ -232,7 +232,7 @@ let gina;
   const g = client();
   const { back: b } = await google(g, { sub: `g-m-${run}`, email: `jo.ann-${run}@example.com`, name: "<b>", given_name: "" });
   await g(b());
-  ok("…and then to the address", (await g("/api/me")).j.user?.name === `jo.ann-${run}`);
+  ok("…and then to the address (dots as spaces)", (await g("/api/me")).j.user?.name === `jo ann-${run}`, (await g("/api/me")).j.user?.name);
 }
 
 const passed = results.filter(Boolean).length;

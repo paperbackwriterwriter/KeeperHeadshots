@@ -28,7 +28,7 @@ const verifyToken = async (email) => new URL((await mails()).filter((m) => m.to.
 async function account(email) {
   const f = client();
   await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Rae Shoot", email, password: "password123" }) });
-  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email) }) });
+  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(email) }) });
   return f;
 }
 const photo = async (i) => "data:image/jpeg;base64," + (await sharp(Buffer.from(portraitSVG("rs" + i, { outfit: "white-shirt" }))).resize(900, 1125).jpeg().toBuffer()).toString("base64");

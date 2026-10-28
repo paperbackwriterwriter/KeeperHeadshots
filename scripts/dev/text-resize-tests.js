@@ -118,7 +118,7 @@ for (const width of [1440, 901]) {
   const email = `textsize${Date.now()}@x.com`;
   await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Tess Size", email, password: "password123" }) });
   const mails = await fetch(`${M}/mock-mail`).then((r) => r.json());
-  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: new URL(mails.filter((m) => m.to.includes(email)).flatMap((m) => m.links).findLast((l) => l.includes("/verify?token="))).searchParams.get("token") }) });
+  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: new URL(mails.filter((m) => m.to.includes(email)).flatMap((m) => m.links).findLast((l) => l.includes("/verify?token="))).searchParams.get("token") }) });
   const sid = (await f("/api/shoots", { method: "POST", body: "{}" })).shoot.id;
   for (let i = 0; i < 6; i++) await f(`/api/shoots/${sid}/selfies`, { method: "POST", body: JSON.stringify({ photo: "data:image/jpeg;base64," + (await sharp(Buffer.from(portraitSVG("ts" + i, {}))).resize(900, 1125).jpeg().toBuffer()).toString("base64") }) });
   await f(`/api/shoots/${sid}/check`, { method: "POST", body: "{}" });

@@ -39,7 +39,7 @@ async function account(email, name, { verify = false, base = B } = {}) {
   const f = client();
   const up = await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name, email, password: "password123" }) }, base);
   if (up.status !== 201) throw new Error(`signup ${up.status} ${JSON.stringify(up.j)}`);
-  if (verify) await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email) }) }, base);
+  if (verify) await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(email) }) }, base);
   return f;
 }
 async function pay(f, body) {
@@ -151,7 +151,7 @@ const sam = await account(samEmail, "Sam Pay");
   // so a team needs a confirmed address (shoots of their own don't).
   const early = await sam("/api/team", { method: "POST", body: JSON.stringify({ name: "Sam Co", looks: [LOOKS4[0]] }) });
   ok("an unconfirmed customer can't set up a team until they confirm their address", early.status === 403 && /Confirm your email address/.test(early.j?.error || ""), `${early.status} ${JSON.stringify(early.j?.error || "")}`);
-  await sam("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(samEmail) }) });
+  await sam("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(samEmail) }) });
   const team = await sam("/api/team", { method: "POST", body: JSON.stringify({ name: "Sam Co", looks: [LOOKS4[0]] }) });
   ok("once confirmed, they can", team.status === 200, `${team.status} ${JSON.stringify(team.j?.error || "")}`);
   // Buying more shoots from the team page comes back to the team page.

@@ -27,7 +27,7 @@ async function account(email, name = "Dana Reyes") {
   const f = client();
   const up = await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name, email, password: "password123" }) });
   if (up.status !== 201) await f("/api/auth/signin", { method: "POST", body: JSON.stringify({ email, password: "password123" }) });
-  else await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email) }) });
+  else await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(email) }) });
   return f;
 }
 const photo = async (i) => "data:image/jpeg;base64," + (await sharp(Buffer.from(portraitSVG("sc" + i, { outfit: "white-shirt" }))).resize(900, 1125).jpeg().toBuffer()).toString("base64");

@@ -26,7 +26,7 @@ const up = await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ 
 if (up.status === 201) {
   const mail = await fetch(`${M}/mock-mail`).then((r) => r.json());
   const link = mail.filter((m) => m.to.includes(OWNER)).flatMap((m) => m.links).find((l) => l.includes("/verify?token="));
-  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: new URL(link).searchParams.get("token") }) });
+  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: new URL(link).searchParams.get("token") }) });
 } else await f("/api/auth/signin", { method: "POST", body: JSON.stringify({ email: OWNER, password: "password123" }) });
 
 const photos = [];

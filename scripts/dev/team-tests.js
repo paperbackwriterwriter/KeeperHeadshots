@@ -24,7 +24,7 @@ const verifyToken = async (email) => new URL((await mails()).filter((m) => m.to.
 async function account(email, { verify = true } = {}) {
   const f = client();
   await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: email.split("@")[0], email, password: "password123" }) });
-  if (verify) await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email) }) });
+  if (verify) await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(email) }) });
   return f;
 }
 async function buy(f, packageId) {

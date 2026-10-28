@@ -21,7 +21,7 @@ async function account(email) {
   await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "QA Person", email, password: "password123" }) });
   const mail = await fetch(`${M}/mock-mail`).then((r) => r.json());
   const link = mail.filter((m) => m.to.includes(email.toLowerCase())).flatMap((m) => m.links).find((l) => l.includes("/verify?token="));
-  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: new URL(link).searchParams.get("token") }) });
+  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: new URL(link).searchParams.get("token") }) });
   return f;
 }
 const photo = "data:image/jpeg;base64," + (await sharp(Buffer.from(portraitSVG("q", { outfit: "white-shirt" }))).resize(900, 1125).jpeg().toBuffer()).toString("base64");

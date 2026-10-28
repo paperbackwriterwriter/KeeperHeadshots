@@ -24,7 +24,7 @@ async function account(email, { verify = true } = {}) {
   const f = client();
   const up = await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Growth Test", email, password: "password123" }) });
   if (up.status !== 201) await f("/api/auth/signin", { method: "POST", body: JSON.stringify({ email, password: "password123" }) });
-  else if (verify) await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email) }) });
+  else if (verify) await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(email) }) });
   return f;
 }
 // Pays on the stand-in Stripe page, optionally with a promotion code, then

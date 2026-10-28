@@ -19,7 +19,7 @@ await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Test
 // server with SMTP_HOST=localhost SMTP_PORT=2525 SMTP_PASS=x).
 const mail = await fetch(`${process.env.MOCK || "http://localhost:4010"}/mock-mail`).then((r) => r.json()).catch(() => []);
 const link = mail.filter((m) => m.to.includes(email)).flatMap((m) => m.links).find((l) => l.includes("/verify?token="));
-if (link) console.log("verify", (await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: new URL(link).searchParams.get("token") }) })).status);
+if (link) console.log("verify", (await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: new URL(link).searchParams.get("token") }) })).status);
 else console.log("No confirmation email caught; the free shoot stays locked unless the account is in OWNER_EMAILS.");
 const photos = [];
 for (let i = 0; i < 3; i++) {

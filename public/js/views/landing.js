@@ -78,8 +78,8 @@ export function renderLanding({ root, hydrate = false }) {
           </div>
           <div class="hero-proof" data-reveal style="--i:4">
             <div class="proof-item"><strong class="tabular">&lt; 15 min</strong><span>typical turnaround</span></div>
-            <div class="proof-item"><strong class="tabular">From $${PACKAGES[0].price}</strong><span>${PACKAGES[0].shoots} shoots, one-time, no subscription</span></div>
             <div class="proof-item"><strong class="tabular">Money-back</strong><span>guarantee on your first package</span></div>
+            <div class="proof-item"><strong class="tabular">From $${PACKAGES[0].price}</strong><span>${PACKAGES[0].shoots} shoots, one-time, no subscription</span></div>
           </div>
         </div>
 

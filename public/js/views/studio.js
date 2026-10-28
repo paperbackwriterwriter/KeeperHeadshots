@@ -1456,7 +1456,9 @@ function renderUpload({ root, navigate }) {
     if (plan.tier === "demo") return "The demo account is read-only. Create an account and choose a package to use your own photos.";
     if (plan.needsEmail) return "Confirm your email first: enter the 6-digit code from our email in the box at the top of this page.";
     if (plan.tier === "none" && !plan.started) return "Choose a package first: each shoot has up to 4 looks and 8 headshots, and your first package is covered by our money-back guarantee.";
-    return state.user?.purchased ? "You're out of shoots. Buy a package to start another." : "You've used your free shoot. Buy a package to start another.";
+    if (state.user?.purchased) return "You're out of shoots. Buy a package to start another.";
+    // (A team member's shoot came from their team, not a free shoot.)
+    return state.user?.hasTeam ? "You've used your team shoot. Buy a package of your own to start another." : "You've used your free shoot. Buy a package to start another.";
   };
 
   const draw = () => {

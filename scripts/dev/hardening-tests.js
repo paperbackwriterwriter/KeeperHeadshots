@@ -27,7 +27,7 @@ const verifyToken = async (email) => new URL((await mailFor(email)).flatMap((m) 
 async function account(email) {
   const f = client();
   await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "QA Person", email, password: "password123" }) });
-  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email) }) });
+  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(email) }) });
   return f;
 }
 const photo = "data:image/jpeg;base64," + (await sharp(Buffer.from(portraitSVG("h", { outfit: "white-shirt" }))).resize(900, 1125).jpeg().toBuffer()).toString("base64");
@@ -52,15 +52,22 @@ const t = Date.now();
   const other = await account(`other${t}@x.com`);
   const email2 = `link2${t}@x.com`;
   await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Link Two", email: email2, password: "password123" }) });
-  const r2 = await other("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email2), created: true }) });
+  const r2 = await other("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(email2), created: true }) });
   const me2 = await other("/api/me");
   ok("verify link keeps a signed-in visitor in their own account", r2.j?.status === "verified" && me2.j?.user?.email === `other${t}@x.com`, me2.j?.user?.email);
   // The browser that made the account isn't asked.
   const email3 = `link3${t}@x.com`;
-  const same = client();
+  const same = jarClient(); // keeps the "made this account" cookie
   await same("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Link Three", email: email3, password: "password123" }) });
   const r3 = await same("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email3) }) });
   ok("verify link in the browser that made the account confirms straight away", r3.j?.status === "verified", r3.j?.status);
+  // A browser that's only signed in to the account is asked too.
+  const email4 = `link4${t}@x.com`;
+  await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Link Four", email: email4, password: "password123" }) });
+  const signedIn = client();
+  await signedIn("/api/auth/signin", { method: "POST", body: JSON.stringify({ email: email4, password: "password123" }) });
+  const r4 = await signedIn("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email4) }) });
+  ok("a browser only signed in to the account is asked who made it", r4.j?.status === "ask", r4.j?.status);
 }
 
 // 2. Parallel wrong passwords: every guess counts, so no more than 10 get through.
@@ -463,7 +470,7 @@ if (process.env.DATA_DIR) {
 // 25. Odd request bodies and names.
 {
   const f = client();
-  const odd = await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: { toString: 1 } }) });
+  const odd = await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: { toString: 1 } }) });
   const nested = await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Odd Person", email: `odd${t}@x.com`, password: { valueOf: 1 } }) });
   ok("a body value that can't be turned into text is refused, not a crash", odd.status === 400 && nested.status === 400, `${odd.status} ${nested.status}`);
   const bidi = await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Ada \u202Egnitekram\u202C Lovelace", email: `bidi${t}@x.com`, password: "password123" }) });
@@ -658,13 +665,14 @@ if (process.env.DATA_DIR) {
 {
   const maker = jarClient();
   const email = `notme${t}@x.com`;
-  await maker("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Squatter", email, password: "password123" }) });
+  const madeBy = await maker("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Squatter", email, password: "password123" }) });
+  const makerOrigin = process.env.DATA_DIR ? JSON.parse(fs.readFileSync(`${process.env.DATA_DIR}/users/id/${madeBy.j.user.id}.json`, "utf8")).originDevice : null;
   const sid = await shootWithSelfie(maker);
   const selfie = (await maker(`/api/shoots/${sid}`)).j?.shoot?.selfies?.[0]?.file;
   await new Promise((r) => setTimeout(r, 300));
   const link = (await mailFor(email)).flatMap((m) => m.links).findLast((l) => l.includes("/verify?token="));
   const inbox = jarClient();
-  const no = await inbox("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: new URL(link).searchParams.get("token"), created: false }) });
+  const no = await inbox("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: new URL(link).searchParams.get("token"), created: false }) });
   ok("\"No, it wasn't me\" hands the account to the inbox's owner", no.status === 200 && no.j?.status === "secured" && no.j?.email === email && !no.j?.user, JSON.stringify(no.j));
   ok("…signing out the maker", !(await maker("/api/me")).j?.user);
   const pw = await client()("/api/auth/signin", { method: "POST", body: JSON.stringify({ email, password: "password123" }) });
@@ -674,8 +682,12 @@ if (process.env.DATA_DIR) {
   const meta = process.env.DATA_DIR && fs.existsSync(metaFile) ? JSON.parse(fs.readFileSync(metaFile, "utf8")) : null;
   const gone = process.env.DATA_DIR ? !fs.existsSync(`${process.env.DATA_DIR}/media/${selfie}`) : true;
   ok("…and whose selfies are removed", !!selfie && gone && !(meta?.selfies || []).some((x) => x.file === selfie), `${JSON.stringify(meta?.selfies)} gone=${gone}`);
-  const again = await inbox("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: new URL(link).searchParams.get("token"), created: false }) });
+  const again = await inbox("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: new URL(link).searchParams.get("token"), created: false }) });
   ok("…once: the link then says it's already confirmed", again.j?.status === "already", again.j?.status);
+  if (process.env.DATA_DIR) {
+    const u = JSON.parse(fs.readFileSync(`${process.env.DATA_DIR}/users/id/${madeBy.j.user.id}.json`, "utf8"));
+    ok("…and the maker's browser no longer counts as the one that made it", !!u.originDevice && u.originDevice !== makerOrigin, `${u.originDevice} ${makerOrigin}`);
+  }
 }
 
 
@@ -685,7 +697,7 @@ if (process.env.DATA_DIR) {
   const dev = jarClient();
   const email = `epoch${t}@x.com`;
   await dev("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Epoch Owner", email, password: "password123" }) });
-  await dev("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email) }) });
+  await dev("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(email) }) });
   const uid = (await dev("/api/me")).j.user.id;
   const reset = await resetFrom(jarClient(), email, "a-new-password-1");
   const u = JSON.parse(fs.readFileSync(`${process.env.DATA_DIR}/users/id/${uid}.json`, "utf8"));
@@ -705,6 +717,8 @@ if (process.env.DATA_DIR) {
   ok("…while one from the site's own page goes through", own.status === 200, String(own.status));
   const addr = await f("/api/account/preferences", { method: "POST", body: JSON.stringify({ name: "Visit shop.io today" }) });
   ok("a name with a web address is refused when changing it", addr.status === 400 && addr.j?.field === "name", String(addr.status));
+  const initials = await f("/api/account/preferences", { method: "POST", body: JSON.stringify({ name: "J.R. Smith" }) });
+  ok("…while initials are fine", initials.status === 200, String(initials.status));
 }
 
 // 27f. Customers change their own name (not their email) on the account page.
@@ -748,7 +762,7 @@ if (process.env.DATA_DIR) {
   await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Jo, Attacker, Smith", email, password: "password123" }) });
   const m = (await mailFor(email)).find((x) => x.rawTo);
   ok("an email's display name is quoted", m && m.rawTo.length === 1 && m.rawTo[0].startsWith('"Jo, Attacker, Smith" <') && m.to.length === 1, JSON.stringify(m?.rawTo));
-  for (const [i, name] of ["Jo attacker@evil.example", "Jo from evil.com", "evil\uff0ecom Smith", "Bob evil.c\u00adom"].entries()) {
+  for (const [i, name] of ["Jo attacker@evil.example", "Jo from evil.com", "evil\uff0ecom Smith", "Bob evil.c\u00adom", "Ann keeper-refunds.xyz"].entries()) {
     const r = await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name, email: `addr${t}-${i}@x.com`, password: "password123" }) });
     ok(`a name like "${name}" is refused at sign-up`, r.status === 400 && !!r.j?.fields?.name, String(r.status));
   }

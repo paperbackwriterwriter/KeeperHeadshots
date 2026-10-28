@@ -48,7 +48,7 @@ async function account() {
   const f = client();
   const email = `gate${Date.now()}${Math.random().toString(36).slice(2, 6)}@x.com`;
   await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Gail Gate", email, password: "password123" }) });
-  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email) }) });
+  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(email) }) });
   return f;
 }
 async function checked(f, n) {
@@ -120,7 +120,7 @@ async function checked(f, n) {
   const f = client();
   const email = `${base}@gmail.com`;
   await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Lisa Check", email, password: "password123" }) });
-  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email) }) });
+  await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(email) }) });
   const sid = (await f("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;
   await f(`/api/shoots/${sid}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(90) }) });
   const statuses = [];
@@ -133,7 +133,7 @@ async function checked(f, n) {
   const alias = client();
   const aliasEmail = `${base}+alias@gmail.com`;
   await alias("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Lisa Alias", email: aliasEmail, password: "password123" }) });
-  await alias("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(aliasEmail) }) });
+  await alias("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(aliasEmail) }) });
   const asid = (await alias("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;
   await alias(`/api/shoots/${asid}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(91) }) });
   const shared = await alias(`/api/shoots/${asid}/check`, { method: "POST", body: "{}" });
@@ -142,7 +142,7 @@ async function checked(f, n) {
   const quoted = client();
   const quotedEmail = `"${base}"@gmail.com`;
   await quoted("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Lisa Quoted", email: quotedEmail, password: "password123" }) });
-  await quoted("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(quotedEmail) }) });
+  await quoted("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(quotedEmail) }) });
   const qsid = (await quoted("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;
   await quoted(`/api/shoots/${qsid}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(93) }) });
   const q = await quoted(`/api/shoots/${qsid}/check`, { method: "POST", body: "{}" });

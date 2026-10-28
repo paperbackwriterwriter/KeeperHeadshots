@@ -57,7 +57,7 @@ async function account(email) {
   assert.equal(up.status, 201);
   const mail = await fetch("http://localhost:4015/mock-mail").then((r) => r.json());
   const link = mail.filter((m) => m.to.includes(email)).flatMap((m) => m.links).find((l) => l.includes("/verify?token="));
-  assert.equal((await f("/api/auth/verify", { token: new URL(link).searchParams.get("token") })).status, 200);
+  assert.equal((await f("/api/auth/verify", { created: true, token: new URL(link).searchParams.get("token") })).status, 200);
   return { f, uid: up.j.user.id, email };
 }
 const photo = "data:image/jpeg;base64," + (await sharp(Buffer.from(portraitSVG("durable"))).resize(900, 1125).jpeg().toBuffer()).toString("base64");

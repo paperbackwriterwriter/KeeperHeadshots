@@ -57,7 +57,7 @@ async function account(email, name, { verify = true } = {}) {
   else if (verify) {
     // The newest link: the stand-in mailbox keeps mail from earlier runs.
     const link = (await mails()).filter((m) => m.to.includes(email.toLowerCase())).flatMap((m) => m.links).filter((l) => l.includes("/verify?token=")).pop();
-    await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: new URL(link).searchParams.get("token") }) });
+    await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: new URL(link).searchParams.get("token") }) });
   }
   return f;
 }

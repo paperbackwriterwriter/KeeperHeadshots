@@ -12,7 +12,7 @@ import { ogImage } from "./lib/og.js";
 import * as showcase from "./lib/showcase.js";
 import { CONTACT_TO } from "./lib/contact.js";
 import { knownDevice, originDevice, markOrigin, newOriginId, hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailCode, checkEmailCode, emailVerified, ownsMailbox, resetToken, checkResetToken } from "./lib/auth.js";
-import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM } from "./lib/mail.js";
+import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM, ADDRESS_LIKE } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import * as google from "./lib/google.js";
 import { pageFor, blogPostPage, blogIndexPage, blogArticlePage, blogNotFoundPage, blogSitemap, isCanonicalHost } from "./lib/seo.js";
@@ -281,7 +281,9 @@ app.post("/api/auth/signin", async (req, res) => {
 const safeNextPath = (next) => (typeof next === "string" && /^\/(app(\/|$|\?)|join$)/.test(next) ? next : null);
 const googleRedirectUri = (req) => `${appOrigin(req)}/api/auth/google/callback`;
 // (Checked in NFKC form, so look-alike dots and letters count as the real ones.)
-const NAME_BAD = /https?:|www\.|\.(com|net|org|io|co|ly|me)\b|[<>@\u0000-\u001f\u00ad\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/i;
+const NAME_CHARS = /https?:|www\.|[<>@\u0000-\u001f\u00ad\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/i;
+// Anything shaped like a web address ("refunds.xyz") counts as one (lib/mail.js).
+const NAME_BAD = { test: (s) => NAME_CHARS.test(s) || ADDRESS_LIKE.test(s) };
 const nameOk = (s) => typeof s === "string" && s.trim().length >= 2 && s.trim().length <= 80 && !NAME_BAD.test(s.normalize("NFKC"));
 const googleCookie = { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" || !!process.env.VERCEL, path: "/api/auth/google" };
 
@@ -316,8 +318,10 @@ app.get("/api/auth/google/callback", async (req, res) => {
   let created = false;
   let newlyVerified = false;
   let passwordDropped = false;
+  let takenOverHere = false;
   if (!user) {
-    const local = profile.email.split("@")[0].replace(/[^\p{L}\p{N} ._'-]/gu, " ").trim();
+    // (Dots become spaces: "jo.ann" would read as a web address to nameOk.)
+    const local = profile.email.split("@")[0].replace(/[^\p{L}\p{N} _'-]/gu, " ").replace(/\s+/g, " ").trim();
     const name = [profile.name, profile.givenName, local].find(nameOk)?.trim() || "Keeper member";
     user = await users.create({ id: id("usr"), name, email: profile.email, googleSub: profile.sub, createdAt: now, emailVerified: true, emailVerifiedAt: now, signupMethod: "google" });
     if (user) created = newlyVerified = true;
@@ -376,7 +380,10 @@ app.get("/api/auth/google/callback", async (req, res) => {
       }
     }).catch((err) => (err instanceof google.GoogleError ? null : Promise.reject(err)));
     if (!user) return back("failed"); // deleted meanwhile, or linked elsewhere
-    if (newlyVerified && !sameDevice) await purgeForTakeover(user.id).catch((err) => console.error("[takeover] purge (resumed tonight)", user.id, err.message));
+    if (newlyVerified && !sameDevice) {
+      await purgeForTakeover(user.id).catch((err) => console.error("[takeover] purge (resumed tonight)", user.id, err.message));
+      takenOverHere = true;
+    }
   }
   if (created) background(recordStep("signup", user).catch(noteStats));
   if (newlyVerified) {
@@ -384,6 +391,8 @@ app.get("/api/auth/google/callback", async (req, res) => {
     background(recordStep("verified", user).catch(noteStats));
   }
   setSession(res, user);
+  // After a takeover this browser counts as the one that made it (takenOver).
+  if (takenOverHere) markOrigin(res, user);
   console.log("[google]", created ? "signed up" : "signed in", user.id);
   // The page shows a welcome and, for a new account, sends the Pixel's
   // CompleteRegistration with the server's event id (deduplicated); an
@@ -405,7 +414,8 @@ app.post("/api/auth/verify", async (req, res) => {
   // it): the inbox's owner may not be who signed up with this address, so
   // the page asks first. "No" hands the account to the inbox's owner, as a
   // reset or Google sign-in from another browser does (purgeForTakeover).
-  const sameDevice = me?.id === user.id || originDevice(req, user);
+  // (Only the browser that made it: one that's merely signed in is asked too.)
+  const sameDevice = originDevice(req, user);
   const created = req.body?.created;
   // (purges: whether "No" also removes what the maker added; an account
   // confirmed by a team invitation keeps its shoots, as with a reset.)
@@ -433,7 +443,10 @@ app.post("/api/auth/verify", async (req, res) => {
       if (unconfirmed) await del(`${TAKEOVERS}${user.id}.json`).catch(() => {});
       return res.json({ status: "already", user: me ? publicUser(me) : null });
     }
-    if (newlyVerified) await purgeForTakeover(user.id).catch((err) => console.error("[takeover] purge (resumed tonight)", user.id, err.message));
+    if (newlyVerified) {
+      await purgeForTakeover(user.id).catch((err) => console.error("[takeover] purge (resumed tonight)", user.id, err.message));
+      markOrigin(res, updated); // this browser now counts as the one that made it (takenOver)
+    }
     console.log("[verify] taken over by the inbox's owner", user.id);
     const eventId = newlyVerified ? afterVerified(updated, req) : undefined;
     return res.json({ status: "secured", purged: newlyVerified, email: updated.email, user: me ? publicUser(me) : null, eventId });
@@ -618,7 +631,9 @@ app.post("/api/auth/password/reset", async (req, res) => {
     delete u.emailVerifiedVia;
   });
   if (used) return invalid();
-  if (newlyVerified && !sameDevice) await purgeForTakeover(user.id).catch((err) => console.error("[takeover] purge (resumed tonight)", user.id, err.message));
+  if (newlyVerified && !sameDevice) {
+    await purgeForTakeover(user.id).catch((err) => console.error("[takeover] purge (resumed tonight)", user.id, err.message));
+  }
   // Proving they own the inbox lifts any sign-in lock on the address.
   const lift = (r) => {
     r.ips = {};
@@ -630,6 +645,8 @@ app.post("/api/auth/password/reset", async (req, res) => {
     background(recordStep("verified", updated).catch(noteStats));
   }
   setSession(res, updated);
+  // After a takeover this browser counts as the one that made it (takenOver).
+  if (newlyVerified && !sameDevice) markOrigin(res, updated);
   res.json({ user: publicUser(updated) });
 });
 
@@ -1454,6 +1471,9 @@ const TAKEOVERS = "takeovers/";
 function takenOver(u, at) {
   u.takeoverPurge = at;
   u.deviceEpoch = (u.deviceEpoch || 0) + 1;
+  // The earlier holder's browser no longer counts as the one that made the
+  // account; the new holder's browser gets the new marker (markOrigin).
+  u.originDevice = newOriginId();
 }
 async function purgeForTakeover(userId) {
   const user = await users.byId(userId);

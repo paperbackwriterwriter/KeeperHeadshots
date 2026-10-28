@@ -20,7 +20,7 @@ const f = async (p, o = {}) => { const r = await fetch(B + p, { ...o, headers: {
 const email = `retake${Date.now()}@x.com`;
 await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Rae Take", email, password: "password123" }) });
 const mails = await fetch(`${M}/mock-mail`).then((r) => r.json());
-await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: new URL(mails.filter((m) => m.to.includes(email)).flatMap((m) => m.links).findLast((l) => l.includes("/verify?token="))).searchParams.get("token") }) });
+await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: new URL(mails.filter((m) => m.to.includes(email)).flatMap((m) => m.links).findLast((l) => l.includes("/verify?token="))).searchParams.get("token") }) });
 const jpg = (i) => sharp(Buffer.from(portraitSVG("rt" + i, {}))).resize(900, 1125).jpeg().toBuffer();
 async function checkedShoot(n) {
   const sid = (await f("/api/shoots", { method: "POST", body: "{}" })).shoot.id;

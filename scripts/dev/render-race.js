@@ -28,7 +28,7 @@ const email = process.env.EMAIL || `race${Date.now()}@x.com`;
 await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Race Test", email, password: "password123" }) });
 const mail = await fetch(`${MOCK}/mock-mail`).then((r) => r.json());
 const link = mail.filter((m) => m.to.includes(email)).flatMap((m) => m.links).find((l) => l.includes("/verify?token="));
-await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: new URL(link).searchParams.get("token") }) });
+await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: new URL(link).searchParams.get("token") }) });
 const { shoot } = await f("/api/shoots", { method: "POST", body: "{}" });
 for (let i = 0; i < 3; i++) {
   const b = await sharp(Buffer.from(portraitSVG("rr" + i, { outfit: "white-shirt" }))).resize(900, 1125).jpeg().toBuffer();
