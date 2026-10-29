@@ -51,7 +51,7 @@ export function renderTeam({ root }) {
             <a class="btn btn-ghost btn-lg" href="/contact?topic=team" data-link>Ask about volume pricing</a>
           </div>
           <div class="hero-proof" data-reveal style="--i:4">
-            <div class="proof-item"><strong class="tabular">~$4</strong><span>per person with ${exec.name}</span></div>
+            <div class="proof-item"><strong class="tabular">~$4</strong><span>per person (${exec.name})</span></div>
             <div class="proof-item"><strong class="tabular">Same</strong><span>looks for the whole team</span></div>
             <div class="proof-item"><strong class="tabular">0</strong><span>photo days to schedule</span></div>
           </div>

@@ -22,6 +22,12 @@ export function aiBanner() {
 // `mode` "blocked": only while the account can't develop (the banner goes
 // once it can). Marked data-plan-banner so app.js can swap it in place when
 // the account changes (email confirmed in another tab, a purchase).
+// A brand-new customer with nothing to develop yet: packages come first
+// (customers pay up front), not a selfie upload.
+const mustBuyFirst = () => {
+  const plan = state.user?.plan || {};
+  return plan.tier === "none" && !plan.started && !plan.teamMember && !state.user?.demo;
+};
 export function planBanner(mode = "always") {
   const plan = state.user?.plan;
   if (!plan || (mode === "blocked" && plan.canDevelop)) return "";
@@ -150,9 +156,13 @@ export async function renderDashboard({ root, navigate }) {
   if (!data.shoots.length && !data.nextCursor) {
     grid.outerHTML = html`<div class="empty view-enter">
       <div class="empty-art" aria-hidden="true">${["strip-1", "hero-2", "strip-3"].map((s, i) => html`<div class="print"><img src="${example(s)}" alt="" /><div class="print-cap"><b>0${i + 1}</b></div></div>`)}</div>
-      <h2 class="display h-2">Your first shoot starts with a selfie.</h2>
+      ${mustBuyFirst()
+        ? html`<h2 class="display h-2">Choose a package to start your first shoot.</h2>
+      <p class="lede">Then upload a few everyday photos. We'll check them, develop your headshots, and grade every frame.</p>
+      <a class="btn btn-flash btn-lg" href="/#pricing">See packages ${icon("arrow-right")}</a>`
+        : html`<h2 class="display h-2">Your first shoot starts with a selfie.</h2>
       <p class="lede">Upload a few everyday photos. We'll check them, develop your headshots, and grade every frame.</p>
-      <a class="btn btn-flash btn-lg" href="/app/new" data-link>Start your first shoot ${icon("arrow-right")}</a>
+      <a class="btn btn-flash btn-lg" href="/app/new" data-link>Start your first shoot ${icon("arrow-right")}</a>`}
     </div>`.v;
     return;
   }

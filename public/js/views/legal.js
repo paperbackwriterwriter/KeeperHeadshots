@@ -183,7 +183,7 @@ export function renderTerms({ root }) {
       </ul>
 
       <h2 class="h-3">8. About AI results</h2>
-      <p>AI-generated images can vary. A headshot may not look exactly like you, or may contain small flaws. Our quality check holds back frames that don't pass for likeness and polish, and retries are free, but it can't catch everything. Please look at each headshot before you use it. You decide which headshots to use and how.</p>
+      <p>AI-generated images can vary. A headshot may not look exactly like you, or may contain small flaws. Our quality check holds back frames that don't pass for likeness and polish, and retries are free (up to 3 times per shoot), but it can't catch everything. Please look at each headshot before you use it. You decide which headshots to use and how.</p>
 
       <h2 class="h-3">9. Our service and brand</h2>
       <p>The Keeper Headshots website, software, name, logo and designs belong to us. These terms don't give you any rights in them apart from using the service. If you send us ideas or feedback, we can use them without owing you anything.</p>

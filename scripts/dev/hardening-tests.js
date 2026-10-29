@@ -721,6 +721,8 @@ if (process.env.DATA_DIR) {
   const evil = await f("/api/auth/signout-all", { method: "POST", headers: { "content-type": "text/plain", origin: "https://evil.example" }, body: "{}" });
   const sub = await f("/api/account/preferences", { method: "POST", headers: { origin: "https://shop.keeperheadshots.com.evil.example" }, body: JSON.stringify({ name: "Pwned Name" }) });
   const nul = await f("/api/account/preferences", { method: "POST", headers: { origin: "null" }, body: JSON.stringify({ name: "Pwned Name" }) });
+  const fwd = await f("/api/account/preferences", { method: "POST", headers: { origin: "https://evil.example", "x-forwarded-host": "evil.example" }, body: JSON.stringify({ name: "Pwned Name" }) });
+  ok("…even with a forwarded-host header naming that site", fwd.status === 403, String(fwd.status));
   const still = await f("/api/me");
   ok("a request from another site's page is refused", evil.status === 403 && sub.status === 403 && nul.status === 403 && !!still.j?.user && still.j.user.name !== "Pwned Name", `${evil.status} ${sub.status} ${nul.status}`);
   const own = await f("/api/account/preferences", { method: "POST", headers: { origin: B }, body: JSON.stringify({ name: "Own Page" }) });

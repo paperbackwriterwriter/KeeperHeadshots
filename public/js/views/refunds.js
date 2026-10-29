@@ -4,7 +4,7 @@ import { CONTACT_EMAIL } from "./contact.js";
 import { PREVIEW_OFFERS } from "../shared/catalog.js";
 
 // The written terms behind the "money-back guarantee" shown on the site.
-export const POLICY_UPDATED = "October 26, 2026";
+export const POLICY_UPDATED = "October 29, 2026";
 
 export function renderRefunds({ root }) {
   root.innerHTML = html`
@@ -44,7 +44,7 @@ export function renderRefunds({ root }) {
       </ul>
 
       <h2 class="h-3">Before you ask</h2>
-      <p>Often a better set is one step away. Frames held back by our quality check can be retried for free, you can re-grade a shoot, and adding a couple of clearer selfies usually makes a big difference. If you'd like help, <a class="link" href="/contact?topic=shoot" data-link>ask us</a> and we'll look at your photos with you.</p>
+      <p>Often a better set is one step away. Frames held back by our quality check can be retried for free, up to 3 times, you can re-grade a shoot, and adding a couple of clearer selfies usually makes a big difference. If you'd like help, <a class="link" href="/contact?topic=shoot" data-link>ask us</a> and we'll look at your photos with you.</p>
 
       <h2 class="h-3">Other refunds</h2>
       <ul>

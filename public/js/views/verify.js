@@ -69,13 +69,19 @@ export async function renderVerify({ root, navigate }) {
       <div class="verify-actions">
         <button class="btn btn-flash btn-lg" type="button" id="createdYes">${icon("mail-check")} Yes, I created it</button>
         <button class="btn btn-ghost btn-lg" type="button" id="createdNo">No, it wasn't me</button>
-      </div>`);
+      </div>
+      <p class="small muted">Signed up on another phone or computer? Choose Yes.</p>`);
     const yes = root.querySelector("#createdYes");
     const no = root.querySelector("#createdNo");
     root.querySelector("h1").setAttribute("tabindex", "-1");
     root.querySelector("h1").focus();
     yes.addEventListener("click", () => send(yes, "Confirming…", true));
-    no.addEventListener("click", () => send(no, "Securing…", false));
+    no.addEventListener("click", () => {
+      // Asked once more: on someone's own second device, "No" would undo their account.
+      const what = purges ? "their password, selfies and unfinished shoots" : "their password";
+      if (!confirm(`This signs out whoever made the account and deletes ${what}. Continue?`)) return;
+      send(no, "Securing…", false);
+    });
   }
 
   function secured(res) {

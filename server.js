@@ -104,7 +104,9 @@ app.use("/api", (req, res, next) => {
   try {
     host = new URL(origin).host;
   } catch {}
-  if (host && (host === req.headers.host || host === req.headers["x-forwarded-host"])) return next();
+  // (Against the Host header only: a forwarded-host header could be set by
+  // whoever sends the request, if a proxy passed it on.)
+  if (host && host === req.headers.host) return next();
   console.warn("[origin] refused", req.method, req.path, String(origin).slice(0, 100));
   res.status(403).json({ error: "This request didn't come from a Keeper Headshots page. Reload the page and try again.", code: "cross_origin" });
 });
@@ -154,7 +156,8 @@ const SIGNIN_MAX_PER_IP = 60; // wrong passwords on any addresses from one netwo
 const SIGNUP_MAX_PER_IP = 120; // new accounts from one network in a clock hour
 // Addresses the per-network limit doesn't apply to: only the test servers
 // (scripts/dev/ci.sh) set this, for their own localhost; never set in production.
-const SIGNUP_LIMIT_EXEMPT = new Set(String(process.env.SIGNUP_LIMIT_EXEMPT_IPS || "").split(",").map((s) => s.trim()).filter(Boolean));
+// (Ignored on Vercel, so the live site can't lose the limit by a stray setting.)
+const SIGNUP_LIMIT_EXEMPT = new Set(process.env.VERCEL ? [] : String(process.env.SIGNUP_LIMIT_EXEMPT_IPS || "").split(",").map((s) => s.trim()).filter(Boolean));
 const SIGNUP_MAX_PER_MAILBOX = 3; // a day, counting Gmail dots and +tags as one inbox
 const DUMMY_HASH = await hashPassword("not-a-real-password");
 
