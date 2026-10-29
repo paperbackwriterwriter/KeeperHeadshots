@@ -24,7 +24,7 @@ Every headshot downloads as a full-resolution 3:4 portrait (websites, print, bus
 
 - Photos are never used to train AI models and never used in marketing unless the customer chooses to share one.
 - You own your headshots and can use them anywhere, including commercially.
-- Shoots, or the whole account, can be deleted at any time; deleting removes selfies and headshots straight away.
+- Shoots, or the whole account, can be deleted at any time; deleting removes selfies and headshots from active storage straight away (backup copies expire within 30 days).
 - Keeper Headshots is based in Iowa, USA. Contact: hello@keeperheadshots.com
 
 ## Pages

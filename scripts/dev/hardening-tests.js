@@ -68,6 +68,16 @@ const t = Date.now();
   await signedIn("/api/auth/signin", { method: "POST", body: JSON.stringify({ email: email4, password: "password123" }) });
   const r4 = await signedIn("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email4) }) });
   ok("a browser only signed in to the account is asked who made it", r4.j?.status === "ask", r4.j?.status);
+  const no4 = await signedIn("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email4), created: false }) });
+  ok("…and \"No\" there says that browser was signed out too", no4.j?.status === "secured" && no4.j?.signedOut === true && !no4.j?.user && !(await signedIn("/api/me")).j?.user, JSON.stringify(no4.j));
+  // One browser that made two accounts still counts as the maker of the first.
+  const both = jarClient();
+  const email5 = `link5${t}@x.com`, email6 = `link6${t}@x.com`;
+  await both("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "First Account", email: email5, password: "password123" }) });
+  await both("/api/auth/signout", { method: "POST", body: "{}" });
+  await both("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Second Account", email: email6, password: "password123" }) });
+  const r5 = await both("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email5) }) });
+  ok("a browser that made two accounts isn't asked about the first", r5.j?.status === "verified", r5.j?.status);
 }
 
 // 2. Parallel wrong passwords: every guess counts, so no more than 10 get through.
@@ -762,7 +772,7 @@ if (process.env.DATA_DIR) {
   await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Jo, Attacker, Smith", email, password: "password123" }) });
   const m = (await mailFor(email)).find((x) => x.rawTo);
   ok("an email's display name is quoted", m && m.rawTo.length === 1 && m.rawTo[0].startsWith('"Jo, Attacker, Smith" <') && m.to.length === 1, JSON.stringify(m?.rawTo));
-  for (const [i, name] of ["Jo attacker@evil.example", "Jo from evil.com", "evil\uff0ecom Smith", "Bob evil.c\u00adom", "Ann keeper-refunds.xyz"].entries()) {
+  for (const [i, name] of ["Jo attacker@evil.example", "Jo from evil.com", "evil\uff0ecom Smith", "Bob evil.c\u00adom", "Ann keeper-refunds.xyz", "refunds\u3002xyz", "refunds.\u0440\u0444", "Ref 192.0.2.7/pay"].entries()) {
     const r = await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name, email: `addr${t}-${i}@x.com`, password: "password123" }) });
     ok(`a name like "${name}" is refused at sign-up`, r.status === 400 && !!r.j?.fields?.name, String(r.status));
   }

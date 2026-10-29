@@ -80,6 +80,8 @@ export async function renderVerify({ root, navigate }) {
 
   function secured(res) {
     if (res.eventId) pixel("CompleteRegistration", {}, res.eventId);
+    // This browser was signed in to the account: it's signed out too (the header follows).
+    if (res.signedOut) document.dispatchEvent(new Event("ahg:signed-out"));
     shell(html`
       <div class="verify-icon verify-icon-ok">${icon("shield-check")}</div>
       <h1 class="display h-2">The account is yours now.</h1>

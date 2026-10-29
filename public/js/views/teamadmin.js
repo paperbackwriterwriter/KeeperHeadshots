@@ -65,7 +65,7 @@ export async function renderTeamAdmin({ root, navigate }) {
       <p class="lede" style="margin-top:12px">Choose the looks everyone gets, so your team page matches. Then invite people by email: each invite uses one of your shoots, and each person uploads their own selfies.</p></div></div>
       ${lockBanner()}
       <form class="panel team-form" id="teamForm" novalidate>
-        <div class="field"><label for="teamName">Team name</label><input class="input" id="teamName" name="name" maxlength="60" required value="${team?.name || ""}" placeholder="Acme Inc." /><span class="field-hint">Shown in the invitation email.</span></div>
+        <div class="field"><label for="teamName">Team name</label><input class="input" id="teamName" name="name" maxlength="60" required value="${team?.name || ""}" placeholder="Acme Inc." aria-describedby="teamNameErr" /><span class="field-hint">Shown in the invitation email.</span><span class="field-error" id="teamNameErr" role="alert" hidden></span></div>
         <fieldset class="field"><legend>Team look${MAX_LOOKS > 1 ? html` <span class="muted">(up to ${MAX_LOOKS}; each person gets 2 headshots per look)</span>` : ""}</legend>
           <ol class="team-looks" id="looks"></ol>
           <button type="button" class="btn btn-ghost btn-sm" id="addLook">${icon("plus")} Add a look</button>
@@ -102,6 +102,12 @@ export async function renderTeamAdmin({ root, navigate }) {
     $("#cancelSetup")?.addEventListener("click", () => paintTeam());
     $("#teamForm").addEventListener("submit", async (e) => {
       e.preventDefault();
+      const nameErr = (msg = "") => {
+        $("#teamNameErr").textContent = msg;
+        $("#teamNameErr").hidden = !msg;
+        $("#teamName").setAttribute("aria-invalid", msg ? "true" : "false");
+      };
+      nameErr();
       const restore = busy($("#saveTeam"), "Saving…");
       try {
         const r = await api("/api/team", { method: "POST", body: { name: $("#teamName").value, looks } });
@@ -111,6 +117,11 @@ export async function renderTeamAdmin({ root, navigate }) {
         paintTeam();
       } catch (err) {
         restore();
+        // A name the server refused is shown at the field, like the sign-up form.
+        if (err.data?.code === "team_name") {
+          nameErr(err.message);
+          return $("#teamName").focus();
+        }
         toast(err.message, "error", 7000);
       }
     });

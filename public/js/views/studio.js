@@ -1458,7 +1458,7 @@ function renderUpload({ root, navigate }) {
     if (plan.tier === "none" && !plan.started) return "Choose a package first: each shoot has up to 4 looks and 8 headshots, and your first package is covered by our money-back guarantee.";
     if (state.user?.purchased) return "You're out of shoots. Buy a package to start another.";
     // (A team member's shoot came from their team, not a free shoot.)
-    return state.user?.hasTeam ? "You've used your team shoot. Buy a package of your own to start another." : "You've used your free shoot. Buy a package to start another.";
+    return state.user?.plan?.teamMember ? "You've used your team shoot. Buy a package of your own to start another." : "You've used your free shoot. Buy a package to start another.";
   };
 
   const draw = () => {

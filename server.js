@@ -182,7 +182,7 @@ app.post("/api/auth/signup", async (req, res) => {
   const { name, email, password } = req.body || {};
   const errors = {};
   if (!name || String(name).trim().length < 2) errors.name = "Tell us what to call you.";
-  else if (String(name).trim().length > 80 || NAME_BAD.test(String(name).normalize("NFKC"))) errors.name = "Use just your name (2 to 80 characters, no links or symbols like < >).";
+  else if (String(name).trim().length > 80 || NAME_BAD.test(String(name).normalize("NFKC"))) errors.name = "Use just your name (2 to 80 characters, no links, web addresses or symbols like < >).";
   if (!isEmail(email)) errors.email = "Enter a valid email address.";
   if (!password || String(password).length < 8) errors.password = "Use at least 8 characters.";
   else if (String(password).length > 200) errors.password = "Use 200 characters or fewer.";
@@ -208,7 +208,7 @@ app.post("/api/auth/signup", async (req, res) => {
   });
   if (!user) return exists(); // the same address signed up a moment ago
   setSession(res, user);
-  markOrigin(res, user);
+  markOrigin(res, user, req);
   // Meta's CompleteRegistration fires when the email is confirmed (below).
   const verificationSent = await sendVerification(user, req).catch((err) => {
     console.error("[verify] send failed", user.id, err.message);
@@ -392,7 +392,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
   }
   setSession(res, user);
   // After a takeover this browser counts as the one that made it (takenOver).
-  if (takenOverHere) markOrigin(res, user);
+  if (takenOverHere) markOrigin(res, user, req);
   console.log("[google]", created ? "signed up" : "signed in", user.id);
   // The page shows a welcome and, for a new account, sends the Pixel's
   // CompleteRegistration with the server's event id (deduplicated); an
@@ -445,11 +445,13 @@ app.post("/api/auth/verify", async (req, res) => {
     }
     if (newlyVerified) {
       await purgeForTakeover(user.id).catch((err) => console.error("[takeover] purge (resumed tonight)", user.id, err.message));
-      markOrigin(res, updated); // this browser now counts as the one that made it (takenOver)
+      markOrigin(res, updated, req); // this browser now counts as the one that made it (takenOver)
     }
     console.log("[verify] taken over by the inbox's owner", user.id);
     const eventId = newlyVerified ? afterVerified(updated, req) : undefined;
-    return res.json({ status: "secured", purged: newlyVerified, email: updated.email, user: me ? publicUser(me) : null, eventId });
+    // (A browser signed in to this account was signed out with the rest.)
+    const signedOut = me?.id === user.id;
+    return res.json({ status: "secured", purged: newlyVerified, email: updated.email, user: me && !signedOut ? publicUser(me) : null, signedOut, eventId });
   }
   const { updated, eventId } = await markVerified(user, req);
   res.json({ status: "verified", user: me?.id === user.id ? publicUser(updated) : me ? publicUser(me) : null, eventId });
@@ -646,7 +648,7 @@ app.post("/api/auth/password/reset", async (req, res) => {
   }
   setSession(res, updated);
   // After a takeover this browser counts as the one that made it (takenOver).
-  if (newlyVerified && !sameDevice) markOrigin(res, updated);
+  if (newlyVerified && !sameDevice) markOrigin(res, updated, req);
   res.json({ user: publicUser(updated) });
 });
 
@@ -1063,7 +1065,7 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
         } else {
           throw new PlanError(p.started ? NO_SHOOTS_LEFT : CHOOSE_PACKAGE);
         }
-        u.developing = { ...u.developing, [meta.id]: paidBy ? { charged, paidBy } : charged };
+        u.developing = { ...u.developing, [meta.id]: paidBy ? { charged, paidBy, at: new Date().toISOString() } : charged };
       });
       meta.paidWith = charged;
       if (paidBy) meta.paidBy = paidBy;
@@ -1090,8 +1092,8 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
         const memo = u.developing?.[meta.id];
         if (!memo) return UNCHANGED;
         const kind = typeof memo === "object" ? memo.charged : memo;
-        delete u.developing[meta.id];
-        if (kind === "credit") teams.giveBack(u);
+        if (kind === "credit") teams.undoDevelopCharge(u, meta.id);
+        else delete u.developing[meta.id];
         if (kind === "free" && u.usage?.freeShootUsed === meta.id) u.usage = { ...u.usage, freeShootUsed: null };
         refunded = kind;
       }).catch((e) => console.error("[generate] refund", e.message));
@@ -1308,8 +1310,11 @@ app.delete("/api/shoots/:id", requireUser, async (req, res) => {
   // Its free reshoot, if not yet developed, becomes an ordinary shoot.
   if (meta.reshootId && !meta.reshootUsed) await shoots.updateMeta(meta.reshootId, (m) => (m.reshootOf === meta.id && !(m.shots || []).length ? void (delete m.reshootOf, delete m.reshootLooks) : false)).catch(() => {});
   // Headshots kept from it and unused extra looks for it go with it.
+  // So does a develop charge left on the account by a develop that died
+  // before the shoot started: it comes back.
   await users.update(req.user.id, (u) => {
-    if (!u.kept?.[meta.id] && !u.extraLooks?.[meta.id]) return UNCHANGED;
+    const released = !(meta.shots || []).length && teams.releaseDeveloping(u, meta.id);
+    if (!u.kept?.[meta.id] && !u.extraLooks?.[meta.id]) return released ? undefined : UNCHANGED;
     if (u.kept) delete u.kept[meta.id];
     if (u.extraLooks) delete u.extraLooks[meta.id];
   }).catch((err) => console.error("[shoot] delete cleanup", meta.id, err.message));
@@ -1624,7 +1629,7 @@ app.post("/api/account/preferences", requireUser, async (req, res) => {
   const refundSeen = typeof req.body?.refundSeen === "string" && req.body.refundSeen.length <= 40 ? req.body.refundSeen : req.body?.refundSeen === true ? new Date().toISOString() : null;
   if (want === undefined && typeof reminders !== "boolean" && name === undefined && !refundSeen) return res.status(400).json({ error: "Nothing to change." });
   if (want !== undefined && !PHOTO_FORMATS.some((f) => f.id === want)) return res.status(400).json({ error: "Choose portrait, square or both." });
-  if (name !== undefined && !nameOk(name)) return res.status(400).json({ error: "Use just your name (2 to 80 characters, no links or symbols like < >).", field: "name" });
+  if (name !== undefined && !nameOk(name)) return res.status(400).json({ error: "Use just your name (2 to 80 characters, no links, web addresses or symbols like < >).", field: "name" });
   const at = new Date().toISOString();
   const user = await users.update(req.user.id, (u) => {
     if (want !== undefined) u.photoFormat = want;

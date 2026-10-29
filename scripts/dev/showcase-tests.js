@@ -191,7 +191,10 @@ let entry;
   const second = await pay();
   await doneShoot(kai); // the free preview
   const paid = await doneShoot(kai); // a credit from the first package
-  const r = await offer(kai, paid, paid.shots.find((x) => x.status === "done"), { name: "Kai $` Moe", quote: "Great $' service" });
+  // (Here, not with Dana's checks above: each account may offer 10 times an hour.)
+  const kaiShot = paid.shots.find((x) => x.status === "done");
+  ok("the role and the quote can't carry a link either", (await offer(kai, paid, kaiShot, { name: "Kai Moe", role: "Refunds at https://evil.example/pay" })).status === 400 && (await offer(kai, paid, kaiShot, { name: "Kai Moe", quote: "Visit evil\u3002com today" })).status === 400);
+  const r = await offer(kai, paid, kaiShot, { name: "Kai $` Moe", quote: "Great $' service" });
   ok("a shoot records the package that paid for it", r.status === 200 && paid.paidBy === first, `${paid.paidBy} vs ${first}`);
   // Approved, it's in the home page's own HTML, so search engines see it.
   await owner(`/api/owner/showcase/${r.j.entry.id}`, { method: "POST", body: JSON.stringify({ status: "approved" }) });

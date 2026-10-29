@@ -15,6 +15,7 @@ Object.assign(process.env, { DATA_DIR: dir, SESSION_SECRET: "takeover-tests-secr
 const { users, shoots, saveMedia, readMedia, writeMedia, deleteMedia, dropSelfies, shootFinished } = await import("../../lib/store.js");
 const { MAX_RESUMES } = await import("../../public/js/shared/catalog.js");
 const { setSession, knownDevice, publicUser } = await import("../../lib/auth.js");
+const teams = await import("../../lib/teams.js");
 
 let passed = 0;
 const test = async (name, fn) => { await fn(); passed++; console.log("PASS", name); };
@@ -74,6 +75,32 @@ try {
     assert.equal(u.credits, 1);
     assert.ok(!u.extraLooks?.[sid]);
     assert.equal((await shoots.getMeta(sid)).check, null, "the earlier photo check (and its score) goes too");
+  });
+  await test("a develop that fails gives its credit back, unless a refund of its package took it meanwhile", async () => {
+    const at = "2026-10-29T08:00:00.000Z";
+    const plain = { credits: 2, developing: { sht_a: { charged: "credit", paidBy: "cs_1", at } } };
+    teams.undoDevelopCharge(plain, "sht_a");
+    assert.equal(plain.credits, 3);
+    assert.ok(!plain.developing.sht_a);
+    // Fully refunded meanwhile: 3 shoots removed, only the 2 on the balance taken.
+    const refunded = { credits: 0, developing: { sht_a: { charged: "credit", paidBy: "cs_1", at } }, refunds: [{ sessionId: "cs_1", shootsRemoved: 3, creditsTaken: 2, owedAdded: 0, at: "2026-10-29T08:00:01.000Z" }] };
+    teams.undoDevelopCharge(refunded, "sht_a");
+    assert.equal(refunded.credits, 0);
+    assert.equal(refunded.refunds[0].creditsTaken, 3, "recorded as taken, so a won dispute gives it back");
+    // A charge left behind by a develop that died, for a shoot that's gone: it comes back once.
+    const stranded = { credits: 0, developing: { sht_b: { charged: "credit", paidBy: "cs_1", at } } };
+    assert.equal(teams.releaseDeveloping(stranded, "sht_b"), true);
+    assert.equal(teams.releaseDeveloping(stranded, "sht_b"), false);
+    assert.equal(stranded.credits, 1);
+  });
+  await test("a team keeps a name saved before the web-address rule; a new one like it is refused", async () => {
+    const { putJSON } = await import("../../lib/storage.js");
+    await putJSON("teams/team_oldname01.json", { id: "team_oldname01", ownerId: "usr_oldname01", name: "Node.js Guild", looks: [], invites: {} });
+    const owner = { id: "usr_oldname01", name: "Owner", teamId: "team_oldname01" };
+    const looks = [{ backdrop: "studio-gray", outfit: "navy-suit" }];
+    const saved = await teams.saveTeam(owner, { name: "Node.js Guild", looks });
+    assert.equal(saved.name, "Node.js Guild");
+    await assert.rejects(teams.saveTeam(owner, { name: "Visit shop.xyz", looks }), (e) => e.code === "team_name");
   });
   await test("deleting a photo deletes its cached square and sizes too", async () => {
     const sid = "sht_takeover07";
