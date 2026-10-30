@@ -212,15 +212,49 @@ let gina;
   ok("…and the person's other session", !!(await other("/api/me")).j.user);
 }
 
-// 6. Deleting a Google-only account: typing its email confirms.
+// 6. Deleting a Google-only account: signing in with Google again, in this
+// session and in the last few minutes, confirms (typing the email no longer does).
 {
   const f = client();
-  const { back } = await google(f, { sub: `g-del-${run}`, email: `del-${run}@example.com`, name: "Dee Lete" });
+  const sub = `g-del-${run}`, email = `del-${run}@example.com`;
+  const { back } = await google(f, { sub, email, name: "Dee Lete" });
   await f(back());
-  const wrong = await f("/api/account/delete", { method: "POST", body: JSON.stringify({ email: "someone-else@example.com" }) });
-  ok("delete refuses the wrong email", wrong.status === 401);
-  const right = await f("/api/account/delete", { method: "POST", body: JSON.stringify({ email: `DEL-${run}@example.com ` }) });
-  ok("delete accepts the account's email", right.status === 200 && !(await f("/api/me")).j.user);
+  const me = (await f("/api/me")).j.user;
+  const typed = await f("/api/account/delete", { method: "POST", body: JSON.stringify({ email }) });
+  ok("typing the account's email no longer deletes it", typed.status === 401 && typed.j?.code === "reauth_needed" && !!(await f("/api/me")).j.user, String(typed.status));
+  const out = await client()("/api/auth/google?mode=reauth");
+  ok("confirming while signed out goes back to the account page, refused", out.status === 302 && out.location === "/app/account?reauth=failed", out.location);
+  const other = await google(f, { sub: `g-someone-${run}`, email: `someone-${run}@example.com` }, { mode: "reauth" });
+  ok("the confirmation goes to Google", other.start.status === 302 && other.to.href.startsWith(`${M}/google/auth`));
+  const wrong = await f(other.back());
+  ok("another Google account doesn't confirm", wrong.location === "/app/account?reauth=failed" && !f.jar.has("kh_reauth"), wrong.location);
+  ok("…and doesn't switch this browser to that account", (await f("/api/me")).j.user?.id === me.id);
+  ok("…so deleting is still refused", (await f("/api/account/delete", { method: "POST", body: "{}" })).status === 401);
+  const cancelled = await google(f, { sub, email }, { mode: "reauth" });
+  const c = await f(`/api/auth/google/callback?error=access_denied&state=${cancelled.to.searchParams.get("state")}`);
+  ok("cancelling on Google's page comes back to the account page", c.location === "/app/account?reauth=cancelled", c.location);
+  const right = await google(f, { sub, email }, { mode: "reauth" });
+  const cb = await f(right.back());
+  const sc = cb.setCookie.find((x) => x.startsWith("kh_reauth="));
+  ok("the account's own Google account confirms", cb.location === "/app/account?reauth=ok" && !!sc, cb.location);
+  ok("…with a short-lived, HttpOnly, Strict cookie only the delete route sees", /HttpOnly/i.test(sc) && /SameSite=Strict/i.test(sc) && /Path=\/api\/account\/delete/.test(sc) && /Max-Age=300/.test(sc), sc);
+  ok("…without changing the account or signing in afresh", (await f("/api/me")).j.user?.id === me.id);
+  // Another session of the same account can't borrow the confirmation.
+  const g = client();
+  await g((await google(g, { sub, email })).back());
+  g.jar.set("kh_reauth", f.jar.get("kh_reauth"));
+  ok("the confirmation is tied to the session that got it", (await g("/api/account/delete", { method: "POST", body: "{}" })).status === 401);
+  const del = await f("/api/account/delete", { method: "POST", body: "{}" });
+  ok("then deleting works", del.status === 200 && !(await f("/api/me")).j.user && !f.jar.has("kh_reauth"), String(del.status));
+}
+
+// 6b. An account with a password confirms with it, not Google.
+{
+  const f = client();
+  const email = `pw-${run}@example.com`;
+  await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Pat Word", email, password: "password123" }) });
+  const r = await f("/api/auth/google?mode=reauth");
+  ok("a password account can't use the Google confirmation", r.location === "/app/account?reauth=failed", r.location);
 }
 
 // 7. A name that isn't a name falls back to the given name, then the address.

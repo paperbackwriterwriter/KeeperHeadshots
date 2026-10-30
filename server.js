@@ -11,7 +11,7 @@ import { runReminders, checkUnsubscribeToken } from "./lib/reminders.js";
 import { ogImage } from "./lib/og.js";
 import * as showcase from "./lib/showcase.js";
 import { CONTACT_TO } from "./lib/contact.js";
-import { knownDevice, originDevice, markOrigin, newOriginId, hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailCode, checkEmailCode, emailVerified, ownsMailbox, resetToken, checkResetToken } from "./lib/auth.js";
+import { knownDevice, originDevice, markOrigin, newOriginId, hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailCode, checkEmailCode, emailVerified, ownsMailbox, resetToken, checkResetToken, markReauth, reauthed, clearReauth } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM, ADDRESS_LIKE } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import * as google from "./lib/google.js";
@@ -290,9 +290,16 @@ const NAME_BAD = { test: (s) => NAME_CHARS.test(s) || ADDRESS_LIKE.test(s) };
 const nameOk = (s) => typeof s === "string" && s.trim().length >= 2 && s.trim().length <= 80 && !NAME_BAD.test(s.normalize("NFKC"));
 const googleCookie = { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" || !!process.env.VERCEL, path: "/api/auth/google" };
 
-app.get("/api/auth/google", (req, res) => {
+app.get("/api/auth/google", async (req, res) => {
   if (!google.googleEnabled()) return res.status(404).end();
-  const { url, cookie } = google.begin({ redirectUri: googleRedirectUri(req), next: safeNextPath(req.query.next), signup: req.query.mode === "signup" });
+  // Confirming who you are before deleting an account that has no password.
+  let reauth = null;
+  if (req.query.mode === "reauth") {
+    const me = await currentUser(req);
+    if (!me?.googleSub || me.password || me.demo) return res.set("Cache-Control", "no-store").redirect(302, "/app/account?reauth=failed");
+    reauth = me.id;
+  }
+  const { url, cookie } = google.begin({ redirectUri: googleRedirectUri(req), next: safeNextPath(req.query.next), signup: req.query.mode === "signup", reauth });
   res.cookie(google.STATE_COOKIE, cookie, { ...googleCookie, maxAge: google.STATE_MAX_AGE_MS });
   res.set("Cache-Control", "no-store").redirect(302, url);
 });
@@ -302,7 +309,10 @@ app.get("/api/auth/google/callback", async (req, res) => {
   const flow = google.readFlow(req.cookies?.[google.STATE_COOKIE]);
   res.clearCookie(google.STATE_COOKIE, googleCookie);
   res.set("Cache-Control", "no-store");
-  const back = (code) => res.redirect(302, `${flow?.signup ? "/signup" : "/signin"}?google=${code}${safeNextPath(flow?.next) ? `&next=${encodeURIComponent(flow.next)}` : ""}`);
+  const back = (code) =>
+    flow?.reauth
+      ? res.redirect(302, `/app/account?reauth=${code === "cancelled" ? "cancelled" : "failed"}`)
+      : res.redirect(302, `${flow?.signup ? "/signup" : "/signin"}?google=${code}${safeNextPath(flow?.next) ? `&next=${encodeURIComponent(flow.next)}` : ""}`);
   // Pressing Cancel on Google's page comes back with error=access_denied.
   if (req.query.error) return back("cancelled");
   if (!flow || !google.stateMatches(flow, req.query.state)) return back("expired");
@@ -314,6 +324,14 @@ app.get("/api/auth/google/callback", async (req, res) => {
   } catch (err) {
     console.warn("[google]", err instanceof google.GoogleError ? err.message : err);
     return back("failed");
+  }
+  // Confirming who you are: only the Google account linked to the account
+  // signed in here counts, and nothing about the account changes.
+  if (flow.reauth) {
+    const me = await currentUser(req);
+    const confirmed = me?.id === flow.reauth && !!me.googleSub && me.googleSub === profile.sub && !me.password && markReauth(res, req, me);
+    console.log("[google] reauth", flow.reauth, confirmed ? "confirmed" : "refused");
+    return res.redirect(302, `/app/account?reauth=${confirmed ? "ok" : "failed"}`);
   }
   if (profile.email === DEMO.email) return back("failed");
   const now = new Date().toISOString();
@@ -1591,9 +1609,13 @@ async function resumeTakeovers(deadline) {
 
 app.post("/api/account/delete", requireUser, async (req, res) => {
   if (req.user.demo) return res.status(403).json({ error: DEMO_READ_ONLY, code: "demo_read_only" });
-  // An account made with Google has no password: typing its email confirms.
+  // An account made with Google has no password: signing in with Google
+  // again, in this browser in the last few minutes, confirms (markReauth).
   if (!req.user.password) {
-    if (String(req.body?.email || "").toLowerCase().trim() !== req.user.email) return res.status(401).json({ error: "That email doesn't match this account.", fields: { password: "That email doesn't match this account." } });
+    if (!reauthed(req, req.user)) {
+      const error = req.user.googleSub ? "Please confirm it's you with Google first." : "Please set a password first (use the link on this page), then delete your account with it.";
+      return res.status(401).json({ error, code: "reauth_needed" });
+    }
   } else {
     const password = String(req.body?.password || "");
     // Not a place to guess the password from a borrowed session.
@@ -1616,6 +1638,7 @@ app.post("/api/account/delete", requireUser, async (req, res) => {
   // The funnel keeps its day totals; the per-person "already counted" markers go.
   await del(STEPS.map((step) => `stats/seen/${step}/${req.user.id}.json`)).catch(noteStats);
   clearSession(res);
+  clearReauth(res);
   console.log("[account] deleted", req.user.id);
   res.json({ ok: true });
 });

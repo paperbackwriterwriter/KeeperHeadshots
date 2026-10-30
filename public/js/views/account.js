@@ -12,7 +12,28 @@ function shootsLeft(plan, credits) {
 }
 const date = (iso) => new Date(iso).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
 
+// Back from "Confirm with Google" (server.js, mode=reauth): ?reauth=ok means
+// this browser may delete the account for the next few minutes.
+const REAUTH_MS = 4.5 * 60 * 1000;
+let reauthAt = 0;
+let reauthReturn = "";
+const googleConfirmed = () => Date.now() - reauthAt < REAUTH_MS;
+function takeReauthReturn() {
+  const params = new URLSearchParams(location.search);
+  const r = params.get("reauth");
+  if (!r) return;
+  params.delete("reauth");
+  history.replaceState(history.state, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
+  if (r === "ok") reauthAt = Date.now();
+  reauthReturn = r;
+}
+const REAUTH_ERRORS = {
+  cancelled: "Google sign-in was cancelled, so nothing was deleted.",
+  failed: "That didn't confirm it's you. Use the Google account you sign in to Keeper Headshots with.",
+};
+
 export function renderAccount({ root, navigate }) {
+  takeReauthReturn();
   const u = state.user;
   const credits = u.plan?.credits || 0;
 
@@ -111,16 +132,21 @@ export function renderAccount({ root, navigate }) {
       <button class="btn btn-danger" id="startDelete" type="button">${icon("trash-2")} Delete my account</button>
       <form id="deleteForm" class="delete-form" hidden novalidate>
         <div class="field">
-          ${u.hasPassword === false
-            ? html`<label for="delPassword">Type your email address (${u.email}) to confirm</label>
-          <input class="input" id="delPassword" name="email" type="email" autocomplete="off" aria-describedby="err-delPassword" required />`
-            : html`<label for="delPassword">Enter your password to confirm</label>
-          <input class="input" id="delPassword" name="password" type="password" autocomplete="current-password" aria-describedby="err-delPassword" required />`}
+          ${u.hasPassword !== false
+            ? html`<label for="delPassword">Enter your password to confirm</label>
+          <input class="input" id="delPassword" name="password" type="password" autocomplete="current-password" aria-describedby="err-delPassword" required />`
+            : !u.google
+              ? html`<p class="small">To confirm it's you, first set a password with the link under “Password and sign-in” above, then come back here.</p>`
+              : googleConfirmed()
+                ? html`<p class="small">Google confirmed it's you. Finish within a few minutes.</p>`
+                : html`<p class="small">To confirm it's you, sign in with Google again. You'll come back here to finish.</p>`}
           <span class="field-error" id="err-delPassword" role="alert" hidden></span>
         </div>
-        <label class="check"><input type="checkbox" id="delConfirm" /> <span>I understand any developing shoots will be cancelled and all my photos deleted for good.</span></label>
+        <label class="check"><input type="checkbox" id="delConfirm" aria-describedby="err-delPassword" /> <span>I understand any developing shoots will be cancelled and all my photos deleted for good.</span></label>
         <div class="delete-actions">
-          <button class="btn btn-danger" id="confirmDelete" type="submit" disabled>${icon("trash-2")} Permanently delete</button>
+          ${u.hasPassword === false && u.google && !googleConfirmed()
+            ? html`<button class="btn btn-danger" id="confirmDelete" type="submit" disabled>Confirm with Google</button>`
+            : html`<button class="btn btn-danger" id="confirmDelete" type="submit" disabled>${icon("trash-2")} Permanently delete</button>`}
           <button class="btn btn-ghost" id="cancelDelete" type="button">Cancel</button>
         </div>
       </form>
@@ -242,14 +268,16 @@ export function renderAccount({ root, navigate }) {
   const showError = (msg) => {
     err.textContent = msg;
     err.hidden = !msg;
-    pw.setAttribute("aria-invalid", msg ? "true" : "false");
+    pw?.setAttribute("aria-invalid", msg ? "true" : "false");
   };
-  const sync = () => (go.disabled = !(agree.checked && pw.value));
+  // No password: Google confirms instead (an account with neither sets one first).
+  const viaGoogle = u.hasPassword === false;
+  const sync = () => (go.disabled = !(agree.checked && (viaGoogle ? u.google : pw.value)));
 
   start.addEventListener("click", () => {
     start.hidden = true;
     form.hidden = false;
-    pw.focus();
+    (pw || agree).focus();
   });
   $("#cancelDelete", root).addEventListener("click", () => {
     form.hidden = true;
@@ -259,15 +287,23 @@ export function renderAccount({ root, navigate }) {
     sync();
     start.focus();
   });
-  pw.addEventListener("input", () => (showError(""), sync()));
+  pw?.addEventListener("input", () => (showError(""), sync()));
   agree.addEventListener("change", sync);
+  if (reauthReturn) {
+    start.hidden = true;
+    form.hidden = false;
+    showError(REAUTH_ERRORS[reauthReturn] || "");
+    reauthReturn = "";
+    agree.focus();
+  }
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (go.disabled) return;
+    if (viaGoogle && !googleConfirmed()) return location.assign("/api/auth/google?mode=reauth");
     const done = busy(go, "Deleting…");
     try {
-      await api("/api/account/delete", { method: "POST", body: u.hasPassword === false ? { email: pw.value } : { password: pw.value } });
+      await api("/api/account/delete", { method: "POST", body: viaGoogle ? {} : { password: pw.value } });
       state.user = null;
       toast("Your account and all your photos have been deleted.", "success", 7000);
       navigate("/");
@@ -275,7 +311,12 @@ export function renderAccount({ root, navigate }) {
       done();
       if (ex.status === 401) {
         showError(ex.data?.fields?.password || ex.message);
-        pw.select();
+        pw?.select();
+        // The confirmation ran out or was for another session: ask Google again.
+        if (ex.data?.code === "reauth_needed" && u.google) {
+          reauthAt = 0;
+          go.textContent = "Confirm with Google";
+        }
       } else toast(ex.message, "error", 7000);
     }
   });
