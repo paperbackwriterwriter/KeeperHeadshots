@@ -774,7 +774,7 @@ if (process.env.DATA_DIR) {
   await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Jo, Attacker, Smith", email, password: "password123" }) });
   const m = (await mailFor(email)).find((x) => x.rawTo);
   ok("an email's display name is quoted", m && m.rawTo.length === 1 && m.rawTo[0].startsWith('"Jo, Attacker, Smith" <') && m.to.length === 1, JSON.stringify(m?.rawTo));
-  for (const [i, name] of ["Jo attacker@evil.example", "Jo from evil.com", "evil\uff0ecom Smith", "Bob evil.c\u00adom", "Ann keeper-refunds.xyz", "refunds\u3002xyz", "refunds.\u0440\u0444", "Ref 192.0.2.7/pay"].entries()) {
+  for (const [i, name] of ["Jo attacker@evil.example", "Jo from evil.com", "evil\uff0ecom Smith", "Bob evil.c\u00adom", "Ann keeper-refunds.xyz", "refunds\u3002xyz", "refunds.\u0440\u0444", "Ref 192.0.2.7/pay", "Pay at keeper-refunds\u034f.com"].entries()) {
     const r = await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name, email: `addr${t}-${i}@x.com`, password: "password123" }) });
     ok(`a name like "${name}" is refused at sign-up`, r.status === 400 && !!r.j?.fields?.name, String(r.status));
   }

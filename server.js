@@ -1550,7 +1550,8 @@ async function purgeForTakeover(userId) {
     for (const [sid, memo] of Object.entries(u.developing || {})) {
       if (!gone.has(sid)) continue;
       const kind = typeof memo === "object" ? memo?.charged : memo;
-      if (kind === "credit") teams.giveBack(u);
+      // (Not if a refund of its package counted it as taken: lib/teams.js.)
+      if (kind === "credit") teams.undoDevelopCharge(u, sid);
       if (kind === "free" && u.usage?.freeShootUsed === sid) {
         u.usage = { ...u.usage, freeShootUsed: null };
         freeBack = sid;

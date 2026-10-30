@@ -282,6 +282,8 @@ let final;
   const del = await adm("/api/account/delete", { method: "POST", body: JSON.stringify({ password: "password123" }) });
   const dev = await gilC(`/api/shoots/${seat}/generate`, { method: "POST", body: JSON.stringify({ looks: LOOKS }) });
   ok("a colleague's checked seat still develops after the admin deletes their account", del.status === 200 && dev.status === 202, `${del.status} ${dev.status} ${JSON.stringify(dev.j?.error)}`);
+  const shown = (await gilC(`/api/shoots/${seat}`)).j.shoot;
+  ok("…and the deleted admin's name no longer appears on it", shown?.team && !shown.team.ownerName, JSON.stringify(shown?.team));
 }
 
 // 9d. One address gets at most 3 invitation emails a day, however often it's

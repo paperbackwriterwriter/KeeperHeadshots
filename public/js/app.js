@@ -363,11 +363,13 @@ function wireChrome() {
 // place and open pages re-check what the account can do, so nothing being
 // worked on (photos picked, looks chosen) is lost to a re-render.
 async function accountChanged() {
-  const { planBanner } = await import("./views/dashboard.js");
+  const { planBanner, emptyDashboard } = await import("./views/dashboard.js");
   document.querySelectorAll("[data-plan-banner]").forEach((el) => {
     const next = planBanner(el.dataset.planBanner);
     el.outerHTML = next ? next.v : "";
   });
+  // The empty dashboard's next step follows too (a package bought elsewhere).
+  document.querySelectorAll("[data-empty-dash]").forEach((el) => (el.outerHTML = emptyDashboard().v));
   // The account page's "Confirm your email" panel goes once it's confirmed.
   if (state.user?.emailVerified) document.querySelectorAll("[data-verify-panel]").forEach((el) => el.remove());
   refreshUserChip();

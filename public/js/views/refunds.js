@@ -44,7 +44,7 @@ export function renderRefunds({ root }) {
       </ul>
 
       <h2 class="h-3">Before you ask</h2>
-      <p>Often a better set is one step away. Frames held back by our quality check can be retried for free, up to 3 times, you can re-grade a shoot, and adding a couple of clearer selfies usually makes a big difference. If you'd like help, <a class="link" href="/contact?topic=shoot" data-link>ask us</a> and we'll look at your photos with you.</p>
+      <p>Often a better set is one step away. Frames held back by our quality check can be retried for free (up to 3 times per shoot), you can re-grade a shoot, and adding a couple of clearer selfies usually makes a big difference. If you'd like help, <a class="link" href="/contact?topic=shoot" data-link>ask us</a> and we'll look at your photos with you.</p>
 
       <h2 class="h-3">Other refunds</h2>
       <ul>

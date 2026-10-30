@@ -566,7 +566,7 @@ export async function renderStudio(ctx, id) {
     paintSetLooks(s, looks, {
       eyebrow: html`${icon("users")} ${s.team.name}`,
       title: "Your team's look.",
-      lede: `${s.team.ownerName} chose ${looks.length === 1 ? "this look" : "these looks"} for everyone on the team, so your headshots match. ${looks.length * TAKES_PER_LOOK} headshots, already paid for.`,
+      lede: `${s.team.ownerName || "Your team admin"} chose ${looks.length === 1 ? "this look" : "these looks"} for everyone on the team, so your headshots match. ${looks.length * TAKES_PER_LOOK} headshots, already paid for.`,
     });
   }
 

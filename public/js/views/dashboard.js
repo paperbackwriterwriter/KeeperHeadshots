@@ -22,12 +22,31 @@ export function aiBanner() {
 // `mode` "blocked": only while the account can't develop (the banner goes
 // once it can). Marked data-plan-banner so app.js can swap it in place when
 // the account changes (email confirmed in another tab, a purchase).
-// A brand-new customer with nothing to develop yet: packages come first
-// (customers pay up front), not a selfie upload.
-const mustBuyFirst = () => {
+// The dashboard's last listing had no shoots: a team member's team shoot is
+// gone (deleted, seat back with the admin), so the team banner doesn't apply.
+let noShoots = false;
+// The dashboard with no shoots. Nothing to develop with (customers pay up
+// front): packages come first, not a selfie upload. Marked so app.js can
+// swap it when the account changes (a purchase in another tab).
+export function emptyDashboard() {
   const plan = state.user?.plan || {};
-  return plan.tier === "none" && !plan.started && !plan.teamMember && !state.user?.demo;
-};
+  const buy = plan.tier === "none" && !state.user?.demo;
+  const fresh = buy && !plan.started && !plan.teamMember;
+  return html`<div class="empty view-enter" data-empty-dash>
+      <div class="empty-art" aria-hidden="true">${["strip-1", "hero-2", "strip-3"].map((s, i) => html`<div class="print"><img src="${example(s)}" alt="" /><div class="print-cap"><b>0${i + 1}</b></div></div>`)}</div>
+      ${fresh
+        ? html`<h2 class="display h-2">Choose a package to start your first shoot.</h2>
+      <p class="lede">Then upload a few everyday photos. We'll check them, develop your headshots, and grade every frame.</p>
+      <a class="btn btn-flash btn-lg" href="/#pricing">See packages ${icon("arrow-right")}</a>`
+        : buy
+          ? html`<h2 class="display h-2">Choose a package for your next shoot.</h2>
+      <p class="lede">Each shoot has up to 4 looks and 8 headshots, checked and graded.</p>
+      <a class="btn btn-flash btn-lg" href="/#pricing">See packages ${icon("arrow-right")}</a>`
+          : html`<h2 class="display h-2">Your first shoot starts with a selfie.</h2>
+      <p class="lede">Upload a few everyday photos. We'll check them, develop your headshots, and grade every frame.</p>
+      <a class="btn btn-flash btn-lg" href="/app/new" data-link>Start your first shoot ${icon("arrow-right")}</a>`}
+    </div>`;
+}
 export function planBanner(mode = "always") {
   const plan = state.user?.plan;
   if (!plan || (mode === "blocked" && plan.canDevelop)) return "";
@@ -45,7 +64,7 @@ export function planBanner(mode = "always") {
   if (plan.tier === "trial")
     return html`<div class="banner banner-info" data-plan-banner="${mode}">${icon("sparkles")}<div><b>Your first shoot is a free preview.</b>Up to 2 looks, which makes 4 headshots, each checked and graded by AI.</div></div>`;
   // Invited by a team: that shoot is the team's; more of their own need a package.
-  if (plan.tier === "none" && plan.teamMember)
+  if (plan.tier === "none" && plan.teamMember && !noShoots)
     return html`<div class="banner banner-info" data-plan-banner="${mode}">${icon("users")}<div><b>Your team has paid for your headshot shoot.</b>To start more shoots of your own, choose a package.</div><a class="btn btn-sm btn-ghost" href="/#pricing">See packages</a></div>`;
   // A brand-new customer (never bought, never had a free shoot): packages come first.
   if (plan.tier === "none" && !plan.started)
@@ -146,24 +165,16 @@ export async function renderDashboard({ root, navigate }) {
     return;
   }
   grid.removeAttribute("aria-busy");
+  noShoots = !data.shoots.length && !data.nextCursor;
   // The account changed while listing (marked as a team member): its banner too.
-  if (data.user) {
-    state.user = data.user;
+  if (data.user || noShoots) {
+    if (data.user) state.user = data.user;
     const banner = planBanner();
     root.querySelector("[data-plan-banner]")?.replaceWith(document.createRange().createContextualFragment(banner ? banner.v : ""));
   }
 
-  if (!data.shoots.length && !data.nextCursor) {
-    grid.outerHTML = html`<div class="empty view-enter">
-      <div class="empty-art" aria-hidden="true">${["strip-1", "hero-2", "strip-3"].map((s, i) => html`<div class="print"><img src="${example(s)}" alt="" /><div class="print-cap"><b>0${i + 1}</b></div></div>`)}</div>
-      ${mustBuyFirst()
-        ? html`<h2 class="display h-2">Choose a package to start your first shoot.</h2>
-      <p class="lede">Then upload a few everyday photos. We'll check them, develop your headshots, and grade every frame.</p>
-      <a class="btn btn-flash btn-lg" href="/#pricing">See packages ${icon("arrow-right")}</a>`
-        : html`<h2 class="display h-2">Your first shoot starts with a selfie.</h2>
-      <p class="lede">Upload a few everyday photos. We'll check them, develop your headshots, and grade every frame.</p>
-      <a class="btn btn-flash btn-lg" href="/app/new" data-link>Start your first shoot ${icon("arrow-right")}</a>`}
-    </div>`.v;
+  if (noShoots) {
+    grid.outerHTML = emptyDashboard().v;
     return;
   }
 

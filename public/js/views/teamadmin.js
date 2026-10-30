@@ -100,6 +100,11 @@ export async function renderTeamAdmin({ root, navigate }) {
       drawLooks();
     });
     $("#cancelSetup")?.addEventListener("click", () => paintTeam());
+    // A refused name's error goes once the name is edited, like the other forms.
+    $("#teamName").addEventListener("input", () => {
+      $("#teamNameErr").hidden = true;
+      $("#teamName").setAttribute("aria-invalid", "false");
+    });
     $("#teamForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const nameErr = (msg = "") => {
