@@ -41,6 +41,19 @@ try {
   await test("the same webhook again is accepted, not failed", async () => {
     await handleWebhook(...signed({ id: "evt_2", object: "event", type: "checkout.session.completed", data: { object: session } }));
   });
+
+  // "Keep all + 2 more looks" for a shoot deleted while checkout was open.
+  const keeper = { id: "usr_deletedshoot01", email: "keeper@example.com", name: "Kay Per", createdAt: new Date().toISOString(), emailVerified: true, usage: {} };
+  await users.create(keeper);
+  const plus = { ...session, id: "cs_test_goneshoot01", amount_total: 1499, client_reference_id: keeper.id, metadata: { userId: keeper.id, packageId: "keep-plus", shoots: "0", shootId: "sht_neverthere01", looks: "2" } };
+  await test("a $14.99 payment for a deleted shoot is recorded and flagged, not failed", async () => {
+    await handleWebhook(...signed({ id: "evt_3", object: "event", type: "checkout.session.completed", data: { object: plus } }));
+    const u = await users.byId(keeper.id);
+    assert.equal(u.purchases?.length, 1, JSON.stringify(u.purchases));
+    assert.equal(u.credits || 0, 0);
+    assert.ok(!u.extraLooks?.sht_neverthere01);
+    assert.ok(errors.some((e) => e.includes(plus.id) && /may need a refund: its shoot was deleted/.test(e)), errors.join("\n"));
+  });
 } finally {
   console.error = logError;
   await fs.rm(dir, { recursive: true, force: true });

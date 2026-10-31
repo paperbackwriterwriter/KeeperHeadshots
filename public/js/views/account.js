@@ -198,6 +198,7 @@ export function renderAccount({ root, navigate }) {
   editName?.addEventListener("click", () => showNameForm(true));
   $("#cancelName", root)?.addEventListener("click", () => showNameForm(false));
   nameForm?.addEventListener("keydown", (e) => e.key === "Escape" && showNameForm(false));
+  $("#nameInput", root)?.addEventListener("input", () => (nameErr.hidden = true));
   nameForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const name = $("#nameInput", root).value.trim();
@@ -225,6 +226,10 @@ export function renderAccount({ root, navigate }) {
     if (!document.body.contains(rem)) return document.removeEventListener("ahg:user-changed", onUser);
     const u2 = state.user;
     if (!u2) return;
+    // A password set, Google linked or shoots bought elsewhere change how
+    // deleting is confirmed and its warning: drawn again, unless being edited.
+    const facts = (x) => [x.hasPassword, x.google, x.plan?.credits || 0].join();
+    if (facts(u2) !== facts(u) && $("#deleteForm", root)?.hidden && nameForm?.hidden) return renderAccount({ root, navigate });
     if (!rem.disabled) rem.checked = u2.emailReminders !== false;
     if (nameForm?.hidden) {
       $("#nameText", root).textContent = u2.name;
@@ -316,6 +321,8 @@ export function renderAccount({ root, navigate }) {
         if (ex.data?.code === "reauth_needed" && u.google) {
           reauthAt = 0;
           go.textContent = "Confirm with Google";
+          const hint = $(".field p", form);
+          if (hint) hint.textContent = "To confirm it's you, sign in with Google again. You'll come back here to finish.";
         }
       } else toast(ex.message, "error", 7000);
     }

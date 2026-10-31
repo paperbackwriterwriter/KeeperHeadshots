@@ -74,6 +74,7 @@ const before = await shown();
   await new Promise((r) => setTimeout(r, 500));
   const first = await ready();
   ok("a ready email is sent when the shoot finishes", first.length === 1 && first[0].links.some((l) => l.endsWith(`/app/shoot/${shoot.id}`)), JSON.stringify(first.map((m) => m.links)));
+  ok("…naming the shoot (the address is confirmed)", first[0]?.text?.includes(`"${shoot.name}"`), first[0]?.text);
   await dana(`/api/shoots/${shoot.id}/review`, { method: "POST", body: "{}" });
   for (let i = 0; i < 30; i++) {
     await new Promise((r) => setTimeout(r, 1000));

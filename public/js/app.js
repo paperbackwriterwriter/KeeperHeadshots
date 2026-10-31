@@ -376,7 +376,7 @@ async function accountChanged() {
   document.dispatchEvent(new CustomEvent("ahg:user-changed"));
   showRefundNotice();
 }
-const accountSig = (u) => JSON.stringify(u ? [u.id, u.emailVerified, u.plan, u.previewsUnlocked, u.kept, u.extraLooks, u.photoFormat, u.emailReminders, u.refundNotice, u.name] : null);
+const accountSig = (u) => JSON.stringify(u ? [u.id, u.emailVerified, u.plan, u.previewsUnlocked, u.kept, u.extraLooks, u.photoFormat, u.emailReminders, u.refundNotice, u.name, u.hasPassword, u.google] : null);
 let lastAccountSync = 0;
 async function syncAccount() {
   if (!state.user || document.visibilityState !== "visible" || Date.now() - lastAccountSync < 4000) return;

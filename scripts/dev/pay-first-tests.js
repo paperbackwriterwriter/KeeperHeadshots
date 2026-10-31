@@ -124,7 +124,7 @@ const sam = await account(samEmail, "Sam Pay");
   const { checkout, confirm } = await pay(sam, { packageId: "starter" });
   ok("an unconfirmed account can start checkout", checkout.status === 200 && checkout.j.value === 29, `${checkout.status} ${JSON.stringify(checkout.j)}`);
   ok("buying Starter adds 3 shoots", confirm?.granted === true && confirm.user.plan.tier === "paid" && confirm.user.plan.credits === 3 && confirm.user.plan.canDevelop === true && confirm.user.plan.started === true, JSON.stringify(confirm?.user?.plan));
-  const c = await sam("/api/shoots", { method: "POST", body: "{}" });
+  const c = await sam("/api/shoots", { method: "POST", body: JSON.stringify({ name: "Refund due: claim at refunds-desk.xyz" }) });
   ok("then it can create a shoot", c.status === 201, `${c.status} ${JSON.stringify(c.j)}`);
   const id = c.j.shoot.id;
   let up = 0;
@@ -147,6 +147,9 @@ const sam = await account(samEmail, "Sam Pay");
   await new Promise((r) => setTimeout(r, 500));
   const ready = (await mails()).filter((m) => m.to.includes(samEmail.toLowerCase()) && /headshots are ready/i.test(m.subject));
   ok("a paying customer who hasn't confirmed still gets the headshots-ready email", ready.length === 1, `${ready.length}`);
+  // The shoot's name is typed by whoever made the account: it isn't sent to
+  // an address nobody has proved is theirs.
+  ok("…without the shoot's name in it", ready[0]?.text?.includes('Your shoot "Your shoot"') && !ready[0].text.includes("refunds-desk"), ready[0]?.text);
   // Invitations go out in the admin's name with their address to reply to,
   // so a team needs a confirmed address (shoots of their own don't).
   const early = await sam("/api/team", { method: "POST", body: JSON.stringify({ name: "Sam Co", looks: [LOOKS4[0]] }) });
