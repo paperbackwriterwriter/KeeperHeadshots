@@ -290,6 +290,7 @@ const NAME_BAD = { test: (s) => NAME_CHARS.test(s) || ADDRESS_LIKE.test(s) };
 const nameOk = (s) => typeof s === "string" && s.trim().length >= 2 && s.trim().length <= 80 && !NAME_BAD.test(s.normalize("NFKC"));
 const googleCookie = { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" || !!process.env.VERCEL, path: "/api/auth/google" };
 
+const REAUTH_FRESH_S = 5 * 60;
 app.get("/api/auth/google", async (req, res) => {
   if (!google.googleEnabled()) return res.status(404).end();
   // Confirming who you are before deleting an account that has no password.
@@ -329,7 +330,9 @@ app.get("/api/auth/google/callback", async (req, res) => {
   // signed in here counts, and nothing about the account changes.
   if (flow.reauth) {
     const me = await currentUser(req);
-    const confirmed = me?.id === flow.reauth && !!me.googleSub && me.googleSub === profile.sub && !me.password && markReauth(res, req, me);
+    // A Google sign-in from more than a few minutes ago doesn't count.
+    const fresh = !profile.authTime || Date.now() / 1000 - profile.authTime < REAUTH_FRESH_S;
+    const confirmed = fresh && me?.id === flow.reauth && !!me.googleSub && me.googleSub === profile.sub && !me.password && markReauth(res, req, me);
     console.log("[google] reauth", flow.reauth, confirmed ? "confirmed" : "refused");
     return res.redirect(302, `/app/account?reauth=${confirmed ? "ok" : "failed"}`);
   }
@@ -613,10 +616,11 @@ app.post("/api/auth/password/forgot", async (req, res) => {
 // Nothing changes here; the link is only used by the reset itself.
 app.post("/api/auth/password/reset/check", async (req, res) => {
   if (await overLimit("resetcheck", req.ip || "unknown", 60)) return res.status(429).json({ error: "Too many attempts. Please wait a little and try again." });
-  const { error } = await checkResetToken(req.body?.token);
+  const { user, error } = await checkResetToken(req.body?.token);
   if (error === "expired") return res.status(410).json({ error: "This reset link has expired. Ask for a new one below.", code: "expired" });
   if (error) return res.status(400).json({ error: "This reset link isn't valid or has already been used. Ask for a new one below.", code: "invalid" });
-  res.json({ ok: true });
+  // No password yet (made with Google, or one removed in a takeover): the page says "set", not "change".
+  res.json({ ok: true, firstPassword: !user?.password });
 });
 
 app.post("/api/auth/password/reset", async (req, res) => {
@@ -1098,7 +1102,15 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
     // A photo check given back as a retake counts after all when the person
     // goes ahead with those photos.
     if (meta.check?.refunded && req.body?.override && planFor(req.user).checksLeft != null) background(countRefundedCheck(req.user).catch(() => {}));
-    if (charged) await users.update(req.user.id, (u) => (u.developing?.[meta.id] ? void delete u.developing[meta.id] : UNCHANGED)).catch(() => {});
+    // (developed: the dashboard says "your next shoot", not "your first", lib/plan.js.)
+    if (charged)
+      await users
+        .update(req.user.id, (u) => {
+          if (!u.developing?.[meta.id] && u.developed) return UNCHANGED;
+          if (u.developing?.[meta.id]) delete u.developing[meta.id];
+          u.developed = true;
+        })
+        .catch(() => {});
     background(recordStep("developed", req.user).catch(noteStats));
     res.status(202).json({ shoot: started });
   } catch (err) {

@@ -6,13 +6,15 @@ import { pixel, pageUrl } from "../pixel.js";
 // script too), and opening the link mustn't confirm an address for someone
 // who doesn't own the inbox.
 export async function renderVerify({ root, navigate }) {
-  const token = state.linkToken || new URLSearchParams(location.search).get("token") || "";
+  // (history.state.pending: a link not yet used, kept on this page's own
+  // history entry so Back and then Forward can still answer it.)
+  const token = state.linkToken || new URLSearchParams(location.search).get("token") || history.state?.pending || "";
   state.linkToken = null;
   // What this page showed after the link worked, kept on its history entry
   // for the Back button (below).
   const before = history.state?.verified;
-  // Keep the token out of the address bar and browser history.
-  history.replaceState(before ? { verified: before } : {}, "", "/verify");
+  // Keep the token out of the address bar and the browser's list of pages.
+  history.replaceState(before ? { verified: before } : token ? { pending: token } : {}, "", "/verify");
   // Coming back here (Back button) after the link was used: the token is gone
   // from the address, so there's nothing to confirm. Signed in and confirmed
   // means it worked; go on to the shoots.

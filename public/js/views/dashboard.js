@@ -42,9 +42,9 @@ export function emptyDashboard() {
           ? html`<h2 class="display h-2">Choose a package for your next shoot.</h2>
       <p class="lede">Each shoot has up to 4 looks and 8 headshots, checked and graded.</p>
       <a class="btn btn-flash btn-lg" href="/#pricing">See packages ${icon("arrow-right")}</a>`
-          : html`<h2 class="display h-2">Your first shoot starts with a selfie.</h2>
+          : html`<h2 class="display h-2">${plan.returning ? "Your next shoot starts with a selfie." : "Your first shoot starts with a selfie."}</h2>
       <p class="lede">Upload a few everyday photos. We'll check them, develop your headshots, and grade every frame.</p>
-      <a class="btn btn-flash btn-lg" href="/app/new" data-link>Start your first shoot ${icon("arrow-right")}</a>`}
+      <a class="btn btn-flash btn-lg" href="/app/new" data-link>${plan.returning ? "Start a new shoot" : "Start your first shoot"} ${icon("arrow-right")}</a>`}
     </div>`;
 }
 export function planBanner(mode = "always") {

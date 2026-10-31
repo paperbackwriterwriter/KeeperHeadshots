@@ -140,11 +140,13 @@ let final;
   const link = r.j.results[0].link;
   const c = await account(carol);
   const { shootId: sid } = (await c(`/api/join/${tokenOf(link)}`, { method: "POST" })).j;
+  ok("while the team shoot is there, the member is told the team paid for it", (await c("/api/me")).j.user.plan.teamMember === true);
   const mid = await credits(admin);
   await c(`/api/shoots/${sid}`, { method: "DELETE" });
   ok("deleting an undeveloped team shoot returns the seat", (await credits(admin)) === mid + 1, `${mid} -> ${await credits(admin)}`);
   const m = (await admin("/api/team")).j.team.members.find((x) => x.email === carol);
   ok("the member shows as returned", m?.status === "returned", m?.status);
+  ok("…and the member is no longer told their team paid for a shoot", (await c("/api/me")).j.user.plan.teamMember === false);
 }
 
 // 7b. Accepting an invitation to an owner address (made by someone who

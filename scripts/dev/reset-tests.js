@@ -66,7 +66,9 @@ ok("reset: short password rejected", (await post(anon, "/api/auth/password/reset
 
 // The page checks its link on opening, without using it up.
 ok("reset check: a bad link is refused up front", (await post(anon, "/api/auth/password/reset/check", { token: "usr_x.123.abc" })).status === 400);
-ok("reset check: a good link passes (and still works below)", (await post(anon, "/api/auth/password/reset/check", { token })).status === 200);
+const goodCheck = await post(anon, "/api/auth/password/reset/check", { token });
+ok("reset check: a good link passes (and still works below)", goodCheck.status === 200);
+ok("reset check: an account with a password is changing it, not setting a first one", goodCheck.j?.firstPassword === false, JSON.stringify(goodCheck.j));
 
 // Two tabs submit the same link at once: exactly one wins.
 const tabA = client(), tabB = client();

@@ -107,8 +107,9 @@ export async function renderReset({ root, navigate }) {
   // Coming back here (Back button) after a reset, already signed in.
   if (!token && state.user) return void navigate("/app", { replace: true });
   if (!token) return failed("This page needs the link from your password reset email. Ask for a new one below.");
+  let firstPassword = false;
   try {
-    await api("/api/auth/password/reset/check", { method: "POST", body: { token } });
+    firstPassword = !!(await api("/api/auth/password/reset/check", { method: "POST", body: { token } })).firstPassword;
   } catch (err) {
     return failed(err.message);
   }
@@ -117,13 +118,13 @@ export async function renderReset({ root, navigate }) {
     root,
     html`
     <div class="verify-icon">${icon("lock")}</div>
-    <h1 class="display h-2">Choose a new password</h1>
+    <h1 class="display h-2">${firstPassword ? "Choose a password" : "Choose a new password"}</h1>
     <p class="lede">Use at least 8 characters. You'll be signed out on your other devices.</p>
     <form class="form reset-form" id="resetForm" novalidate>
       <div class="form-alert" id="formAlert" role="alert" hidden></div>
       <input type="email" name="username" autocomplete="username" value="${state.user?.email || ""}" hidden />
       <div class="field">
-        <label for="password">New password</label>
+        <label for="password">${firstPassword ? "Password" : "New password"}</label>
         <div class="input-wrap">
           <input class="input" id="password" name="password" type="password" autocomplete="new-password" placeholder="At least 8 characters" required minlength="8" maxlength="200" style="padding-right:52px" />
           <button type="button" class="reveal" id="reveal" aria-label="Show password" aria-pressed="false">${icon("eye")}</button>
@@ -163,7 +164,7 @@ export async function renderReset({ root, navigate }) {
       return showAlert(alertBox, err.message);
     }
     state.user = res.user;
-    toast("Password changed. You're signed in, and your other devices are signed out.", "success", 7000);
+    toast(`${firstPassword ? "Password set" : "Password changed"}. You're signed in, and your other devices are signed out.`, "success", 7000);
     navigate("/app");
   });
   pw.focus({ preventScroll: true });
