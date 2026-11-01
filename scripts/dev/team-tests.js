@@ -149,6 +149,22 @@ let final;
   ok("…and the member is no longer told their team paid for a shoot", (await c("/api/me")).j.user.plan.teamMember === false);
 }
 
+// 7a. On two teams: deleting one team's shoot leaves the other's paid for.
+{
+  const dee = `dee${t}@x.com`;
+  const d = await account(dee);
+  const first = (await admin("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: dee }) })).j.results[0].link;
+  const keep = (await d(`/api/join/${tokenOf(first)}`, { method: "POST" })).j.shootId;
+  const admin2 = await account(`admin2${t}@x.com`);
+  await buy(admin2, "starter");
+  await admin2("/api/team", { method: "POST", body: JSON.stringify({ name: "Beta Co", looks: LOOKS }) });
+  const second = (await admin2("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: dee }) })).j.results[0].link;
+  const drop = (await d(`/api/join/${tokenOf(second)}`, { method: "POST" })).j.shootId;
+  await d(`/api/shoots/${drop}`, { method: "DELETE" });
+  const me = (await d("/api/me")).j.user;
+  ok("a member on two teams who deletes one team's shoot is still told the other team paid", !!keep && me.plan.teamMember === true, JSON.stringify(me.plan));
+}
+
 // 7b. Accepting an invitation to an owner address (made by someone who
 // doesn't own that inbox) never gives owner access.
 {

@@ -31,7 +31,9 @@ let noShoots = false;
 export function emptyDashboard() {
   const plan = state.user?.plan || {};
   const buy = plan.tier === "none" && !state.user?.demo;
-  const fresh = buy && !plan.started && !plan.teamMember;
+  // (A team member whose team shoot is gone counts as new: the dashboard's
+  // listing is newer than the account details it was opened with.)
+  const fresh = buy && !plan.started && !(plan.teamMember && !noShoots);
   return html`<div class="empty view-enter" data-empty-dash>
       <div class="empty-art" aria-hidden="true">${["strip-1", "hero-2", "strip-3"].map((s, i) => html`<div class="print"><img src="${example(s)}" alt="" /><div class="print-cap"><b>0${i + 1}</b></div></div>`)}</div>
       ${fresh

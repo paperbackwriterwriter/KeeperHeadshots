@@ -222,13 +222,13 @@ export function renderAccount({ root, navigate }) {
   });
   const rem = $("#remindersOn", root);
   // Changed in another tab: show the account's settings as they are now.
+  const facts = (x) => [x.hasPassword, x.google, x.plan?.credits || 0].join();
   const onUser = () => {
     if (!document.body.contains(rem)) return document.removeEventListener("ahg:user-changed", onUser);
     const u2 = state.user;
     if (!u2) return;
     // A password set, Google linked or shoots bought elsewhere change how
     // deleting is confirmed and its warning: drawn again, unless being edited.
-    const facts = (x) => [x.hasPassword, x.google, x.plan?.credits || 0].join();
     if (facts(u2) !== facts(u) && $("#deleteForm", root)?.hidden && nameForm?.hidden) return renderAccount({ root, navigate });
     if (!rem.disabled) rem.checked = u2.emailReminders !== false;
     if (nameForm?.hidden) {
@@ -285,6 +285,9 @@ export function renderAccount({ root, navigate }) {
     (pw || agree).focus();
   });
   $("#cancelDelete", root).addEventListener("click", () => {
+    // Changed in another tab while the form was open (a password set): drawn
+    // again now, so the next try asks for the right thing.
+    if (state.user && facts(state.user) !== facts(u)) return renderAccount({ root, navigate });
     form.hidden = true;
     start.hidden = false;
     form.reset();

@@ -1102,8 +1102,9 @@ app.post("/api/shoots/:id/generate", requireUser, async (req, res) => {
     // A photo check given back as a retake counts after all when the person
     // goes ahead with those photos.
     if (meta.check?.refunded && req.body?.override && planFor(req.user).checksLeft != null) background(countRefundedCheck(req.user).catch(() => {}));
-    // (developed: the dashboard says "your next shoot", not "your first", lib/plan.js.)
-    if (charged)
+    // (developed: the dashboard says "your next shoot", not "your first",
+    // lib/plan.js; whoever paid, the account, its team or a free reshoot.)
+    if (charged || !req.user.developed)
       await users
         .update(req.user.id, (u) => {
           if (!u.developing?.[meta.id] && u.developed) return UNCHANGED;

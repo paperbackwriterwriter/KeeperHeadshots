@@ -85,7 +85,7 @@ export function renderForgot({ root }) {
   return () => human?.remove();
 }
 
-export async function renderReset({ root, navigate }) {
+export async function renderReset({ root, navigate, setTitle }) {
   const token = state.linkToken || new URLSearchParams(location.search).get("token") || "";
   state.linkToken = null;
   // Keep the token out of the address bar and browser history.
@@ -114,6 +114,7 @@ export async function renderReset({ root, navigate }) {
     return failed(err.message);
   }
 
+  if (firstPassword) setTitle?.("Choose a password");
   shell(
     root,
     html`
@@ -131,7 +132,7 @@ export async function renderReset({ root, navigate }) {
         </div>
         <span class="field-error" id="err-password" hidden></span>
       </div>
-      <button class="btn btn-flash btn-lg btn-block" type="submit" id="submit">Save new password ${icon("arrow-right")}</button>
+      <button class="btn btn-flash btn-lg btn-block" type="submit" id="submit">${firstPassword ? "Save password" : "Save new password"} ${icon("arrow-right")}</button>
     </form>
     <p class="muted small"><a class="link" href="/signin" data-link>Back to sign in</a></p>`,
   );

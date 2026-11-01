@@ -151,7 +151,7 @@ const sam = await account(samEmail, "Sam Pay");
   ok("a paying customer who hasn't confirmed still gets the headshots-ready email", ready.length === 1, `${ready.length}`);
   // The shoot's name is typed by whoever made the account: it isn't sent to
   // an address nobody has proved is theirs.
-  ok("…without the shoot's name in it", ready[0]?.text?.includes('Your shoot "Your shoot"') && !ready[0].text.includes("refunds-desk"), ready[0]?.text);
+  ok("…without the shoot's name in it", ready[0]?.text?.includes("Your shoot is developed") && !ready[0].text.includes("refunds-desk"), ready[0]?.text);
   // Invitations go out in the admin's name with their address to reply to,
   // so a team needs a confirmed address (shoots of their own don't).
   const early = await sam("/api/team", { method: "POST", body: JSON.stringify({ name: "Sam Co", looks: [LOOKS4[0]] }) });

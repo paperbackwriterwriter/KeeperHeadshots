@@ -158,6 +158,8 @@ export function renderAuth({ root, navigate }, mode) {
       // (The submit button was disabled while busy: put focus on the field to fix.)
       const first = err.data?.fields && Object.keys(err.data.fields)[0];
       if (first) $(`#${first}`)?.focus();
+      // (A refused sign-in names no field: back to the password to try again.)
+      else $("#password")?.focus();
     }
   }
 

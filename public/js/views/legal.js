@@ -4,7 +4,7 @@ import { CONTACT_EMAIL } from "./contact.js";
 
 // Privacy Policy and Terms of Service. Keep these in step with what the code
 // actually does (lib/meta.js, lib/billing.js, lib/store.js, lib/ai.js).
-export const LEGAL_UPDATED = "October 30, 2026";
+export const LEGAL_UPDATED = "November 1, 2026";
 
 const mail = html`<a class="link" href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>`;
 
@@ -81,6 +81,7 @@ export function renderPrivacy({ root }) {
       <ul>
         <li><b>Sign-in cookie:</b> keeps you signed in for up to 30 days. The site can't work without it.</li>
         <li><b>Known-browser cookie:</b> set when you sign in and kept for up to a year, it tells us this browser has signed in to your account before, so strangers guessing passwords from elsewhere can't lock you out. It holds only your account's ID, signed by us.</li>
+        <li><b>Account-security cookies:</b> when you create an account, a cookie kept for up to a year records that this browser made it, so opening its confirmation link here doesn't ask whether you created it. While you continue with Google, a cookie of up to 10 minutes ties Google's reply to this browser, and confirming it's you before deleting your account sets one for 5 minutes. They hold only random or signed values, not your details.</li>
         <li><b>Site analytics:</b> we use Vercel Web Analytics to count visits and see which pages are viewed. It doesn't use cookies and doesn't identify you.</li>
         <li><b>Session storage:</b> the studio saves a couple of small settings in your browser while a shoot is being set up (whether to check photos automatically, and a team invitation you're accepting), and search remembers which FAQ answer to open.</li>
         <li><b>Local storage:</b> once we've shown you the photo tips for a shoot, your browser remembers it so they aren't shown again.</li>
