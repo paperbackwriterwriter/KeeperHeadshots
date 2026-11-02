@@ -285,9 +285,10 @@ if (process.env.DATA_DIR) {
 {
   const r = await fetch(B + "/llms.txt");
   const txt = await r.text();
-  const { PACKAGES } = await import("../../public/js/shared/catalog.js");
+  const { PACKAGES, usd } = await import("../../public/js/shared/catalog.js");
   ok("llms.txt is served as text", r.status === 200 && /text\/plain/.test(r.headers.get("content-type") || "") && txt.startsWith("# Keeper Headshots"));
-  const wrong = PACKAGES.filter((p) => !txt.includes(`${p.name}: $${p.price} one-time, ${p.shoots} shoots`));
+  const lines = txt.split("\n");
+  const wrong = PACKAGES.filter((p) => !lines.some((l) => l.startsWith(`- ${p.name}: ${usd(p.price)} one-time`) && l.includes(`${p.shoots} shoots`) && (!p.listPrice || l.includes(usd(p.listPrice)))));
   ok("llms.txt prices match the packages", !wrong.length, wrong.map((p) => p.name).join(", "));
 }
 
@@ -416,7 +417,9 @@ if (process.env.DATA_DIR) {
   const blocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
   const agg = blocks.flatMap((b) => [].concat(b["@graph"] || b)).map((b) => b.offers).find((o) => o?.["@type"] === "AggregateOffer");
   // (Only the packages: the offers to keep a free preview aren't public prices.)
-  ok("landing page offers start at the cheapest package", agg?.lowPrice === "29" && agg?.highPrice === "49" && agg?.offerCount === "3", JSON.stringify(agg));
+  const home = await fetch(B + "/").then((r) => r.text());
+  ok("the pricing shows each full price crossed out beside the sale price", ["29", "39", "49"].every((n) => home.includes(`<del>$${n}</del>`)) && ["$14.50", "$19.50", "$24.50"].every((n) => home.includes(`<span class="amt">${n}</span>`)), "");
+  ok("landing page offers start at the cheapest package", agg?.lowPrice === "14.50" && agg?.highPrice === "24.50" && agg?.offerCount === "3", JSON.stringify(agg));
 }
 
 // 23. Email copy for edge counts and several team looks.

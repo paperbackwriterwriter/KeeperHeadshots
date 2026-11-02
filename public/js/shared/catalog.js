@@ -90,19 +90,23 @@ export const MIN_CHECK_SCORE = 65;
 export const MIN_SELFIES = 1;
 
 // What each one-time package buys. A paid shoot allows MAX_LOOKS looks,
-// TAKES_PER_LOOK takes each (8 headshots).
+// TAKES_PER_LOOK takes each (8 headshots). `price` is what's charged;
+// `listPrice` is the full price, shown crossed out beside it while packages
+// are 50% off (views/price.js).
 export const PACKAGES = [
   {
     id: "starter",
     name: "Starter",
-    price: 29,
+    price: 14.5,
+    listPrice: 29,
     shoots: 3,
     features: ["3 shoots", "Up to 24 headshots", "4 looks per shoot", "AI photo check & grading", "LinkedIn & Teams square crops"],
   },
   {
     id: "professional",
     name: "Professional",
-    price: 39,
+    price: 19.5,
+    listPrice: 39,
     shoots: 6,
     popular: true,
     features: ["6 shoots", "Up to 48 headshots", "4 looks per shoot", "AI photo check & grading", "LinkedIn & Teams square crops", "Our most popular package"],
@@ -110,7 +114,8 @@ export const PACKAGES = [
   {
     id: "executive",
     name: "Executive",
-    price: 49,
+    price: 24.5,
+    listPrice: 49,
     shoots: 12,
     features: ["12 shoots", "Up to 96 headshots", "4 looks per shoot", "AI photo check & grading", "LinkedIn & Teams square crops", "Best value per shoot", "Great for small teams"],
   },
@@ -137,6 +142,14 @@ export const PREVIEW_OFFERS = [
     features: ["Every headshot from this shoot, full resolution", "2 more looks of your choice", `${2 * TAKES_PER_LOOK} more headshots, checked and graded`],
   },
 ];
+// "$14.50", "$29": cents only when there are some.
+export const usd = (n) => `$${Number.isInteger(n) ? n : n.toFixed(2)}`;
+// Packages from (the cheapest), and the team price per person (Executive).
+export const FROM_PRICE = usd(Math.min(...PACKAGES.map((p) => p.price)));
+const BEST_PER_SHOOT = Math.min(...PACKAGES.map((p) => p.price / p.shoots));
+export const PER_PERSON = `$${BEST_PER_SHOOT.toFixed(2)}`;
+// In copy: "about $2 a person".
+export const ABOUT_PER_PERSON = `$${Math.round(BEST_PER_SHOOT)}`;
 export const offerFor = (id) => PACKAGES.find((p) => p.id === id) || PREVIEW_OFFERS.find((p) => p.id === id) || null;
 export const isPreviewOffer = (id) => PREVIEW_OFFERS.some((p) => p.id === id);
 

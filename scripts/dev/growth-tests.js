@@ -56,7 +56,7 @@ const t = Date.now();
 {
   const f = await account(`half${t}@x.com`);
   const r = await buy(f, "professional", "HALF");
-  ok("discounted order reports the amount paid", r.added === 6 && r.value === 19.5 && !!r.eventId, `added=${r.added} value=${r.value}`);
+  ok("discounted order reports the amount paid", r.added === 6 && r.value === 9.75 && !!r.eventId, `added=${r.added} value=${r.value}`);
 }
 
 // 3b. The Purchase sent to Meta from the server carries the buyer's browser
@@ -107,7 +107,7 @@ const t = Date.now();
   const after = (await owner("/api/owner/funnel?days=7")).j;
   const d = (k) => after.totals[k] - before.totals[k];
   const deltas = { signup: d("signup"), verified: d("verified"), checked: d("checked"), developed: d("developed"), buyer: d("buyer"), purchases: d("purchases"), revenue: d("revenue") };
-  ok("funnel counts each step once per person, and free orders aren't sales", dev.status === 202 && deltas.signup === 1 && deltas.verified === 1 && deltas.checked === 1 && deltas.developed === 1 && deltas.buyer === 1 && deltas.purchases === 2 && deltas.revenue === 3900 + 1450, JSON.stringify(deltas));
+  ok("funnel counts each step once per person, and free orders aren't sales", dev.status === 202 && deltas.signup === 1 && deltas.verified === 1 && deltas.checked === 1 && deltas.developed === 1 && deltas.buyer === 1 && deltas.purchases === 2 && deltas.revenue === 1950 + 725, JSON.stringify(deltas));
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" });
   ok("funnel report has one row per day, in Central time", after.rows.length === 7 && after.rows[0].date === today, `${after.rows[0].date} vs ${today}`);
   const bad = await owner("/api/owner/offer", { method: "POST", body: JSON.stringify({ code: "NOPE-20", discount: "20% off", until: "Sunday" }) });
@@ -122,9 +122,9 @@ const t = Date.now();
     await f("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: psid }) });
     const credits = async () => (await f("/api/me")).j.user.plan.credits;
     const c0 = await credits();
-    // Starter: $29 for 3 shoots, $9.66⅔ each. Each step is the running total
+    // Starter: $14.50 for 3 shoots, $4.83⅓ each. Each step is the running total
     // refunded and how many shoots it should have taken back by then.
-    const steps = [[484, 0], [919, 0], [965, 0], [966, 1], [1932, 1], [1933, 2]];
+    const steps = [[242, 0], [460, 0], [482, 0], [483, 1], [965, 1], [966, 2]];
     const seen = [];
     for (const [amount] of steps) {
       await fetch(`${M}/mock-refund/${psid}?amount=${amount}`);
@@ -143,7 +143,7 @@ const t = Date.now();
   await f("/api/billing/sync", { method: "POST", body: "{}" });
   await f("/api/billing/sync", { method: "POST", body: "{}" }); // a second sync counts nothing more
   const end = (await owner("/api/owner/funnel?days=7")).j.totals;
-  ok("a refund is counted once in the funnel", end.refunds - mid.refunds === 2900 && end.refunded - mid.refunded === 1 && end.revenue === mid.revenue, JSON.stringify({ refunds: end.refunds - mid.refunds, refunded: end.refunded - mid.refunded }));
+  ok("a refund is counted once in the funnel", end.refunds - mid.refunds === 1450 && end.refunded - mid.refunded === 1 && end.revenue === mid.revenue, JSON.stringify({ refunds: end.refunds - mid.refunds, refunded: end.refunded - mid.refunded }));
   const stranger = await f("/api/owner/funnel");
   ok("only owners can see the funnel", stranger.status === 404, String(stranger.status));
 }

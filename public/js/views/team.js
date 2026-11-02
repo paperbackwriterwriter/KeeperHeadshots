@@ -1,5 +1,6 @@
 import { html, icon, raw, state, example } from "../core.js";
-import { PACKAGES } from "../shared/catalog.js";
+import { PACKAGES, usd, PER_PERSON, ABOUT_PER_PERSON } from "../shared/catalog.js";
+import { wasPrice } from "./price.js";
 import { TEAM_FAQ } from "../shared/faq.js";
 import { footer } from "./landing.js";
 
@@ -120,7 +121,7 @@ export function renderTeam({ root }) {
             (p, i) => html`<div class="tm-price ${p.id === exec.id ? "tm-price-pop" : ""}" data-reveal style="--i:${i}">
               <p class="tm-price-name">${p.name}</p>
               <p class="tm-price-team"><b>${p.shoots}</b> people</p>
-              <p class="tm-price-amt"><span>$${p.price}</span> one-time</p>
+              <p class="tm-price-amt">${wasPrice(p)} <span>${usd(p.price)}</span> one-time</p>
               <p class="tm-price-each">${perPerson(p)} per person</p>
             </div>`,
           )}
@@ -151,7 +152,7 @@ export function renderTeam({ root }) {
       <div class="container">
         <div class="cta-band">
           <div>
-            <p class="eyebrow" style="color:#a9b1bd">About $4 a person · no photographer needed</p>
+            <p class="eyebrow" style="color:#a9b1bd">About ${ABOUT_PER_PERSON} a person · no photographer needed</p>
             <h2 class="display h-1" style="margin-top:16px">Your team page, finally matching.</h2>
           </div>
           <a class="btn btn-flash btn-lg" href="${cta}" data-link>Start your team's headshots ${icon("arrow-right")}</a>

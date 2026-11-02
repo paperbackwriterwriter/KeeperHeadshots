@@ -432,7 +432,7 @@ p, li, dd, .lede, figcaption { text-wrap: pretty; }
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .stat { padding: var(--s-6) var(--s-5); border-left: 1px solid var(--border); }
 .stat:first-child { border-left: 0; padding-left: 0; }
-.stat .num { font-family: var(--font-display); font-size: var(--fs-2xl); line-height: 1; font-variant-numeric: tabular-nums lining-nums; letter-spacing: -0.02em; }
+.stat .num { font-family: var(--font-display); font-size: min(var(--fs-2xl), 11vw); line-height: 1; font-variant-numeric: tabular-nums lining-nums; letter-spacing: -0.02em; }
 .stat .lbl { margin-top: var(--s-2); font-size: var(--fs-sm); color: var(--text-muted); }
 
 /* Steps */
@@ -549,7 +549,19 @@ p, li, dd, .lede, figcaption { text-wrap: pretty; }
 .plan-pop .muted { color: var(--text-inverse-muted); }
 .plan-badge { position: absolute; top: -12px; left: var(--s-6); background: var(--flash-500); color: #fff; font-family: var(--font-mono); font-size: var(--fs-2xs); letter-spacing: var(--tracking-caps); text-transform: uppercase; padding: 5px 10px; border-radius: var(--r-pill); }
 .plan-price { display: flex; align-items: baseline; gap: 6px; }
-.plan-price .amt { font-family: var(--font-display); font-size: 4rem; line-height: 0.9; letter-spacing: -0.03em; font-variant-numeric: lining-nums; }
+.plan-price .amt { font-family: var(--font-display); font-size: clamp(2.5rem, 14vw, 4rem); line-height: 0.9; letter-spacing: -0.03em; font-variant-numeric: lining-nums; }
+/* The full price, crossed out with one diagonal stroke (views/price.js). */
+.price-was { position: relative; display: inline-block; color: var(--text-muted); font-weight: 500; line-height: 1; white-space: nowrap; }
+.price-was del { text-decoration: none; }
+.price-was::after { content: ""; position: absolute; left: -8%; right: -8%; top: 50%; height: 2px; border-radius: 2px; background: var(--danger); transform: rotate(-20deg); pointer-events: none; }
+/* Crossed-out and sale price on one line, "one-time" under them. */
+.plan-price { flex-direction: column; align-items: flex-start; gap: 4px; }
+.plan-now { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.plan-price .price-was { font-family: var(--font-display); font-size: 1.75rem; }
+.plan-pop .price-was { color: var(--text-inverse-muted); }
+.plan-pop .price-was::after, .tm-price-pop .price-was::after, .upsell .price-was::after { background: #f08274; }
+.checkout-price .price-was { font-size: 1.5rem; align-self: center; }
+.tm-price-pop .price-was { color: var(--text-inverse-muted); }
 .plan-feats { list-style: none; display: grid; gap: 10px; font-size: var(--fs-sm); }
 .plan-feats li { display: flex; gap: 10px; align-items: center; }
 .plan-feats svg { width: 16px; height: 16px; color: var(--brand); flex: none; }
@@ -1211,7 +1223,7 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
      left edge, the last at the right, equal space between; a long
      description wraps under its heading. */
   .hero-proof { gap: var(--s-3); }
-  .proof-item strong { font-size: var(--fs-md); white-space: nowrap; }
+  .proof-item strong { font-size: var(--fs-md); text-wrap: balance; text-align: center; }
   .proof-item span { font-size: var(--fs-xs); line-height: 1.35; }
   .step-item { grid-template-columns: 52px 1fr; gap: var(--s-3); }
   .step-no { font-size: 2.6rem; }

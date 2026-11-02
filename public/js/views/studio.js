@@ -2,7 +2,8 @@
 //   (new) upload -> draft/checking -> checked (photo check + looks) -> generating/reviewing -> done (proofs)
 
 import { $, $$, html, raw, icon, api, state, toast, media, squareMedia, sizeMedia, PROFILE_KIT, busy, spinner, greaseCircle, silhouette, esc, reduceMotion, loadSession } from "../core.js";
-import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, MAX_RESUMES, MIN_CHECK_SCORE, RECOMMENDED_CHECK_SCORE, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, PREVIEW_OFFERS, lookFor } from "../shared/catalog.js";
+import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, MAX_RESUMES, MIN_CHECK_SCORE, RECOMMENDED_CHECK_SCORE, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, PREVIEW_OFFERS, lookFor, usd } from "../shared/catalog.js";
+import { wasPrice } from "./price.js";
 import { portraitDataURL } from "../shared/portrait.js";
 import { aiBanner, planBanner, confirmPurchase } from "./dashboard.js";
 import { currentFormat, formatPicker, formatHrefs, formatName, saveFormat, downloadAll, guardDownloadLinks } from "./format.js";
@@ -976,7 +977,7 @@ export async function renderStudio(ctx, id) {
       (p) => html`<a class="upsell-pkg ${p.popular ? "pop" : ""}" href="/app/buy/${p.id}" data-link>
         ${p.popular ? html`<span class="upsell-badge">Most popular</span>` : ""}
         <span class="upsell-name">${p.name}</span>
-        <span class="upsell-price"><strong>$${p.price}</strong> · ${p.shoots} shoots</span>
+        <span class="upsell-price">${wasPrice(p)} <strong>${usd(p.price)}</strong> · ${p.shoots} shoots</span>
         <span class="upsell-go">Choose ${icon("arrow-right")}</span>
       </a>`,
     )}</div>`;

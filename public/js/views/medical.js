@@ -1,4 +1,5 @@
 import { html, icon, raw, state, example } from "../core.js";
+import { FROM_PRICE, ABOUT_PER_PERSON } from "../shared/catalog.js";
 import { MEDICAL_FAQ } from "../shared/faq.js";
 import { footer } from "./landing.js";
 
@@ -63,7 +64,7 @@ export function renderMedical({ root }) {
           <div class="hero-proof" data-reveal style="--i:4">
             <div class="proof-item"><strong class="tabular">&lt; 15 min</strong><span>from selfies to headshot</span></div>
             <div class="proof-item"><strong class="tabular">Money-back</strong><span>guarantee on your first package</span></div>
-            <div class="proof-item"><strong class="tabular">From $29</strong><span>one-time, no subscription</span></div>
+            <div class="proof-item"><strong class="tabular">From ${FROM_PRICE}</strong><span>one-time, no subscription</span></div>
           </div>
         </div>
         <div class="hero-visual" data-reveal style="--i:2">${doctorKit("md-1")}</div>
@@ -138,7 +139,7 @@ export function renderMedical({ root }) {
           <div>
             <p class="eyebrow">Practices and clinics</p>
             <h2 class="display h-2" style="margin-top:12px">Every provider, one matching look.</h2>
-            <p>Give every clinician the same backdrop and attire for consistent provider pages, including locums and new hires. About $4 a person with the Executive package.</p>
+            <p>Give every clinician the same backdrop and attire for consistent provider pages, including locums and new hires. About ${ABOUT_PER_PERSON} a person with the Executive package.</p>
           </div>
           <a class="btn btn-ink btn-lg" href="/team-headshots" data-link>Team headshots ${icon("arrow-right")}</a>
         </div>
@@ -162,7 +163,7 @@ export function renderMedical({ root }) {
       <div class="container">
         <div class="cta-band">
           <div>
-            <p class="eyebrow" style="color:#a9b1bd">From $29 · money-back guarantee</p>
+            <p class="eyebrow" style="color:#a9b1bd">From ${FROM_PRICE} · money-back guarantee</p>
             <h2 class="display h-1" style="margin-top:16px">Put a friendly face on your practice.</h2>
           </div>
           <a class="btn btn-flash btn-lg" href="${cta}" data-link>Create your headshot ${icon("arrow-right")}</a>

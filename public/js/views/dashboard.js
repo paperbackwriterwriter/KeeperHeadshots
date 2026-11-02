@@ -1,6 +1,6 @@
 import { html, icon, api, state, media, relTime, toast, example, spinner, busy, showRefundNotice } from "../core.js";
 import { pixel } from "../pixel.js";
-import { PACKAGES, MIN_CHECK_SCORE } from "../shared/catalog.js";
+import { PACKAGES, MIN_CHECK_SCORE, FROM_PRICE } from "../shared/catalog.js";
 
 const STATUS = {
   draft: ["badge", "Photo check pending"],
@@ -70,7 +70,7 @@ export function planBanner(mode = "always") {
     return html`<div class="banner banner-info" data-plan-banner="${mode}">${icon("users")}<div><b>Your team has paid for your headshot shoot.</b>To start more shoots of your own, choose a package.</div><a class="btn btn-sm btn-ghost" href="/#pricing">See packages</a></div>`;
   // A brand-new customer (never bought, never had a free shoot): packages come first.
   if (plan.tier === "none" && !plan.started)
-    return html`<div class="banner banner-info" data-plan-banner="${mode}">${icon("sparkles")}<div><b>Choose a package to start.</b>Packages start at $${PACKAGES[0].price} for ${PACKAGES[0].shoots} shoots. Each shoot has up to 4 looks and 8 headshots, no watermark, and your first package is covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>.</div><a class="btn btn-sm btn-flash" href="/#pricing">See packages</a></div>`;
+    return html`<div class="banner banner-info" data-plan-banner="${mode}">${icon("sparkles")}<div><b>Choose a package to start.</b>Packages start at ${FROM_PRICE} for ${PACKAGES[0].shoots} shoots. Each shoot has up to 4 looks and 8 headshots, no watermark, and your first package is covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>.</div><a class="btn btn-sm btn-flash" href="/#pricing">See packages</a></div>`;
   if (plan.tier === "none")
     return html`<div class="banner banner-warn" data-plan-banner="${mode}">${icon("circle-alert")}<div><b>You're out of shoots.</b>Buy a package to develop more. Your shoots stay in your account.</div><a class="btn btn-sm btn-flash" href="/#pricing">Buy shoots</a></div>`;
   if (plan.tier === "paid")

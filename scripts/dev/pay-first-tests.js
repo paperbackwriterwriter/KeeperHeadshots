@@ -91,7 +91,7 @@ const t = Date.now();
   ok("the home page doesn't promise a free preview", !FREE_WORDS.test(home) && !/\$8\.99|14\.99/.test(home));
   ok("it leads pricing with the packages and the guarantee", /Pick a package and get up to 4 looks and 8 headshots in every shoot/.test(home) && /money-back/i.test(home));
   const ld = [...home.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => m[1]).join("\n");
-  ok("structured data offers only the packages", /"price":"29"/.test(ld.replace(/\s/g, "")) && !/8\.99|14\.99/.test(ld), ld.match(/"price":\s*"[^"]+"/g)?.join(","));
+  ok("structured data offers only the packages", /"price":"14.50"/.test(ld.replace(/\s/g, "")) && !/8\.99|14\.99/.test(ld), ld.match(/"price":\s*"[^"]+"/g)?.join(","));
   for (const p of ["/linkedin-headshots", "/real-estate-headshots", "/resume-headshots", "/doctor-headshots", "/lawyer-headshots", "/team-headshots", "/signup"]) {
     const h = await (await fetch(B + p)).text();
     ok(`${p} doesn't promise a free shoot`, !/free preview|try it free|first shoot is (a )?free|keep yours from \$8\.99/i.test(h));
@@ -124,7 +124,7 @@ const sam = await account(samEmail, "Sam Pay");
 // and develops a full shoot: 4 looks, 8 headshots, no watermark.
 {
   const { checkout, confirm } = await pay(sam, { packageId: "starter" });
-  ok("an unconfirmed account can start checkout", checkout.status === 200 && checkout.j.value === 29, `${checkout.status} ${JSON.stringify(checkout.j)}`);
+  ok("an unconfirmed account can start checkout", checkout.status === 200 && checkout.j.value === 14.5, `${checkout.status} ${JSON.stringify(checkout.j)}`);
   ok("buying Starter adds 3 shoots", confirm?.granted === true && confirm.user.plan.tier === "paid" && confirm.user.plan.credits === 3 && confirm.user.plan.canDevelop === true && confirm.user.plan.started === true, JSON.stringify(confirm?.user?.plan));
   ok("…and hasn't developed a shoot yet (\"your first shoot\")", confirm?.user?.plan?.returning === false, JSON.stringify(confirm?.user?.plan));
   const c = await sam("/api/shoots", { method: "POST", body: JSON.stringify({ name: "Refund due: claim at refunds-desk.xyz" }) });

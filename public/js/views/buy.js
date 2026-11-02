@@ -1,6 +1,7 @@
 import { $, html, icon, api, spinner, state } from "../core.js";
 import { pixel, pageUrl } from "../pixel.js";
-import { PACKAGES, PREVIEW_OFFERS, offerFor, isPreviewOffer } from "../shared/catalog.js";
+import { PACKAGES, PREVIEW_OFFERS, offerFor, isPreviewOffer, usd } from "../shared/catalog.js";
+import { wasPrice } from "./price.js";
 
 // /app/buy/:package — checkout. With a Stripe publishable key configured,
 // Stripe's payment form is embedded right here (Embedded Checkout); otherwise
@@ -44,7 +45,7 @@ export function renderBuy({ root }, packageId) {
   // Bought from the team page: Stripe sends the admin back there.
   const toTeam = !offer && q.get("return") === "team";
   const back = offer ? `/app/shoot/${shootId}` : toTeam ? "/app/team" : "/app";
-  const headline = offer ? `${pkg.name}: $${pkg.price}` : `${pkg?.name}: ${pkg?.shoots} shoots for $${pkg?.price}`;
+  const headline = offer ? `${pkg.name}: ${usd(pkg.price)}` : `${pkg?.name}: ${pkg?.shoots} shoots for ${pkg ? usd(pkg.price) : ""}`;
   const body = (extra) => ({ packageId: pkg.id, ...(offer ? { shootId, ...(pkg.id === "keep" ? { shotId } : {}) } : {}), ...(toTeam ? { returnTo: "team" } : {}), pageUrl: pageUrl(), ...extra });
   let disposed = false;
   let checkout = null;
@@ -113,10 +114,10 @@ export function renderBuy({ root }, packageId) {
           ${testNote()}
           <p class="eyebrow">${icon("lock")} Secure checkout</p>
           <h1 class="display h-2" id="order-title">${offer ? pkg.name : `${pkg.name} package`}</h1>
-          <p class="checkout-price"><strong class="tabular">$${pkg.price}</strong><span>one-time · no subscription</span></p>
+          <p class="checkout-price">${wasPrice(pkg)}<strong class="tabular">${usd(pkg.price)}</strong><span>one-time · no subscription</span></p>
           <ul class="checkout-features">${pkg.features.map((f) => html`<li>${icon("check")}<span>${f}</span></li>`)}</ul>
           <p class="checkout-note">${icon("shield-check")}<span>${offer ? "One-time payment. Your headshots stay in your account to download any time." : html`Your first package is covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>. Unused shoots don't expire while your account is open.`}</span></p>
-          <p class="small muted">${offer ? (others.length ? "Rather have" : "") : "Want a different package?"} ${others.map((p, i) => html`${i ? " or " : ""}<a class="link" href="${link(p)}" data-link>${p.name} ($${p.price})</a>`)}${offer ? html`${others.length ? "? Or a" : "Or a"} package for more shoots: ${PACKAGES.map((p, i) => html`${i ? ", " : ""}<a class="link" href="/app/buy/${p.id}" data-link>${p.name} ($${p.price})</a>`)}` : ""}.</p>
+          <p class="small muted">${offer ? (others.length ? "Rather have" : "") : "Want a different package?"} ${others.map((p, i) => html`${i ? " or " : ""}<a class="link" href="${link(p)}" data-link>${p.name} (${usd(p.price)})</a>`)}${offer ? html`${others.length ? "? Or a" : "Or a"} package for more shoots: ${PACKAGES.map((p, i) => html`${i ? ", " : ""}<a class="link" href="/app/buy/${p.id}" data-link>${p.name} (${usd(p.price)})</a>`)}` : ""}.</p>
         </section>
         <section class="checkout-pay" aria-label="Payment">
           <div class="checkout-frame light-island" id="checkout"><div class="checkout-loading">${spinner()}<span>Loading the secure payment form…</span></div></div>

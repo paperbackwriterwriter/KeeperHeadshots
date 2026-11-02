@@ -1,6 +1,7 @@
 import { $, $$, html, icon, raw, greaseCircle, state, logoMark, wordmark, example } from "../core.js";
 import { customersInner } from "../shared/customers.js";
-import { BACKDROPS, OUTFITS, PACKAGES } from "../shared/catalog.js";
+import { BACKDROPS, OUTFITS, PACKAGES, usd, FROM_PRICE } from "../shared/catalog.js";
+import { wasPrice } from "./price.js";
 import { FAQ } from "../shared/faq.js";
 
 // People the hero rotates through: a selfie plus nine headshots each, the
@@ -79,7 +80,7 @@ export function renderLanding({ root, hydrate = false }) {
           <div class="hero-proof" data-reveal style="--i:4">
             <div class="proof-item"><strong class="tabular">&lt; 15 min</strong><span>typical turnaround</span></div>
             <div class="proof-item"><strong class="tabular">Money-back</strong><span>guarantee on your first package</span></div>
-            <div class="proof-item"><strong class="tabular">From $${PACKAGES[0].price}</strong><span>${PACKAGES[0].shoots} shoots, one-time, no subscription</span></div>
+            <div class="proof-item"><strong class="tabular">From ${FROM_PRICE}</strong><span>${PACKAGES[0].shoots} shoots, one-time, no subscription</span></div>
           </div>
         </div>
 
@@ -116,7 +117,7 @@ export function renderLanding({ root, hydrate = false }) {
             ["3", "AI passes on every shoot"],
             ["4", "Looks per shoot"],
             ["< 15 min", "Typical turnaround"],
-            ["$29", "vs. $200+ at a studio"],
+            [FROM_PRICE, "vs. $200+ at a studio"],
           ].map(([n, l], i) => html`<div class="stat" data-reveal style="--i:${i}"><div class="num">${n}</div><div class="lbl">${l}</div></div>`)}
         </div>
       </div>
@@ -207,7 +208,7 @@ export function renderLanding({ root, hydrate = false }) {
           <div class="compare-col">
             <h3 class="h-4">Keeper Headshots</h3>
             <dl class="compare-list">
-            ${[["Cost", `From $${PACKAGES[0].price}`], ["Turnaround", "Under 15 minutes"], ["Backdrops & outfits", "Up to 4 looks per shoot"], ["Number of photos", "Up to 8 per shoot"], ["Help choosing", "Every frame graded"]].map(
+            ${[["Cost", `From ${FROM_PRICE}`], ["Turnaround", "Under 15 minutes"], ["Backdrops & outfits", "Up to 4 looks per shoot"], ["Number of photos", "Up to 8 per shoot"], ["Help choosing", "Every frame graded"]].map(
               ([k, v]) => html`<div class="compare-row"><dt>${k}</dt><dd class="hi">${v}</dd></div>`,
             )}
             </dl>
@@ -253,7 +254,7 @@ export function renderLanding({ root, hydrate = false }) {
                 <h3 class="h-4">${p.name}</h3>
                 <p class="muted small">${p.shoots} shoots · up to ${p.shoots * 8} headshots</p>
               </div>
-              <div class="plan-price"><span class="amt">$${p.price}</span><span class="muted small">one-time</span></div>
+              <div class="plan-price"><span class="plan-now">${wasPrice(p)}<span class="amt">${usd(p.price)}</span></span><span class="muted small">one-time</span></div>
               <ul class="plan-feats">${p.features.map((f) => html`<li>${icon("check")}${f}</li>`)}</ul>
               <a class="btn ${p.popular ? "btn-flash" : "btn-ghost"} btn-block" href="/app/buy/${p.id}" data-link>Choose ${p.name} ${icon("arrow-right")}</a>
             </article>`,
