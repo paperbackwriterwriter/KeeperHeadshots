@@ -14,6 +14,7 @@ ok("a word's start matches: 'linke'", top("linke").length > 0);
 ok("'refund' finds the money-back guarantee", top("refund")[0] === "Page: Money-back guarantee");
 ok("FAQ answers link to their page's FAQ", searchSite("what should a lawyer wear")[0]?.url === "/lawyer-headshots#faq");
 ok("nonsense finds nothing", top("xyzzy plugh").length === 0);
+ok("words that are built-in object names don't break search", ["constructor", "__proto__", "tostring"].every((w) => Array.isArray(searchSite(w))));
 ok("one letter or only stop words find nothing", top("a").length === 0 && top("").length === 0);
 ok("at most 8 results", searchSite("headshot").length <= 8);
 ok("sign-up isn't a result", !searchSite("create your account").some((r) => r.url === "/signup"));

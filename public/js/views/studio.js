@@ -886,6 +886,11 @@ export async function renderStudio(ctx, id) {
     return { title: done ? `${done} of ${total} developed` : "Developing your headshots", sub: "Each frame is rendered from your reference photos, then checked for likeness and polish before you see it. Anything that falls short is retaken automatically. You can close this page; your headshots keep developing.", pct: Math.max(4, ((done + failed) / total) * 92), done, total, failed };
   }
 
+  // (Also on a stopped shoot whose every frame was held back: the free
+  // reshoot stays on offer after its tips window is closed.)
+  const reshootBanner = (s) =>
+    canReshoot(s) ? html`<div class="banner banner-info reshoot-banner">${icon("camera")}<div><b>${heldForLikeness(s)} headshots didn't look enough like you.</b>That usually comes down to the selfies. Retake them in soft daylight, with a few angles, and we'll reshoot your looks free.</div><a class="btn btn-sm btn-flash" href="${reshootHref(s)}" data-link>${icon("camera")} Free reshoot</a></div>` : "";
+
   function paintDevelop(s) {
     const c = developCopy(s);
     root.innerHTML = html`<main id="main" class="container app-main view-enter">
@@ -895,6 +900,7 @@ export async function renderStudio(ctx, id) {
         <div id="devActions" data-status="${s.status}">${developActions(s)}</div>
       </div>
       <div class="progress" role="progressbar" aria-label="Development progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(c.pct)}"><div id="bar" style="width:${c.pct}%"></div></div>
+      ${s.status === "error" ? reshootBanner(s) : ""}
       <div class="contact" id="contact">${s.shots.map((t, i) => frameHTML(t, i))}</div>
     </main>`.v;
     wireDevelopActions();
@@ -1033,7 +1039,7 @@ export async function renderStudio(ctx, id) {
       ${extraLooks(s) ? html`<div class="banner banner-info extra-banner">${icon("sparkles")}<div><b>You have ${plural(extraLooks(s), "extra look")} to add to this shoot.</b>Pick the backdrops and outfits, and we'll develop ${extraLooks(s) * TAKES_PER_LOOK} more headshots beside these.</div><button class="btn btn-sm btn-flash" type="button" id="pickExtra">${icon("plus")} Pick your looks</button></div>` : ""}
       ${s.sample ? html`<div class="banner banner-info">${icon("info")}<div><b>This is a sample shoot.</b>It shows exactly what your proofs will look like — sample images are illustrations. Start a new shoot to develop real headshots from your photos.</div><a class="btn btn-sm btn-flash" href="/app/new" data-link>New shoot</a></div>` : ""}
       ${s.reviewError ? html`<div class="banner banner-warn">${icon("circle-alert")}<div><b>Your headshots are ready, but grading didn't finish.</b>${s.reviewError}</div><button class="btn btn-sm btn-ink" id="regrade">${icon("refresh-cw")} Retry grading</button></div>` : ""}
-      ${canReshoot(s) ? html`<div class="banner banner-info reshoot-banner">${icon("camera")}<div><b>${heldForLikeness(s)} headshots didn't look enough like you.</b>That usually comes down to the selfies. Retake them in soft daylight, with a few angles, and we'll reshoot your looks free.</div><a class="btn btn-sm btn-flash" href="${reshootHref(s)}" data-link>${icon("camera")} Free reshoot</a></div>` : ""}
+      ${reshootBanner(s)}
       ${failed ? html`<div class="banner banner-warn">${icon("circle-alert")}<div><b>${failed} frame${failed === 1 ? "" : "s"} didn't develop${noRetries(s) ? " after several tries" : ""}.</b>${noRetries(s) ? "Contact us and we'll sort it out." : "You can retry just those frames — the rest stay as they are."}</div>${noRetries(s) ? html`<a class="btn btn-sm btn-ink" href="/contact" data-link>${icon("mail")} Contact us</a>` : html`<button class="btn btn-sm btn-ink" id="resume">${icon("refresh-cw")} Retry</button>`}</div>` : ""}
 
       <section class="proof-hero">

@@ -168,6 +168,29 @@ ok("the original records it", (await f(`/api/shoots/${first}`)).j.shoot.reshootI
   ok("which is treated like any other (here: no shoots left, so it can't develop)", [400, 402].includes(gen.status) && !/reshoot/i.test(gen.j?.error || ""), `${gen.status} ${gen.j?.error}`);
 }
 
+
+// 9. A package refunded in full takes its shoots' free retries and free
+// reshoot with it.
+{
+  const g = await account(`refunded${t}@x.com`);
+  const co = (await g("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) })).j;
+  const psid = new URL(co.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${psid}`, { redirect: "manual" }); // (paid in full: something to refund)
+  await g("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: psid }) });
+  const sid = (await g("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;
+  // (4 looks: more than a free shoot takes, so the package pays.)
+  await develop(g, sid, [...LOOKS, { backdrop: "glass-office", outfit: "navy-suit" }, { backdrop: "city-terrace", outfit: "camel-knit" }]);
+  const s = await settle(g, sid);
+  holdBack(s, 2);
+  ok("before the refund, the shoot can be reshot", (await g(`/api/shoots/${sid}`)).j.shoot && s.paidWith === "credit", s.paidWith);
+  await fetch(`${M}/mock-refund/${psid}`);
+  await g("/api/billing/sync", { method: "POST", body: "{}" });
+  const resume = await g(`/api/shoots/${sid}/resume`, { method: "POST", body: "{}" });
+  ok("after a full refund, its held-back frames can't be retried free", resume.status === 402 && resume.j?.code === "refunded", `${resume.status} ${resume.j?.error}`);
+  const again = await g(`/api/shoots/${sid}/reshoot`, { method: "POST", body: "{}" });
+  ok("…or reshot free", again.status === 402 && again.j?.code === "refunded", `${again.status} ${again.j?.error}`);
+}
+
 const failed = results.filter((x) => !x).length;
 console.log(`${results.length - failed}/${results.length} passed`);
 process.exit(failed ? 1 : 0);

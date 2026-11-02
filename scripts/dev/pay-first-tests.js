@@ -77,6 +77,8 @@ const t = Date.now();
   const v = verificationEmail({ name: "Pat Lee", link: "https://x.test/verify?token=abc", code: "123456" });
   ok("the confirmation email doesn't mention a free shoot", !FREE_WORDS.test(v.subject + v.text + v.html) && /confirm your email address/i.test(v.text), v.text.split("\n")[2]);
   const d = reminderEmail({ kind: "develop", name: "Pat", link: "L", pricing: "P", unsubscribe: "U", needsPackage: true });
+  const tm = reminderEmail({ kind: "develop", name: "Pat", link: "L", pricing: "P", unsubscribe: "U", team: true });
+  ok("a team member's develop reminder doesn't ask them to pick looks (the admin did)", /team's looks are already chosen/.test(tm.text) && !/Pick your looks|Choose my looks/.test(tm.text + tm.html) && /Develop my headshots/.test(tm.html), tm.text);
   ok("a checked-but-unpaid reminder invites them to choose a package", /choose a package/i.test(d.subject + d.text) && d.html.includes('href="P"') && !FREE_WORDS.test(d.subject + d.text + d.html), d.subject);
   const o = offerEmail({ name: "Pat Lee", code: "HELLO10", discount: "10% off", link: "P", pricing: "P", usedFree: false, unsubscribe: "U" });
   ok("the owner's offer to someone who never developed invites them to choose a package", /choose a package/i.test(o.text) && !FREE_WORDS.test(o.subject + o.text + o.html), o.subject);
@@ -209,6 +211,7 @@ async function previewAccount(email, name) {
   ok("which unlocks the preview", !/no-cache/.test((await get(max, `/media/${ms.shots.find((x) => x.status === "done").file}`)).cache));
   const add = await max(`/api/shoots/${ms.id}/more-looks`, { method: "POST", body: JSON.stringify({ looks: [LOOKS4[1], LOOKS4[2]] }) });
   ok("and its 2 extra looks develop here", add.status === 202 && add.j.shoot.looks.length === 3, `${add.status} ${add.j?.error || ""}`);
+  ok("…with the shoot's free retries counted afresh for them", add.j?.shoot?.resumes === 0, String(add.j?.shoot?.resumes));
   const done = await waitDone(max, ms.id);
   ok("the kept shoot finishes with 6 headshots", done.status === "done" && done.shots.filter((x) => x.status === "done").length === 6, `${done.status}`);
 }

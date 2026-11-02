@@ -144,7 +144,9 @@ app.get("/api/search", async (req, res) => {
 });
 app.get("/api/version", (req, res) => res.set("Cache-Control", "no-store").json({ build: BUILD }));
 
-const isEmail = (s) => typeof s === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+// (Length first: on a long run of dots the pattern takes time that grows with
+// the square of the length, which would stall every request on the server.)
+const isEmail = (s) => typeof s === "string" && s.trim().length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
 // Links we email or hand to Stripe use a fixed origin in production, never the
 // request's Host header (which a client controls).
 const appOrigin = (req) => process.env.APP_ORIGIN || (process.env.VERCEL_ENV === "production" ? "https://keeperheadshots.com" : `${req.protocol}://${req.get("host")}`);
@@ -1200,6 +1202,7 @@ app.post("/api/shoots/:id/resume", requireUser, async (req, res) => {
   // Pending frames on a stopped shoot (an interrupted retry) are resumable too.
   if (!shoot.shots.some((s) => s.status === "error" || s.status === "pending")) return res.status(400).json({ error: "Nothing to resume." });
   if (!(shoot.selfies || []).length) return res.status(409).json({ error: NO_SELFIES, code: "no_selfies" });
+  if (await paidForRefunded(shoot, req.user)) return res.status(402).json({ error: REFUNDED_SHOOT, code: "refunded" });
   // Retries are free, but capped so a shoot that keeps failing can't loop forever.
   // Counted atomically; a second click in the same moment is ignored, not counted.
   let refused = null;
@@ -1232,8 +1235,24 @@ const RESHOOT_FREE_CHECKS = 3;
 async function reshootGrant(meta, userId) {
   if (!meta?.reshootOf) return null;
   const original = await shoots.getMeta(meta.reshootOf).catch(() => null);
-  return original && original.userId === userId && original.reshootId === meta.id ? original : null;
+  if (!original || original.userId !== userId || original.reshootId !== meta.id) return null;
+  // (The original's package was refunded since: the reshoot isn't free.)
+  return (await paidForRefunded(original, await users.byId(userId))) ? null : original;
 }
+
+// The package that paid for this shoot was refunded in full (or, for a team
+// shoot, the team's seat is no longer paid for): its free retries and free
+// reshoot go with it. (A partial refund leaves the shoots it paid for alone.)
+async function paidForRefunded(meta, user) {
+  if (meta.reshootOf && meta.paidWith === "reshoot") {
+    const original = await shoots.getMeta(meta.reshootOf).catch(() => null);
+    return !!original && original.id !== meta.id && (await paidForRefunded({ ...original, reshootOf: null }, user));
+  }
+  if (meta.team) return !(await teams.seatPaid(meta).catch(() => true));
+  if (meta.paidWith !== "credit" || !meta.paidBy) return false;
+  return !!(user?.purchases || []).find((p) => p.sessionId === meta.paidBy)?.refunded;
+}
+const REFUNDED_SHOOT = "The package that paid for this shoot was refunded, so it can't be retried or reshot free. Contact us if you think that's wrong.";
 
 app.post("/api/shoots/:id/reshoot", requireUser, async (req, res) => {
   if (req.user.demo) throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
@@ -1243,6 +1262,7 @@ app.post("/api/shoots/:id/reshoot", requireUser, async (req, res) => {
   if (shoot.sample || shoot.team || shoot.reshootOf) return res.status(400).json({ error: "This shoot can't be reshot free. Contact us and we'll sort it out.", code: "reshoot_unavailable" });
   if (LIVE.includes(shoot.status)) return res.status(409).json({ error: "This shoot is still in progress." });
   if (heldForLikeness(shoot) < RESHOOT_MIN_HELD) return res.status(400).json({ error: "A free reshoot is for shoots where several headshots were held back for likeness.", code: "reshoot_unavailable" });
+  if (await paidForRefunded(shoot, req.user)) return res.status(402).json({ error: REFUNDED_SHOOT, code: "refunded" });
   // Asked again: the reshoot already made, while it's still waiting for photos.
   if (shoot.reshootId) {
     const made = await shoots.getMeta(shoot.reshootId).catch(() => null);

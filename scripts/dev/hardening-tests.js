@@ -810,6 +810,21 @@ if (process.env.DATA_DIR) {
   ok("several develops on a stale claim charge exactly once", rs.filter((r) => r.status === 202).length === 1 && after === before - 1, `${rs.map((r) => r.status).join(",")} credits ${before}->${after}`);
 }
 
+
+// A long run of dots in an email address used to take seconds of server time
+// (and block every other request) before the address was refused.
+{
+  const email = "a@" + ".".repeat(60000) + "@";
+  const start = Date.now();
+  const rs = await Promise.all([
+    fetch(`${B}/api/auth/signup`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "Dot Dot", email, password: "password123" }) }),
+    fetch(`${B}/api/auth/signin`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password: "password123" }) }),
+    fetch(`${B}/api/auth/password/forgot`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email }) }),
+  ]);
+  const ms = Date.now() - start;
+  ok("a very long email address is refused at once (sign-up, sign-in, reset)", rs.every((r) => r.status >= 400 && r.status < 500) && ms < 1500, `${rs.map((r) => r.status)} in ${ms} ms`);
+}
+
 const passed = results.filter((r) => r[1]).length;
 console.log(`\n${passed}/${results.length} passed`);
 process.exit(passed === results.length ? 0 : 1);
