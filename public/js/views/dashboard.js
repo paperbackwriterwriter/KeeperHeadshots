@@ -1,6 +1,6 @@
 import { html, icon, api, state, media, relTime, toast, example, spinner, busy, showRefundNotice } from "../core.js";
 import { pixel } from "../pixel.js";
-import { PACKAGES, MIN_CHECK_SCORE, FROM_PRICE } from "../shared/catalog.js";
+import { PACKAGES, MIN_CHECK_SCORE, FROM_PRICE, packageAddedNote } from "../shared/catalog.js";
 
 const STATUS = {
   draft: ["badge", "Photo check pending"],
@@ -120,7 +120,7 @@ export async function confirmPurchase(sessionId) {
       }
       if (res.eventId) pixel("Purchase", { value: res.value, currency: "USD" }, res.eventId);
       const pkg = PACKAGES.find((p) => p.id === res.packageId);
-      const what = res.added || pkg ? `${res.added || pkg.shoots} shoots added to your account.` : res.packageId === "keep-plus" ? "every headshot is yours to keep. Now pick your 2 extra looks." : "your pick is yours to keep, in full resolution.";
+      const what = pkg ? packageAddedNote(pkg, res.granted ? res.added : undefined) : res.packageId === "keep-plus" ? "every headshot is yours to keep. Now pick your 2 extra looks." : "your pick is yours to keep, in full resolution.";
       toast(`${res.eventId ? "Payment received" : "Order complete"}: ${what}`, "success", 7000);
     } else toast("Your payment is still processing. Your order will appear as soon as it clears.", "info", 7000);
     return res;
@@ -138,7 +138,7 @@ export async function renderDashboard({ root, navigate }) {
         if (res.added || res.removed) {
           state.user = res.user;
           showRefundNotice();
-          if (res.added) toast(`${res.added} purchased shoots added to your account.`, "success", 7000);
+          if (res.added) toast(`${res.added} purchased shoot${res.added === 1 ? "" : "s"} added to your account.`, "success", 7000);
           // Refresh the dashboard only if the person is still on it.
           if (location.pathname === "/app") navigate("/app", { replace: true });
         }

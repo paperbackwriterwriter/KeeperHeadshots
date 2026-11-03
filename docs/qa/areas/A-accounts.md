@@ -19,7 +19,7 @@ Method: existing suites run against a private stack (google 64/65, the one FAIL 
 | 11 | signup UI: Turnstile script blocked -> clear message; stubbed widget -> signs up | browser b2 | OK |
 | 12 | signup: per-network limit 120/h (and exempt list ignored on Vercel) | counter pre-filled, XFF, t5 | OK |
 | 13 | signup: per-mailbox 3/day (+tags, Gmail dots) | script t2 | OK |
-| 14 | signup: kh_session, kh_device, kh_origin cookies; verification email (code in subject, link) | scripts t2/t3 | OK |
+| 14 | signup: ahg_session (the session cookie), kh_device, kh_origin cookies; verification email (code in subject, link) | scripts t2/t3 | OK |
 | 15 | signup UI: client validation, welcome toast (pay-first), dest for next=/join and /app/buy | browser b1, code | OK |
 | 16 | signin: wrong / missing pw / empty / unknown -> same 401 text | script t2, browser b1 | OK |
 | 17 | signin: email case/space-insensitive | script t2 | OK |
@@ -106,8 +106,20 @@ Method: existing suites run against a private stack (google 64/65, the one FAIL 
 | 98 | app.js: signed-out tab doesn't notice sign-in elsewhere | browser b1 | A1-10 |
 | 99 | app.js: Google return toasts (google / -new / -verified / -secured) | browser b1/b3, t4 | A1-02 (join), A1-01 (no mention of deletion) |
 | 100 | Origin check on auth POSTs | n/a | known (requests without Origin pass) |
+| 101 | Reset email and wording for an account with no password and no Google (after "No" to "did you create this account?"): it sets a first password and doesn't mention Google | hardening (nightly 3 Nov) | fixed 3 Nov (was the "reset" email, "your password stays the same") |
+| 102 | Google sign-up from a package's checkout page (/app/buy/<pkg>): welcome toast doesn't say "Choose a package" | browser | fixed 3 Nov |
+| 103 | Auth POSTs with a cross-origin, subdomain or `Origin: null` header: 403 cross_origin | curl | OK |
+| 104 | Sign-up email strictness: display-name, list and quoted forms refused; an array email refused | hardening | OK |
+| 105 | Turnstile token over 2048 characters refused; widget script blocked gives a clear message | curl, browser | OK |
+| 106 | Account confirmed only by a team invitation: /api/me `mailboxConfirmed:false`, confirm panel shows, resend and code work | curl, browser | OK |
+| 107 | A session cookie with no sid is accepted (older cookies); auth answers are private, no-store | curl | OK (see question in rotation log) |
+| 108 | Unsubscribe: one-click form POST and body-token form | curl | OK |
+| 109 | Same Google account with a changed address makes a separate account | curl | known, under A1-06 |
+| 110 | Sign-up and Google names: runs of spaces collapsed, as a name change does | hardening | fixed 3 Nov |
 
-Items checked: 100. Findings: 1 high, 0 medium, 11 low (3 of the low ones are owner decisions).
+Run note: verification-delivery-tests writes `verification-delivery-shots/` into the repo root unless given an output folder as its argument; reviewers should pass one. demo-tests isn't part of ci.sh; run it on its own after changes to sign-in or the demo account.
+
+Items checked: 110 (rotation, 3 Nov). Findings: 1 high, 0 medium, 11 low (3 of the low ones are owner decisions).
 
 ## 2. Findings
 

@@ -70,6 +70,11 @@ const t = Date.now();
   ok("a browser only signed in to the account is asked who made it", r4.j?.status === "ask", r4.j?.status);
   const no4 = await signedIn("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: await verifyToken(email4), created: false }) });
   ok("…and \"No\" there says that browser was signed out too", no4.j?.status === "secured" && no4.j?.signedOut === true && !no4.j?.user && !(await signedIn("/api/me")).j?.user, JSON.stringify(no4.j));
+  // That account now has no password (and no Google): its reset email sets a first one.
+  await client()("/api/auth/password/forgot", { method: "POST", body: JSON.stringify({ email: email4 }) });
+  await new Promise((r) => setTimeout(r, 500));
+  const setMail = (await mailFor(email4)).findLast((m) => /password/i.test(m.subject || ""));
+  ok("…and its reset email is about setting a password, without mentioning Google", setMail?.subject === "Set a password for Keeper Headshots" && !!(setMail?.text || setMail?.raw) && !/Google/.test(setMail?.text || setMail?.raw), setMail?.subject);
   // One browser that made two accounts still counts as the maker of the first.
   const both = jarClient();
   const email5 = `link5${t}@x.com`, email6 = `link6${t}@x.com`;
@@ -855,6 +860,28 @@ if (process.env.DATA_DIR) {
   const cut = "data:image/jpeg;base64," + full.subarray(0, Math.floor(full.length / 2)).toString("base64");
   const up = await f(`/api/shoots/${made.j?.shoot?.id}/selfies`, { method: "POST", body: JSON.stringify({ photo: cut }) });
   ok("a truncated photo is refused as unreadable, not a server error", up.status === 400 && /readable image/.test(up.j?.error || ""), `${up.status} ${up.j?.error}`);
+}
+
+// Nightly QA, 3 Nov: change review and the accounts (A) rotation.
+{
+  const raw = (p, o = {}) => fetch(B + p, { redirect: "manual", ...o, headers: { "content-type": "application/json", ...(o.headers || {}) } });
+  // Prices in the app's copy come from usd()/FROM_PRICE, never "$" + a raw price ("$14.5").
+  const viewsDir = new URL("../../public/js/views/", import.meta.url);
+  const rawPrice = fs.readdirSync(viewsDir).filter((n) => n.endsWith(".js")).filter((n) => /\$\$\{(?:PACKAGES\[\d\]|p|pkg)\.price\}/.test(fs.readFileSync(new URL(n, viewsDir), "utf8")));
+  ok("no package price is printed without its cents (\"$14.5\")", rawPrice.length === 0, rawPrice.join(","));
+  const { packageAddedNote, PACKAGES } = await import("../../public/js/shared/catalog.js");
+  const starter = PACKAGES.find((p) => p.id === "starter");
+  ok("a purchase that only paid off owed shoots doesn't say shoots were added", /went towards the ones your account owed/.test(packageAddedNote(starter, 0)) && !/added/.test(packageAddedNote(starter, 0)), packageAddedNote(starter, 0));
+  ok("…one that partly did says how many were added, in the singular", /^1 shoot added to your account \(the other 2 went towards/.test(packageAddedNote(starter, 1)), packageAddedNote(starter, 1));
+  ok("…and a normal one (or one Stripe's webhook applied first) says the package's shoots", packageAddedNote(starter, 3) === "3 shoots added to your account." && packageAddedNote(starter, undefined) === "3 shoots added to your account.", packageAddedNote(starter, undefined));
+  const { wholeShootError } = await import("../../lib/pipeline.js");
+  const general = "None of the headshots could be developed this time. Retry them in a moment; retries are free.";
+  for (const m of ["This frame ran out of time. Retry it; retries are free.", "This frame came back empty. Retry it in a moment.", "The image studio is temporarily unavailable. Retry this frame later.", "Rendering timed out — retry this frame.", undefined]) {
+    ok(`a shoot whose every frame failed isn't described as "this frame": ${String(m).slice(0, 24)}…`, wholeShootError(m) === general, wholeShootError(m));
+  }
+  ok("…and a message about something else still stands", wholeShootError("We couldn't make that look. Try another outfit.") === "We couldn't make that look. Try another outfit.");
+  const spaced = await raw("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Jo   Trim", email: `spaced${t}@x.com`, password: "password123" }) }).then((r) => r.json());
+  ok("sign-up tidies runs of spaces in a name, as a name change does", spaced.user?.name === "Jo Trim", spaced.user?.name);
 }
 
 const passed = results.filter((r) => r[1]).length;

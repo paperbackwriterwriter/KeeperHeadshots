@@ -146,6 +146,9 @@ try {
 
     await page.goto(BASE + "/");
     await page.locator("a[href='/app/buy/professional']").click();
+    await page.waitForURL("**/signup?next=*");
+    // (A package link starts at sign-up; the demo button is on the sign-in page.)
+    await page.locator("a.link[href^='/signin?next=']").click();
     await page.waitForURL("**/signin?next=*");
     await page.locator("#demo").click();
     await page.waitForURL("**/app/buy/professional");

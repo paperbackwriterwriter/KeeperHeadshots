@@ -2,7 +2,7 @@
 //   (new) upload -> draft/checking -> checked (photo check + looks) -> generating/reviewing -> done (proofs)
 
 import { $, $$, html, raw, icon, api, state, toast, media, squareMedia, sizeMedia, PROFILE_KIT, busy, spinner, greaseCircle, silhouette, esc, reduceMotion, loadSession } from "../core.js";
-import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, MAX_RESUMES, MIN_CHECK_SCORE, RECOMMENDED_CHECK_SCORE, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, PREVIEW_OFFERS, lookFor, usd } from "../shared/catalog.js";
+import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, MAX_RESUMES, MIN_CHECK_SCORE, RECOMMENDED_CHECK_SCORE, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, PREVIEW_OFFERS, FROM_PRICE, lookFor, usd } from "../shared/catalog.js";
 import { wasPrice } from "./price.js";
 import { portraitDataURL } from "../shared/portrait.js";
 import { aiBanner, planBanner, confirmPurchase } from "./dashboard.js";
@@ -984,7 +984,7 @@ export async function renderStudio(ctx, id) {
 
     if (s.sample || plan?.tier === "demo") {
       return html`<section class="upsell" id="upgrade" aria-labelledby="upsellTitle">
-        <div><p class="eyebrow">Your turn</p><h2 class="display h-2" id="upsellTitle">Make headshots like these from your own selfies.</h2><p class="upsell-sub">Every paid shoot has up to ${MAX_LOOKS_ALL} looks and ${MAX_LOOKS_ALL * TAKES_PER_LOOK} headshots, checked and graded by AI, with no watermark. Packages start at $${PACKAGES[0].price}, and your first one is covered by our money-back guarantee.</p></div>
+        <div><p class="eyebrow">Your turn</p><h2 class="display h-2" id="upsellTitle">Make headshots like these from your own selfies.</h2><p class="upsell-sub">Every paid shoot has up to ${MAX_LOOKS_ALL} looks and ${MAX_LOOKS_ALL * TAKES_PER_LOOK} headshots, checked and graded by AI, with no watermark. Packages start at ${FROM_PRICE}, and your first one is covered by our money-back guarantee.</p></div>
         <div class="upsell-actions">${state.user && !state.user.demo ? html`<a class="btn btn-flash btn-lg" href="/#pricing">See packages ${icon("arrow-right")}</a>` : html`<a class="btn btn-flash btn-lg" href="/signup" data-link>Create your account ${icon("arrow-right")}</a>`}</div>
       </section>`;
     }

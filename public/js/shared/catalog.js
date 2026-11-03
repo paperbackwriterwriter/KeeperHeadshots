@@ -150,6 +150,15 @@ const BEST_PER_SHOOT = Math.min(...PACKAGES.map((p) => p.price / p.shoots));
 export const PER_PERSON = `$${BEST_PER_SHOOT.toFixed(2)}`;
 // In copy: "about $2 a person".
 export const ABOUT_PER_PERSON = `$${Math.round(BEST_PER_SHOOT)}`;
+// What a package purchase did, for the confirmation message. `added` is the
+// server's count (undefined when Stripe's webhook applied it first); shoots
+// that paid off ones owed from an earlier refund aren't "added".
+export function packageAddedNote(pkg, added) {
+  const n = typeof added === "number" ? added : pkg.shoots;
+  if (n === 0) return `the ${pkg.shoots} shoots in this package went towards the ones your account owed from an earlier refund.`;
+  const owed = n < pkg.shoots ? ` (the other ${pkg.shoots - n} went towards the ones your account owed)` : "";
+  return `${n} shoot${n === 1 ? "" : "s"} added to your account${owed}.`;
+}
 export const offerFor = (id) => PACKAGES.find((p) => p.id === id) || PREVIEW_OFFERS.find((p) => p.id === id) || null;
 export const isPreviewOffer = (id) => PREVIEW_OFFERS.some((p) => p.id === id);
 

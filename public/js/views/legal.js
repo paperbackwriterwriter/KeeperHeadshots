@@ -70,7 +70,7 @@ export function renderPrivacy({ root }) {
         <li><b>Stripe</b>: payments and refunds.</li>
         <li><b>Google</b>: signing you in, if you choose "Continue with Google".</li>
         <li><b>Cloudflare</b>: the Turnstile security check on the sign-up, contact and password-reset forms, which checks that you're a person and not a bot. It looks at technical signals from your browser and isn't used for advertising.</li>
-        <li><b>Resend</b>: sending our emails (confirmation codes and links, password resets, team invitations, "your headshots are ready" notes, reminders and copies of contact-form messages).</li>
+        <li><b>Resend</b>: sending our emails (confirmation codes and links, password resets, team invitations, "your headshots are ready" notes, reminders, occasional offers (such as a discount code) and copies of contact-form messages).</li>
         <li><b>ImprovMX</b> and <b>Google (Gmail)</b>: receiving and answering the messages you send us.</li>
         <li><b>Meta</b> (Facebook and Instagram): advertising measurement, as described below.</li>
       </ul>

@@ -62,9 +62,9 @@ With `STRIPE_SECRET_KEY` set, the pricing buttons open Stripe Checkout (`lib/bil
 
 | Package | Price | Shoots |
 |---|---|---|
-| Starter | $29 | 3 |
-| Professional | $39 | 6 |
-| Executive | $49 | 12 |
+| Starter | $14.50 (50% off $29) | 3 |
+| Professional | $19.50 (50% off $39) | 6 |
+| Executive | $24.50 (50% off $49) | 12 |
 
 A paid shoot allows 4 looks (8 headshots). Purchases add credits to the account, and each developed shoot uses one. Payments are confirmed in up to three ways, recorded once per Checkout Session so a purchase is never credited twice:
 

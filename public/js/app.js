@@ -592,8 +592,9 @@ loadSession()
         if (googleReturn === "google-new" && Date.now() - Date.parse(state.user.createdAt) < 10 * 60 * 1000) pixel("CompleteRegistration", {}, `reg_${state.user.id}`);
         // (The same welcome as an email sign-up: customers pay up front.)
         const fresh = state.user.plan?.tier === "none" && !state.user.plan.started;
-        // (Signed up from a team invitation: that shoot is paid for, so no package to choose.)
-        const joining = location.pathname === "/join";
+        // (Signed up from a team invitation, whose shoot is paid for, or from a
+        // package's checkout page: no package to choose.)
+        const joining = location.pathname === "/join" || location.pathname.startsWith("/app/buy/");
         toast(googleReturn === "google-new" ? (fresh && !joining ? `Welcome, ${first}. Choose a package to start your first shoot.` : `Welcome, ${first}. Let's make some headshots.`) : `Welcome back, ${first}. Your email is confirmed.`, "success", 6000);
       }
     }

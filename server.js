@@ -206,7 +206,7 @@ app.post("/api/auth/signup", async (req, res) => {
   if (await overLimit("signupmail", canonicalEmail(email), SIGNUP_MAX_PER_MAILBOX, DAY_MS)) return res.status(429).json({ error: "This inbox has created a few accounts today. Sign in to one of them, or try again tomorrow.", fields: { email: "This inbox has created a few accounts today. Sign in instead?" } });
   const user = await users.create({
     id: id("usr"),
-    name: String(name).trim(),
+    name: String(name).trim().replace(/\s+/g, " "),
     email: String(email).toLowerCase().trim(),
     password: await hashPassword(String(password)),
     createdAt: new Date().toISOString(),
@@ -353,7 +353,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
   if (!user) {
     // (Dots become spaces: "jo.ann" would read as a web address to nameOk.)
     const local = profile.email.split("@")[0].replace(/[^\p{L}\p{N} _'-]/gu, " ").replace(/\s+/g, " ").trim();
-    const name = [profile.name, profile.givenName, local].find(nameOk)?.trim() || "Keeper member";
+    const name = [profile.name, profile.givenName, local].find(nameOk)?.trim().replace(/\s+/g, " ") || "Keeper member";
     user = await users.create({ id: id("usr"), name, email: profile.email, googleSub: profile.sub, createdAt: now, emailVerified: true, emailVerifiedAt: now, signupMethod: "google" });
     if (user) created = newlyVerified = true;
     else user = await users.byEmail(profile.email); // the same address signed up a moment ago
@@ -610,7 +610,7 @@ app.post("/api/auth/password/forgot", async (req, res) => {
       });
       if (!allowed) return;
       const link = `${origin}/reset?token=${resetToken(user)}`;
-      const { subject, text, html } = passwordResetEmail({ name: user.name, link, first: !user.password && !!user.googleSub });
+      const { subject, text, html } = passwordResetEmail({ name: user.name, link, first: !user.password, google: !!user.googleSub });
       await sendMail({ from: { name: "Keeper Headshots", address: MAIL_FROM }, to: { name: user.name, address: user.email }, subject, text, html });
     })().catch((err) => console.error("[reset] send failed", user.id, err.message)),
   );
