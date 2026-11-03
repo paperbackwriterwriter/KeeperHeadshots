@@ -27,11 +27,11 @@ export const LINKEDIN_FAQ = [
 
 // /team-headshots
 export const TEAM_FAQ = [
-  ["How does ordering headshots for a team work?", "One person buys a package, names the team, picks its looks and invites colleagues by email. Each invite uses one shoot. Everyone signs in with their own address, uploads a few selfies and gets headshots in the team's look, and the person who set it up can follow along and download everyone's finished headshots."],
+  ["How does ordering headshots for a team work?", "One person buys a package, names the team, picks its looks and invites colleagues by email. Each invite uses one shoot. Everyone signs in with their own address, uploads a few selfies and gets headshots in the team's look, and the person who set it up can follow along and download each person's chosen headshot."],
   ["Can everyone have the same background?", "Yes. You choose the team's looks once, backdrop and outfit, and every invited person's shoot uses them, so everyone gets the same setting and lighting and your team page, org chart and email signatures look consistent."],
   ["How much does it cost per person?", `Each person uses one shoot. The Executive package is 12 shoots for ${usd(EXEC.price)}, about ${ABOUT_PER_PERSON} a person, and each shoot includes up to 4 looks and 8 headshots. For more than 12 people, buy another package or contact us about volume pricing.`],
   ["What about new hires?", "Unused shoots don't expire while your account is open. When someone joins, invite them from your team page and their headshot matches the rest of the team."],
-  ["Who sees each person's photos?", "Each person uploads their own selfies to their own account, and only they see them. The person who set up the team sees everyone's finished headshots, never their selfies. Photos are never used to train AI, and anyone can delete their shoot at any time. If someone deletes it before developing, the shoot goes back to the team."],
+  ["Who sees each person's photos?", "Each person uploads their own selfies to their own account, and only they see them. The person who set up the team sees each person's chosen headshot, never their selfies. Photos are never used to train AI, and anyone can delete their shoot at any time. If someone deletes it before developing, the shoot goes back to the team."],
   ["What does each person get?", "Every headshot comes ready to use in two versions: a full-resolution portrait for your website and print, and a 1:1 square framed for LinkedIn, Microsoft Teams and Slack profile photos."],
 ];
 

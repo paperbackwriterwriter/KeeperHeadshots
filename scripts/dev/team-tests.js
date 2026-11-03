@@ -225,7 +225,7 @@ let final;
   const synced = (await admin2("/api/billing/sync", { method: "POST", body: "{}" })).j;
   ok("the refund finds nothing left to take back", synced.removed === 3 && (await credits(admin2)) === 0, JSON.stringify(synced));
   const members = (await admin2("/api/team")).j.team.members;
-  ok("the refund withdraws the open invitations", members.filter((m) => m.status === "invited").length === 0 && (await client()(`/api/join/${tokenOf(sent.results[0].link)}`)).status === 404, JSON.stringify(members.map((m) => m.status)));
+  ok("the refund withdraws the open invitations", members.filter((m) => m.status === "invited").length === 0 && members.filter((m) => m.status === "withdrawn").length === 3 && (await client()(`/api/join/${tokenOf(sent.results[0].link)}`)).status === 404, JSON.stringify(members.map((m) => m.status)));
   ok("nothing is handed back", (await credits(admin2)) === 0, String(await credits(admin2)));
   const again = await admin2("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
   const sid2 = new URL(again.j.url).pathname.split("/").pop();
@@ -271,6 +271,10 @@ let final;
   await admin4("/api/billing/sync", { method: "POST", body: "{}" });
   const after = (await admin4("/api/team")).j.team.members;
   ok("the open invitation is withdrawn, the taken seats stay listed", after.filter((m) => m.status === "invited").length === 0 && after.some((m) => m.email === eve && m.status === "joined"), JSON.stringify(after.map((m) => [m.email === eve, m.status])));
+  // The admin's team page can say what the refund changed (teamadmin.js refundNote).
+  const withdrawn = after.find((m) => m.email === `spare2.${t}@x.com`);
+  ok("the team page lists the invitation the refund withdrew, and when", withdrawn?.status === "withdrawn" && !!Date.parse(withdrawn.endedAt), JSON.stringify(withdrawn));
+  ok("and marks the joined seat the refund left unpaid (not the developed one)", after.find((m) => m.email === eve)?.unpaid === true && !after.find((m) => m.email === fay)?.unpaid, JSON.stringify(after.map((m) => [m.email, m.status, m.unpaid])));
   ok("the colleague's shared headshot comes down with the admin's refund", (await fayC("/api/showcase/mine")).j.entry === null && (await fayC(`/showcase/${shared.j?.entry?.id}.webp`)).status === 404, JSON.stringify((await fayC("/api/showcase/mine")).j));
   const dev = await member(`/api/shoots/${seat}/generate`, { method: "POST", body: JSON.stringify({ looks: LOOKS }) });
   ok("the taken seat can't develop while the refund debt stands", dev.status === 402 && dev.j?.code === "team_unpaid", `${dev.status} ${JSON.stringify(dev.j)}`);
@@ -289,6 +293,7 @@ let final;
   ok("a new package settles the debt first", (await credits(admin4)) === 2, String(await credits(admin4)));
   const dev2 = await member(`/api/shoots/${seat}/generate`, { method: "POST", body: JSON.stringify({ looks: LOOKS }) });
   ok("and the seat develops again", dev2.status === 202, `${dev2.status} ${JSON.stringify(dev2.j)}`);
+  ok("the team page no longer marks it unpaid once the debt is settled", !(await admin4("/api/team")).j.team.members.find((m) => m.email === eve)?.unpaid);
 }
 
 // 9c. An admin who deletes their account leaves colleagues' seats paid for:
@@ -502,6 +507,21 @@ let final;
   const again = await member(`/api/shoots/${seat}/check`, { method: "POST", body: "{}" });
   await settled(seat);
   ok("the paid team seat can still be checked", [200, 202].includes(again.status), `${again.status} ${JSON.stringify(again.j)}`);
+}
+
+// 11. The admin's pages: changing the look warns that people who already
+// joined keep theirs, a refund's effect on the team is described, and the
+// copy promises each person's chosen headshot, which is what the admin can
+// download (teamadmin.js shows and downloads each member's pick only).
+{
+  const fs = await import("node:fs");
+  const read = (p) => fs.readFileSync(new URL(`../../${p}`, import.meta.url), "utf8");
+  const admin = read("public/js/views/teamadmin.js");
+  ok("changing the look warns when people already joined", /id="lookWarn"/.test(admin) && admin.includes("They keep the look they started with. Only people who join from now on get the new look.") && admin.includes("Team saved. People who already joined keep the look they started with."));
+  ok("the team page describes what a refund changed", admin.includes("Your refund changed your team.") && admin.includes("Withdrawn · refund") && admin.includes("Unpaid since your refund"));
+  const copy = ["public/js/views/team.js", "public/js/shared/faq.js", "public/js/views/account.js", "public/js/views/teamadmin.js", "lib/prerendered.js"].map(read).join("\n");
+  ok("no page promises the admin everyone's finished headshots", !/everyone's finished headshots|Download everyone's headshots|download everyone's headshots|you'll see their finished headshots/.test(copy));
+  ok("the copy promises each person's chosen headshot", read("public/js/views/team.js").includes("Download each person's chosen headshot") && read("public/js/shared/faq.js").includes("download each person's chosen headshot"));
 }
 
 const passed = results.filter(Boolean).length;
