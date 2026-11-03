@@ -904,15 +904,15 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   if (!canEditPhotos(meta)) return res.status(409).json({ error: "This shoot has already been developed. Start a new shoot to check new photos." });
   const plan = planFor(req.user);
   if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
-  // A team shoot can go ahead on the invitation alone (lib/teams.js).
-  if (plan.needsEmail && !(meta.team && emailVerified(req.user))) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
-  const limitMsg = `Free accounts include ${FREE.checks} photo checks, and you've used them. Buy a package to keep going.`;
   // A team seat was paid for by the admin (lib/teams.js), and a free reshoot
   // costs nothing (see /reshoot), so the free allowance neither gates it nor is
   // spent on it; only the daily cap applies. A reshoot's first few checks are
   // free; after that they count like any other. They're counted on the
   // original, so deleting and remaking the reshoot doesn't start them again.
   const reshootOriginal = await reshootGrant(meta, req.user.id);
+  // A team shoot (and its free reshoot) can go ahead on the invitation alone (lib/teams.js).
+  if (plan.needsEmail && !((meta.team || reshootOriginal?.team) && emailVerified(req.user))) throw new PlanError(EMAIL_UNCONFIRMED, "email_unconfirmed", 403);
+  const limitMsg = `Free accounts include ${FREE.checks} photo checks, and you've used them. Buy a package to keep going.`;
   const freeReshoot = !!reshootOriginal && (reshootOriginal.reshootChecks || 0) < RESHOOT_FREE_CHECKS;
   // (A seat the admin's refund left unpaid is the person's own check again.)
   const teamSeat = (!!meta.team && meta.paidWith === "team" && (await teams.seatPaid(meta).catch(() => false))) || freeReshoot;
@@ -1251,7 +1251,10 @@ app.post("/api/shoots/:id/resume", requireUser, async (req, res) => {
 // they didn't look enough like the person, the selfies are usually why, so a
 // new shoot with new selfies costs nothing (no credit, free shoot or free
 // photo check). One per developed shoot, with the same looks; the new shoot
-// keeps the original's preview status. The original records the reshoot
+// keeps the original's preview status. Team shoots get one too: the reshoot
+// is the member's own shoot (not a team seat), so it uses no other seat and
+// none of the admin's shoots, and the admin's team page shows it once done
+// (lib/teams.js teamStatus). The original records the reshoot
 // (reshootId) and the reshoot points back (reshootOf): both must match for
 // the reshoot to develop free.
 const heldForLikeness = (shoot) => (shoot.shots || []).filter((t) => t.status === "error" && (t.qa?.history?.at(-1)?.likeness ?? 10) < 8).length;
@@ -1264,8 +1267,12 @@ async function reshootGrant(meta, userId) {
   const original = await shoots.getMeta(meta.reshootOf).catch(() => null);
   if (!original || original.userId !== userId || original.reshootId !== meta.id) return null;
   // (The original's package was refunded since: the reshoot isn't free.)
-  return (await paidForRefunded(original, await users.byId(userId))) ? null : original;
+  return (await reshootRefunded(original, await users.byId(userId))) ? null : original;
 }
+// A team shoot's free reshoot also goes when the admin's package that paid
+// for the seat was refunded in full, as a customer's own shoot's does. (Its
+// free retries still follow the seat: paidForRefunded.)
+const reshootRefunded = async (meta, user) => (await paidForRefunded(meta, user)) || (!!meta.team && (await teams.seatPackageRefunded(meta).catch(() => false)));
 
 // The package that paid for this shoot was refunded in full (or, for a team
 // shoot, the team's seat is no longer paid for): its free retries and free
@@ -1286,10 +1293,10 @@ app.post("/api/shoots/:id/reshoot", requireUser, async (req, res) => {
   const shoot = await ownShoot(req, res);
   if (!shoot) return;
   if (shoot.reshootUsed) return res.status(409).json({ error: "This shoot's free reshoot has already been used.", code: "reshoot_used" });
-  if (shoot.sample || shoot.team || shoot.reshootOf) return res.status(400).json({ error: "This shoot can't be reshot free. Contact us and we'll sort it out.", code: "reshoot_unavailable" });
+  if (shoot.sample || shoot.reshootOf) return res.status(400).json({ error: "This shoot can't be reshot free. Contact us and we'll sort it out.", code: "reshoot_unavailable" });
   if (LIVE.includes(shoot.status)) return res.status(409).json({ error: "This shoot is still in progress." });
   if (heldForLikeness(shoot) < RESHOOT_MIN_HELD) return res.status(400).json({ error: "A free reshoot is for shoots where several headshots were held back for likeness.", code: "reshoot_unavailable" });
-  if (await paidForRefunded(shoot, req.user)) return res.status(402).json({ error: REFUNDED_SHOOT, code: "refunded" });
+  if (await reshootRefunded(shoot, req.user)) return res.status(402).json({ error: REFUNDED_SHOOT, code: "refunded" });
   // Asked again: the reshoot already made, while it's still waiting for photos.
   if (shoot.reshootId) {
     const made = await shoots.getMeta(shoot.reshootId).catch(() => null);

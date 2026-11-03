@@ -101,7 +101,7 @@ export function renderTeam({ root }) {
             ["Choose your team's look", "Name your team and pick its looks, like Glass Office in suits and blazers. Everyone's shoot uses them, so the headshots match."],
             ["Invite your team by email", "Paste in your colleagues' addresses. Each invite uses one shoot from your package; a cancelled invite, or one not accepted within 90 days, gives it back."],
             ["Everyone adds their own selfies", "Each person opens their invite, signs in with that address and uploads a few photos of themselves. Their photos stay private to them."],
-            ["Download everyone's headshots", "Watch each person's progress on your team page, then download their finished headshots in one go for your website, LinkedIn, Teams and Slack."],
+            ["Download each person's chosen headshot", "Watch each person's progress on your team page, then download the headshot each person chose (or our retoucher's best pick) in one go, for your website, LinkedIn, Teams and Slack."],
           ].map(([t, d], i) => html`<li data-reveal style="--i:${i % 3}"><span class="li-no">${String(i + 1).padStart(2, "0")}</span><div><b>${t}</b><span>${d}</span></div></li>`)}
         </ol>
       </div>

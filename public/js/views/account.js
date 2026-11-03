@@ -80,7 +80,7 @@ export function renderAccount({ root, navigate }) {
       ? ""
       : html`<section class="panel prefs" aria-labelledby="team-title">
       <h2 class="h-3" id="team-title">Team headshots</h2>
-      <p class="muted">${u.hasTeam ? "Invite colleagues, follow their progress and download everyone's headshots." : "Buying for a team? Pick the team's looks and invite colleagues by email. Each person adds their own selfies, and everyone's headshots match."}</p>
+      <p class="muted">${u.hasTeam ? "Invite colleagues, follow their progress and download each person's chosen headshot." : "Buying for a team? Pick the team's looks and invite colleagues by email. Each person adds their own selfies, and everyone's headshots match."}</p>
       <div class="security-actions"><a class="btn btn-ghost" href="/app/team" data-link>${icon("users")} ${u.hasTeam ? "Open my team" : "Set up a team"}</a></div>
     </section>`}
 

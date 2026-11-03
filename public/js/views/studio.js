@@ -814,8 +814,9 @@ export async function renderStudio(ctx, id) {
   // a better set (better light, varied angles and work-like expressions).
   const heldForLikeness = (s) => (s.shots || []).filter((t) => t.status === "error" && (t.qa?.history?.at(-1)?.likeness ?? 10) < 8).length;
   // A free reshoot with new selfies (POST /api/shoots/:id/reshoot): the
-  // person isn't charged again for selfies that didn't work.
-  const canReshoot = (s) => heldForLikeness(s) >= 2 && !s.sample && !s.team && !s.reshootOf && !s.reshootUsed && !state.user?.demo && !LIVE.includes(s.status);
+  // person isn't charged again for selfies that didn't work. (A team shoot's
+  // too: the reshoot uses no other seat, and the admin sees it once done.)
+  const canReshoot = (s) => heldForLikeness(s) >= 2 && !s.sample && !s.reshootOf && !s.reshootUsed && !state.user?.demo && !LIVE.includes(s.status);
   const reshootHref = (s) => `/app/new?reshoot=${encodeURIComponent(s.id)}`;
   function selfieTips(s) {
     // Only once the shoot has finished: frames held back while it's still
@@ -825,7 +826,7 @@ export async function renderStudio(ctx, id) {
     if (held < 2 || s.sample || state.user?.demo || $("#selfieTips")) return;
     const key = `kh:selfie-tips:${s.id}`;
     try { if (localStorage.getItem(key)) return; localStorage.setItem(key, "1"); } catch {}
-    const retry = !LIVE.includes(s.status) && !noRetries(s) && !s.team;
+    const retry = !LIVE.includes(s.status) && !noRetries(s);
     const dlg = document.createElement("dialog");
     dlg.className = "tips-dialog";
     dlg.id = "selfieTips";

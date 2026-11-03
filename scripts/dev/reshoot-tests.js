@@ -191,6 +191,64 @@ ok("the original records it", (await f(`/api/shoots/${first}`)).j.shoot.reshootI
   ok("…or reshot free", again.status === 402 && again.j?.code === "refunded", `${again.status} ${again.j?.error}`);
 }
 
+// 10. A team shoot gets the same free reshoot: it's the member's own shoot
+// (no team seat), charges neither the member nor the admin, and the admin's
+// team page shows it once done. A full refund of the admin's package that
+// paid for the seat takes it away, as it does a customer's own.
+async function teamSeat(tag, { refundable = false } = {}) {
+  const adm = await account(`${tag}-admin${t}@x.com`);
+  const co = (await adm("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) })).j;
+  const psid = new URL(co.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${psid}${refundable ? "" : "?promo=FREE"}`, { redirect: "manual" });
+  await adm("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: psid }) });
+  await adm("/api/team", { method: "POST", body: JSON.stringify({ name: "Reshooters", looks: LOOKS }) });
+  const email = `${tag}-member${t}@x.com`;
+  const link = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: email }) })).j.results[0].link;
+  // (Not confirmed: the invitation alone lets the team shoot go ahead.)
+  const mem = client();
+  await mem("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Tam Member", email, password: "password123" }) });
+  const sid = (await mem(`/api/join/${new URL(link).pathname.split("/").pop()}`, { method: "POST" })).j.shootId;
+  await develop(mem, sid);
+  return { adm, mem, sid, psid, s: await settle(mem, sid) };
+}
+{
+  const { adm, mem, sid, s } = await teamSeat("team");
+  ok("the team shoot finishes", s.status === "done" && !!s.team, s.status);
+  holdBack(s, 2);
+  const credits = async (f) => (await f("/api/me")).j.user.plan.credits;
+  const adminBefore = await credits(adm);
+  const memberBefore = (await mem("/api/me")).j.user;
+  const made = await mem(`/api/shoots/${sid}/reshoot`, { method: "POST", body: "{}" });
+  const rid = made.j?.shoot?.id;
+  ok("a team shoot can be reshot free", made.status === 201 && made.j.shoot.reshootOf === sid, `${made.status} ${made.j?.error || ""}`);
+  ok("the reshoot isn't another team seat, and has the team's looks", !made.j?.shoot?.team && JSON.stringify(made.j?.shoot?.looks) === JSON.stringify(LOOKS), JSON.stringify(made.j?.shoot));
+  for (let i = 0; i < 2; i++) await mem(`/api/shoots/${rid}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(30 + i) }) });
+  const check = await mem(`/api/shoots/${rid}/check`, { method: "POST", body: "{}" });
+  ok("its photo check runs (the member has no package)", check.status === 200, `${check.status} ${check.j?.error || ""}`);
+  const gen = await mem(`/api/shoots/${rid}/generate`, { method: "POST", body: JSON.stringify({ looks: [{ backdrop: "library", outfit: "camel-knit" }] }) });
+  ok("the team reshoot develops, in the team's looks", gen.status === 202 && JSON.stringify(gen.j?.shoot?.looks) === JSON.stringify(LOOKS), `${gen.status} ${gen.j?.error || ""}`);
+  const r = await settle(mem, rid);
+  const memberAfter = (await mem("/api/me")).j.user;
+  ok("paid with the reshoot: nothing charged to the member or the admin", r.paidWith === "reshoot" && (await credits(adm)) === adminBefore && memberAfter.plan.credits === memberBefore.plan.credits && memberAfter.plan.freeShootAvailable === memberBefore.plan.freeShootAvailable && memberAfter.plan.checksLeft === memberBefore.plan.checksLeft, JSON.stringify([adminBefore, memberBefore.plan, memberAfter.plan]));
+  const used = await mem(`/api/shoots/${sid}/reshoot`, { method: "POST", body: "{}" });
+  ok("once per team shoot", used.status === 409 && used.j.code === "reshoot_used", `${used.status}`);
+  const m = (await adm("/api/team")).j.team.members[0];
+  const pick = m?.pick;
+  ok("the admin's team page shows the reshoot's headshot", r.status === "done" && pick?.startsWith(`${rid}/`), JSON.stringify(m));
+  ok("and the admin can download it", !!pick && (await adm(`/media/${pick}`)).status === 200);
+  const stranger = await account(`team-stranger${t}@x.com`);
+  ok("nobody else can", !!pick && (await stranger(`/media/${pick}`)).status === 404);
+}
+{
+  const { adm, mem, sid, psid, s } = await teamSeat("team-refund", { refundable: true });
+  holdBack(s, 2);
+  // (The admin's package paid for the seat; it's refunded in full.)
+  await fetch(`${M}/mock-refund/${psid}`);
+  await adm("/api/billing/sync", { method: "POST", body: "{}" });
+  const r = await mem(`/api/shoots/${sid}/reshoot`, { method: "POST", body: "{}" });
+  ok("a team shoot whose package was refunded in full gets no free reshoot", r.status === 402 && r.j?.code === "refunded", `${r.status} ${r.j?.error}`);
+}
+
 const failed = results.filter((x) => !x).length;
 console.log(`${results.length - failed}/${results.length} passed`);
 process.exit(failed ? 1 : 0);

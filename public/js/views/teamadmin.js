@@ -4,7 +4,8 @@ import { downloadAll } from "./format.js";
 import { planBanner, confirmPurchase } from "./dashboard.js";
 
 // /app/team: a team admin sets the team's look, invites colleagues by email
-// (each invite uses one of their shoots) and collects everyone's headshots.
+// (each invite uses one of their shoots) and collects each person's chosen
+// headshot (their pick, or the retoucher's best: lib/teams.js teamStatus).
 // Server side: lib/teams.js and the /api/team routes.
 
 const STATUS = {
@@ -14,14 +15,30 @@ const STATUS = {
   deleted: ["Shoot deleted", "badge badge-muted"],
   account_deleted: ["Account deleted", "badge badge-muted"],
   expired: ["Expired · shoot returned", "badge badge-muted"],
+  withdrawn: ["Withdrawn · refund", "badge badge-muted"],
 };
 const shootLabel = (m) => {
   if (m.status !== "joined") return STATUS[m.status] || [m.status, "badge"];
+  if (m.unpaid) return ["Unpaid since your refund", "badge badge-warn"];
   if (m.shootStatus === "done") return ["Headshots ready", "badge badge-success"];
   if (["generating", "reviewing"].includes(m.shootStatus)) return ["Developing", "badge badge-warn"];
   if (m.shootStatus === "checked" || m.shootStatus === "checking") return ["Photos checked", "badge badge-info"];
   return [m.selfies ? `Uploading (${m.selfies} photo${m.selfies === 1 ? "" : "s"})` : "Joined, no photos yet", "badge badge-info"];
 };
+// What a refund did to the team (lib/teams.js teamStatus): invitations it
+// withdrew in the last 30 days, and joined seats it left unpaid until a new
+// package settles them (lib/billing.js reconcileRefund).
+const RECENT_MS = 30 * 24 * 60 * 60 * 1000;
+const who = (list) => list.map((m) => m.name || m.email).join(", ");
+function refundNote(t) {
+  const withdrawn = t.members.filter((m) => m.status === "withdrawn" && Date.now() - Date.parse(m.endedAt || 0) < RECENT_MS);
+  const unpaid = t.members.filter((m) => m.unpaid);
+  if (!withdrawn.length && !unpaid.length) return "";
+  const one = (list) => list.length === 1;
+  return html`<div class="banner banner-warn" id="refundNote">${icon("info")}<div><b>Your refund changed your team.</b>
+    ${withdrawn.length ? html`${one(withdrawn) ? "The invitation" : `${withdrawn.length} invitations`} to ${who(withdrawn)} ${one(withdrawn) ? "was" : "were"} withdrawn: ${one(withdrawn) ? "its shoot" : "their shoots"} went toward the refund, and ${one(withdrawn) ? "the link no longer works" : "the links no longer work"}.` : ""}
+    ${unpaid.length ? html`${who(unpaid)} ${one(unpaid) ? "has" : "have"} joined but can't develop ${one(unpaid) ? "their headshots" : "headshots"} now: the refund took back the ${one(unpaid) ? "shoot" : "shoots"} that paid for ${one(unpaid) ? "their seat" : "their seats"}. Buying a package pays for ${one(unpaid) ? "it" : "them"} again.` : ""}</div></div>`;
+}
 const lookLabel = (l) => `${BACKDROPS.find((b) => b.id === l.backdrop)?.name || l.backdrop} · ${OUTFITS.find((o) => o.id === l.outfit)?.name || l.outfit}`;
 
 export async function renderTeamAdmin({ root, navigate }) {
@@ -60,6 +77,11 @@ export async function renderTeamAdmin({ root, navigate }) {
 
   function paintSetup(team) {
     let looks = team?.looks?.length ? team.looks.map((l) => ({ ...l })) : [{ backdrop: "glass-office", outfit: "navy-suit" }];
+    // People who already joined keep the looks their shoot was made with
+    // (lib/teams.js accept copies them): a change only reaches new joiners.
+    const joined = (team?.members || []).filter((m) => m.status === "joined").length;
+    const lookKey = (list) => JSON.stringify((list || []).map((l) => [l.backdrop, l.outfit]));
+    const looksChanged = () => !!team && lookKey(looks) !== lookKey(team.looks);
     root.innerHTML = html`<main id="main" class="container app-main view-enter team-admin">
       <div class="page-head"><div><p class="eyebrow">Team headshots</p><h1 class="display h-1" style="margin-top:8px">${team ? "Team settings" : "Set up your team"}</h1>
       <p class="lede" style="margin-top:12px">Choose the looks everyone gets, so your team page matches. Then invite people by email: each invite uses one of your shoots, and each person uploads their own selfies.</p></div></div>
@@ -70,6 +92,7 @@ export async function renderTeamAdmin({ root, navigate }) {
           <ol class="team-looks" id="looks"></ol>
           <button type="button" class="btn btn-ghost btn-sm" id="addLook">${icon("plus")} Add a look</button>
         </fieldset>
+        ${joined ? html`<div class="banner banner-warn" id="lookWarn" role="status" hidden>${icon("info")}<div><b>${joined === 1 ? "1 person has" : `${joined} people have`} already joined.</b> They keep the look they started with. Only people who join from now on get the new look.</div></div>` : ""}
         <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-flash" id="saveTeam" ${lockedNow() ? raw("disabled") : ""}>${team ? "Save" : "Create team"} ${icon("arrow-right")}</button>${team ? html`<button type="button" class="btn btn-ghost" id="cancelSetup">Cancel</button>` : ""}</div>
       </form>
     </main>`.v;
@@ -84,11 +107,13 @@ export async function renderTeamAdmin({ root, navigate }) {
         </li>`,
       )}`.v;
       $("#addLook").hidden = looks.length >= MAX_LOOKS;
+      if ($("#lookWarn")) $("#lookWarn").hidden = !looksChanged();
     };
     drawLooks();
     $("#looks").addEventListener("change", (e) => {
       const el = e.target.closest("[data-k]");
       if (el) looks[Number(el.dataset.i)][el.dataset.k] = el.value;
+      if ($("#lookWarn")) $("#lookWarn").hidden = !looksChanged();
     });
     $("#looks").addEventListener("click", (e) => {
       const b = e.target.closest("[data-remove]");
@@ -118,7 +143,7 @@ export async function renderTeamAdmin({ root, navigate }) {
         const r = await api("/api/team", { method: "POST", body: { name: $("#teamName").value, looks } });
         state.user = r.user;
         data.team = r.team;
-        toast(team ? "Team saved." : "Team created. Now invite your colleagues.", "success");
+        toast(!team ? "Team created. Now invite your colleagues." : joined && looksChanged() ? "Team saved. People who already joined keep the look they started with." : "Team saved.", "success", joined && looksChanged() ? 7000 : undefined);
         paintTeam();
       } catch (err) {
         restore();
@@ -144,10 +169,11 @@ export async function renderTeamAdmin({ root, navigate }) {
         ${ready.length ? html`<button class="btn btn-flash btn-lg" id="dlTeam">${icon("download")} Download ${ready.length} headshot${ready.length === 1 ? "" : "s"}</button>` : ""}
       </div>
       ${lockBanner()}
+      ${refundNote(t)}
 
       <section class="panel team-invite" aria-labelledby="inviteTitle">
         <div class="team-invite-head"><h2 class="h-4" id="inviteTitle">Invite people</h2><span class="chip">${icon("ticket")} ${credits} shoot${credits === "1" ? "" : "s"} to give</span></div>
-        <p class="small muted">One shoot per person. They'll get an email with a link; their photos stay private, and you'll see their finished headshots here. An invitation not accepted within 90 days lapses and the shoot comes back to you.${data.email ? "" : " Email isn't set up here, so copy each person's link and send it yourself."}</p>
+        <p class="small muted">One shoot per person. They'll get an email with a link; their photos stay private, and you'll see the headshot each person chose here (or our retoucher's best pick until they choose). An invitation not accepted within 90 days lapses and the shoot comes back to you.${data.email ? "" : " Email isn't set up here, so copy each person's link and send it yourself."}</p>
         <form id="inviteForm" class="team-invite-form" novalidate>
           <label class="sr-only" for="emails">Email addresses</label>
           <textarea class="input" id="emails" rows="2" placeholder="alex@company.com, sam@company.com"></textarea>
