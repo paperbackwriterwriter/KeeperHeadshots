@@ -134,8 +134,8 @@ if (process.env.QA_ADMIN_TOKEN) {
   const bad = await f("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: "../../x" }) });
   ok("confirm rejects a malformed session id", bad.status === 400, String(bad.status));
   const starts = [];
-  for (let i = 0; i < 11; i++) starts.push((await f("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) })).status);
-  ok("checkout starts limited to 10 an hour", starts.slice(0, 10).every((s) => s === 200) && starts[10] === 429, starts.join(","));
+  for (let i = 0; i < 31; i++) starts.push((await f("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) })).status);
+  ok("checkout starts limited to 30 an hour (buy-page visits count)", starts.slice(0, 30).every((s) => s === 200) && starts[30] === 429, starts.join(","));
   const sync = await f("/api/billing/sync", { method: "POST" });
   ok("purchase sync still works", sync.status === 200, String(sync.status));
 }
@@ -826,6 +826,35 @@ if (process.env.DATA_DIR) {
   ]);
   const ms = Date.now() - start;
   ok("a very long email address is refused at once (sign-up, sign-in, reset)", rs.every((r) => r.status >= 400 && r.status < 500) && ms < 1500, `${rs.map((r) => r.status)} in ${ms} ms`);
+}
+
+
+// Deep audit, 3 Nov: input and response checks found across the site.
+{
+  const raw = (p, o = {}) => fetch(B + p, { redirect: "manual", ...o, headers: { "content-type": "application/json", ...(o.headers || {}) } });
+  const nameObj = await raw("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: { a: 1 }, email: `obj${t}@x.com`, password: "password123" }) }).then((r) => r.json());
+  ok("sign-up refuses a name that isn't text", !!nameObj.fields?.name, JSON.stringify(nameObj));
+  for (const e of [`n0<v${t}@x.com>`, `v${t}@x.com,y`, `v${t}@x.com;y`, `"v"@x${t}.com`]) {
+    const r = await raw("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Ann Lee", email: e, password: "password123" }) }).then((x) => x.json());
+    ok(`sign-up refuses a display-name or list address: ${e.slice(0, 12)}…`, !!r.fields?.email, JSON.stringify(r.fields));
+  }
+  await raw("/api/contact", { method: "POST", body: JSON.stringify({ name: "Topic Test", email: `topic${t}@x.com`, topic: "constructor", message: "Testing an odd topic name here." }) });
+  await new Promise((r) => setTimeout(r, 300));
+  const contactMail = (await fetch(`${M}/mock-mail`).then((r) => r.json())).findLast((m) => (m.replyTo || "").includes(`topic${t}@x.com`) || (m.subject || "").includes("Topic Test"));
+  ok("a contact form topic like 'constructor' is treated as a general message", !!contactMail && !/function|object Object/.test(contactMail.subject), contactMail?.subject);
+  const redir = await raw("/pricing?utm_source=meta&fbclid=abc");
+  ok("/pricing keeps an ad's tracking tags when it redirects", redir.status === 308 && redir.headers.get("location") === "/?utm_source=meta&fbclid=abc#pricing", redir.headers.get("location"));
+  const f = await account(`cache${t}@x.com`);
+  const list = await fetch(B + "/api/shoots", { headers: { cookie: "" } });
+  ok("API answers aren't cacheable by default", /private, no-store/.test(list.headers.get("cache-control") || ""), list.headers.get("cache-control"));
+  const big = await raw("/api/contact", { method: "POST", body: JSON.stringify({ name: "Big", email: `big${t}@x.com`, message: "x".repeat(5_000_000) }) }).then((r) => r.json().then((j) => [r.status, j]));
+  ok("an oversized message isn't called a photo", big[0] === 413 && !/photo/i.test(big[1].error), JSON.stringify(big));
+  const made = await f("/api/shoots", { method: "POST", body: JSON.stringify({ name: { a: 1 } }) });
+  ok("a shoot name that isn't text gets the default name", made.status === 201 && /^Shoot No\. /.test(made.j?.shoot?.name || ""), made.j?.shoot?.name);
+  const full = Buffer.from(photo.split(",")[1], "base64");
+  const cut = "data:image/jpeg;base64," + full.subarray(0, Math.floor(full.length / 2)).toString("base64");
+  const up = await f(`/api/shoots/${made.j?.shoot?.id}/selfies`, { method: "POST", body: JSON.stringify({ photo: cut }) });
+  ok("a truncated photo is refused as unreadable, not a server error", up.status === 400 && /readable image/.test(up.j?.error || ""), `${up.status} ${up.j?.error}`);
 }
 
 const passed = results.filter((r) => r[1]).length;

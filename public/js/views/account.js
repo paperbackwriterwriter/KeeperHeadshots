@@ -30,6 +30,7 @@ function takeReauthReturn() {
 const REAUTH_ERRORS = {
   cancelled: "Google sign-in was cancelled, so nothing was deleted.",
   failed: "That didn't confirm it's you. Use the Google account you sign in to Keeper Headshots with.",
+  stale: "Google didn't ask you to sign in again, so it didn't confirm it's you. Try again, and enter your Google password if it asks.",
 };
 
 export function renderAccount({ root, navigate }) {
@@ -58,11 +59,13 @@ export function renderAccount({ root, navigate }) {
       </dl>
     </section>
     ${u.plan?.tier === "owner" ? html`<p class="small" style="margin-top:12px"><a class="link" href="/app/funnel" data-link>Sales funnel</a>: sign-ups, photo checks, shoots and purchases by day. <a class="link" href="/app/showcase" data-link>Customer results</a>: headshots offered for the home page (owner only).</p>` : ""}
-    ${u.demo || u.emailVerified
+    ${u.demo || u.mailboxConfirmed !== false
       ? ""
       : html`<section class="panel prefs" data-verify-panel aria-labelledby="verify-title">
       <h2 class="h-3" id="verify-title">Confirm your email</h2>
-      <p class="muted">Confirm ${u.email} with the 6-digit code or link in the email we sent when you signed up. Check your spam folder too. Confirming shows the address is yours, so this account and its headshots stay with you.</p>
+      <p class="muted">${u.emailVerified
+        ? html`Your team invitation let you start your team shoot. To set up a team of your own or get our emails, confirm ${u.email} yourself: press "Send another" below, then enter the 6-digit code from that email.`
+        : html`Confirm ${u.email} with the 6-digit code or link in the email we sent when you signed up. Check your spam folder too. Confirming shows the address is yours, so this account and its headshots stay with you.`}</p>
       <form class="verify-code" data-verify-code novalidate>
         <label class="sr-only" for="verifyCode">6-digit code</label>
         <input class="input" id="verifyCode" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" placeholder="123 456" aria-describedby="verifyCodeErr" />
@@ -296,6 +299,7 @@ export function renderAccount({ root, navigate }) {
     start.focus();
   });
   pw?.addEventListener("input", () => (showError(""), sync()));
+  form.addEventListener("keydown", (e) => e.key === "Escape" && $("#cancelDelete", root).click());
   agree.addEventListener("change", sync);
   if (reauthReturn) {
     start.hidden = true;

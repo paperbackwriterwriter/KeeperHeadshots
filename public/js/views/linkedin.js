@@ -70,7 +70,7 @@ export function renderLinkedIn({ root }) {
           <article class="li-card" data-reveal style="--i:1">
             <span class="li-ic">${icon("download")}</span>
             <h3 class="h-4">A full-resolution portrait too</h3>
-            <p>Every headshot also comes as a 3:4 portrait for your résumé, company website, speaker bio or print. Both versions download together, so you have the right shape for everywhere you need it.</p>
+            <p>Every headshot also comes as a 3:4 portrait for your résumé, company website, speaker bio or print. Download both shapes together, or just the one you need, so you have the right shape for everywhere you use it.</p>
           </article>
           <article class="li-card" data-reveal style="--i:2">
             <span class="li-ic">${icon("badge-check")}</span>

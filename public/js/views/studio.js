@@ -1370,8 +1370,10 @@ async function toJpegDataURL(file) {
   } catch {
     throw new Error(/heic|heif/i.test(file.type + file.name) ? `${file.name}: HEIC photos aren't supported by this browser — export it as JPG first.` : `${file.name} couldn't be read as an image.`);
   }
-  if (Math.min(bitmap.width, bitmap.height) < 256) throw new Error(`${file.name} is too small — use photos at least 256px on each side.`);
   const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  // (Checked after shrinking to 1600px: a very wide or tall photo can end up
+  // too narrow even though it started large.)
+  if (Math.min(bitmap.width, bitmap.height) * scale < 256) throw new Error(Math.min(bitmap.width, bitmap.height) < 256 ? `${file.name} is too small — use photos at least 256px on each side.` : `${file.name} is too long and narrow — crop it closer to your face, or use another photo.`);
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);

@@ -183,7 +183,7 @@ await users.update(buyer.id, (u) => void (u.usage = { freeShootUsed: freeShoot }
   const r = await runReminders({ origin: "https://example.test", state: {} });
   ok("the run sends both checkout reminders", r.sent === 2, JSON.stringify(r));
   const [m] = await mailsTo(shopper.email);
-  ok("it names the package and links back to it", m?.subject === "Still deciding on your headshots?" && m.links.includes("https://example.test/app/buy/professional"), JSON.stringify(m));
+  ok("it names the package and links back to it", m?.subject === "Still deciding on your headshots?" && m.links.includes("https://example.test/signin?next=%2Fapp%2Fbuy%2Fprofessional"), JSON.stringify(m));
   ok("it offers one-click unsubscribe", /\/api\/unsubscribe\?token=/.test(m?.headers?.["List-Unsubscribe"] || ""));
   ok("then no buy reminder too", !(await dueReminder(await fresh(both))), JSON.stringify((await fresh(both)).reminders));
 }

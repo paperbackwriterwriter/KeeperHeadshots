@@ -84,12 +84,12 @@ export function renderFunnel({ root, navigate }) {
       </section>
       <p class="small muted funnel-note">Each person is counted once per step, on the day (Central time) they reach it, so a period's steps can include people who signed up before it. Demo and owner accounts aren't counted. Days with no activity aren't listed. Counting started on 28 Sep 2026; refunds are counted, on the day they're made, from 10 Oct 2026. Visitors are in <a class="link" href="https://vercel.com/christianswebsites/keeperheadshots/analytics" target="_blank" rel="noopener">Vercel Analytics</a>.</p>
       <p class="small muted funnel-scroll-hint">Swipe the table sideways to see every column.</p>
-      <div class="panel funnel-table-wrap">
+      <div class="panel funnel-table-wrap" tabindex="0" role="region" aria-label="Funnel by day (scrolls sideways)">
         <table class="funnel-table">
           <thead><tr><th scope="col">Day</th>${STEPS.map(([, l]) => html`<th scope="col">${l.replace(/ (their|a) /, " ")}</th>`)}<th scope="col">Purchases</th><th scope="col">Revenue</th><th scope="col">Refunds</th></tr></thead>
           <tbody>
             ${active.length ? "" : html`<tr><td colspan="${STEPS.length + 4}" style="text-align:left">No activity in this period yet.</td></tr>`}
-            ${active.map((d) => html`<tr><th scope="row">${shortDate(d.date)}</th>${STEPS.map(([k]) => html`<td>${d[k] || ""}</td>`)}<td>${d.purchases || ""}</td><td>${d.revenue || d.purchases ? money(d.revenue || 0) : ""}</td><td>${d.refunds ? `−${money(d.refunds)}` : ""}</td></tr>`)}
+            ${active.map((d) => html`<tr><th scope="row">${shortDate(d.date)}</th>${STEPS.map(([k]) => html`<td>${d[k] || ""}</td>`)}<td>${d.purchases || ""}</td><td>${d.revenue || d.purchases ? money(d.revenue || 0) : ""}</td><td>${d.refunds > 0 ? `−${money(d.refunds)}` : d.refunds < 0 ? `+${money(-d.refunds)}` : ""}</td></tr>`)}
           </tbody>
         </table>
       </div>`.v;
@@ -125,7 +125,7 @@ export function renderFunnel({ root, navigate }) {
         <div><b>${m.buyers}</b><span>buyer${m.buyers === 1 ? "" : "s"}</span></div>
       </div>
       <p class="small muted funnel-scroll-hint">Swipe the table sideways to see every column.</p>
-      <div class="panel funnel-table-wrap">
+      <div class="panel funnel-table-wrap" tabindex="0" role="region" aria-label="Recent shoots (scrolls sideways)">
         <table class="funnel-table shoots-table">
           <thead><tr><th scope="col">Day</th><th scope="col">Customer</th><th scope="col">Paid with</th><th scope="col">Status</th><th scope="col">Photo check</th><th scope="col">Frames</th><th scope="col">Failed</th><th scope="col">Retakes</th><th scope="col">Best</th><th scope="col">Average</th><th scope="col">Likeness</th><th scope="col">Minutes</th><th scope="col">Downloaded</th><th scope="col">Bought</th></tr></thead>
           <tbody>

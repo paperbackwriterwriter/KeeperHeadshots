@@ -133,6 +133,13 @@ let final;
   ok("a stranger can't download it", (await stranger(`/media/${sid}/${name}`)).status === 404);
 }
 
+// 6b. More than 25 addresses at once is refused with a message, not cut short.
+{
+  const many = Array.from({ length: 26 }, (_, i) => `many${i}-${t}@x.com`).join(", ");
+  const r = await admin("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: many }) });
+  ok("26 addresses at once are refused, saying the limit", r.status === 400 && /26 addresses/.test(r.j?.error || "") && /25/.test(r.j?.error || ""), `${r.status} ${r.j?.error}`);
+}
+
 // 7. A team shoot deleted before developing gives the shoot back.
 {
   const carol = `carol${t}@x.com`;

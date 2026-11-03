@@ -234,7 +234,7 @@ async function render({ restoreY = null } = {}) {
   } catch (err) {
     if (seq !== renderSeq) return;
     console.error(err);
-    view.innerHTML = html`<main id="main" class="container app-main"><div class="banner banner-danger">${icon("circle-alert")}<div><b>This page failed to load.</b>${err.message}</div><button class="btn btn-sm btn-ink" type="button" data-reload>Reload</button></div></main>`.v;
+    view.innerHTML = html`<main id="main" class="container app-main"><div class="banner banner-danger">${icon("circle-alert")}<div><b>This page failed to load.</b>${/fetch|import|network|load/i.test(String(err?.message)) ? "Check your internet connection, then reload." : err.message}</div><button class="btn btn-sm btn-ink" type="button" data-reload>Reload</button></div></main>`.v;
   }
   if (seq !== renderSeq) return void viewCleanup?.();
   cleanup = viewCleanup;
@@ -371,12 +371,12 @@ async function accountChanged() {
   // The empty dashboard's next step follows too (a package bought elsewhere).
   document.querySelectorAll("[data-empty-dash]").forEach((el) => (el.outerHTML = emptyDashboard().v));
   // The account page's "Confirm your email" panel goes once it's confirmed.
-  if (state.user?.emailVerified) document.querySelectorAll("[data-verify-panel]").forEach((el) => el.remove());
+  if (state.user?.mailboxConfirmed) document.querySelectorAll("[data-verify-panel]").forEach((el) => el.remove());
   refreshUserChip();
   document.dispatchEvent(new CustomEvent("ahg:user-changed"));
   showRefundNotice();
 }
-const accountSig = (u) => JSON.stringify(u ? [u.id, u.emailVerified, u.plan, u.previewsUnlocked, u.kept, u.extraLooks, u.photoFormat, u.emailReminders, u.refundNotice, u.name, u.hasPassword, u.google] : null);
+const accountSig = (u) => JSON.stringify(u ? [u.id, u.emailVerified, u.mailboxConfirmed, u.plan, u.previewsUnlocked, u.kept, u.extraLooks, u.photoFormat, u.emailReminders, u.refundNotice, u.name, u.hasPassword, u.google] : null);
 let lastAccountSync = 0;
 async function syncAccount() {
   if (!state.user || document.visibilityState !== "visible" || Date.now() - lastAccountSync < 4000) return;
@@ -592,7 +592,9 @@ loadSession()
         if (googleReturn === "google-new" && Date.now() - Date.parse(state.user.createdAt) < 10 * 60 * 1000) pixel("CompleteRegistration", {}, `reg_${state.user.id}`);
         // (The same welcome as an email sign-up: customers pay up front.)
         const fresh = state.user.plan?.tier === "none" && !state.user.plan.started;
-        toast(googleReturn === "google-new" ? (fresh ? `Welcome, ${first}. Choose a package to start your first shoot.` : `Welcome, ${first}. Let's make some headshots.`) : `Welcome back, ${first}. Your email is confirmed.`, "success", 6000);
+        // (Signed up from a team invitation: that shoot is paid for, so no package to choose.)
+        const joining = location.pathname === "/join";
+        toast(googleReturn === "google-new" ? (fresh && !joining ? `Welcome, ${first}. Choose a package to start your first shoot.` : `Welcome, ${first}. Let's make some headshots.`) : `Welcome back, ${first}. Your email is confirmed.`, "success", 6000);
       }
     }
   });

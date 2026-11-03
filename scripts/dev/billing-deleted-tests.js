@@ -14,7 +14,7 @@ Object.assign(process.env, { DATA_DIR: dir, STRIPE_SECRET_KEY: "sk_test_deleted"
 const { default: Stripe } = await import("stripe");
 const storage = await import("../../lib/storage.js");
 const { users } = await import("../../lib/store.js");
-const { handleWebhook } = await import("../../lib/billing.js");
+const { handleWebhook, fulfil } = await import("../../lib/billing.js");
 
 let passed = 0;
 const test = async (name, fn) => { await fn(); passed++; console.log("PASS", name); };
@@ -53,6 +53,17 @@ try {
     assert.equal(u.credits || 0, 0);
     assert.ok(!u.extraLooks?.sht_neverthere01);
     assert.ok(errors.some((e) => e.includes(plus.id) && /may need a refund: its shoot was deleted/.test(e)), errors.join("\n"));
+  });
+  // A purchase that pays off shoots owed from an earlier refund reports only
+  // the shoots it actually adds.
+  const owing = { id: "usr_owesone01", email: "owes@example.com", name: "Owen Owes", createdAt: new Date().toISOString(), emailVerified: true, usage: {}, creditsOwed: 1 };
+  await users.create(owing);
+  await test("a purchase that settles a shoot owed reports 2 added, not 3", async () => {
+    const r = await fulfil({ ...session, id: "cs_test_owes01", amount_total: 1450, client_reference_id: owing.id, metadata: { userId: owing.id, packageId: "starter", shoots: "3" } });
+    const u = await users.byId(owing.id);
+    assert.equal(r.shoots, 2);
+    assert.equal(u.credits, 2);
+    assert.ok(!u.creditsOwed);
   });
 } finally {
   console.error = logError;

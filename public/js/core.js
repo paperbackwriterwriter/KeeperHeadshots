@@ -248,6 +248,9 @@ export const spinner = () =>
 // Put a button into a busy state and return a restore function.
 export function busy(btn, label) {
   const prev = btn.innerHTML;
+  // (Disabling the focused button drops keyboard focus to the page: it goes
+  // back to the button when the work is done, if nothing else took it.)
+  const hadFocus = document.activeElement === btn;
   btn.disabled = true;
   btn.setAttribute("aria-busy", "true");
   btn.innerHTML = `${spinner().v}<span>${esc(label)}</span>`;
@@ -255,6 +258,7 @@ export function busy(btn, label) {
     btn.disabled = false;
     btn.removeAttribute("aria-busy");
     btn.innerHTML = prev;
+    if (hadFocus && btn.isConnected && (document.activeElement === document.body || !document.activeElement)) btn.focus({ preventScroll: true });
   };
 }
 

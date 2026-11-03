@@ -1,0 +1,117 @@
+# QA coverage map
+
+The checklist the nightly QA run works from. It came out of a full audit on
+3 November 2026 that checked every route, page state, email, scheduled job
+and promise in the site's copy, in eight areas. Each area's file lists every
+item, how it was checked, and the result on that day.
+
+| Area | File | What it covers |
+|---|---|---|
+| A | [areas/A-accounts.md](areas/A-accounts.md) | Sign-up, sign-in, email confirmation (link, code, "did you create this account?"), password reset, Google sign-in/linking/re-check, sessions and sign-out, account page and deletion, takeover purge, unsubscribe, rate limits, demo account |
+| B | [areas/B-shoots.md](areas/B-shoots.md) | Shoots: create, upload (formats, sizes, corrupt files), photo check, looks, develop and charging, rendering, retries, reshoot, extra looks, regrade, delete at every status, durable jobs and recovery, studio and dashboard screens |
+| C | [areas/C-payments.md](areas/C-payments.md) | Checkout (packages at the sale price, legacy preview offers, promo codes), confirm/sync/webhook, refunds to the cent, disputes, credits and debt, owner/demo accounts, funnel revenue, Meta purchase values, buy page |
+| D | [areas/D-teams.md](areas/D-teams.md) | Team set-up, invitations (send, resend, link, cancel, lapse), joining, seats and refunds, admin view, members on two teams, deleting accounts, team pages and banners |
+| E | [areas/E-security.md](areas/E-security.md) | All 83 routes: who may call each, input checks, rate limits, Origin/CSRF, error handling, caching; media and watermarks, owner/admin/cron/worker access, headers and CSP, cookies, redirects, injection, SSRF, storage paths, denial-of-service inputs |
+| F | [areas/F-public.md](areas/F-public.md) | Every public page: claims in the copy against the code, contradictions between pages, JSON-LD, meta tags, sitemap dates, prerendered HTML, links, contact form, search, blog, social images, llms.txt |
+| G | [areas/G-emails-jobs.md](areas/G-emails-jobs.md) | Every email (who gets it, wording, links, escaping) and every scheduled job (clean-up, reminders, backup and restore, blog sync, shoot worker), owner offers, alerts, funnel stats |
+| H | [areas/H-ux.md](areas/H-ux.md) | Every signed-in screen at 320/390/1280, light and dark, 200% text: keyboard and focus, screen-reader names (axe), two tabs, double-submit, back/forward/reload, slow and offline networks |
+
+## Nightly rotation
+
+Each night re-checks one area in full (A, B, … H, then A again), using that
+area's file as the checklist: every item gets a fresh result, and anything new
+in that area is added as a new item. The run appends a line to
+[rotation-log.md](rotation-log.md).
+
+## How to test
+
+- `bash scripts/dev/ci.sh`: every server test suite (fixed ports 3100, 3101,
+  4010, 2525; about 15 minutes).
+- `bash scripts/dev/layout-ci.sh chromium <out-dir>`: the layout audit (same
+  ports, so never at the same time as ci.sh).
+- `bash scripts/dev/qa-stack.sh <app> <mock> <smtp> [1]`: an app server and the
+  stand-in services on ports of your choosing (reviewers use 36xx/46xx/26xx),
+  with a fresh data folder; `1` turns the legacy free shoot on, and
+  `QAFAIL=all` in front makes every AI quality check fail. The stand-in
+  (scripts/dev/mock-ai.js) also serves sent mail at `/mock-mail`, payments at
+  `/mock-pay/<checkout id>` (`?promo=FREE` or `?promo=HALF`) and refunds at
+  `/mock-refund/<checkout id>?amount=<cents>`. A Google sign-in is completed
+  by calling `/api/auth/google/callback` with a code that is base64url JSON of
+  the claims (see scripts/dev/google-tests.js).
+- Several suites assume the legacy free shoot is on (ci.sh turns it on); run
+  against a stack without it, they stop early. That is a test assumption, not
+  a product bug.
+
+## Decisions (not bugs)
+
+- Legacy free previews are watermarked until bought; the $8.99 button replaces
+  the download buttons on them; cancelling the $8.99 checkout from the viewer
+  leaves that frame as the pick.
+- Google sign-in links to an existing account with the same email.
+- The Google re-check before deleting a Google-only account asks the person to
+  tick the box again afterwards.
+- DMARC is p=reject. The demo account is public and read-only. Example images
+  under /examples/ 404 locally. The desktop nav has no Contact link.
+- Requests without an Origin header pass the Origin check (Stripe, cron, mail
+  apps). The Vercel queue route trusts its ce-type header (jobs are leased).
+  `appOrigin` uses the Host header outside Vercel production.
+
+## Known open items (not to be re-reported as new)
+
+Waiting on the owner:
+- Paying customers who never confirmed their email lose their selfies and
+  unfinished shoots if they reset their password or use Google from another
+  browser (treated as a takeover). Area A, A1-01.
+- The Google delete re-check lets a token through when Google omits
+  auth_time.
+- Team page and FAQ promise the admin "everyone's finished headshots"; only
+  each person's best pick is downloadable.
+- During the sale, "Keep them all + 2 more looks" ($14.99) costs more than
+  Starter ($14.50). Area F, F2.
+- Team look/name changes don't reach people who already joined (D-02); the
+  admin isn't told what a refund did to the team (D-05); invitations match the
+  exact address only and the 100-invite cap counts cancelled ones (D-08); team
+  members get no free reshoot (D-09).
+- Shared headshots can stay on the cached home page longer than the privacy
+  policy's "about 10 minutes" (F5). Soro's blog script isn't named in the
+  privacy policy (F4). Terms say "Keeper Headshots", emails say "Keeper
+  Headshots LLC" (F11). Search only indexes titles and descriptions (F8).
+- A refund worked out with the per-shoot price rounded up can leave one shoot
+  on the account (C3-1).
+- Linking Google from a second browser removes the password of a confirmed
+  account (A1-07); a password sign-in to a Google-only account gives no hint
+  to use Google (A1-06).
+- If the server dies mid-render, those frames need a manual retry (B2-6).
+- Reload mid-upload leaves a partial draft; the looks picker isn't a history
+  entry (H8-10).
+
+Low, left for later:
+- AI outage uses up a shoot's free retries; a zero-headshot shoot then needs a
+  manual refund.
+- Results page: the viewer ignores the Retakes filter; arrow keys stop after
+  tabbing to a download link; a download format changed in another tab isn't
+  picked up; quick format switching on a slow network can disagree (H8-08);
+  focus lost after opening the mobile menu, removing a photo, taking down a
+  shared headshot, confirming an email, closing the selfie tips, and after
+  pages that repaint in place (H8-01/04/06, partly fixed 3 Nov); the admin's
+  "Download 1 headshot" saves two files.
+- Billing: keep-plus for a deleted shoot still counts in unlocksPreviews; the
+  "no room for looks" flag still adds extraLooks; millisecond races on a stale
+  develop claim and delete-during-develop; a transient read error in the
+  looksAsShoot guard; free-shoot release gap (free shoot off); developed flag
+  not backfilled; legacy keep-plus shoot counted as a package lot (C3-2); a
+  refund arriving before its payment is recorded (C3-3).
+- Jobs: restore brings back a deleted account's funnel markers (G7-03); alert
+  caps don't hold across servers (G7-04); backups leave out stats/refunds and
+  takeovers (G7-05); clean-up steps ignore the time budget (G7-10); the funnel
+  around daylight-saving changes (G7-11).
+- Sign-in: the lock message's 15/30 minutes; a lost Google flow cookie during
+  the delete re-check lands on /app silently (A1-04); a signed-out tab doesn't
+  notice a sign-in elsewhere (A1-10); inconsistent answers while an account is
+  being deleted (A1-12).
+- Teams: renamed admin's old name on join/studio (D-07); invitations lapse only
+  when something triggers it (D-06, partly fixed 3 Nov).
+- Shoots: a stuck check past its lease is only recovered by polling (B2-7).
+- UX: header doesn't collapse when text is enlarged on a short page (H8-11);
+  blank page while a slow session request loads (H8-12).
+- The home page footer year is fixed until prerender is re-run (F9).

@@ -138,16 +138,13 @@ async function checked(f, n) {
   await alias(`/api/shoots/${asid}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(91) }) });
   const shared = await alias(`/api/shoots/${asid}/check`, { method: "POST", body: "{}" });
   ok("the daily allowance is shared by every address for the mailbox", shared.status === 429, `${shared.status}`);
-  // Unusual spellings of the same inbox share it too.
+  // Unusual spellings of the same inbox: a quoted address is refused at
+  // sign-up, and the rest share the allowance.
   const quoted = client();
   const quotedEmail = `"${base}"@gmail.com`;
-  await quoted("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Lisa Quoted", email: quotedEmail, password: "password123" }) });
-  await quoted("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(quotedEmail) }) });
-  const qsid = (await quoted("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;
-  await quoted(`/api/shoots/${qsid}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(93) }) });
-  const q = await quoted(`/api/shoots/${qsid}/check`, { method: "POST", body: "{}" });
+  const qup = await quoted("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Lisa Quoted", email: quotedEmail, password: "password123" }) });
   const { canonicalEmail } = await import("../../lib/store.js");
-  ok("a quoted address or a trailing dot is the same mailbox", q.status === 429 && [`${base}@gmail.com.`, `"${base}"+x@gmail.com`].every((e) => canonicalEmail(e) === canonicalEmail(`${base}@gmail.com`)), `${q.status}`);
+  ok("a quoted address is refused, and a trailing dot or +tag is the same mailbox", qup.status === 400 && !!qup.j?.fields?.email && [`${base}@gmail.com.`, `${base}+x@gmail.com`].every((e) => canonicalEmail(e) === canonicalEmail(`${base}@gmail.com`)), `${qup.status}`);
   // Once the free shoot is used, the free allowance is the limit again.
   // (A second draft first: with no shoots left, a new one can't be started.)
   const sid2 = (await f("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;

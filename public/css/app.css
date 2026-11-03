@@ -1129,6 +1129,9 @@ body:has(.develop-bar) .toasts { bottom: calc(96px + env(safe-area-inset-bottom)
 .upsell-name { grid-area: name; font-weight: 800; font-size: var(--fs-md); }
 .upsell-price { grid-area: price; font-size: var(--fs-sm); color: #c4cad3; }
 .upsell-pkg.pop .upsell-price { color: #fff; opacity: 0.9; }
+.upsell-pkg.pop .price-was { color: #fff; opacity: 0.85; }
+.upsell-pkg.pop .price-was::after { background: #fff; }
+.lightbox .eyebrow { color: var(--text-inverse-muted); }
 .upsell-price strong { color: var(--paper-100); font-size: var(--fs-base); }
 .upsell-go { grid-area: go; display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: var(--fs-sm); }
 .upsell-go svg { width: 16px; height: 16px; }

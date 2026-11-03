@@ -12,7 +12,7 @@ import { ogImage } from "./lib/og.js";
 import * as showcase from "./lib/showcase.js";
 import { CONTACT_TO } from "./lib/contact.js";
 import { knownDevice, originDevice, markOrigin, newOriginId, hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailCode, checkEmailCode, emailVerified, ownsMailbox, resetToken, checkResetToken, markReauth, reauthed, clearReauth } from "./lib/auth.js";
-import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM, ADDRESS_LIKE } from "./lib/mail.js";
+import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM, ADDRESS_LIKE, isEmailAddress } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import * as google from "./lib/google.js";
 import { pageFor, blogPostPage, blogIndexPage, blogArticlePage, blogNotFoundPage, blogSitemap, isCanonicalHost } from "./lib/seo.js";
@@ -90,6 +90,9 @@ app.use((req, res, next) => (tainted(req.body) ? res.status(400).json({ error: "
 console.log(`[build] ${BUILD} (${BUILD_FILES} files)`);
 app.use("/api", (req, res, next) => {
   res.set("X-App-Build", BUILD);
+  // Not cached anywhere unless a route says otherwise (search, the public
+  // showcase): most answers are one account's own data.
+  res.set("Cache-Control", "private, no-store");
   next();
 });
 // Requests that change something come from this site's own pages. Browsers
@@ -146,7 +149,7 @@ app.get("/api/version", (req, res) => res.set("Cache-Control", "no-store").json(
 
 // (Length first: on a long run of dots the pattern takes time that grows with
 // the square of the length, which would stall every request on the server.)
-const isEmail = (s) => typeof s === "string" && s.trim().length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+const isEmail = isEmailAddress;
 // Links we email or hand to Stripe use a fixed origin in production, never the
 // request's Host header (which a client controls).
 const appOrigin = (req) => process.env.APP_ORIGIN || (process.env.VERCEL_ENV === "production" ? "https://keeperheadshots.com" : `${req.protocol}://${req.get("host")}`);
@@ -186,7 +189,7 @@ async function sendVerification(user, req) {
 app.post("/api/auth/signup", async (req, res) => {
   const { name, email, password } = req.body || {};
   const errors = {};
-  if (!name || String(name).trim().length < 2) errors.name = "Tell us what to call you.";
+  if (typeof name !== "string" || name.trim().length < 2) errors.name = "Tell us what to call you.";
   else if (String(name).trim().length > 80 || NAME_BAD.test(String(name).normalize("NFKC"))) errors.name = "Use just your name (2 to 80 characters, no links, web addresses or symbols like < >).";
   if (!isEmail(email)) errors.email = "Enter a valid email address.";
   if (!password || String(password).length < 8) errors.password = "Use at least 8 characters.";
@@ -229,7 +232,7 @@ app.post("/api/auth/signin", async (req, res) => {
   // before anything else is looked up or written.
   const netKey = hashId(req.ip || "unknown").slice(0, 16);
   const netFails = await readCounter("signinnet", netKey, SIGNIN_WINDOW_MS).catch(() => ({}));
-  if ((netFails.n || 0) >= SIGNIN_MAX_PER_IP) return res.status(429).json({ error: "Too many attempts. Wait 15 minutes and try again, or reset your password." });
+  if ((netFails.n || 0) >= SIGNIN_MAX_PER_IP) return res.status(429).json({ error: "Too many attempts. Wait up to 30 minutes and try again, or reset your password." });
   if (isEmail(email) && email.toLowerCase().trim() === DEMO.email) await seed();
   const user = isEmail(email) ? await users.byEmail(email) : null;
   const known = knownDevice(req, user);
@@ -256,7 +259,7 @@ app.post("/api/auth/signin", async (req, res) => {
       return false;
     }).catch((err) => (console.error("[signin] attempt counter", err.message), false));
   }
-  if (locked) return res.status(429).json({ error: "Too many attempts. Wait 15 minutes and try again, or reset your password." });
+  if (locked) return res.status(429).json({ error: "Too many attempts. Wait up to 30 minutes and try again, or reset your password." });
   // Always run the (async) password hash, even for unknown emails, so timing
   // doesn't reveal which addresses have accounts.
   // An account made with Google (or taken over by its inbox's owner) has no
@@ -336,7 +339,9 @@ app.get("/api/auth/google/callback", async (req, res) => {
     const fresh = !profile.authTime || Date.now() / 1000 - profile.authTime < REAUTH_FRESH_S;
     const confirmed = fresh && me?.id === flow.reauth && !!me.googleSub && me.googleSub === profile.sub && !me.password && markReauth(res, req, me);
     console.log("[google] reauth", flow.reauth, confirmed ? "confirmed" : "refused");
-    return res.redirect(302, `/app/account?reauth=${confirmed ? "ok" : "failed"}`);
+    // (The right Google account, but no fresh sign-in: said so, not "wrong account".)
+    const stale = !fresh && me?.googleSub === profile.sub;
+    return res.redirect(302, `/app/account?reauth=${confirmed ? "ok" : stale ? "stale" : "failed"}`);
   }
   if (profile.email === DEMO.email) return back("failed");
   const now = new Date().toISOString();
@@ -605,7 +610,7 @@ app.post("/api/auth/password/forgot", async (req, res) => {
       });
       if (!allowed) return;
       const link = `${origin}/reset?token=${resetToken(user)}`;
-      const { subject, text, html } = passwordResetEmail({ name: user.name, link });
+      const { subject, text, html } = passwordResetEmail({ name: user.name, link, first: !user.password && !!user.googleSub });
       await sendMail({ from: { name: "Keeper Headshots", address: MAIL_FROM }, to: { name: user.name, address: user.email }, subject, text, html });
     })().catch((err) => console.error("[reset] send failed", user.id, err.message)),
   );
@@ -773,7 +778,7 @@ app.post("/api/shoots", requireUser, async (req, res) => {
   const shoot = await shoots.create({
     id: id("sht"),
     userId: req.user.id,
-    name: (req.body?.name && String(req.body.name).replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 60)) || `Shoot No. ${String(count).padStart(2, "0")}`,
+    name: (typeof req.body?.name === "string" && req.body.name.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 60)) || `Shoot No. ${String(count).padStart(2, "0")}`,
     status: "draft",
     createdAt: now,
     selfies: [],
@@ -1209,13 +1214,16 @@ app.post("/api/shoots/:id/resume", requireUser, async (req, res) => {
   const now = Date.now();
   await shoots.updateMeta(shoot.id, (m) => {
     refused = null; // the callback may run again after a write conflict
-    if (LIVE.includes(m.status) || (m.resumeStartedAt && now - Date.parse(m.resumeStartedAt) < 15_000)) refused = "busy";
+    if (LIVE.includes(m.status)) refused = "busy";
+    else if (m.resumeStartedAt && now - Date.parse(m.resumeStartedAt) < 15_000) refused = "soon";
     else if ((m.resumes || 0) >= MAX_RESUMES) refused = "limit";
     if (refused) return false;
     m.resumes = (m.resumes || 0) + 1;
     m.resumeStartedAt = new Date(now).toISOString();
   });
   if (refused === "busy") return res.status(409).json({ error: "This shoot is still in progress." });
+  // (A double click, or frames that failed again within seconds.)
+  if (refused === "soon") return res.status(429).json({ error: "That was just retried. Give it a few seconds, then try again.", code: "retry_soon" });
   if (refused === "limit") return res.status(429).json({ error: "These frames still didn't develop after several tries. Contact us and we'll sort it out.", code: "resume_limit" });
   res.status(202).json({ shoot: await retryFailed(shoot.id) });
 });
@@ -1332,7 +1340,7 @@ app.patch("/api/shoots/:id", requireUser, async (req, res) => {
   const body = req.body || {};
   let name;
   if ("name" in body) {
-    name = String(body.name || "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 60);
+    name = (typeof body.name === "string" ? body.name : "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 60);
     if (!name) return res.status(400).json({ error: "Give the shoot a name." });
   }
   let pick;
@@ -1433,8 +1441,11 @@ app.post("/api/team", requireUser, async (req, res) => {
 // one of the admin's shoots; the answer lists what happened to each address.
 app.post("/api/team/invites", requireUser, async (req, res) => {
   teamAdminOnly(req, res);
-  const emails = [...new Set(String(req.body?.emails || "").split(/[\s,;]+/).map((e) => e.trim()).filter(Boolean))].slice(0, 25);
-  if (!emails.length) return res.status(400).json({ error: "Add at least one email address." });
+  const all = [...new Set(String(req.body?.emails || "").split(/[\s,;]+/).map((e) => e.trim()).filter(Boolean))];
+  if (!all.length) return res.status(400).json({ error: "Add at least one email address." });
+  // (More than 25 at once: refused, not silently cut short.)
+  if (all.length > 25) return res.status(400).json({ error: `That's ${all.length} addresses. Invite up to 25 at a time.` });
+  const emails = all;
   const results = [];
   for (const email of emails) {
     // Each address counts towards the hourly limit, however they're batched.
@@ -1461,6 +1472,12 @@ app.post("/api/team/invites/:inviteId/resend", requireUser, async (req, res) => 
   const team = await teams.getTeam(req.user.teamId);
   const inv = team?.invites?.[req.params.inviteId];
   if (!inv || inv.status !== "invited") return res.status(404).json({ error: "That invite isn't open any more." });
+  // Past its 90 days (the nightly clean-up may not have got to it yet): it
+  // lapses now, giving the shoot back, rather than being sent or shared again.
+  if (teams.inviteLapsed(inv)) {
+    await teams.expireInvites(team);
+    return res.status(404).json({ error: "That invite lapsed after 90 days and its shoot is back in your balance. Invite them again to send a new one." });
+  }
   if (inv.sentAt && Date.now() - Date.parse(inv.sentAt) < 60_000) return res.status(429).json({ error: "We just sent it. Give it a minute, and ask them to check their spam folder." });
   const sent = await sendInvite(req, team, inv);
   if (sent === "capped") return res.status(429).json({ error: `We've emailed ${inv.email} ${INVITE_EMAILS_PER_DAY} times today. Copy the invite link and send it yourself instead.` });
@@ -1473,6 +1490,12 @@ app.get("/api/team/invites/:inviteId/link", requireUser, async (req, res) => {
   const team = await teams.getTeam(req.user.teamId);
   const inv = team?.ownerId === req.user.id ? team.invites?.[req.params.inviteId] : null;
   if (!inv || inv.status !== "invited") return res.status(404).json({ error: "That invite isn't open any more." });
+  // Past its 90 days (the nightly clean-up may not have got to it yet): it
+  // lapses now, giving the shoot back, rather than being sent or shared again.
+  if (teams.inviteLapsed(inv)) {
+    await teams.expireInvites(team);
+    return res.status(404).json({ error: "That invite lapsed after 90 days and its shoot is back in your balance. Invite them again to send a new one." });
+  }
   res.json({ link: `${appOrigin(req)}/join/${inv.token}` });
 });
 
@@ -1718,13 +1741,15 @@ function requireBilling(req, res) {
 app.post("/api/billing/checkout", requireUser, async (req, res) => {
   if (!requireBilling(req, res)) return;
   const origin = appOrigin(req);
-  // At most 10 checkouts started an hour per account (a person needs one or
-  // two); stops scripts from flooding Stripe with sessions.
+  // At most 30 checkouts started an hour per account: every visit to a buy
+  // page (and each "different package?" link) starts one, so a person
+  // comparing packages needs several; this still stops scripts flooding
+  // Stripe with sessions.
   const now = Date.now();
   let tooMany = false;
   await users.update(req.user.id, (u) => {
     const recent = (u.checkoutStarts || []).filter((t) => now - t < 60 * 60 * 1000);
-    tooMany = recent.length >= 10;
+    tooMany = recent.length >= 30;
     u.checkoutStarts = tooMany ? recent : [...recent, now];
   });
   if (tooMany) return res.status(429).json({ error: "You've started several checkouts in the last hour. Please try again a little later, or contact us." });
@@ -1759,7 +1784,8 @@ app.post("/api/billing/checkout", requireUser, async (req, res) => {
 // The buy page reports here when Stripe's embedded form fails to load (it
 // then falls back to the hosted page), so the reason reaches the logs.
 app.post("/api/billing/embed-error", requireUser, (req, res) => {
-  console.warn("[checkout] embedded form failed for", req.user.id, "-", String(req.body?.message || "").slice(0, 300).replace(/[\r\n]+/g, " "));
+  // (Printable text only: the message comes from the browser.)
+  console.warn("[checkout] embedded form failed for", req.user.id, "-", String(req.body?.message || "").slice(0, 300).replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]+/g, " "));
   res.json({ ok: true });
 });
 
@@ -1788,10 +1814,12 @@ app.post("/api/contact", async (req, res) => {
   if (req.body?.company) return res.json({ ok: true });
   const { msg, fields } = validateContact(req.body);
   if (Object.keys(fields).length) return res.status(400).json({ error: "Please fix the highlighted fields.", fields });
-  if (await rateLimited(req.ip || "unknown")) return res.status(429).json({ error: "You've sent several messages already. Please try again later." });
+  // (Counted only once the message can actually go: a failed security check
+  // or the form being offline doesn't use up someone's hourly allowance.)
+  if (!contactEnabled()) return res.status(503).json({ error: "Our contact form is offline right now.", code: "contact_not_configured" });
   const human = await checkHuman(req.body?.turnstileToken, { ip: req.ip, action: "contact" });
   if (!human.ok) return res.status(400).json({ error: "We couldn't confirm you're a person. Please complete the security check and try again.", code: "bot_check" });
-  if (!contactEnabled()) return res.status(503).json({ error: "Our contact form is offline right now.", code: "contact_not_configured" });
+  if (await rateLimited(req.ip || "unknown")) return res.status(429).json({ error: "You've sent several messages already. Please try again later." });
   try {
     await submitContact(msg, { user: await currentUser(req).catch(() => null), ip: req.ip });
   } catch (err) {
@@ -2135,13 +2163,13 @@ app.get("/api/admin/examples-sheet", adminOnly, async (req, res) => {
   res.json({ jpeg: jpg ? jpg.toString("base64") : null });
 });
 app.get("/api/admin/examples/:id/square", adminOnly, async (req, res) => {
-  if (!EXAMPLE_JOBS[req.params.id]) return res.status(404).json({ error: "Unknown example." });
+  if (!Object.hasOwn(EXAMPLE_JOBS, req.params.id)) return res.status(404).json({ error: "Unknown example." });
   const started = Date.now();
   const bytes = await generateExampleSquare(req.params.id);
   res.json({ ok: true, id: `${req.params.id}-sq`, bytes, ms: Date.now() - started });
 });
 app.get("/api/admin/examples/:id", adminOnly, async (req, res) => {
-  if (!EXAMPLE_JOBS[req.params.id]) return res.status(404).json({ error: "Unknown example." });
+  if (!Object.hasOwn(EXAMPLE_JOBS, req.params.id)) return res.status(404).json({ error: "Unknown example." });
   const started = Date.now();
   const bytes = await generateExample(req.params.id);
   res.json({ ok: true, id: req.params.id, bytes, ms: Date.now() - started });
@@ -2328,7 +2356,8 @@ app.get(/.*/, async (req, res) => {
   const clean = req.path.length > 1 ? "/" + req.path.replace(/\/+$/, "").replace(/^\/+/, "") : "/";
   if (clean !== req.path) return res.redirect(301, clean + req.url.slice(req.path.length));
   // Guessed addresses for sections of the home page.
-  if (clean === "/pricing" || clean === "/faq") return res.redirect(308, `/#${clean.slice(1)}`);
+  // (The query string, such as an ad's tracking tags, comes along.)
+  if (clean === "/pricing" || clean === "/faq") return res.redirect(308, `/${req.url.slice(req.path.length)}#${clean.slice(1)}`);
   if (await serveBlog(req, res, clean)) return;
   // A blog article (/blog?post=<slug>) is its own page to search engines.
   const post = clean === "/blog" && typeof req.query.post === "string" ? blogPostPage(req.query.post) : null;
@@ -2347,7 +2376,7 @@ app.use((err, req, res, next) => {
     console.error("[stripe]", err.type, err.message);
     return res.status(502).json({ error: "The payment provider couldn't complete that request. Please try again." });
   }
-  if (err?.type === "entity.too.large") return res.status(413).json({ error: "That photo is too large. Try a smaller one." });
+  if (err?.type === "entity.too.large") return res.status(413).json({ error: req.path.includes("/selfies") ? "That photo is too large. Try a smaller one." : "That's too much to send at once. Please shorten it and try again." });
   if (err?.type === "entity.parse.failed") return res.status(400).json({ error: "That request couldn't be read. Please try again." });
   if (err?.status && err.status < 500 && !(err instanceof AIError)) return res.status(err.status).json({ error: err.message });
   // Storage busy (lib/storage.js gives up after repeated write conflicts): a
