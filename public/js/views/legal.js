@@ -1,10 +1,13 @@
 import { html, icon } from "../core.js";
 import { footer } from "./landing.js";
 import { CONTACT_EMAIL } from "./contact.js";
+import { KEEP_ONE_PRICE, KEEP_ALL_PRICE } from "../shared/catalog.js";
 
 // Privacy Policy and Terms of Service. Keep these in step with what the code
 // actually does (lib/meta.js, lib/billing.js, lib/store.js, lib/ai.js).
-export const LEGAL_UPDATED = "November 3, 2026";
+// Each policy has its own date: change it only when that page's text changes.
+export const LEGAL_UPDATED = "November 3, 2026"; // privacy policy
+export const TERMS_UPDATED = "November 3, 2026";
 
 const mail = html`<a class="link" href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>`;
 
@@ -96,7 +99,7 @@ export function renderPrivacy({ root }) {
 
       <h2 class="h-3">How long we keep it</h2>
       <ul>
-        <li><b>Photos and headshots:</b> until you delete the shoot, or until your account is deleted. Deleting a shoot removes its selfies and headshots from active storage straight away. If someone signs up with an email address that isn't theirs and, before the account is confirmed, the address's owner proves it is theirs, the selfies and unfinished shoots added before that are removed, and any headshot shared for our home page before then is taken down; finished headshots stay with the account.</li>
+        <li><b>Photos and headshots:</b> until you delete the shoot, or until your account is deleted. Deleting a shoot removes its selfies and headshots from active storage straight away. If someone signs up with an email address that isn't theirs and, before the account is confirmed, the address's owner proves it is theirs, the selfies and unfinished shoots added before that are removed, and any headshot shared for our home page before then is taken down; finished headshots stay with the account. (If the account has already paid for a package or offer, we treat a password reset or Google sign-in from the address as its owner coming back on another device, and remove nothing; we still sign out its other sessions.)</li>
         <li><b>Photo backups:</b> we keep private recovery copies of selfies, headshots and shared customer photos for up to seven days. Deleting a photo, shoot, shared headshot or account also requests deletion of its recovery copies and prevents them from being restored. If backup storage is temporarily unavailable, we retry deletion; a recovery copy can remain until it is deleted or expires.</li>
         <li><b>Cancellation records:</b> after deletion, we keep a cancellation marker against the random account and shoot numbers, or a scrambled photo filename, so a background worker or backup restore cannot bring back deleted data. These markers contain no names, email addresses, photos or headshots.</li>
         <li><b>Unfinished shoots:</b> a shoot that was never developed, and hasn't been changed for 90 days, is deleted automatically with its selfies.</li>
@@ -136,6 +139,7 @@ export function renderPrivacy({ root }) {
 
 export function renderTerms({ root }) {
   root.innerHTML = page({
+    updated: TERMS_UPDATED,
     eyebrow: "Terms of service",
     title: "Terms of service",
     lede: "The agreement between you and Keeper Headshots when you use the studio.",
@@ -147,7 +151,7 @@ export function renderTerms({ root }) {
 
       <h2 class="h-3">2. The service</h2>
       <p>Keeper Headshots uses AI to create professional headshots from photos you upload. Each shoot checks your photos, creates headshots in the looks you choose, runs a quality check on every headshot and grades the results. Shoots come in paid packages, bought before you start a shoot. Your first package is covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>.</p>
-      <p>New accounts no longer get a free shoot. If you already have a free preview shoot from before, it stays a preview: its headshots carry a watermark and are provided at a reduced size. Keeping your pick ($8.99) unlocks that one headshot at full resolution; keeping them all ($14.99) or buying any package unlocks every headshot from the preview. Free shoots were limited to one per person.</p>
+      <p>New accounts no longer get a free shoot. If you already have a free preview shoot from before, it stays a preview: its headshots carry a watermark and are provided at a reduced size. Keeping your pick (${KEEP_ONE_PRICE}) unlocks that one headshot at full resolution; keeping them all (${KEEP_ALL_PRICE}) or buying any package unlocks every headshot from the preview. Free shoots were limited to one per person.</p>
 
       <h2 class="h-3">3. Your account</h2>
       <ul>

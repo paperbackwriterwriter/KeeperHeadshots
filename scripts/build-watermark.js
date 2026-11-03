@@ -9,6 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { OVERLAY, BAND } from "../lib/preview.js";
+import { KEEP_ONE_PRICE } from "../public/js/shared/catalog.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const font = (f) => `data:font/woff2;base64,${fs.readFileSync(path.join(root, "public", "fonts", f)).toString("base64")}`;
@@ -36,7 +37,7 @@ const band = `<!doctype html><html><head>${head}<style>
 body { width: ${BAND.w}px; height: ${BAND.h}px; background: rgba(20,33,61,0.92); color: #f7f2e9; display: flex; align-items: center; justify-content: center; gap: 16px; font-size: 22px; font-weight: 600; white-space: nowrap; }
 b { color: #e0b766; letter-spacing: 0.16em; font-weight: 800; }
 span { opacity: 0.9; }
-</style></head><body><b>FREE PREVIEW</b><span>Keep these headshots from $8.99 · keeperheadshots.com</span></body></html>`;
+</style></head><body><b>FREE PREVIEW</b><span>Keep these headshots from ${KEEP_ONE_PRICE} · keeperheadshots.com</span></body></html>`;
 
 const exe = [process.env.CHROMIUM_PATH, "/opt/pw-browsers/chromium"].find((p) => p && fs.existsSync(p));
 const browser = await chromium.launch(exe ? { executablePath: exe } : {});

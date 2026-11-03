@@ -150,6 +150,11 @@ app.get("/api/version", (req, res) => res.set("Cache-Control", "no-store").json(
 // (Length first: on a long run of dots the pattern takes time that grows with
 // the square of the length, which would stall every request on the server.)
 const isEmail = isEmailAddress;
+// Sign-in and password reset look up an address already on file, so they use
+// the looser check sign-up used before 3 Nov 2026: an account made with, say,
+// a quoted address then can still sign in. (No control characters; length
+// first, as above.)
+const isEmailOnFile = (s) => typeof s === "string" && s.trim().length <= 254 && !/[\u0000-\u001f\u007f]/.test(s) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
 // Links we email or hand to Stripe use a fixed origin in production, never the
 // request's Host header (which a client controls).
 const appOrigin = (req) => process.env.APP_ORIGIN || (process.env.VERCEL_ENV === "production" ? "https://keeperheadshots.com" : `${req.protocol}://${req.get("host")}`);
@@ -233,8 +238,8 @@ app.post("/api/auth/signin", async (req, res) => {
   const netKey = hashId(req.ip || "unknown").slice(0, 16);
   const netFails = await readCounter("signinnet", netKey, SIGNIN_WINDOW_MS).catch(() => ({}));
   if ((netFails.n || 0) >= SIGNIN_MAX_PER_IP) return res.status(429).json({ error: "Too many attempts. Wait up to 30 minutes and try again, or reset your password." });
-  if (isEmail(email) && email.toLowerCase().trim() === DEMO.email) await seed();
-  const user = isEmail(email) ? await users.byEmail(email) : null;
+  if (isEmailOnFile(email) && email.toLowerCase().trim() === DEMO.email) await seed();
+  const user = isEmailOnFile(email) ? await users.byEmail(email) : null;
   const known = knownDevice(req, user);
   // Slow down password guessing without letting a stranger lock someone out:
   // per email address, 10 wrong passwords from one network (IP) refuse that
@@ -245,7 +250,7 @@ app.post("/api/auth/signin", async (req, res) => {
   // on success. Unknown addresses are counted too, so neither the timing nor
   // a 429 reveals which addresses have accounts. The demo account's password
   // is public, so it isn't counted (nobody could lock it for everyone).
-  const counted = isEmail(email) && !user?.demo;
+  const counted = isEmailOnFile(email) && !user?.demo;
   const addr = counted ? email.toLowerCase().trim() : null;
   const net = hashId(req.ip || "unknown").slice(0, 12);
   let locked = false;
@@ -370,9 +375,11 @@ app.get("/api/auth/google/callback", async (req, res) => {
     const sameDevice = originDevice(req, user);
     // Listed for the nightly clean-up before the takeover is recorded, so a
     // purge that fails before it starts is still finished later.
-    if (!sameDevice && user.emailVerified === false) await putJSON(`${TAKEOVERS}${user.id}.json`, { at: now });
+    if (!sameDevice && user.emailVerified === false && !paidWithMoney(user)) await putJSON(`${TAKEOVERS}${user.id}.json`, { at: now });
+    let purge = false;
     user = await users.update(user.id, (u) => {
       newlyVerified = false;
+      purge = false;
       passwordDropped = false;
       if (u.googleSub && u.googleSub !== profile.sub) throw new google.GoogleError("linked to another Google account");
       if (u.googleSub === profile.sub && ownsMailbox(u)) return UNCHANGED;
@@ -404,7 +411,10 @@ app.get("/api/auth/google/callback", async (req, res) => {
         u.emailVerified = true;
         u.emailVerifiedAt = now;
         delete u.emailVerifiedVia;
-        if (newlyVerified && !sameDevice) takenOver(u, now);
+        if (newlyVerified && !sameDevice) {
+          purge = !paidWithMoney(u);
+          takenOver(u, now, purge);
+        }
         // Confirmed only by an invitation: the earlier holder's browsers stop
         // counting as known devices too.
         else if (!sameDevice) u.deviceEpoch = (u.deviceEpoch || 0) + 1;
@@ -412,7 +422,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
     }).catch((err) => (err instanceof google.GoogleError ? null : Promise.reject(err)));
     if (!user) return back("failed"); // deleted meanwhile, or linked elsewhere
     if (newlyVerified && !sameDevice) {
-      await purgeForTakeover(user.id).catch((err) => console.error("[takeover] purge (resumed tonight)", user.id, err.message));
+      if (purge) await purgeForTakeover(user.id).catch((err) => console.error("[takeover] purge (resumed tonight)", user.id, err.message));
       takenOverHere = true;
     }
   }
@@ -584,10 +594,16 @@ app.post("/api/auth/signout", async (req, res) => {
 // account, and each account gets at most 3 emails an hour, a minute apart.
 const RESET_WINDOW_MS = 60 * 60 * 1000;
 const RESET_MAX_SENDS = 3;
+// And one network may ask for at most 30 reset emails an hour, whichever
+// addresses they're for: the bot check is the main guard, but when it's off
+// or Cloudflare can't be reached, this stops one network mailing many people.
+const RESET_MAX_PER_IP = 30;
 
 app.post("/api/auth/password/forgot", async (req, res) => {
   const email = req.body?.email;
-  if (!isEmail(email)) return res.status(400).json({ error: "Please fix the highlighted fields.", fields: { email: "Enter a valid email address." } });
+  if (!isEmailOnFile(email)) return res.status(400).json({ error: "Please fix the highlighted fields.", fields: { email: "Enter a valid email address." } });
+  // (Counted for every address, so a 429 doesn't reveal which have accounts.)
+  if (!SIGNUP_LIMIT_EXEMPT.has(req.ip) && (await overLimit("resetnet", req.ip || "unknown", RESET_MAX_PER_IP))) return res.status(429).json({ error: "Too many reset requests from your network. Please wait a little and try again." });
   const human = await checkHuman(req.body?.turnstileToken, { ip: req.ip, action: "reset" });
   if (!human.ok) return res.status(400).json({ error: "We couldn't confirm you're a person. Please complete the security check and try again.", code: "bot_check" });
   if (!mailEnabled()) return res.status(503).json({ error: "Email isn't set up on this site yet. Please contact us to reset your password." });
@@ -645,8 +661,10 @@ app.post("/api/auth/password/reset", async (req, res) => {
   // Reset from the browser that made the account: it's the same person.
   const sameDevice = originDevice(req, user);
   // Listed for the nightly clean-up first (purgeForTakeover).
-  if (!sameDevice && user.emailVerified === false) await putJSON(`${TAKEOVERS}${user.id}.json`, { at });
+  if (!sameDevice && user.emailVerified === false && !paidWithMoney(user)) await putJSON(`${TAKEOVERS}${user.id}.json`, { at });
+  let purge = false;
   const updated = await users.update(user.id, (u) => {
+    purge = false;
     // Another request already used this link (the password changed since we checked).
     used = u.password !== user.password;
     if (used) return;
@@ -660,14 +678,15 @@ app.post("/api/auth/password/reset", async (req, res) => {
     if (newlyVerified) {
       u.emailVerified = true;
       u.emailVerifiedAt = at;
-      if (!sameDevice) takenOver(u, at);
+      if (!sameDevice) {
+        purge = !paidWithMoney(u);
+        takenOver(u, at, purge);
+      }
     } else if (!sameDevice) u.deviceEpoch = (u.deviceEpoch || 0) + 1; // the browsers that knew the old password stop counting as known devices
     delete u.emailVerifiedVia;
   });
   if (used) return invalid();
-  if (newlyVerified && !sameDevice) {
-    await purgeForTakeover(user.id).catch((err) => console.error("[takeover] purge (resumed tonight)", user.id, err.message));
-  }
+  if (purge) await purgeForTakeover(user.id).catch((err) => console.error("[takeover] purge (resumed tonight)", user.id, err.message));
   // Proving they own the inbox lifts any sign-in lock on the address.
   const lift = (r) => {
     r.ips = {};
@@ -1550,8 +1569,15 @@ const TAKEOVERS = "takeovers/";
 // Recorded with the confirmation itself: what the purge removes is what came
 // before this moment. Browsers the earlier holder signed in from stop counting
 // as known devices for the sign-in limits (lib/auth.js knownDevice).
-function takenOver(u, at) {
-  u.takeoverPurge = at;
+// An account that has paid real money is kept whole when its address is
+// confirmed from another browser by a reset or Google sign-in (owner's
+// decision, 3 Nov 2026): it's almost certainly the same person, on another
+// device. It's still secured (other sessions and the old password end as
+// before); only the purge is skipped. ("No" to "did you create this
+// account?" still removes what the maker added.)
+const paidWithMoney = (u) => (u.purchases || []).some((p) => p.amount > 0);
+function takenOver(u, at, purge = true) {
+  if (purge) u.takeoverPurge = at;
   u.deviceEpoch = (u.deviceEpoch || 0) + 1;
   // The earlier holder's browser no longer counts as the one that made the
   // account; the new holder's browser gets the new marker (markOrigin).
@@ -2348,6 +2374,9 @@ async function withCustomers(html) {
 // visitors (and bots probing for WordPress) rarely wait on a cold function.
 // Browsers still revalidate every time; each deploy clears the CDN.
 const PAGE_CDN_CACHE = "max-age=60, stale-while-revalidate=86400";
+// The home page carries customers' shared headshots: a copy at most 10
+// minutes old in all, as the privacy policy promises when one is taken down.
+const HOME_CDN_CACHE = "max-age=60, stale-while-revalidate=540";
 app.get(/.*/, async (req, res) => {
   res.set("Vercel-CDN-Cache-Control", PAGE_CDN_CACHE);
   res.set("Content-Security-Policy", /^\/blog(\/|$)/.test(req.path) ? BLOG_CSP : CSP);
@@ -2364,7 +2393,10 @@ app.get(/.*/, async (req, res) => {
   let { status, html } = post || pageFor(clean);
   // The home page carries the approved customer headshots in its HTML, so
   // search engines see them (the browser fills the same section in later).
-  if (clean === "/") html = await withCustomers(html);
+  if (clean === "/") {
+    html = await withCustomers(html);
+    res.set("Vercel-CDN-Cache-Control", HOME_CDN_CACHE);
+  }
   if (!isCanonicalHost(req.get("host"))) res.set("X-Robots-Tag", "noindex");
   res.status(status).type("html").send(html);
 });

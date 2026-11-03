@@ -533,6 +533,32 @@ if (process.env.DATA_DIR) {
   const media = await owner(`/media/${file}`, { headers: { accept: "image/*" } });
   ok("taking over an unconfirmed account removes what the stranger uploaded, keeps the balance", !!sid && !!file && reset.status === 200 && (list.shoots || []).length === 0 && media.status === 404 && me.plan.credits === 3 && me.emailVerified === true, `${sid} ${reset.status} shoots=${(list.shoots || []).length} media=${media.status} credits=${me.plan.credits}`);
 }
+// 27-paid. The same, but the account paid real money (owner's decision, 3 Nov):
+// it's the customer on another device, so nothing is removed; the other
+// sessions still end.
+{
+  const email = `paidkeep${t}@x.com`;
+  const maker = client();
+  await maker("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Paid Customer", email, password: "password123" }) });
+  const { j } = await maker("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  const sess = new URL(j.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${sess}`, { redirect: "manual" });
+  const paid = (await maker("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sess }) })).j;
+  const sid = (await maker("/api/shoots", { method: "POST", body: "{}" })).j?.shoot?.id;
+  await maker(`/api/shoots/${sid}/selfies`, { method: "POST", body: JSON.stringify({ photo }) });
+  const file = (await maker(`/api/shoots/${sid}`)).j?.shoot?.selfies?.[0]?.file;
+  const other = client();
+  await other("/api/auth/password/forgot", { method: "POST", body: JSON.stringify({ email }) });
+  await new Promise((r) => setTimeout(r, 800));
+  const link = (await mailFor(email)).flatMap((m) => m.links).findLast((l) => l.includes("/reset?token="));
+  const reset = await other("/api/auth/password/reset", { method: "POST", body: JSON.stringify({ token: new URL(link).searchParams.get("token"), password: "mine-for-real-2" }) });
+  const list = (await other("/api/shoots")).j;
+  const media = await other(`/media/${file}`, { headers: { accept: "image/*" } });
+  const me = (await other("/api/me")).j.user;
+  ok("a reset from another device keeps a paying customer's selfies and drafts", paid?.value > 0 && reset.status === 200 && (list.shoots || []).some((s) => s.id === sid) && media.status === 200 && me.emailVerified === true, `paid=${paid?.value} ${reset.status} shoots=${(list.shoots || []).length} media=${media.status}`);
+  ok("…while the first browser's session still ends", !(await maker("/api/me")).j?.user);
+  if (process.env.DATA_DIR) ok("…and nothing is queued for the nightly clean-up", !fs.existsSync(`${process.env.DATA_DIR}/takeovers/${me.id}.json`) && !JSON.parse(fs.readFileSync(`${process.env.DATA_DIR}/users/id/${me.id}.json`, "utf8")).takeoverPurge);
+}
 
 // A client that keeps every cookie, including the device ones.
 function jarClient() {
@@ -867,7 +893,7 @@ if (process.env.DATA_DIR) {
   const raw = (p, o = {}) => fetch(B + p, { redirect: "manual", ...o, headers: { "content-type": "application/json", ...(o.headers || {}) } });
   // Prices in the app's copy come from usd()/FROM_PRICE, never "$" + a raw price ("$14.5").
   const viewsDir = new URL("../../public/js/views/", import.meta.url);
-  const rawPrice = fs.readdirSync(viewsDir).filter((n) => n.endsWith(".js")).filter((n) => /\$\$\{(?:PACKAGES\[\d\]|p|pkg)\.price\}/.test(fs.readFileSync(new URL(n, viewsDir), "utf8")));
+  const rawPrice = fs.readdirSync(viewsDir).filter((n) => n.endsWith(".js")).filter((n) => /\$\$\{[\w.[\]]*\.price\}/.test(fs.readFileSync(new URL(n, viewsDir), "utf8")));
   ok("no package price is printed without its cents (\"$14.5\")", rawPrice.length === 0, rawPrice.join(","));
   const { packageAddedNote, PACKAGES } = await import("../../public/js/shared/catalog.js");
   const starter = PACKAGES.find((p) => p.id === "starter");
@@ -882,6 +908,37 @@ if (process.env.DATA_DIR) {
   ok("…and a message about something else still stands", wholeShootError("We couldn't make that look. Try another outfit.") === "We couldn't make that look. Try another outfit.");
   const spaced = await raw("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Jo   Trim", email: `spaced${t}@x.com`, password: "password123" }) }).then((r) => r.json());
   ok("sign-up tidies runs of spaces in a name, as a name change does", spaced.user?.name === "Jo Trim", spaced.user?.name);
+}
+
+// Owner decisions, 3 Nov.
+{
+  const raw = (p, o = {}) => fetch(B + p, { redirect: "manual", ...o, headers: { "content-type": "application/json", ...(o.headers || {}) } });
+  // Sign-in and reset take any address already on file (sign-up's check was
+  // stricter from 3 Nov): a quoted address is looked up, not refused.
+  const quoted = `"old.style"@x${t}.com`;
+  const si = await raw("/api/auth/signin", { method: "POST", headers: { "x-forwarded-for": `198.51.100.${t % 200}` }, body: JSON.stringify({ email: quoted, password: "password123" }) });
+  ok("sign-in looks up an address sign-up would now refuse (wrong password, not 'invalid address')", si.status === 401, `${si.status}`);
+  const fq = await raw("/api/auth/password/forgot", { method: "POST", body: JSON.stringify({ email: quoted }) });
+  ok("…and so does 'forgot password'", fq.status === 200, `${fq.status}`);
+  const ctl = await raw("/api/auth/password/forgot", { method: "POST", body: JSON.stringify({ email: "a\r\nb@x.com" }) });
+  ok("…but not one with control characters", ctl.status === 400, `${ctl.status}`);
+  // One network may ask for at most 30 reset emails an hour.
+  const ip = `192.0.2.${(t % 200) + 1}`;
+  const codes = [];
+  for (let i = 0; i < 31; i++) codes.push((await raw("/api/auth/password/forgot", { method: "POST", headers: { "x-forwarded-for": ip }, body: JSON.stringify({ email: `nobody${i}-${t}@x.com` }) })).status);
+  ok("one network gets 30 reset requests an hour, then 429", codes.slice(0, 30).every((c) => c === 200) && codes[30] === 429, codes.join(","));
+  // The home page shows shared headshots: the CDN keeps it at most 10 minutes.
+  const home = await raw("/");
+  const cdn = home.headers.get("vercel-cdn-cache-control") || "";
+  const age = (k) => Number(cdn.match(new RegExp(`${k}=(\\d+)`))?.[1] || 0);
+  ok("the home page's CDN copy is at most 10 minutes old", age("max-age") + age("stale-while-revalidate") <= 600 && age("max-age") > 0, cdn);
+  ok("…other pages keep the longer CDN lifetime", /stale-while-revalidate=86400/.test((await raw("/privacy")).headers.get("vercel-cdn-cache-control") || ""));
+  // The Terms have their own date.
+  const legal = fs.readFileSync(new URL("../../public/js/views/legal.js", import.meta.url), "utf8");
+  ok("the Terms page shows its own date, not the privacy policy's", /export const TERMS_UPDATED = /.test(legal) && /renderTerms[\s\S]{0,80}updated: TERMS_UPDATED/.test(legal));
+  // Preview offers at half price during the sale, with the full price kept.
+  const { PREVIEW_OFFERS } = await import("../../public/js/shared/catalog.js");
+  ok("preview offers are half price in the sale ($4.50 / $7.50), full price kept", PREVIEW_OFFERS.map((o) => `${o.price}/${o.listPrice}`).join(" ") === "4.5/8.99 7.5/14.99");
 }
 
 const passed = results.filter((r) => r[1]).length;

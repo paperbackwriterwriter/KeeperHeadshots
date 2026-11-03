@@ -19,17 +19,17 @@ const isKept = (s, shotId) => (state.user?.kept?.[s?.id] || []).includes(shotId)
 const extraLooks = (s) => (s && !s.sample ? state.user?.extraLooks?.[s.id] || 0 : 0);
 
 // On a preview's results, downloading is the purchase: the pick's button is
-// "Download this photo · $8.99" (straight to the payment form), with keeping
+// "Download this photo · $4.50" (straight to the payment form), with keeping
 // them all plus 2 more looks as the second choice. Nothing else downloads
 // until something is bought.
 const [KEEP_ONE, KEEP_ALL] = PREVIEW_OFFERS;
 const keepHref = (s, shot) => `/app/buy/${KEEP_ONE.id}?shoot=${encodeURIComponent(s.id)}&shot=${encodeURIComponent(shot.id)}`;
 const keepAllHref = (s) => `/app/buy/${KEEP_ALL.id}?shoot=${encodeURIComponent(s.id)}`;
 const keepAllButton = (s, total) =>
-  html`<a class="btn btn-ghost btn-lg btn-block" href="${keepAllHref(s)}" data-link>Get all ${total} + ${KEEP_ALL.looks} more looks · $${KEEP_ALL.price}</a>`;
+  html`<a class="btn btn-ghost btn-lg btn-block" href="${keepAllHref(s)}" data-link>Get all ${total} + ${KEEP_ALL.looks} more looks · ${usd(KEEP_ALL.price)}</a>`;
 function keepCta(s, pick, total) {
   return html`<section class="keep-cta" aria-label="Keep your headshots">
-    <a class="btn btn-flash btn-lg btn-block" href="${keepHref(s, pick)}" data-link>${icon("download")} Download this photo · $${KEEP_ONE.price}</a>
+    <a class="btn btn-flash btn-lg btn-block" href="${keepHref(s, pick)}" data-link>${icon("download")} Download this photo · ${usd(KEEP_ONE.price)}</a>
     <p class="keep-cta-note">Full resolution, no watermark, in every size (LinkedIn, square, banner, email signature). One-time.</p>
     ${keepAllButton(s, total)}
   </section>`;
@@ -1211,7 +1211,7 @@ export async function renderStudio(ctx, id) {
               <p style="color:#a9b1bd">${g.note}</p><p class="small"><b>Best for:</b> ${g.best_for}</p>`
             : html`<p style="color:#a9b1bd">Not graded yet.</p>`}
           ${locked && !isKept(s, t.id)
-            ? html`<button class="btn btn-flash" type="button" data-keep="${t.id}">${icon("download")} Download this photo · $${KEEP_ONE.price}</button>
+            ? html`<button class="btn btn-flash" type="button" data-keep="${t.id}">${icon("download")} Download this photo · ${usd(KEEP_ONE.price)}</button>
               <p class="lb-sizes">Full resolution, no watermark, in every size. One-time.</p>`
             : html`${(() => {
             // Both shapes are always offered; the chosen format goes first.

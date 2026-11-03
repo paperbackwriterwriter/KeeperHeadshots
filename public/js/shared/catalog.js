@@ -129,14 +129,17 @@ export const PREVIEW_OFFERS = [
   {
     id: "keep",
     name: "Keep your pick",
-    price: 8.99,
+    // Half price while packages are 50% off (listPrice is the full price).
+    price: 4.5,
+    listPrice: 8.99,
     looks: 0,
     features: ["The one headshot you picked", "Full-resolution file", "LinkedIn, square, banner and email-signature sizes"],
   },
   {
     id: "keep-plus",
     name: "Keep them all + 2 more looks",
-    price: 14.99,
+    price: 7.5,
+    listPrice: 14.99,
     looks: 2,
     popular: true,
     features: ["Every headshot from this shoot, full resolution", "2 more looks of your choice", `${2 * TAKES_PER_LOOK} more headshots, checked and graded`],
@@ -159,6 +162,9 @@ export function packageAddedNote(pkg, added) {
   const owed = n < pkg.shoots ? ` (the other ${pkg.shoots - n} went towards the ones your account owed)` : "";
   return `${n} shoot${n === 1 ? "" : "s"} added to your account${owed}.`;
 }
+// The legacy preview offers' prices, for copy: "$4.50", "$7.50".
+export const KEEP_ONE_PRICE = usd(PREVIEW_OFFERS[0].price);
+export const KEEP_ALL_PRICE = usd(PREVIEW_OFFERS[1].price);
 export const offerFor = (id) => PACKAGES.find((p) => p.id === id) || PREVIEW_OFFERS.find((p) => p.id === id) || null;
 export const isPreviewOffer = (id) => PREVIEW_OFFERS.some((p) => p.id === id);
 

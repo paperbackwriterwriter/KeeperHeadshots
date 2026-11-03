@@ -2,7 +2,7 @@
 // a new account gets no free shoot and needn't confirm its email; it buys a
 // package first, then creates, checks and develops a full shoot (4 looks, 8
 // headshots, no watermark). Previews people already have can still be kept
-// ($8.99 / $14.99).
+// ($4.50 / $7.50 in the sale).
 // Run against a local server wired to scripts/dev/mock-ai.js WITHOUT
 // FREE_SHOOT_OFFERED (BASE), plus one with FREE_SHOOT_OFFERED=1 on the same
 // store and SESSION_SECRET (PREVIEW_BASE), which makes the earlier previews:
@@ -180,7 +180,7 @@ const sam = await account(samEmail, "Sam Pay");
 
 // 4. An account that already has a finished free preview (made while free
 // shoots were offered) keeps it as a preview and can still keep it for
-// $8.99 or $14.99 on the pay-first server.
+// $4.50 or $7.50 (sale prices) on the pay-first server.
 async function previewAccount(email, name) {
   const f = await account(email, name, { verify: true, base: PB });
   const id = (await f("/api/shoots", { method: "POST", body: "{}" }, PB)).j.shoot.id;
@@ -202,12 +202,12 @@ async function previewAccount(email, name) {
   ok("still served watermarked", /no-cache/.test((await get(ivy, file)).cache));
   ok("and they still can't start a new shoot for free", (await ivy("/api/shoots", { method: "POST", body: "{}" })).status === 402);
   const { checkout, confirm } = await pay(ivy, { packageId: "keep", shootId: s.id, shotId: shot.id });
-  ok("they can still buy Keep your pick ($8.99)", checkout.status === 200 && checkout.j.value === 8.99, `${checkout.status} ${JSON.stringify(checkout.j)}`);
+  ok("they can still buy Keep your pick ($4.50)", checkout.status === 200 && checkout.j.value === 4.5, `${checkout.status} ${JSON.stringify(checkout.j)}`);
   ok("which keeps that headshot", confirm?.granted === true && confirm.packageId === "keep" && (confirm.user.kept?.[s.id] || []).includes(shot.id), JSON.stringify({ granted: confirm?.granted, kept: confirm?.user?.kept }));
 
   const { f: max, s: ms } = await previewAccount(`max${t}@x.com`, "Max Preview");
   const plus = await pay(max, { packageId: "keep-plus", shootId: ms.id });
-  ok("they can still buy Keep them all + 2 more looks ($14.99)", plus.checkout.status === 200 && plus.checkout.j.value === 14.99 && plus.confirm?.granted === true && plus.confirm.user.extraLooks[ms.id] === 2 && plus.confirm.user.previewsUnlocked === true, JSON.stringify(plus.confirm?.user?.extraLooks));
+  ok("they can still buy Keep them all + 2 more looks ($7.50)", plus.checkout.status === 200 && plus.checkout.j.value === 7.5 && plus.confirm?.granted === true && plus.confirm.user.extraLooks[ms.id] === 2 && plus.confirm.user.previewsUnlocked === true, JSON.stringify(plus.confirm?.user?.extraLooks));
   ok("which unlocks the preview", !/no-cache/.test((await get(max, `/media/${ms.shots.find((x) => x.status === "done").file}`)).cache));
   const add = await max(`/api/shoots/${ms.id}/more-looks`, { method: "POST", body: JSON.stringify({ looks: [LOOKS4[1], LOOKS4[2]] }) });
   ok("and its 2 extra looks develop here", add.status === 202 && add.j.shoot.looks.length === 3, `${add.status} ${add.j?.error || ""}`);

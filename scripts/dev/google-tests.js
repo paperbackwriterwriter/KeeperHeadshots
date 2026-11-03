@@ -196,6 +196,26 @@ let gina;
   ok("…and their password no longer signs in", pw.status === 401);
 }
 
+// 5a-paid. The same from another browser, but the account has paid real
+// money: the customer on another device (owner's decision, 3 Nov). Secured as
+// above, and nothing they made is removed.
+{
+  const email = `paidgoogle-${run}@example.com`;
+  const maker = client();
+  await maker("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Paid Maker", email, password: "maker-password" }) });
+  const { j } = await maker("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  const sess = new URL(j.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${sess}`, { redirect: "manual" });
+  await maker("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: sess }) });
+  const sid = (await maker("/api/shoots", { method: "POST", body: "{}" })).j?.shoot?.id;
+  const other = client();
+  const { back } = await google(other, { sub: `g-paid-${run}`, email, name: "Paid Maker" });
+  const cb = await other(back());
+  const ids = ((await other("/api/shoots")).j?.shoots || []).map((s) => s.id);
+  ok("a paying customer's Google sign-in from another browser keeps their draft", cb.location === "/app?auth=google-secured" && !!sid && ids.includes(sid), `${cb.location} ${sid} ${ids}`);
+  ok("…and still ends the other session", !(await maker("/api/me")).j.user);
+}
+
 // 5b. An unconfirmed account, signed in with Google from the browser that made
 // it: the same person, so the password and other sessions are kept.
 {
