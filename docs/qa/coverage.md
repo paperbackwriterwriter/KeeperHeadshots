@@ -44,8 +44,8 @@ in that area is added as a new item. The run appends a line to
 
 ## Decisions (not bugs)
 
-- Legacy free previews are watermarked until bought; the $8.99 button replaces
-  the download buttons on them; cancelling the $8.99 checkout from the viewer
+- Legacy free previews are watermarked until bought; the "Download this photo" (keep) button replaces
+  the download buttons on them; cancelling that checkout from the viewer
   leaves that frame as the pick.
 - Google sign-in links to an existing account with the same email.
 - The Google re-check before deleting a Google-only account asks the person to
@@ -58,22 +58,22 @@ in that area is added as a new item. The run appends a line to
 
 ## Known open items (not to be re-reported as new)
 
+Decided by the owner on 3 Nov and done (A1-01, F2, D-02 looks, D-05, D-09,
+team download wording, F5, the sign-in email check, a per-network reset
+limit, the Terms' own date): an unconfirmed account that has paid real money
+keeps its work on a reset or Google sign-in from another browser; preview
+offers are $4.50 / $7.50 in the sale; the admin is warned about look changes
+and told what a refund did; team shoots get the free reshoot; the home page's
+CDN copy is at most 10 minutes old.
+
 Waiting on the owner:
-- Paying customers who never confirmed their email lose their selfies and
-  unfinished shoots if they reset their password or use Google from another
-  browser (treated as a takeover). Area A, A1-01.
 - The Google delete re-check lets a token through when Google omits
   auth_time.
-- Team page and FAQ promise the admin "everyone's finished headshots"; only
-  each person's best pick is downloadable.
-- During the sale, "Keep them all + 2 more looks" ($14.99) costs more than
-  Starter ($14.50). Area F, F2.
-- Team look/name changes don't reach people who already joined (D-02); the
-  admin isn't told what a refund did to the team (D-05); invitations match the
-  exact address only and the 100-invite cap counts cancelled ones (D-08); team
-  members get no free reshoot (D-09).
-- Shared headshots can stay on the cached home page longer than the privacy
-  policy's "about 10 minutes" (F5). Soro's blog script isn't named in the
+- A team name-only change gives no warning, and the team page heading still
+  says "Everyone gets <new look>" after a look change (rest of D-02);
+  invitations match the exact address only and the 100-invite cap counts
+  cancelled ones (D-08).
+- Soro's blog script isn't named in the
   privacy policy (F4). Terms say "Keeper Headshots", emails say "Keeper
   Headshots LLC" (F11). Search only indexes titles and descriptions (F8).
 - A refund worked out with the per-shoot price rounded up can leave one shoot
