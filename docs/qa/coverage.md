@@ -73,6 +73,11 @@ Waiting on the owner:
   says "Everyone gets <new look>" after a look change (rest of D-02);
   invitations match the exact address only and the 100-invite cap counts
   cancelled ones (D-08).
+- Team reshoots (4 Nov): deleting a team shoot's failed original hides the
+  finished reshoot's headshot from the admin (B-R1); deleting it before the
+  reshoot develops leaves the member with an ordinary shoot they can't
+  develop (B-N7). Also asked: 3 free checks on a team reshoot; the square
+  attaching after "done"; extra looks resetting free retries (B-N19).
 - Soro's blog script isn't named in the
   privacy policy (F4). Terms say "Keeper Headshots", emails say "Keeper
   Headshots LLC" (F11). Search only indexes titles and descriptions (F8).

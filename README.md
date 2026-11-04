@@ -48,7 +48,7 @@ The same code runs on Vercel as an Express function:
 
 Enforced on the server (`lib/plan.js`):
 
-- **Pay up front:** `FREE_SHOOT_OFFERED` in `lib/plan.js` is `false`, so new and existing accounts get no free shoot; a shoot can only be created and developed with a credit from a package. Previews people already have stay previews (`lib/preview.js`) and can still be kept for $8.99 / $14.99. The free-shoot code below is kept and unreachable; the env var `FREE_SHOOT_OFFERED=1` turns it back on (the test servers in `scripts/dev/ci.sh` and `layout-ci.sh` set it for the suites that exercise previews; production must not).
+- **Pay up front:** `FREE_SHOOT_OFFERED` in `lib/plan.js` is `false`, so new and existing accounts get no free shoot; a shoot can only be created and developed with a credit from a package. Previews people already have stay previews (`lib/preview.js`) and can still be kept with the two preview offers in `PREVIEW_OFFERS` (half price, $4.50 / $7.50, during the sale). The free-shoot code below is kept and unreachable; the env var `FREE_SHOOT_OFFERED=1` turns it back on (the test servers in `scripts/dev/ci.sh` and `layout-ci.sh` set it for the suites that exercise previews; production must not).
 - **Free trial (only while offered):** one free shoot per account, up to 2 looks (4 headshots).
 - **Developing** needs a credit (`user.credits`); each paid shoot uses one. Stripe purchases add credits.
 - **Free-account cap:** 6 completed photo checks in total.

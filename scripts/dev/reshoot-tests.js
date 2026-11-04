@@ -248,6 +248,57 @@ async function teamSeat(tag, { refundable = false } = {}) {
   const r = await mem(`/api/shoots/${sid}/reshoot`, { method: "POST", body: "{}" });
   ok("a team shoot whose package was refunded in full gets no free reshoot", r.status === 402 && r.j?.code === "refunded", `${r.status} ${r.j?.error}`);
 }
+{
+  // A team member's reshoot gets the same 3 free checks; a 4th asks to buy,
+  // without calling this their "first shoot".
+  const { mem, sid, s } = await teamSeat("team-checks");
+  holdBack(s, 2);
+  const rid = (await mem(`/api/shoots/${sid}/reshoot`, { method: "POST", body: "{}" })).j?.shoot?.id;
+  await mem(`/api/shoots/${rid}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(40) }) });
+  const codes = [];
+  for (let i = 0; i < 3; i++) codes.push((await mem(`/api/shoots/${rid}/check`, { method: "POST", body: "{}" })).status);
+  // (On a server still offering the legacy free shoot, the member's own free
+  // checks pay for a 4th; customers pay up front everywhere else.)
+  const tier = (await mem("/api/me")).j.user.plan.tier;
+  const fourth = await mem(`/api/shoots/${rid}/check`, { method: "POST", body: "{}" });
+  ok("a team member's reshoot: 3 free checks, then a 4th asks to buy, not to 'start your first shoot'", codes.every((c) => c === 200) && (tier === "none" ? fourth.status === 402 && /free reshoot/.test(fourth.j?.error || "") && !/first shoot/.test(fourth.j?.error || "") : fourth.status === 200), `${tier} ${codes} ${fourth.status} ${fourth.j?.error}`);
+}
+
+// 11. A headshot shared from a free reshoot comes down when the package that
+// paid for the original shoot is refunded in full (the privacy policy's
+// promise), for a customer's own shoot and for a team seat.
+async function shareFromReshoot(f, sid, s) {
+  holdBack(s, 2);
+  const rid = (await f(`/api/shoots/${sid}/reshoot`, { method: "POST", body: "{}" })).j?.shoot?.id;
+  await develop(f, rid);
+  const r = await settle(f, rid);
+  const done = r.shots.find((x) => x.status === "done");
+  const shared = await f("/api/showcase", { method: "POST", body: JSON.stringify({ consent: true, shootId: rid, shotId: done?.id, name: "Shared Person", role: "", quote: "" }) });
+  return shared.status === 200 && r.paidWith === "reshoot";
+}
+const mine = async (f) => (await f("/api/showcase/mine")).j?.entry || null;
+{
+  const g = await account(`share-own${t}@x.com`);
+  const co = (await g("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) })).j;
+  const psid = new URL(co.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${psid}`, { redirect: "manual" });
+  await g("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: psid }) });
+  const sid = (await g("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;
+  await develop(g, sid, [...LOOKS, { backdrop: "glass-office", outfit: "navy-suit" }, { backdrop: "city-terrace", outfit: "camel-knit" }]);
+  const shared = await shareFromReshoot(g, sid, await settle(g, sid));
+  const before = await mine(g);
+  await fetch(`${M}/mock-refund/${psid}`);
+  await g("/api/billing/sync", { method: "POST", body: "{}" });
+  ok("a headshot shared from a reshoot comes down when the original's package is refunded in full", shared && !!before && !(await mine(g)), `${shared} ${!!before}`);
+}
+{
+  const { adm, mem, sid, psid, s } = await teamSeat("share-team", { refundable: true });
+  const shared = await shareFromReshoot(mem, sid, s);
+  const before = await mine(mem);
+  await fetch(`${M}/mock-refund/${psid}`);
+  await adm("/api/billing/sync", { method: "POST", body: "{}" });
+  ok("…and from a team member's reshoot, when the admin's package is refunded in full", shared && !!before && !(await mine(mem)), `${shared} ${!!before}`);
+}
 
 const failed = results.filter((x) => !x).length;
 console.log(`${results.length - failed}/${results.length} passed`);

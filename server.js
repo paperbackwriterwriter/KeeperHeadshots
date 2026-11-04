@@ -919,7 +919,9 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   // Customers pay up front: with no package (and no free shoot), a shoot
   // can't be developed, so its photos aren't checked either (each check is a
   // paid AI call). Team shoots and free reshoots still are.
-  if (plan.tier === "none" && !teamSeat) throw new PlanError(plan.started ? "Buy a package to check photos and develop this shoot." : CHOOSE_PACKAGE);
+  // (A free reshoot's checks are used up: the person has had a shoot, team
+  // members too, so it's never "your first shoot".)
+  if (plan.tier === "none" && !teamSeat) throw new PlanError(reshootOriginal ? `Your free reshoot's ${RESHOOT_FREE_CHECKS} photo checks are used. Buy a package to check photos and develop this shoot.` : plan.started ? "Buy a package to check photos and develop this shoot." : CHOOSE_PACKAGE);
   // Before the free shoot (no address for this mailbox has had it), checks
   // past the free allowance come from a daily one instead, so nobody is left
   // unable to see a result without buying.
