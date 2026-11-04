@@ -85,8 +85,8 @@ Method: own API scripts (zz-b2-t1..t10, since deleted), existing suites run agai
 | Team reshoot photo checks (B-N3): 3 free, then 402 with a reshoot message | reshoot-tests | fixed 4 Nov (said "start your first shoot") |
 | Team reshoot after the admin's package was fully refunded (B-N4): 402 | reshoot-tests | OK |
 | Admin's team page shows and downloads the reshoot's pick; a stranger gets 404 (B-N5) | reshoot-tests | OK |
-| Member deletes the failed original after the team reshoot is done (B-N6): admin keeps the headshot | script | open (B-R1, owner question) |
-| Member deletes the original before the team reshoot develops (B-N7) | script | owner question |
+| Member deletes the failed original after the team reshoot is done (B-N6): admin keeps the headshot | reshoot-tests | fixed 4 Nov (owner's decision: the reshoot takes over the seat) |
+| Member deletes the original before the team reshoot develops (B-N7): the reshoot becomes the team seat and develops free | reshoot-tests | fixed 4 Nov (owner's decision) |
 | Studio for a failed team shoot: reshoot banner, tips dialog, free retry; team reshoot draft and dashboard at 390px (B-N8) | Playwright | OK |
 | Fixed audit bugs kept as checks (B-N9): truncated JPEG 400; too-narrow photo named; outage gives a whole-shoot message; quick retry 429 retry_soon; non-text name | hardening, Playwright | OK |
 | /check during an AI outage: 502, status restored, checkDay given back (B-N10) | script (mock stopped) | OK |
@@ -97,7 +97,7 @@ Method: own API scripts (zz-b2-t1..t10, since deleted), existing suites run agai
 | durable-shoot-tests (needs FREE_SHOOT_OFFERED=1) and dashboard-history-tests (bind port 0) via port-shifted copies (B-N15/16) | suites | OK |
 | render-race and slots-test on two servers sharing one store (B-N17) | suites | OK |
 | AVIF bytes sent as JPEG accepted and stored as JPEG (B-N18) | script | OK |
-| Adding extra looks resets the shoot's free retries (B-N19) | code read | owner question |
+| Adding extra looks resets the shoot's free retries (B-N19) | code read | decision: kept (4 Nov) |
 | A headshot shared from a free reshoot comes down on a full refund of the original's package (own and team) | reshoot-tests | fixed 4 Nov (it stayed) |
 
 Items checked on 4 Nov (rotation): 93 (74 + 19 new).

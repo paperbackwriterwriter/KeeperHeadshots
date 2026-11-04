@@ -264,6 +264,53 @@ async function teamSeat(tag, { refundable = false } = {}) {
   ok("a team member's reshoot: 3 free checks, then a 4th asks to buy, not to 'start your first shoot'", codes.every((c) => c === 200) && (tier === "none" ? fourth.status === 402 && /free reshoot/.test(fourth.j?.error || "") && !/first shoot/.test(fourth.j?.error || "") : fourth.status === 200), `${tier} ${codes} ${fourth.status} ${fourth.j?.error}`);
 }
 
+// 10b. A member deletes their team shoot while its free reshoot is there
+// (owner's decision, 4 Nov): the reshoot takes over the team seat.
+const adminCredits = async (adm) => (await adm("/api/me")).j.user.plan.credits;
+{
+  // Done reshoot: the admin keeps seeing (and downloading) its headshot.
+  const { adm, mem, sid, s } = await teamSeat("seat-done");
+  holdBack(s, 2);
+  const rid = (await mem(`/api/shoots/${sid}/reshoot`, { method: "POST", body: "{}" })).j?.shoot?.id;
+  await develop(mem, rid);
+  await settle(mem, rid);
+  const before = await adminCredits(adm);
+  const del = await mem(`/api/shoots/${sid}`, { method: "DELETE" });
+  const m = (await adm("/api/team")).j.team.members[0];
+  ok("deleting the original keeps the admin's view of the finished reshoot", del.status === 200 && m?.shootId === rid && m?.pick?.startsWith(`${rid}/`) && (await adm(`/media/${m.pick}`)).status === 200, JSON.stringify(m));
+  ok("…without giving the admin a shoot back", (await adminCredits(adm)) === before);
+}
+{
+  // Undeveloped reshoot: it develops free in the team's looks, as the seat.
+  const { adm, mem, sid, s } = await teamSeat("seat-draft");
+  holdBack(s, 2);
+  const rid = (await mem(`/api/shoots/${sid}/reshoot`, { method: "POST", body: "{}" })).j?.shoot?.id;
+  const before = await adminCredits(adm);
+  const memBefore = (await mem("/api/me")).j.user.plan;
+  await mem(`/api/shoots/${sid}`, { method: "DELETE" });
+  const r = (await mem(`/api/shoots/${rid}`)).j?.shoot;
+  ok("deleting the original before the reshoot develops makes the reshoot the team seat", !!r?.team && !r.reshootOf, JSON.stringify(r?.team));
+  for (let i = 0; i < 2; i++) await mem(`/api/shoots/${rid}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(50 + i) }) });
+  const check = await mem(`/api/shoots/${rid}/check`, { method: "POST", body: "{}" });
+  const gen = await mem(`/api/shoots/${rid}/generate`, { method: "POST", body: JSON.stringify({ looks: [{ backdrop: "library", outfit: "camel-knit" }] }) });
+  const done = await settle(mem, rid);
+  const memAfter = (await mem("/api/me")).j.user.plan;
+  ok("…and it still develops free, in the team's looks", check.status === 200 && gen.status === 202 && JSON.stringify(gen.j?.shoot?.looks) === JSON.stringify(LOOKS) && done.status === "done" && memAfter.credits === memBefore.credits && (await adminCredits(adm)) === before, `${check.status} ${gen.status} ${gen.j?.error || ""} ${done.status}`);
+  const m = (await adm("/api/team")).j.team.members[0];
+  ok("…and the admin sees it", m?.shootId === rid && m?.pick?.startsWith(`${rid}/`), JSON.stringify(m));
+}
+{
+  // The seat was spent by the first develop: deleting the moved, undeveloped
+  // reshoot too doesn't give the admin a shoot back.
+  const { adm, mem, sid, s } = await teamSeat("seat-gone");
+  holdBack(s, 2);
+  const rid = (await mem(`/api/shoots/${sid}/reshoot`, { method: "POST", body: "{}" })).j?.shoot?.id;
+  const before = await adminCredits(adm);
+  await mem(`/api/shoots/${sid}`, { method: "DELETE" });
+  await mem(`/api/shoots/${rid}`, { method: "DELETE" });
+  ok("deleting both doesn't give the admin a shoot back", (await adminCredits(adm)) === before, `${before} → ${await adminCredits(adm)}`);
+}
+
 // 11. A headshot shared from a free reshoot comes down when the package that
 // paid for the original shoot is refunded in full (the privacy policy's
 // promise), for a customer's own shoot and for a team seat.

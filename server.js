@@ -1397,8 +1397,10 @@ app.delete("/api/shoots/:id", requireUser, async (req, res) => {
   if (!meta) return;
   if (meta.sample) return res.status(400).json({ error: "Sample shoots are read-only." });
   await shoots.remove(meta);
-  // Its free reshoot, if not yet developed, becomes an ordinary shoot.
-  if (meta.reshootId && !meta.reshootUsed) await shoots.updateMeta(meta.reshootId, (m) => (m.reshootOf === meta.id && !(m.shots || []).length ? void (delete m.reshootOf, delete m.reshootLooks) : false)).catch(() => {});
+  // A team shoot's free reshoot takes over the team seat (teams.moveSeat).
+  const reseated = !!meta.team && !!meta.reshootId && (await teams.moveSeat(meta, meta.reshootId).catch((err) => (console.error("[team] move seat", meta.id, err.message), false)));
+  // Otherwise its free reshoot, if not yet developed, becomes an ordinary shoot.
+  if (!reseated && meta.reshootId && !meta.reshootUsed) await shoots.updateMeta(meta.reshootId, (m) => (m.reshootOf === meta.id && !(m.shots || []).length ? void (delete m.reshootOf, delete m.reshootLooks) : false)).catch(() => {});
   // Headshots kept from it and unused extra looks for it go with it.
   // So does a develop charge left on the account by a develop that died
   // before the shoot started: it comes back.
