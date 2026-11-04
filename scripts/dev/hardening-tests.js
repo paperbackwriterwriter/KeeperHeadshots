@@ -938,6 +938,12 @@ if (process.env.DATA_DIR) {
   ok("the Terms page shows its own date, not the privacy policy's", /export const TERMS_UPDATED = /.test(legal) && /renderTerms[\s\S]{0,80}updated: TERMS_UPDATED/.test(legal));
   // Preview offers at half price during the sale, with the full price kept.
   const { PREVIEW_OFFERS } = await import("../../public/js/shared/catalog.js");
+  // Sign-in and other app pages, and the 404 page, carry their own title and
+  // an up-to-date description in the HTML (link previews read it).
+  const head = async (p) => { const h = await (await raw(p)).text(); return { title: h.match(/<title>([^<]*)<\/title>/)?.[1], desc: h.match(/<meta name="description" content="([^"]*)"/)?.[1] || "" }; };
+  const [signin, missing, homeHead] = [await head("/signin"), await head("/no-such-page-here"), await head("/")];
+  ok("/signin's HTML is titled 'Sign in' with the home page's description", signin.title === "Sign in · Keeper Headshots" && signin.desc === homeHead.desc, JSON.stringify(signin));
+  ok("the 404 page has its own description", missing.title === "Not found · Keeper Headshots" && !!missing.desc && missing.desc !== homeHead.desc, JSON.stringify(missing));
   ok("preview offers are half price in the sale ($4.50 / $7.50), full price kept", PREVIEW_OFFERS.map((o) => `${o.price}/${o.listPrice}`).join(" ") === "4.5/8.99 7.5/14.99");
 }
 
