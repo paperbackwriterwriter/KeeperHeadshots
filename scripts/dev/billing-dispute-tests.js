@@ -57,7 +57,7 @@ const { users, shoots, saveMedia, dropSelfies } = await import("../../lib/store.
 const storage = await import("../../lib/storage.js");
 const { publicUser } = await import("../../lib/auth.js");
 const today = async () => (await storage.getJSON(`stats/days/${new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" })}.json`)) || {};
-const { handleWebhook } = await import("../../lib/billing.js");
+const { handleWebhook, isSignatureError } = await import("../../lib/billing.js");
 
 let passed = 0;
 const test = async (name, fn) => { await fn(); passed++; console.log("PASS", name); };
@@ -220,6 +220,14 @@ try {
     assert.equal(u.credits, 1);
     assert.ok(!u.extraLooks?.[sid]);
     assert.equal(u.purchases[0].looksAsShoot, true);
+  });
+  await test("a webhook request without a valid Stripe signature is a signature error (logged as a warning)", async () => {
+    const payload = JSON.stringify({ id: "evt_nosig", object: "event", type: "checkout.session.completed", data: { object: {} } });
+    const unsigned = await handleWebhook(payload, undefined).then(() => null, (e) => e);
+    const forged = await handleWebhook(payload, new Stripe("sk_test_dispute").webhooks.generateTestHeaderString({ payload, secret: "whsec_not_the_real_one" })).then(() => null, (e) => e);
+    assert.ok(unsigned && isSignatureError(unsigned));
+    assert.ok(forged && isSignatureError(forged));
+    assert.ok(!isSignatureError(new Error("storage failed")));
   });
 } finally {
   stripeStub.close();
