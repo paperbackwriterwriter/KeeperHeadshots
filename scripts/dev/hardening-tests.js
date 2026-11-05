@@ -141,6 +141,12 @@ if (process.env.QA_ADMIN_TOKEN) {
   const starts = [];
   for (let i = 0; i < 31; i++) starts.push((await f("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) })).status);
   ok("checkout starts limited to 30 an hour (buy-page visits count)", starts.slice(0, 30).every((s) => s === 200) && starts[30] === 429, starts.join(","));
+  // Refused requests don't use the limit up.
+  const g = await account(`checkout-bad${t}@x.com`);
+  const refused = [];
+  for (let i = 0; i < 30; i++) refused.push((await g("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "nope" }) })).status);
+  const good = await g("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  ok("…and refused checkout requests don't count toward it", refused.every((s) => s === 400) && good.status === 200, `${refused[0]} ${good.status}`);
   const sync = await f("/api/billing/sync", { method: "POST" });
   ok("purchase sync still works", sync.status === 200, String(sync.status));
 }
@@ -944,6 +950,10 @@ if (process.env.DATA_DIR) {
   const [signin, missing, homeHead] = [await head("/signin"), await head("/no-such-page-here"), await head("/")];
   ok("/signin's HTML is titled 'Sign in' with the home page's description", signin.title === "Sign in · Keeper Headshots" && signin.desc === homeHead.desc, JSON.stringify(signin));
   ok("the 404 page has its own description", missing.title === "Not found · Keeper Headshots" && !!missing.desc && missing.desc !== homeHead.desc, JSON.stringify(missing));
+  // The funnel's totals show a period whose refunds are net negative (a won
+  // dispute) as money back, like its day rows.
+  const funnel = fs.readFileSync(new URL("../../public/js/views/funnel.js", import.meta.url), "utf8");
+  ok("funnel totals: a net-negative refund period shows as money back, not '−$-'", /t\.refunds < 0 \? `\+\$\{money\(-t\.refunds\)\}`/.test(funnel) && /t\.refunded > 0/.test(funnel));
   ok("preview offers are half price in the sale ($4.50 / $7.50), full price kept", PREVIEW_OFFERS.map((o) => `${o.price}/${o.listPrice}`).join(" ") === "4.5/8.99 7.5/14.99");
 }
 

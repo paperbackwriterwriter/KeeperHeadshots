@@ -38,7 +38,7 @@ import crypto from "node:crypto";
 import { withCounter, readCounter, overLimit, hashId, DAY_MS } from "./lib/ratelimit.js";
 import { recordStep, funnelReport, STEPS } from "./lib/stats.js";
 import * as teams from "./lib/teams.js";
-import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook, stripePublishableKey, stripeMode } from "./lib/billing.js";
+import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook, stripePublishableKey, stripeMode, isSignatureError } from "./lib/billing.js";
 
 // Errors logged in production are emailed as a short summary (lib/alert.js).
 installErrorAlerts();
@@ -60,7 +60,7 @@ app.post("/api/billing/webhook", express.raw({ type: "application/json" }), asyn
     await handleWebhook(req.body, req.headers["stripe-signature"]);
     res.json({ received: true });
   } catch (err) {
-    console.error("[webhook]", err.message);
+    (isSignatureError(err) ? console.warn : console.error)("[webhook]", err.message);
     res.status(400).json({ error: "Invalid webhook" });
   }
 });
@@ -1294,7 +1294,8 @@ app.post("/api/shoots/:id/reshoot", requireUser, async (req, res) => {
   if (req.user.demo) throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
   const shoot = await ownShoot(req, res);
   if (!shoot) return;
-  if (shoot.reshootUsed) return res.status(409).json({ error: "This shoot's free reshoot has already been used.", code: "reshoot_used" });
+  // (A reshoot that took over a team seat, teams.moveSeat, was this seat's free reshoot.)
+  if (shoot.reshootUsed || shoot.team?.seatUsed) return res.status(409).json({ error: "This shoot's free reshoot has already been used.", code: "reshoot_used" });
   if (shoot.sample || shoot.reshootOf) return res.status(400).json({ error: "This shoot can't be reshot free. Contact us and we'll sort it out.", code: "reshoot_unavailable" });
   if (LIVE.includes(shoot.status)) return res.status(409).json({ error: "This shoot is still in progress." });
   if (heldForLikeness(shoot) < RESHOOT_MIN_HELD) return res.status(400).json({ error: "A free reshoot is for shoots where several headshots were held back for likeness.", code: "reshoot_unavailable" });
@@ -1782,14 +1783,11 @@ app.post("/api/billing/checkout", requireUser, async (req, res) => {
   // page (and each "different package?" link) starts one, so a person
   // comparing packages needs several; this still stops scripts flooding
   // Stripe with sessions.
+  // (Only checkouts that start count: a refused request or a Stripe error
+  // doesn't use one up. Recorded below, once Stripe has made the session.)
   const now = Date.now();
-  let tooMany = false;
-  await users.update(req.user.id, (u) => {
-    const recent = (u.checkoutStarts || []).filter((t) => now - t < 60 * 60 * 1000);
-    tooMany = recent.length >= 30;
-    u.checkoutStarts = tooMany ? recent : [...recent, now];
-  });
-  if (tooMany) return res.status(429).json({ error: "You've started several checkouts in the last hour. Please try again a little later, or contact us." });
+  const recentStarts = (u) => (u.checkoutStarts || []).filter((t) => now - t < 60 * 60 * 1000);
+  if (recentStarts(req.user).length >= 30) return res.status(429).json({ error: "You've started several checkouts in the last hour. Please try again a little later, or contact us." });
   const embedded = req.body?.embedded === true && !!stripePublishableKey();
   const packageId = String(req.body?.packageId || "");
   // A preview offer is for one of this account's finished free previews that
@@ -1810,6 +1808,7 @@ app.post("/api/billing/checkout", requireUser, async (req, res) => {
     }
   }
   const checkout = await createCheckout(req.user, packageId, origin, { gpc: gpc(req), embedded, shootId, shotId, toTeam: req.body?.returnTo === "team", browser: browserDetails(req) });
+  await users.update(req.user.id, (u) => void (u.checkoutStarts = [...recentStarts(u), now])).catch((err) => console.error("[checkout] record start", err.message));
   // For the one "unfinished checkout" reminder (lib/reminders.js).
   // (Packages only: an offer is reminded about by the preview's "buy" email.)
   if (!shootId) await users.update(req.user.id, (u) => void (u.lastCheckout = { packageId, at: new Date().toISOString() })).catch((err) => console.error("[checkout] record", err.message));

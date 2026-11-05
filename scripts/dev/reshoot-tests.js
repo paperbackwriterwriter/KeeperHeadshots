@@ -273,12 +273,17 @@ const adminCredits = async (adm) => (await adm("/api/me")).j.user.plan.credits;
   holdBack(s, 2);
   const rid = (await mem(`/api/shoots/${sid}/reshoot`, { method: "POST", body: "{}" })).j?.shoot?.id;
   await develop(mem, rid);
-  await settle(mem, rid);
+  const done = await settle(mem, rid);
   const before = await adminCredits(adm);
   const del = await mem(`/api/shoots/${sid}`, { method: "DELETE" });
   const m = (await adm("/api/team")).j.team.members[0];
   ok("deleting the original keeps the admin's view of the finished reshoot", del.status === 200 && m?.shootId === rid && m?.pick?.startsWith(`${rid}/`) && (await adm(`/media/${m.pick}`)).status === 200, JSON.stringify(m));
   ok("…without giving the admin a shoot back", (await adminCredits(adm)) === before);
+  // It was the seat's free reshoot: it can't be reshot free again (that would
+  // chain free develops from one seat).
+  holdBack(done, 2);
+  const again = await mem(`/api/shoots/${rid}/reshoot`, { method: "POST", body: "{}" });
+  ok("…and the moved reshoot can't itself be reshot free", again.status === 409 && again.j?.code === "reshoot_used", `${again.status} ${again.j?.code}`);
 }
 {
   // Undeveloped reshoot: it develops free in the team's looks, as the seat.
