@@ -816,7 +816,7 @@ export async function renderStudio(ctx, id) {
   // A free reshoot with new selfies (POST /api/shoots/:id/reshoot): the
   // person isn't charged again for selfies that didn't work. (A team shoot's
   // too: the reshoot uses no other seat, and the admin sees it once done.)
-  const canReshoot = (s) => heldForLikeness(s) >= 2 && !s.sample && !s.reshootOf && !s.reshootUsed && !state.user?.demo && !LIVE.includes(s.status);
+  const canReshoot = (s) => heldForLikeness(s) >= 2 && !s.sample && !s.reshootOf && !s.reshootUsed && !s.team?.seatUsed && !state.user?.demo && !LIVE.includes(s.status);
   const reshootHref = (s) => `/app/new?reshoot=${encodeURIComponent(s.id)}`;
   function selfieTips(s) {
     // Only once the shoot has finished: frames held back while it's still
