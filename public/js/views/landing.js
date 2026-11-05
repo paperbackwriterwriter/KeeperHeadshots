@@ -38,6 +38,59 @@ const HERO_FRAMES = [
   ["studio-white", "white-shirt"], ["glass-office", "navy-suit"], ["city-terrace", "oxford"],
 ];
 
+// What each example photo shows. Written from the image files, not the prompts.
+// p1–p8 use the same 36 backdrop/outfit pairs, in the same order, as lib/examples.js.
+const PEOPLE_ALT = {
+  hero: "a woman with shoulder-length curly dark hair",
+  p1: "a Black man with a short fade haircut",
+  p2: "a man with short black hair and glasses",
+  p3: "a woman with a chin-length silver-blonde bob",
+  p4: "a man with short dark hair and a short beard",
+  p5: "a Black woman with shoulder-length braids",
+  p6: "a man with short gray hair and a gray beard",
+  p7: "a man with short dark hair and light stubble",
+  p8: "a woman with long straight dark hair",
+  rv: "a woman with long straight black hair and small gold earrings",
+};
+const SELFIE_ALT = {
+  hero: "Example selfie: a smiling woman with shoulder-length curly dark hair, wearing a gray t-shirt beside a window",
+  p1: "Example selfie: a smiling Black man with a short fade haircut, wearing a gray hoodie in a kitchen",
+  p2: "Example selfie: a smiling man with short black hair and glasses, wearing a navy t-shirt in a car",
+  p3: "Example selfie: a smiling woman with a chin-length silver-blonde bob, wearing a denim shirt at a desk",
+  p4: "Example selfie: a smiling man with short dark hair and a short beard, wearing a white t-shirt on a balcony",
+  p5: "Example selfie: a smiling Black woman with shoulder-length braids, wearing a black-and-white striped shirt in a living room",
+  p6: "Example selfie: a smiling man with short gray hair and a gray beard, wearing a green hoodie on a park path",
+  p7: "Example selfie: a smiling man with short dark hair and light stubble, wearing a black t-shirt in a hallway",
+  p8: "Example selfie: a smiling woman with long straight dark hair, wearing a plaid flannel shirt at a cafe window",
+};
+const OUTFIT_ALT = {
+  "navy-suit": "a navy suit and white shirt",
+  "charcoal-blazer": "a charcoal blazer and light blue shirt",
+  "white-shirt": "a white button-up shirt",
+  "black-turtleneck": "a black turtleneck",
+  "camel-knit": "a camel sweater over a white collar",
+  oxford: "a navy sweater over a light blue shirt",
+};
+const PLACE_ALT = {
+  "studio-gray": "against a gray studio backdrop",
+  "glass-office": "in a bright glass office",
+  "city-terrace": "on a rooftop at golden hour",
+  library: "in a wood-paneled library",
+  "studio-white": "against a white studio backdrop",
+  botanical: "in front of green foliage",
+};
+const headshotAlt = (who, backdrop, outfit) =>
+  `Example headshot: ${PEOPLE_ALT[who]}, wearing ${OUTFIT_ALT[outfit]}, ${PLACE_ALT[backdrop]}`;
+// Same index math as PAIRS in lib/examples.js.
+const rotatedLook = (setId, frame) => {
+  const i = ((Number(setId.slice(1)) - 1) * 9 + frame) % 36;
+  return [BACKDROPS[i % 6].id, OUTFITS[(i + Math.floor(i / 6)) % 6].id];
+};
+const frameAlt = (setId, frame) => {
+  const [backdrop, outfit] = setId === "hero" ? HERO_FRAMES[frame] : rotatedLook(setId, frame);
+  return headshotAlt(setId, backdrop, outfit);
+};
+
 // The wardrobe strip: example headshots (lib/examples.js), including the
 // looks from the lawyer and doctor pages. Ordered so no two neighbours share a
 // backdrop, including across the loop from the last card back to the first.
@@ -68,9 +121,9 @@ export function renderLanding({ root, hydrate = false }) {
           <p class="eyebrow" data-reveal style="--i:0"><span class="dot"></span>The AI headshot studio</p>
           <h1 class="display h-hero" data-reveal style="--i:1">Professional AI headshots, <em>without</em> the photo shoot.</h1>
           <div class="hero-ba" role="img" aria-label="Example: a casual selfie, and a professional headshot made from it" data-reveal style="--i:2">
-            <figure><picture>${raw(PHONE_ONLY)}<img src="${example("hero-selfie", 360)}" srcset="${pairSources("hero-selfie")}" sizes="${PAIR_SIZES}" alt="" width="360" height="480" fetchpriority="high" /></picture><figcaption>Your selfie</figcaption></figure>
+            <figure><picture>${raw(PHONE_ONLY)}<img src="${example("hero-selfie", 360)}" srcset="${pairSources("hero-selfie")}" sizes="${PAIR_SIZES}" alt="${SELFIE_ALT.hero}" width="360" height="480" fetchpriority="high" /></picture><figcaption>Your selfie</figcaption></figure>
             <span class="hero-ba-arrow" aria-hidden="true">${icon("arrow-right")}</span>
-            <figure><picture>${raw(PHONE_ONLY)}<img src="${example("hero-2", 360)}" srcset="${pairSources("hero-2")}" sizes="${PAIR_SIZES}" alt="" width="360" height="480" fetchpriority="high" /></picture><figcaption>Your headshot</figcaption></figure>
+            <figure><picture>${raw(PHONE_ONLY)}<img src="${example("hero-2", 360)}" srcset="${pairSources("hero-2")}" sizes="${PAIR_SIZES}" alt="${frameAlt("hero", 1)}" width="360" height="480" fetchpriority="high" /></picture><figcaption>Your headshot</figcaption></figure>
           </div>
           <p class="lede" data-reveal style="--i:2">Upload a few selfies. Our AI studio checks your photos, develops studio-quality headshots in the looks you choose, then grades every frame so you know exactly which one to use.</p>
           <div class="hero-ctas" data-reveal style="--i:3">
@@ -88,15 +141,15 @@ export function renderLanding({ root, hydrate = false }) {
         <div class="sheet" id="heroSheet" data-reveal style="--i:2">
           <div class="sheet-board" role="img" aria-label="Example: one casual selfie becomes a contact sheet of professional headshots of the same person">
             ${HERO_FRAMES.map(
-              ([b, o], i) => html`<div class="sheet-frame ${i === HERO_SETS[0][2] ? "keeper" : ""}" style="--d:${i}">
-                <img src="${example(`hero-${i + 1}`, 360)}" srcset="${frameSources(`hero-${i + 1}`)}" sizes="(max-width: 600px) 23vw, 145px" alt="" loading="${i < 6 ? "eager" : "lazy"}" />
+              (_, i) => html`<div class="sheet-frame ${i === HERO_SETS[0][2] ? "keeper" : ""}" style="--d:${i}">
+                <img src="${example(`hero-${i + 1}`, 360)}" srcset="${frameSources(`hero-${i + 1}`)}" sizes="(max-width: 600px) 23vw, 145px" alt="${frameAlt("hero", i)}" loading="${i < 6 ? "eager" : "lazy"}" />
                 <span class="fno">${String(i + 1).padStart(2, "0")}A</span>
                 ${i === HERO_SETS[0][2] ? greaseCircle() : ""}
               </div>`,
             )}
           </div>
           <figure class="polaroid">
-            <img src="${example("hero-selfie", 360)}" srcset="${pairSources("hero-selfie")}" sizes="${POLAROID_SIZES}" alt="" loading="lazy" decoding="async" />
+            <img src="${example("hero-selfie", 360)}" srcset="${pairSources("hero-selfie")}" sizes="${POLAROID_SIZES}" alt="${SELFIE_ALT.hero}" loading="lazy" decoding="async" />
             <figcaption><span>BEFORE</span><span>SELFIE</span></figcaption>
           </figure>
           <span class="tag-keeper">${icon("badge-check")} Best pick <span class="score" id="heroScore">96</span></span>
@@ -481,11 +534,14 @@ function heroCycle() {
     sheet.classList.add("swapping");
     await new Promise((r) => setTimeout(r, reduce ? 0 : 520));
     const [sel, ...frames] = urls(i);
-    selfie.srcset = pairSources(`${HERO_SETS[i][0]}-selfie`);
+    const setId = HERO_SETS[i][0];
+    selfie.srcset = pairSources(`${setId}-selfie`);
     selfie.src = sel;
+    selfie.alt = SELFIE_ALT[setId];
     imgs.forEach((im, j) => {
-      im.srcset = frameSources(`${HERO_SETS[i][0]}-${j + 1}`);
+      im.srcset = frameSources(`${setId}-${j + 1}`);
       im.src = frames[j];
+      im.alt = frameAlt(setId, j);
     });
     $("#heroScore").textContent = HERO_SETS[i][1];
     // Move the best-pick circle to this person's pick; a fresh copy replays
@@ -566,7 +622,7 @@ function reviewPreview() {
     </div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px">
       ${shots.slice(1).map(
-        (s) => html`<div style="position:relative"><img src="${example(s.seed)}" srcset="${frameSources(s.seed)}" sizes="(max-width: 640px) 30vw, 140px" alt="" loading="lazy" style="aspect-ratio:4/5;object-fit:cover;border-radius:4px;width:100%" />
+        (s) => html`<div style="position:relative"><img src="${example(s.seed)}" srcset="${frameSources(s.seed)}" sizes="(max-width: 640px) 30vw, 140px" alt="${headshotAlt("rv", s.backdrop, s.outfit)}" loading="lazy" style="aspect-ratio:4/5;object-fit:cover;border-radius:4px;width:100%" />
         <span class="score-pill g-${s.g}" style="position:absolute;left:6px;bottom:6px;height:24px;font-size:11px"><i></i>${s.score}</span></div>`,
       )}
     </div>
