@@ -304,7 +304,15 @@ export function renderLanding({ root, hydrate = false }) {
   ${footer()}`.v;
   // Keep the server-rendered headline and images on first load. Only the
   // signed-in destinations need updating before attaching page behavior.
-  if (hydrate && state.user) root.querySelectorAll('a[href="/signup"][data-link]').forEach((a) => a.setAttribute("href", cta));
+  // The kept footer is the signed-out snapshot: "Your shoots" is added once
+  // the session is known, in the space under "Create account".
+  if (hydrate) {
+    if (state.user) root.querySelectorAll('a[href="/signup"][data-link]').forEach((a) => a.setAttribute("href", cta));
+    const account = [...root.querySelectorAll("footer h2")].find((h) => h.textContent.trim() === "Account")?.nextElementSibling;
+    const shoots = account?.querySelector('a[href="/app"]');
+    if (state.user && account && !shoots) account.insertAdjacentHTML("beforeend", accountShoots().v);
+    else if (!state.user && shoots) shoots.closest("li")?.remove();
+  }
   const stopHero = heroCycle();
   const stopStrip = stripPreload();
   const stopReel = stripReel();
@@ -573,6 +581,10 @@ function reviewPreview() {
   </div>`;
 }
 
+// Shown in the public footer only after sign-in. /app sends everyone else
+// to the sign-in page, so the link is omitted until state.user is known.
+const accountShoots = () => (state.user ? html`<li><a href="/app" data-link>Your shoots</a></li>` : "");
+
 export function footer() {
   return html`<footer class="footer">
     <div class="container">
@@ -582,7 +594,7 @@ export function footer() {
           <p style="margin-top:12px">Professional headshots from the photos you already have. Checked, developed and graded by AI.</p>
         </div>
         <div><h2 class="footer-h">Product</h2><ul><li><a href="/#how">How it works</a></li><li><a href="/linkedin-headshots" data-link>LinkedIn headshots</a></li><li><a href="/#styles">Looks</a></li><li><a href="/#pricing">Pricing</a></li><li><a href="/team-headshots" data-link>Team headshots</a></li><li><a href="/real-estate-headshots" data-link>Real estate headshots</a></li><li><a href="/resume-headshots" data-link>Résumé headshots</a></li><li><a href="/doctor-headshots" data-link>Doctor headshots</a></li><li><a href="/lawyer-headshots" data-link>Lawyer headshots</a></li></ul></div>
-        <div><h2 class="footer-h">Account</h2><ul><li><a href="/signin" data-link>Sign in</a></li><li><a href="/signup" data-link>Create account</a></li><li><a href="/app" data-link>Your shoots</a></li></ul></div>
+        <div><h2 class="footer-h">Account</h2><ul><li><a href="/signin" data-link>Sign in</a></li><li><a href="/signup" data-link>Create account</a></li>${accountShoots()}</ul></div>
         <div><h2 class="footer-h">Company</h2><ul><li><a href="/blog">Blog</a></li><li><a href="/#faq">FAQ</a></li><li><a href="/contact" data-link>Contact us</a></li><li><a href="/refunds" data-link>Money-back guarantee</a></li><li><a href="/privacy" data-link>Privacy policy</a></li><li><a href="/terms" data-link>Terms of service</a></li></ul></div>
       </div>
       <div class="footer-base"><span>© ${new Date().getFullYear()} Keeper Headshots</span><span>Your photos are never used to train AI models.</span></div>
