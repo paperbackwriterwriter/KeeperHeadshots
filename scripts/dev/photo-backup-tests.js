@@ -31,6 +31,8 @@ let snap;
 await test("selfies, headshots and shared copies have private binary manifests", async () => {
   const report = await runBackup({ now }); snap = await readBackup(report.key);
   assert.equal(report.photos, 3); assert.equal(report.failed, 0);
+  assert.equal(report.photosCopied, 3); assert.equal(report.photosCarried, 0);
+  assert.deepEqual(report.photosPrunedDates, []);
   assert.equal(snap.photos.entries.length, 3);
   assert.ok(snap.photos.entries.every((e) => e.bytes === 5 && /^[a-f0-9]{64}$/.test(e.sha256) && !snap.records[e.key]));
 });
@@ -97,6 +99,7 @@ await test("expiry prunes binaries even when the record backup is incomplete", a
   const oldEntry = oldSnap.photos.entries.find((e) => e.key === b.keys[0]);
   await storage.del(oldEntry.key); assert.equal(await restorePhoto(oldEntry, { apply: true, now }), "expired");
   const cleanup = await maintainPhotoBackups({ now }); assert.ok(cleanup.pruned >= 3); assert.equal(await storage.getFile(oldEntry.backupKey), null);
+  assert.deepEqual(cleanup.prunedDates, [new Date(oldNow).toISOString().slice(0, 10)]);
   const short = await runBackup({ budgetMs: 0 }); assert.equal(short.complete, false); assert.equal(short.pruned, 0);
 });
 await test("expiry pages through the copies and resumes where a short run stopped", async () => {
@@ -121,6 +124,38 @@ await test("expiry pages through the copies and resumes where a short run stoppe
     for (const k of stale) assert.equal(await storage.getFile(k), null);
     assert.equal((await storage.getJSON("cron/photo-maintain-main.json"))?.cursor, null);
   } finally { delete process.env.STORAGE_LIST_PAGE; }
+});
+await test("the backup report names fresh copies, carried copies, and pruned filename dates", async () => {
+  const p = await fixture("p");
+  const older = new Date(now - 10 * 86_400_000).toISOString().slice(0, 10);
+  const oldDay = new Date(now - 8 * 86_400_000).toISOString().slice(0, 10);
+  const stale = (day, n) => `photo-backups/${p.uid}/${p.sid}/${"c".repeat(63)}${n}/${day}.jpg`;
+  await storage.putFile(stale(older, "1"), Buffer.from("old"));
+  await storage.putFile(stale(oldDay, "2"), Buffer.from("old"));
+  const first = await runBackup({ now });
+  assert.equal(first.failed, 0);
+  assert.equal(first.photosCopied + first.photosCarried, first.photos);
+  assert.equal(first.photosCarried, 0);
+  assert.ok(first.photosCopied >= 3);
+  assert.deepEqual(first.photosPrunedDates, [older, oldDay]);
+  assert.equal(await storage.getFile(stale(older, "1")), null);
+  assert.equal(await storage.getFile(stale(oldDay, "2")), null);
+  const today = new Date(now).toISOString().slice(0, 10);
+  assert.ok(!first.photosPrunedDates.includes(today));
+  const originalPut = mainTarget.put;
+  mainTarget.put = async (key, body, type) => {
+    if (key.startsWith(`photo-backups/${p.uid}/`)) throw new Error("disk full");
+    return originalPut(key, body, type);
+  };
+  try {
+    // Same night, so this retry cannot become a newer snapshot than `now`.
+    const second = await runBackup({ now });
+    assert.equal(second.failed, 0);
+    assert.equal(second.photosCopied + second.photosCarried, second.photos);
+    assert.ok(second.photosCarried >= 3, `carried ${second.photosCarried}`);
+    assert.ok(second.photosCopied >= 1);
+    assert.ok(!second.photosPrunedDates.includes(today));
+  } finally { mainTarget.put = originalPut; }
 });
 // Test the actual shared target interface; no SDK auth is needed by the stand-in.
 const originals = Object.fromEntries(["get", "put", "list", "listPage", "del"].map((k) => [k, target[k]]));
