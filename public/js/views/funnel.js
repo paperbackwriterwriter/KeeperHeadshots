@@ -77,7 +77,7 @@ export function renderFunnel({ root, navigate }) {
           <div><b>${t.buyer}</b><span>first-time buyers</span></div>
           <div><b>${t.purchases}</b><span>purchases</span></div>
           <div><b>${money(t.revenue)}</b><span>revenue after discounts</span></div>
-          <div><b>${t.refunds ? `−${money(t.refunds)}` : money(0)}</b><span>refunded${t.refunded ? ` (${t.refunded} order${t.refunded === 1 ? "" : "s"})` : ""}</span></div>
+          <div><b>${t.refunds > 0 ? `−${money(t.refunds)}` : t.refunds < 0 ? `+${money(-t.refunds)}` : money(0)}</b><span>refunded${t.refunded > 0 ? ` (${t.refunded} order${t.refunded === 1 ? "" : "s"})` : ""}</span></div>
           <div><b>${money(t.revenue - (t.refunds || 0))}</b><span>net revenue</span></div>
           <div><b>${t.purchases ? money(Math.round(t.revenue / t.purchases)) : "—"}</b><span>average order</span></div>
         </div>

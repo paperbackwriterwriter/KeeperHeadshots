@@ -87,6 +87,21 @@ Method: a stack e2e script (mock Stripe/Meta, 65 checks), an in-process webhook 
 | 79 | prerendered /refunds and /terms prices match the views | script | OK |
 | 80 | billing.js comment uses the old $29 example | read | **C3-7** |
 | 81 | Known: keep-plus for a deleted shoot counts in unlocksPreviews; transient looksAsShoot read; stale develop races | — | known |
+| 82 | Preview offers at $4.50 / $7.50: amount 450/750, value 4.5/7.5, metadata shoots "0", returns to the shoot | script | OK (5 Nov) |
+| 83 | Offer buy page: crossed-out price, screen readers hear "Was $8.99, now $4.50" / "Was $14.99, now $7.50"; links to other offers and packages at sale prices | Playwright | OK |
+| 84 | Offer refunds to the cent (450, 750, HALF 225/375): 1c short keeps it; full refund revokes (kept shot, extra looks, previews locked again); funnel refund equals amount | webhook script + sync | OK |
+| 85 | Offer revenue and Meta: revenue +450/+750; Purchase 7.5; InitiateCheckout 4.5/7.5 | script | OK |
+| 86 | Dispute and team-refund suites re-run at sale amounts (1450/750/483/484/967) | suites | OK |
+| 87 | Checkout limit: exactly 30 starts an hour, then 429 | hardening | OK |
+| 88 | Checkout limit: refused or failed requests don't count | hardening | fixed 5 Nov (they did, C3-4) |
+| 89 | Funnel totals for a net-negative refund period (a won dispute) | hardening (static) | fixed 5 Nov (showed "−$-24.50", C3-6) |
+| 90 | Signed-out checkout 401; demo sync does nothing | script | OK |
+| 91 | Owner purchases are sent to Meta (Purchase/InitiateCheckout) though left out of the funnel | script | owner question |
+| 92 | packageId sent as a non-string (["starter"]) is turned into text and accepted | script | harmless, noted |
+| 93 | Hosted checkout end to end in a browser: buy page, Stripe, /app toast "6 shoots added", credits 6 | Playwright | OK |
+| 94 | A webhook request without a valid Stripe signature (a bot) is logged as a warning, not an error, so it doesn't use up the day's alert emails | billing-dispute-tests | fixed 5 Nov (a live probe at 02:29 sent an alert) |
+
+Items checked on 5 Nov (rotation): 94 (81 + 13 new).
 
 ## 2. Findings
 

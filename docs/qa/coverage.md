@@ -80,6 +80,9 @@ Waiting on the owner:
   cancelled ones (D-08).
 - The square widening can attach after a shoot shows "done" and its ready
   email has gone (B-N13).
+- Owner (test) purchases still send InitiateCheckout and Purchase to Meta
+  though the funnel leaves them out (C-91); the studio's preview-offer
+  buttons show the sale price without the crossed-out full price.
 - Soro's blog script isn't named in the
   privacy policy (F4). Terms say "Keeper Headshots", emails say "Keeper
   Headshots LLC" (F11). Search only indexes titles and descriptions (F8).
