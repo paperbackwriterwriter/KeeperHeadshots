@@ -304,7 +304,12 @@ export function renderLanding({ root, hydrate = false }) {
   ${footer()}`.v;
   // Keep the server-rendered headline and images on first load. Only the
   // signed-in destinations need updating before attaching page behavior.
-  if (hydrate && state.user) root.querySelectorAll('a[href="/signup"][data-link]').forEach((a) => a.setAttribute("href", cta));
+  if (hydrate && state.user) {
+    root.querySelectorAll('a[href="/signup"][data-link]').forEach((a) => a.setAttribute("href", cta));
+    // The server's copy is the signed-out page: its footer has no "Your shoots".
+    const foot = root.querySelector("footer.footer");
+    if (foot) foot.outerHTML = footer().v;
+  }
   const stopHero = heroCycle();
   const stopStrip = stripPreload();
   const stopReel = stripReel();
