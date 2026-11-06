@@ -1540,7 +1540,8 @@ app.delete("/api/team/invites/:inviteId", requireUser, async (req, res) => {
 });
 
 // The invitation page: who invited you, for which team. No sign-in needed to
-// look; accepting needs the invited address.
+// look; accepting needs the invited address, or the same inbox written
+// differently (lib/teams.js inviteFor): `sameInbox` tells the page.
 app.get("/api/join/:token", async (req, res) => {
   res.set("Cache-Control", "no-store");
   const found = await teams.readInvite(req.params.token);
@@ -1552,6 +1553,7 @@ app.get("/api/join/:token", async (req, res) => {
     email: inv.email,
     status: inv.status,
     mine: !!me && inv.status === "joined" && inv.userId === me.id ? inv.shootId : null,
+    sameInbox: !!me && teams.sameInbox(me.email, inv.email),
   });
 });
 

@@ -77,11 +77,26 @@ export async function renderTeamAdmin({ root, navigate }) {
 
   function paintSetup(team) {
     let looks = team?.looks?.length ? team.looks.map((l) => ({ ...l })) : [{ backdrop: "glass-office", outfit: "navy-suit" }];
-    // People who already joined keep the looks their shoot was made with
-    // (lib/teams.js accept copies them): a change only reaches new joiners.
+    // People who already joined keep the looks and team name their shoot was
+    // made with (lib/teams.js accept copies them; the name is also in the
+    // shoot's title): a change only reaches new joiners.
     const joined = (team?.members || []).filter((m) => m.status === "joined").length;
     const lookKey = (list) => JSON.stringify((list || []).map((l) => [l.backdrop, l.outfit]));
     const looksChanged = () => !!team && lookKey(looks) !== lookKey(team.looks);
+    // (Spaces as the server saves them: lib/teams.js saveTeam.)
+    const nameChanged = () => !!team && $("#teamName").value.replace(/\s+/g, " ").trim() !== team.name;
+    const kept = () => (looksChanged() && nameChanged() ? "look and team name" : looksChanged() ? "look" : nameChanged() ? "team name" : "");
+    const keptNote = () => {
+      const k = kept();
+      $("#lookWarn").hidden = !k;
+      $("#lookWarnText").innerHTML = html`<b>${joined === 1 ? "1 person has" : `${joined} people have`} already joined.</b> ${
+        k === "look and team name"
+          ? "They keep the look and team name they started with. Only people who join from now on get the new look and name."
+          : k === "look"
+            ? "They keep the look they started with. Only people who join from now on get the new look."
+            : `They keep the team name ${joined === 1 ? "their shoot was" : "their shoots were"} set up with (${team.name}). Only people who join from now on get the new name.`
+      }`.v;
+    };
     root.innerHTML = html`<main id="main" class="container app-main view-enter team-admin">
       <div class="page-head"><div><p class="eyebrow">Team headshots</p><h1 class="display h-1" style="margin-top:8px">${team ? "Team settings" : "Set up your team"}</h1>
       <p class="lede" style="margin-top:12px">Choose the looks everyone gets, so your team page matches. Then invite people by email: each invite uses one of your shoots, and each person uploads their own selfies.</p></div></div>
@@ -92,7 +107,7 @@ export async function renderTeamAdmin({ root, navigate }) {
           <ol class="team-looks" id="looks"></ol>
           <button type="button" class="btn btn-ghost btn-sm" id="addLook">${icon("plus")} Add a look</button>
         </fieldset>
-        ${joined ? html`<div class="banner banner-warn" id="lookWarn" role="status" hidden>${icon("info")}<div><b>${joined === 1 ? "1 person has" : `${joined} people have`} already joined.</b> They keep the look they started with. Only people who join from now on get the new look.</div></div>` : ""}
+        ${joined ? html`<div class="banner banner-warn" id="lookWarn" role="status" hidden>${icon("info")}<div id="lookWarnText"></div></div>` : ""}
         <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-flash" id="saveTeam" ${lockedNow() ? raw("disabled") : ""}>${team ? "Save" : "Create team"} ${icon("arrow-right")}</button>${team ? html`<button type="button" class="btn btn-ghost" id="cancelSetup">Cancel</button>` : ""}</div>
       </form>
     </main>`.v;
@@ -107,13 +122,13 @@ export async function renderTeamAdmin({ root, navigate }) {
         </li>`,
       )}`.v;
       $("#addLook").hidden = looks.length >= MAX_LOOKS;
-      if ($("#lookWarn")) $("#lookWarn").hidden = !looksChanged();
+      if ($("#lookWarn")) keptNote();
     };
     drawLooks();
     $("#looks").addEventListener("change", (e) => {
       const el = e.target.closest("[data-k]");
       if (el) looks[Number(el.dataset.i)][el.dataset.k] = el.value;
-      if ($("#lookWarn")) $("#lookWarn").hidden = !looksChanged();
+      if ($("#lookWarn")) keptNote();
     });
     $("#looks").addEventListener("click", (e) => {
       const b = e.target.closest("[data-remove]");
@@ -129,6 +144,7 @@ export async function renderTeamAdmin({ root, navigate }) {
     $("#teamName").addEventListener("input", () => {
       $("#teamNameErr").hidden = true;
       $("#teamName").setAttribute("aria-invalid", "false");
+      if ($("#lookWarn")) keptNote();
     });
     $("#teamForm").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -143,7 +159,7 @@ export async function renderTeamAdmin({ root, navigate }) {
         const r = await api("/api/team", { method: "POST", body: { name: $("#teamName").value, looks } });
         state.user = r.user;
         data.team = r.team;
-        toast(!team ? "Team created. Now invite your colleagues." : joined && looksChanged() ? "Team saved. People who already joined keep the look they started with." : "Team saved.", "success", joined && looksChanged() ? 7000 : undefined);
+        toast(!team ? "Team created. Now invite your colleagues." : joined && kept() ? `Team saved. People who already joined keep the ${kept()} they started with.` : "Team saved.", "success", joined && kept() ? 7000 : undefined);
         paintTeam();
       } catch (err) {
         restore();
@@ -165,7 +181,7 @@ export async function renderTeamAdmin({ root, navigate }) {
     root.innerHTML = html`<main id="main" class="container app-main view-enter team-admin">
       <div class="page-head">
         <div><p class="eyebrow">Team headshots</p><h1 class="display h-1" style="margin-top:8px">${t.name}</h1>
-        <p class="lede" style="margin-top:12px">Everyone gets ${t.looks.map(lookLabel).join("; ")}. <button type="button" class="link" id="editTeam" style="background:none;border:0;padding:0;font:inherit;cursor:pointer">Change</button></p></div>
+        <p class="lede" style="margin-top:12px">${t.looksVary ? "New joiners get" : "Everyone gets"} ${t.looks.map(lookLabel).join("; ")}. <button type="button" class="link" id="editTeam" style="background:none;border:0;padding:0;font:inherit;cursor:pointer">Change</button></p></div>
         ${ready.length ? html`<button class="btn btn-flash btn-lg" id="dlTeam">${icon("download")} Download ${ready.length} headshot${ready.length === 1 ? "" : "s"}</button>` : ""}
       </div>
       ${lockBanner()}
