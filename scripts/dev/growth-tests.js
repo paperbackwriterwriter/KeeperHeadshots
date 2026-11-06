@@ -144,6 +144,14 @@ const t = Date.now();
   await f("/api/billing/sync", { method: "POST", body: "{}" }); // a second sync counts nothing more
   const end = (await owner("/api/owner/funnel?days=7")).j.totals;
   ok("a refund is counted once in the funnel", end.refunds - mid.refunds === 1450 && end.refunded - mid.refunded === 1 && end.revenue === mid.revenue, JSON.stringify({ refunds: end.refunds - mid.refunds, refunded: end.refunded - mid.refunded }));
+  // An owner's own (test) purchase isn't reported to Meta, as it isn't counted here.
+  const { j: oc } = await owner("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+  const ownerSid = new URL(oc.url).pathname.split("/").pop();
+  await fetch(`${M}/mock-pay/${ownerSid}`, { redirect: "manual" });
+  const oconf = (await owner("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: ownerSid }) })).j;
+  await new Promise((r) => setTimeout(r, 300));
+  const metaIds = (await fetch(`${M}/mock-meta`).then((r) => r.json())).map((x) => x.event_id);
+  ok("an owner's purchase sends nothing to Meta (no checkout or purchase event, no Pixel event id)", !oc.eventId && oconf.granted && !oconf.eventId && !metaIds.includes(`purchase_${ownerSid}`) && !metaIds.includes(`checkout_${ownerSid}`), JSON.stringify({ co: oc.eventId, conf: oconf.eventId }));
   const stranger = await f("/api/owner/funnel");
   ok("only owners can see the funnel", stranger.status === 404, String(stranger.status));
 }

@@ -6,8 +6,8 @@ import { KEEP_ONE_PRICE, KEEP_ALL_PRICE } from "../shared/catalog.js";
 // Privacy Policy and Terms of Service. Keep these in step with what the code
 // actually does (lib/meta.js, lib/billing.js, lib/store.js, lib/ai.js).
 // Each policy has its own date: change it only when that page's text changes.
-export const LEGAL_UPDATED = "November 3, 2026"; // privacy policy
-export const TERMS_UPDATED = "November 3, 2026";
+export const LEGAL_UPDATED = "November 6, 2026"; // privacy policy
+export const TERMS_UPDATED = "November 6, 2026";
 
 const mail = html`<a class="link" href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>`;
 
@@ -34,7 +34,7 @@ export function renderPrivacy({ root }) {
     callout:
       "We use your photos only to make your headshots. We don't sell them, we don't use them to train AI, and we don't use them in our marketing unless you choose to share one. You can delete a shoot, or your whole account, at any time.",
     body: html`
-      <p>This policy covers keeperheadshots.com and the Keeper Headshots studio ("Keeper Headshots", "we", "us"). Keeper Headshots is based in Iowa, USA. If you have a question about your data, email ${mail}.</p>
+      <p>This policy covers keeperheadshots.com and the Keeper Headshots studio, run by Keeper Headshots LLC ("Keeper Headshots", "we", "us"). Keeper Headshots LLC is based in Iowa, USA. If you have a question about your data, email ${mail}.</p>
 
       <h2 class="h-3">What we collect</h2>
       <ul>
@@ -147,7 +147,7 @@ export function renderTerms({ root }) {
       "Upload photos of yourself, and use the service honestly. You own your headshots. Packages are one-time payments, not subscriptions, and the money-back guarantee applies. AI results can vary, so check each headshot before you use it.",
     body: html`
       <h2 class="h-3">1. Agreeing to these terms</h2>
-      <p>These terms are an agreement between you and Keeper Headshots ("we", "us"), based in Iowa, USA. By creating an account or using keeperheadshots.com, you agree to these terms and to our <a class="link" href="/privacy" data-link>Privacy Policy</a>. You must be at least 18 years old to use Keeper Headshots.</p>
+      <p>These terms are an agreement between you and Keeper Headshots LLC ("Keeper Headshots", "we", "us"), based in Iowa, USA. By creating an account or using keeperheadshots.com, you agree to these terms and to our <a class="link" href="/privacy" data-link>Privacy Policy</a>. You must be at least 18 years old to use Keeper Headshots.</p>
 
       <h2 class="h-3">2. The service</h2>
       <p>Keeper Headshots uses AI to create professional headshots from photos you upload. Each shoot checks your photos, creates headshots in the looks you choose, runs a quality check on every headshot and grades the results. Shoots come in paid packages, bought before you start a shoot. Your first package is covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>.</p>

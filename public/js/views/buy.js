@@ -75,7 +75,7 @@ export function renderBuy({ root }, packageId) {
     try {
       const { url, eventId, value } = await api("/api/billing/checkout", { method: "POST", body: body() });
       if (disposed) return;
-      pixel("InitiateCheckout", { value, currency: "USD", content_name: pkg.name }, eventId);
+      if (eventId) pixel("InitiateCheckout", { value, currency: "USD", content_name: pkg.name }, eventId);
       // Give the Pixel a moment to send before leaving for Stripe (the server sends it too).
       if (window.fbq) await new Promise((r) => setTimeout(r, 300));
       // Replace, not push: Back from Stripe then returns to the page before
@@ -151,7 +151,7 @@ export function renderBuy({ root }, packageId) {
         checkout = await create({
           fetchClientSecret: async () => {
             const { clientSecret, eventId, value } = session;
-            pixel("InitiateCheckout", { value, currency: "USD", content_name: pkg.name }, eventId);
+            if (eventId) pixel("InitiateCheckout", { value, currency: "USD", content_name: pkg.name }, eventId);
             return clientSecret;
           },
         });

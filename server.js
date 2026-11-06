@@ -36,7 +36,7 @@ import { contactEnabled, validate as validateContact, rateLimited, submit as sub
 import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExample, generateSquare as generateExampleSquare, generateSet as generateExampleSet, exampleImage, sheet as exampleSheet } from "./lib/examples.js";
 import crypto from "node:crypto";
 import { withCounter, readCounter, overLimit, hashId, DAY_MS } from "./lib/ratelimit.js";
-import { recordStep, funnelReport, STEPS } from "./lib/stats.js";
+import { recordStep, funnelReport, STEPS, countedAccount } from "./lib/stats.js";
 import * as teams from "./lib/teams.js";
 import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook, stripePublishableKey, stripeMode, isSignatureError } from "./lib/billing.js";
 
@@ -341,7 +341,9 @@ app.get("/api/auth/google/callback", async (req, res) => {
   if (flow.reauth) {
     const me = await currentUser(req);
     // A Google sign-in from more than a few minutes ago doesn't count.
-    const fresh = !profile.authTime || Date.now() / 1000 - profile.authTime < REAUTH_FRESH_S;
+    // (No sign-in time from Google, which is rare: not proof of a fresh
+    // sign-in, so the person is asked to sign in again, owner's decision 6 Nov.)
+    const fresh = !!profile.authTime && Date.now() / 1000 - profile.authTime < REAUTH_FRESH_S;
     const confirmed = fresh && me?.id === flow.reauth && !!me.googleSub && me.googleSub === profile.sub && !me.password && markReauth(res, req, me);
     console.log("[google] reauth", flow.reauth, confirmed ? "confirmed" : "refused");
     // (The right Google account, but no fresh sign-in: said so, not "wrong account".)
@@ -1812,8 +1814,10 @@ app.post("/api/billing/checkout", requireUser, async (req, res) => {
   // For the one "unfinished checkout" reminder (lib/reminders.js).
   // (Packages only: an offer is reminded about by the preview's "buy" email.)
   if (!shootId) await users.update(req.user.id, (u) => void (u.lastCheckout = { packageId, at: new Date().toISOString() })).catch((err) => console.error("[checkout] record", err.message));
-  const eventId = `checkout_${checkout.id}`;
-  trackMeta("InitiateCheckout", { eventId, user: req.user, req, value: checkout.value });
+  // (No event for an owner's or the demo's checkout: lib/stats.js countedAccount.
+  // Without an eventId the buy page sends no Pixel event either.)
+  const eventId = countedAccount(req.user) ? `checkout_${checkout.id}` : undefined;
+  if (eventId) trackMeta("InitiateCheckout", { eventId, user: req.user, req, value: checkout.value });
   res.json(embedded ? { clientSecret: checkout.clientSecret, eventId, value: checkout.value } : { url: checkout.url, eventId, value: checkout.value });
 });
 

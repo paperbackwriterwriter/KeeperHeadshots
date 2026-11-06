@@ -561,6 +561,9 @@ p, li, dd, .lede, figcaption { text-wrap: pretty; }
 .plan-pop .price-was { color: var(--text-inverse-muted); }
 .plan-pop .price-was::after, .tm-price-pop .price-was::after, .upsell .price-was::after { background: #f08274; }
 .checkout-price .price-was { font-size: 1.5rem; align-self: center; }
+/* On a button (the preview offers): in the button's own colour, so it reads on any button style. */
+.btn .price-was { color: inherit; font-weight: 600; }
+.btn .price-was::after { background: currentColor; height: 1.5px; }
 .tm-price-pop .price-was { color: var(--text-inverse-muted); }
 .plan-feats { list-style: none; display: grid; gap: 10px; font-size: var(--fs-sm); }
 .plan-feats li { display: flex; gap: 10px; align-items: center; }

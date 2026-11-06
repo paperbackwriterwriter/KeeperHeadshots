@@ -954,6 +954,15 @@ if (process.env.DATA_DIR) {
   // dispute) as money back, like its day rows.
   const funnel = fs.readFileSync(new URL("../../public/js/views/funnel.js", import.meta.url), "utf8");
   ok("funnel totals: a net-negative refund period shows as money back, not '−$-'", /t\.refunds < 0 \? `\+\$\{money\(-t\.refunds\)\}`/.test(funnel) && /t\.refunded > 0/.test(funnel));
+  // Owner decisions, 6 Nov: "Your shoots" only for signed-in visitors; the
+  // preview offers' buttons show the full price crossed out; the Terms and
+  // privacy policy name the company (Keeper Headshots LLC), as emails do.
+  const homeHtml = await (await raw("/")).text();
+  ok("the footer has no 'Your shoots' link for signed-out visitors", !/href="\/app"[^>]*>Your shoots</.test(homeHtml) && /Create account/.test(homeHtml));
+  const studioSrc = fs.readFileSync(new URL("../../public/js/views/studio.js", import.meta.url), "utf8");
+  ok("preview offer buttons show the crossed-out full price", (studioSrc.match(/\$\{wasPrice\(KEEP_ONE\)\} \$\{usd\(KEEP_ONE\.price\)\}/g) || []).length === 2 && /\$\{wasPrice\(KEEP_ALL\)\} \$\{usd\(KEEP_ALL\.price\)\}/.test(studioSrc));
+  const legalSrc = fs.readFileSync(new URL("../../public/js/views/legal.js", import.meta.url), "utf8");
+  ok("Terms and privacy policy name Keeper Headshots LLC", (legalSrc.match(/Keeper Headshots LLC \("Keeper Headshots", "we", "us"\)|run by Keeper Headshots LLC \("Keeper Headshots", "we", "us"\)/g) || []).length === 2);
   ok("preview offers are half price in the sale ($4.50 / $7.50), full price kept", PREVIEW_OFFERS.map((o) => `${o.price}/${o.listPrice}`).join(" ") === "4.5/8.99 7.5/14.99");
 }
 
