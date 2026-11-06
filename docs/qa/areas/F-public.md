@@ -77,7 +77,7 @@ Repo /home/user/keeperheadshots @ d1c7ac7. Stack: start-stack.sh 3616 4616 2616 
 | Retention: drafts 90 d, photo backups ≤7 d, record backups ≤30 d, contact 12 months, rate counters 2 d, invites 90 d | cleanup.js, photo-backup.js, backup.js, ratelimit | OK |
 | Shared headshot disappears within about 10 minutes | showcase cache 60 s, image s-maxage 600; home HTML CDN SWR 86400 | **F5** |
 | Reply within one business day (contact meta, refunds) | consistent | OK |
-| Legal entity: emails "Keeper Headshots LLC, Johnston IA"; terms/privacy "Keeper Headshots, based in Iowa" | mail.js POSTAL_ADDRESS | owner note F11 |
+| Legal entity: emails "Keeper Headshots LLC, Johnston IA"; terms/privacy "Keeper Headshots, based in Iowa" | mail.js POSTAL_ADDRESS | fixed 6 Nov: Terms and privacy name Keeper Headshots LLC |
 | Policy dates: privacy/terms Nov 1, refunds Nov 2, matching sitemap | | OK |
 
 ## 2. Findings

@@ -52,7 +52,7 @@ Method: existing suites run against a private stack (google 64/65, the one FAIL 
 | 44 | Google reauth: signed out / password account / demo -> ?reauth=failed | t4 | OK |
 | 45 | Google reauth: other Google account -> failed; cancel -> cancelled | t4, reauthcheck | OK |
 | 46 | Google reauth: stale auth_time -> failed, wrong explanation shown | t4, browser b1 | A1-05 |
-| 47 | Google reauth: missing auth_time accepted | n/a | known (not re-reported) |
+| 47 | Google reauth: missing auth_time asks to sign in again (reauth=stale) | google-tests | fixed 6 Nov (owner's decision; was accepted) |
 | 48 | Google reauth: ok -> kh_reauth (sid-bound, 5 min, Strict, path) -> delete works; copied cookies after delete -> 401 | t4, reauthcheck 8/8 | OK |
 | 49 | Google reauth then "sign out other devices" -> reauth_needed, UI re-asks | t4, code | OK |
 | 50 | Google reauth return without flow cookie lands on /app with no message | t4, browser b1 | A1-04 |

@@ -71,21 +71,20 @@ still there moves the team seat to the reshoot (B-R1, B-N7: done; the seat
 counts as spent, so it's never given back); a team reshoot keeps 3 free photo
 checks; extra looks keep resetting free retries (B-N19).
 
+Decided by the owner on 6 Nov and done: owner and demo purchases aren't sent
+to Meta (C-91); the preview-offer buttons show the crossed-out full price;
+the Terms and privacy policy name Keeper Headshots LLC (F11); "Your shoots"
+in the footer only for signed-in visitors; Google delete re-check needs
+Google's sign-in time (A-47); a team name change warns like a look change and
+the team page says "New joiners get …" when looks differ (rest of D-02);
+invitations match the same inbox written differently, for an account that
+confirmed its address, and the 100 cap counts only invited and joined (D-08).
+
 Waiting on the owner:
-- The Google delete re-check lets a token through when Google omits
-  auth_time.
-- A team name-only change gives no warning, and the team page heading still
-  says "Everyone gets <new look>" after a look change (rest of D-02);
-  invitations match the exact address only and the 100-invite cap counts
-  cancelled ones (D-08).
 - The square widening can attach after a shoot shows "done" and its ready
   email has gone (B-N13).
-- Owner (test) purchases still send InitiateCheckout and Purchase to Meta
-  though the funnel leaves them out (C-91); the studio's preview-offer
-  buttons show the sale price without the crossed-out full price.
-- Soro's blog script isn't named in the
-  privacy policy (F4). Terms say "Keeper Headshots", emails say "Keeper
-  Headshots LLC" (F11). Search only indexes titles and descriptions (F8).
+- Soro's blog script isn't named in the privacy policy (F4; owner chose to
+  leave it, 6 Nov). Search only indexes titles and descriptions (F8).
 - A refund worked out with the per-shoot price rounded up can leave one shoot
   on the account (C3-1).
 - Linking Google from a second browser removes the password of a confirmed
