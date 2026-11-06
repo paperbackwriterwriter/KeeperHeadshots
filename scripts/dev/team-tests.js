@@ -492,9 +492,12 @@ let final;
   const jo = await account(variant, { verify: false });
   const page = (await jo(`/api/join/${tokenOf(sent.link)}`)).j;
   ok("the invitation page knows it's the same inbox", page.sameInbox === true && page.email === invited.toLowerCase(), JSON.stringify(page));
+  ok("the invitation page says to confirm the address before starting", page.confirmNeeded === "code", JSON.stringify(page.confirmNeeded));
   const early = await jo(`/api/join/${tokenOf(sent.link)}`, { method: "POST" });
   ok("another spelling can't accept before confirming its address", early.status === 403 && /first confirm that address/.test(early.j?.error || ""), `${early.status} ${early.j?.error}`);
   await jo("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(variant) }) });
+  const ready = (await jo(`/api/join/${tokenOf(sent.link)}`)).j;
+  ok("once confirmed, the invitation page offers to start", ready.sameInbox === true && !("confirmNeeded" in ready), JSON.stringify(ready));
   const r = await jo(`/api/join/${tokenOf(sent.link)}`, { method: "POST" });
   ok("once confirmed, another spelling of the inbox accepts it", r.status === 200 && !!r.j.shootId, `${r.status} ${JSON.stringify(r.j)}`);
   const other = await account(`josmith${t}@x.com`);
@@ -554,6 +557,18 @@ let final;
   await fill(Array.from({ length: 300 }, (_, i) => ended[i % 3]));
   const looped = await teamsLib.invite(await fresh(), `loop${t}@x.com`).then(() => "accepted", (e) => `${e.code}: ${e.message}`);
   ok("300 invitations in all (even if ended) stop further invites", looped.startsWith("invite_max: This team has sent a lot of invitations."), looped);
+  // Two invitations at once with one place left: the cap is checked inside the
+  // save, so only one gets in (and the other's shoot is given back).
+  await fill(Array.from({ length: 99 }, () => "invited"));
+  await storage.updateJSON(`users/id/${uid}.json`, (u) => ({ ...u, credits: 5 }));
+  const both = await Promise.all([`race-a${t}@x.com`, `race-b${t}@x.com`].map(async (e) => teamsLib.invite(await fresh(), e).then(() => "ok", (err) => err.code)));
+  const live = Object.values((await storage.getJSON(`teams/${team.id}.json`)).invites).filter((i) => i.status === "invited").length;
+  ok("two invitations at once can't pass the 100 cap", both.filter((x) => x === "ok").length === 1 && both.includes("invite_max") && live === 100 && (await fresh()).credits === 4, JSON.stringify({ both, live, credits: (await fresh()).credits }));
+  // An account from before confirmation existed (no emailVerified flag) counts
+  // as confirmed elsewhere, but can't take another spelling's invitation: the
+  // admin sends it to its own address.
+  const legacy = { id: "usr_legacy", email: `jo.legacy${t}@gmail.com`, createdAt: "2026-01-01T00:00:00.000Z" };
+  ok("an old account without a confirmation flag can't accept another spelling's invitation", teamsLib.inviteFor(legacy, `jolegacy${t}@gmail.com`) === false && teamsLib.inviteFor(legacy, legacy.email) === true && teamsLib.variantBlock(legacy) === "exact" && teamsLib.variantBlock({ ...legacy, emailVerified: false }) === "code" && teamsLib.inviteFor({ ...legacy, emailVerified: true }, `jolegacy${t}@gmail.com`) === true);
   fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true });
 }
 
@@ -604,6 +619,9 @@ let final;
   ok("changing the name warns too, and says which name they keep", admin.includes("They keep the team name ${joined === 1 ? \"their shoot was\" : \"their shoots were\"} set up with. Only people who join from now on get the new name.") && admin.includes("They keep the look and team name they started with. Only people who join from now on get the new look and name.") && /nameChanged\(\) \? "team name"/.test(admin) && /\$\("#teamName"\)\.addEventListener\("input", \(\) => \{[^}]*keptNote\(\)/.test(admin));
   ok("the heading doesn't say everyone gets a look people who joined earlier don't", admin.includes('${t.looksVary ? "New joiners get" : "Everyone gets"}'));
   ok("the join page accepts the same inbox written differently", read("public/js/views/join.js").includes("me.email.toLowerCase() === inv.email || inv.sameInbox"));
+  const join = read("public/js/views/join.js");
+  ok("the join page says to confirm (or ask for a new invitation) before offering to start", join.indexOf('inv.confirmNeeded === "code"') > 0 && join.indexOf('inv.confirmNeeded === "exact"') > 0 && join.indexOf('inv.confirmNeeded === "code"') < join.indexOf('id="accept"') && join.includes('href="/app/account"'));
+  ok("a withdrawn invitation whose address was invited again isn't shown", /const reinvited = /.test(admin) && admin.includes("const shownMembers = (t) => t.members.filter((m) => !reinvited(t, m));") && admin.includes("${shownMembers(t).map((m) =>") && admin.includes("People <span class=\"mono muted\">${shownMembers(t).length}</span>") && /m\.status === "withdrawn" && !reinvited\(t, m\)/.test(admin));
   ok("the team page describes what a refund changed", admin.includes("Your refund changed your team.") && admin.includes("Withdrawn · refund") && admin.includes("Unpaid since your refund"));
   const copy = ["public/js/views/team.js", "public/js/shared/faq.js", "public/js/views/account.js", "public/js/views/teamadmin.js", "lib/prerendered.js"].map(read).join("\n");
   ok("no page promises the admin everyone's finished headshots", !/everyone's finished headshots|Download everyone's headshots|download everyone's headshots|you'll see their finished headshots/.test(copy));

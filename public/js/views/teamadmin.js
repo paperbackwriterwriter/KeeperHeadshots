@@ -30,8 +30,11 @@ const shootLabel = (m) => {
 // package settles them (lib/billing.js reconcileRefund).
 const RECENT_MS = 30 * 24 * 60 * 60 * 1000;
 const who = (list) => list.map((m) => m.name || m.email).join(", ");
+// A withdrawn invitation whose address was invited again (or joined) is old news.
+const reinvited = (t, m) => m.status === "withdrawn" && t.members.some((o) => o !== m && ["invited", "joined"].includes(o.status) && (o.email || "").toLowerCase() === (m.email || "").toLowerCase());
+const shownMembers = (t) => t.members.filter((m) => !reinvited(t, m));
 function refundNote(t) {
-  const withdrawn = t.members.filter((m) => m.status === "withdrawn" && Date.now() - Date.parse(m.endedAt || 0) < RECENT_MS);
+  const withdrawn = t.members.filter((m) => m.status === "withdrawn" && !reinvited(t, m) && Date.now() - Date.parse(m.endedAt || 0) < RECENT_MS);
   const unpaid = t.members.filter((m) => m.unpaid);
   if (!withdrawn.length && !unpaid.length) return "";
   const one = (list) => list.length === 1;
@@ -200,9 +203,9 @@ export async function renderTeamAdmin({ root, navigate }) {
       </section>
 
       <section aria-labelledby="membersTitle" style="margin-top:32px">
-        <h2 class="h-3" id="membersTitle">People <span class="mono muted">${t.members.length}</span></h2>
-        ${t.members.length
-          ? html`<ul class="team-members">${t.members.map((m) => {
+        <h2 class="h-3" id="membersTitle">People <span class="mono muted">${shownMembers(t).length}</span></h2>
+        ${shownMembers(t).length
+          ? html`<ul class="team-members">${shownMembers(t).map((m) => {
               const [label, cls] = shootLabel(m);
               return html`<li class="team-member">
                 <div class="tm-who">${m.pick ? html`<img src="${media(m.pick)}" alt="" loading="lazy" />` : html`<span class="avatar" aria-hidden="true">${(m.name || m.email)[0].toUpperCase()}</span>`}

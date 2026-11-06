@@ -68,6 +68,17 @@ export async function renderJoin({ root, navigate }) {
     });
     return;
   }
+  // The same inbox written differently, but this account can't accept it yet
+  // (server.js GET /api/join confirmNeeded), so say so before offering to start.
+  if (inv.confirmNeeded === "code") {
+    shell(html`${intro}<div class="banner banner-warn">${icon("info")}<div><b>First confirm your email address.</b>This invitation was sent to ${inv.email}. To accept it as ${me.email}, enter the 6-digit code from our email on your Account page, then open this link again.</div></div>
+      <div class="btn-row"><a class="btn btn-flash btn-lg" href="/app/account" data-link>Go to my Account page ${icon("arrow-right")}</a></div>`);
+    return;
+  }
+  if (inv.confirmNeeded === "exact") {
+    shell(html`${intro}<div class="banner banner-warn">${icon("info")}<div><b>Ask for an invitation to this address.</b>This invitation was sent to ${inv.email}. To accept it as ${me.email}, ask ${inv.team.ownerName} to send it to ${me.email} instead, then open the new link.</div></div>`);
+    return;
+  }
   shell(html`${intro}<div class="btn-row"><button class="btn btn-flash btn-lg" id="accept">Start my headshot ${icon("arrow-right")}</button></div>`);
   root.querySelector("#accept").addEventListener("click", async (e) => {
     const restore = busy(e.currentTarget, "Setting up…");

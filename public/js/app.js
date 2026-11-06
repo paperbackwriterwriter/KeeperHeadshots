@@ -465,7 +465,7 @@ document.addEventListener("submit", async (e) => {
   try {
     const res = await api("/api/auth/verify/code", { method: "POST", body: { code } });
     state.user = res.user;
-    if (res.status === "verified") pixel("CompleteRegistration", {}, res.eventId);
+    if (res.status === "verified" && res.eventId) pixel("CompleteRegistration", {}, res.eventId); // (none for owner and demo accounts)
     toast(res.user?.plan?.freeShootAvailable ? "Email confirmed. Your free shoot is ready." : "Email confirmed. Thank you.", "success", 6000);
     // Swaps just the banners, so a page in progress (photos being picked on
     // /app/new) keeps its state.
@@ -589,7 +589,7 @@ loadSession()
       // (server.js: Google linked for the first time on another browser.)
       else if (googleReturn === "google-secured") toast(`Welcome back, ${first}. To keep your account safe, we signed you out everywhere else and removed the old password. You can set a new one from your account page.`, "success", 9000);
       else {
-        if (googleReturn === "google-new" && Date.now() - Date.parse(state.user.createdAt) < 10 * 60 * 1000) pixel("CompleteRegistration", {}, `reg_${state.user.id}`);
+        if (googleReturn === "google-new" && Date.now() - Date.parse(state.user.createdAt) < 10 * 60 * 1000 && state.user.plan?.tier !== "owner" && !state.user.demo) pixel("CompleteRegistration", {}, `reg_${state.user.id}`);
         // (The same welcome as an email sign-up: customers pay up front.)
         const fresh = state.user.plan?.tier === "none" && !state.user.plan.started;
         // (Signed up from a team invitation, whose shoot is paid for, or from a

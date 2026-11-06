@@ -28,7 +28,7 @@ import { lookFor, MAX_LOOKS, MAX_SELFIES, MAX_RESUMES, MIN_CHECK_SCORE, RECOMMEN
 import { seed, DEMO } from "./scripts/seed.js";
 import { customersSection } from "./public/js/shared/customers.js";
 import { planFor, ownerEmail, creditSource, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, CHOOSE_PACKAGE, EMAIL_UNCONFIRMED } from "./lib/plan.js";
-import { browserDetails, gpc, metaPixelId, track as trackMeta } from "./lib/meta.js";
+import { browserDetails, gpc, metaPixelId, track as trackMetaEvent } from "./lib/meta.js";
 import { runCleanup } from "./lib/cleanup.js";
 import { runBackup } from "./lib/backup.js";
 import { BUILD, BUILD_FILES } from "./lib/build.js";
@@ -505,9 +505,15 @@ function confirmEmail(u) {
   u.emailVerifiedAt = new Date().toISOString();
   delete u.emailVerifiedVia;
 }
+// Owner and demo accounts send nothing to Meta, as they're left out of the
+// funnel (lib/stats.js countedAccount; owner's decision, 6 Nov).
+function trackMeta(name, opts) {
+  if (opts?.user && !countedAccount(opts.user)) return;
+  trackMetaEvent(name, opts);
+}
 function afterVerified(updated, req) {
-  const eventId = `reg_${updated.id}`;
-  trackMeta("CompleteRegistration", { eventId, user: updated, req });
+  const eventId = countedAccount(updated) ? `reg_${updated.id}` : undefined;
+  if (eventId) trackMeta("CompleteRegistration", { eventId, user: updated, req });
   background(recordStep("verified", updated).catch(noteStats));
   return eventId;
 }
@@ -1558,6 +1564,10 @@ app.get("/api/join/:token", async (req, res) => {
     status: inv.status,
     mine: !!me && inv.status === "joined" && inv.userId === me.id ? inv.shootId : null,
     sameInbox: !!me && teams.sameInbox(me.email, inv.email),
+    // (Another spelling of the inbox: "code" when the account must confirm its
+    // address first, "exact" when it can't (an account from before
+    // confirmation), so the page says so before offering to start.)
+    ...(me && inv.status === "invited" && teams.sameInbox(me.email, inv.email) && !teams.inviteFor(me, inv.email) ? { confirmNeeded: teams.variantBlock(me) } : {}),
   });
 });
 
