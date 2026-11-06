@@ -27,8 +27,13 @@ const BASE = process.env.BASE || "http://localhost:3100";
 const MOCK = process.env.MOCK || "http://localhost:4010";
 const OWNER = process.env.AUDIT_OWNER || "audit-owner@example.com";
 const OUT = process.argv[2] || "layout-audit";
-const WIDTHS = (process.env.WIDTHS || "320,375,390,412,768,1024,1280,1440").split(",").map(Number);
-const SHOT_WIDTHS = [390, 1280];
+// (626: a foldable such as the iPhone Duo, opened and held upright.)
+const WIDTHS = (process.env.WIDTHS || "320,375,390,412,626,768,1024,1280,1440").split(",").map(Number);
+const SHOT_WIDTHS = (process.env.SHOT_WIDTHS || "390,1280").split(",").map(Number);
+// HEIGHTS (optional): a height per width, e.g. WIDTHS=402,626,890 HEIGHTS=874,890,626
+// for a foldable's cover screen and its inner screen upright and sideways.
+const HEIGHTS = process.env.HEIGHTS ? process.env.HEIGHTS.split(",").map(Number) : null;
+const heightFor = (w) => HEIGHTS?.[WIDTHS.indexOf(w)] || (w < 700 ? 844 : 900);
 const ONLY = process.env.ONLY ? new RegExp(process.env.ONLY) : null;
 const BROWSER = process.env.BROWSER === "webkit" ? "webkit" : "chromium";
 fs.mkdirSync(path.join(OUT, "shots"), { recursive: true });
@@ -413,7 +418,7 @@ for (const s of STATES) {
   const url = typeof s.url === "function" ? null : s.url;
   for (const w of s.widths || WIDTHS) {
     if (s.phoneOnly && w > 640) continue;
-    const ctx = await browser.newContext({ viewport: { width: w, height: w < 700 ? 844 : 900 }, reducedMotion: s.motion ? "no-preference" : "reduce" });
+    const ctx = await browser.newContext({ viewport: { width: w, height: heightFor(w) }, reducedMotion: s.motion ? "no-preference" : "reduce" });
     // Motion checks run the page's animation clock faster.
     if (s.motion) await ctx.addInitScript((k) => { const raf = window.requestAnimationFrame.bind(window); const t0 = performance.now(); window.requestAnimationFrame = (cb) => raf((t) => cb(t0 + (t - t0) * k)); }, SPEEDUP);
     if (s.who) await ctx.addCookies([{ name: s.who.jar.v.split("=")[0], value: s.who.jar.v.split("=").slice(1).join("="), url: BASE }]);
