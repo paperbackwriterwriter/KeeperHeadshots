@@ -121,7 +121,7 @@ export async function confirmPurchase(sessionId) {
       if (res.eventId) pixel("Purchase", { value: res.value, currency: "USD" }, res.eventId);
       const pkg = PACKAGES.find((p) => p.id === res.packageId);
       const what = pkg ? packageAddedNote(pkg, res.granted ? res.added : undefined) : res.packageId === "keep-plus" ? "every headshot is yours to keep. Now pick your 2 extra looks." : "your pick is yours to keep, in full resolution.";
-      toast(`${res.eventId ? "Payment received" : "Order complete"}: ${what}`, "success", 7000);
+      toast(`${res.charged || res.eventId ? "Payment received" : "Order complete"}: ${what}`, "success", 7000);
     } else toast("Your payment is still processing. Your order will appear as soon as it clears.", "info", 7000);
     return res;
   } catch (err) {

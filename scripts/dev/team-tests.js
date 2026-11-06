@@ -486,7 +486,7 @@ let final;
   const before = await credits(adm);
   const again = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: `josmith${t}+team@gmail.com` }) })).j.results[0];
   ok("another spelling of an invited inbox isn't invited (or charged) again", again.ok === false && again.error.includes(`(as ${invited.toLowerCase()})`) && (await credits(adm)) === before, JSON.stringify(again));
-  const self = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: `Inbox-Admin${t}+me@x.com` }) })).j.results[0];
+  const self = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: `INBOX-ADMIN${t}@x.com` }) })).j.results[0];
   ok("another spelling of the admin's own address is refused as their own", self.ok === false && /your own address/.test(self.error), JSON.stringify(self));
   const variant = `josmith${t}@gmail.com`;
   const jo = await account(variant, { verify: false });
@@ -501,6 +501,12 @@ let final;
   const sent2 = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: `jo.smith${t}@x.com` }) })).j.results[0];
   const no = await other(`/api/join/${tokenOf(sent2.link)}`, { method: "POST" });
   ok("outside Gmail, dots still make a different address", no.status === 403 && (await other(`/api/join/${tokenOf(sent2.link)}`)).j.sameInbox === false, `${no.status} ${no.j?.error}`);
+  // Outside Gmail a +tag can be someone else's inbox (or a catch-all): a
+  // confirmed bob+x@ can't take an invitation sent to bob@.
+  const sent3 = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: `bob${t}@corp.example` }) })).j.results[0];
+  const tagged = await account(`bob${t}+mallory@corp.example`);
+  const taken = await tagged(`/api/join/${tokenOf(sent3.link)}`, { method: "POST" });
+  ok("outside Gmail, a +tag address can't accept another address's invitation", taken.status === 403 && taken.j?.code === "invite_other_email" && (await tagged(`/api/join/${tokenOf(sent3.link)}`)).j.sameInbox === false, `${taken.status} ${taken.j?.code}`);
 }
 
 // 9j. The team page says when people who joined earlier have other looks
@@ -544,6 +550,10 @@ let final;
   await fill([...Array.from({ length: 60 }, () => "invited"), ...Array.from({ length: 40 }, () => "joined"), ...ended]);
   const full = await teamsLib.invite(await fresh(), `one-more${t}@x.com`).then(() => "accepted", (e) => `${e.code}: ${e.message}`);
   ok("100 live invitations (invited or joined) reach the cap", full.startsWith("invite_max: A team can have up to 100 people invited or joined at once."), full);
+  // Inviting and cancelling over and over stops at 300 stored invitations.
+  await fill(Array.from({ length: 300 }, (_, i) => ended[i % 3]));
+  const looped = await teamsLib.invite(await fresh(), `loop${t}@x.com`).then(() => "accepted", (e) => `${e.code}: ${e.message}`);
+  ok("300 invitations in all (even if ended) stop further invites", looped.startsWith("invite_max: This team has sent a lot of invitations."), looped);
   fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true });
 }
 
@@ -591,7 +601,7 @@ let final;
   const read = (p) => fs.readFileSync(new URL(`../../${p}`, import.meta.url), "utf8");
   const admin = read("public/js/views/teamadmin.js");
   ok("changing the look warns when people already joined", /id="lookWarn"/.test(admin) && admin.includes("They keep the look they started with. Only people who join from now on get the new look.") && admin.includes("Team saved. People who already joined keep the ${kept()} they started with.") && admin.includes('"look"'));
-  ok("changing the name warns too, and says which name they keep", admin.includes("They keep the team name ${joined === 1 ? \"their shoot was\" : \"their shoots were\"} set up with (${team.name}). Only people who join from now on get the new name.") && admin.includes("They keep the look and team name they started with. Only people who join from now on get the new look and name.") && /nameChanged\(\) \? "team name"/.test(admin) && /\$\("#teamName"\)\.addEventListener\("input", \(\) => \{[^}]*keptNote\(\)/.test(admin));
+  ok("changing the name warns too, and says which name they keep", admin.includes("They keep the team name ${joined === 1 ? \"their shoot was\" : \"their shoots were\"} set up with. Only people who join from now on get the new name.") && admin.includes("They keep the look and team name they started with. Only people who join from now on get the new look and name.") && /nameChanged\(\) \? "team name"/.test(admin) && /\$\("#teamName"\)\.addEventListener\("input", \(\) => \{[^}]*keptNote\(\)/.test(admin));
   ok("the heading doesn't say everyone gets a look people who joined earlier don't", admin.includes('${t.looksVary ? "New joiners get" : "Everyone gets"}'));
   ok("the join page accepts the same inbox written differently", read("public/js/views/join.js").includes("me.email.toLowerCase() === inv.email || inv.sameInbox"));
   ok("the team page describes what a refund changed", admin.includes("Your refund changed your team.") && admin.includes("Withdrawn · refund") && admin.includes("Unpaid since your refund"));

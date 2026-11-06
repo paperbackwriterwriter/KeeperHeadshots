@@ -1401,7 +1401,11 @@ app.delete("/api/shoots/:id", requireUser, async (req, res) => {
   if (meta.sample) return res.status(400).json({ error: "Sample shoots are read-only." });
   await shoots.remove(meta);
   // A team shoot's free reshoot takes over the team seat (teams.moveSeat).
-  const reseated = !!meta.team && !!meta.reshootId && (await teams.moveSeat(meta, meta.reshootId).catch((err) => (console.error("[team] move seat", meta.id, err.message), false)));
+  // (Not when the package that paid for the seat was refunded in full and the
+  // reshoot hasn't developed: it has no free develop left, as before the move.)
+  const reshootMeta = meta.team && meta.reshootId ? await shoots.getMeta(meta.reshootId).catch(() => null) : null;
+  const mayMove = !!reshootMeta && ((reshootMeta.shots || []).length > 0 || !(await reshootRefunded(meta, req.user)));
+  const reseated = mayMove && (await teams.moveSeat(meta, meta.reshootId).catch((err) => (console.error("[team] move seat", meta.id, err.message), false)));
   // Otherwise its free reshoot, if not yet developed, becomes an ordinary shoot.
   if (!reseated && meta.reshootId && !meta.reshootUsed) await shoots.updateMeta(meta.reshootId, (m) => (m.reshootOf === meta.id && !(m.shots || []).length ? void (delete m.reshootOf, delete m.reshootLooks) : false)).catch(() => {});
   // Headshots kept from it and unused extra looks for it go with it.

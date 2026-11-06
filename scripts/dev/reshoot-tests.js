@@ -316,6 +316,20 @@ const adminCredits = async (adm) => (await adm("/api/me")).j.user.plan.credits;
   ok("deleting both doesn't give the admin a shoot back", (await adminCredits(adm)) === before, `${before} → ${await adminCredits(adm)}`);
 }
 
+{
+  // After a full refund of the admin's package, deleting the original doesn't
+  // turn the undeveloped reshoot into a free develop (it becomes an ordinary
+  // shoot, as a customer's own does).
+  const { adm, mem, sid, psid, s } = await teamSeat("seat-refunded", { refundable: true });
+  holdBack(s, 2);
+  const rid = (await mem(`/api/shoots/${sid}/reshoot`, { method: "POST", body: "{}" })).j?.shoot?.id;
+  await fetch(`${M}/mock-refund/${psid}`);
+  await adm("/api/billing/sync", { method: "POST", body: "{}" });
+  await mem(`/api/shoots/${sid}`, { method: "DELETE" });
+  const r = (await mem(`/api/shoots/${rid}`)).j?.shoot;
+  ok("after a full refund, deleting the original doesn't hand the seat to the undeveloped reshoot", !!rid && !!r && !r.team && !r.reshootOf, JSON.stringify(r?.team || null));
+}
+
 // 11. A headshot shared from a free reshoot comes down when the package that
 // paid for the original shoot is refunded in full (the privacy policy's
 // promise), for a customer's own shoot and for a team seat.

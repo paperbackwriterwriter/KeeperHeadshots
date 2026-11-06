@@ -151,7 +151,7 @@ const t = Date.now();
   const oconf = (await owner("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: ownerSid }) })).j;
   await new Promise((r) => setTimeout(r, 300));
   const metaIds = (await fetch(`${M}/mock-meta`).then((r) => r.json())).map((x) => x.event_id);
-  ok("an owner's purchase sends nothing to Meta (no checkout or purchase event, no Pixel event id)", !oc.eventId && oconf.granted && !oconf.eventId && !metaIds.includes(`purchase_${ownerSid}`) && !metaIds.includes(`checkout_${ownerSid}`), JSON.stringify({ co: oc.eventId, conf: oconf.eventId }));
+  ok("an owner's purchase sends nothing to Meta (no checkout or purchase event, no Pixel event id)", !oc.eventId && oconf.granted && !oconf.eventId && oconf.charged === true && !metaIds.includes(`purchase_${ownerSid}`) && !metaIds.includes(`checkout_${ownerSid}`), JSON.stringify({ co: oc.eventId, conf: oconf.eventId }));
   const stranger = await f("/api/owner/funnel");
   ok("only owners can see the funnel", stranger.status === 404, String(stranger.status));
 }

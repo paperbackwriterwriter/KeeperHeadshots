@@ -81,7 +81,8 @@ export async function renderTeamAdmin({ root, navigate }) {
     // made with (lib/teams.js accept copies them; the name is also in the
     // shoot's title): a change only reaches new joiners.
     const joined = (team?.members || []).filter((m) => m.status === "joined").length;
-    const lookKey = (list) => JSON.stringify((list || []).map((l) => [l.backdrop, l.outfit]));
+    // (In any order, as the server compares them: lib/teams.js lookSet.)
+    const lookKey = (list) => JSON.stringify((list || []).map((l) => `${l.backdrop}/${l.outfit}`).sort());
     const looksChanged = () => !!team && lookKey(looks) !== lookKey(team.looks);
     // (Spaces as the server saves them: lib/teams.js saveTeam.)
     const nameChanged = () => !!team && $("#teamName").value.replace(/\s+/g, " ").trim() !== team.name;
@@ -94,7 +95,7 @@ export async function renderTeamAdmin({ root, navigate }) {
           ? "They keep the look and team name they started with. Only people who join from now on get the new look and name."
           : k === "look"
             ? "They keep the look they started with. Only people who join from now on get the new look."
-            : `They keep the team name ${joined === 1 ? "their shoot was" : "their shoots were"} set up with (${team.name}). Only people who join from now on get the new name.`
+            : `They keep the team name ${joined === 1 ? "their shoot was" : "their shoots were"} set up with. Only people who join from now on get the new name.`
       }`.v;
     };
     root.innerHTML = html`<main id="main" class="container app-main view-enter team-admin">

@@ -960,7 +960,7 @@ if (process.env.DATA_DIR) {
   const homeHtml = await (await raw("/")).text();
   ok("the footer has no 'Your shoots' link for signed-out visitors", !/href="\/app"[^>]*>Your shoots</.test(homeHtml) && /Create account/.test(homeHtml));
   const studioSrc = fs.readFileSync(new URL("../../public/js/views/studio.js", import.meta.url), "utf8");
-  ok("preview offer buttons show the crossed-out full price", (studioSrc.match(/\$\{wasPrice\(KEEP_ONE\)\} \$\{usd\(KEEP_ONE\.price\)\}/g) || []).length === 2 && /\$\{wasPrice\(KEEP_ALL\)\} \$\{usd\(KEEP_ALL\.price\)\}/.test(studioSrc));
+  ok("preview offer buttons show the crossed-out full price, kept with the sale price", (studioSrc.match(/<span class="nowrap">\$\{wasPrice\(KEEP_ONE\)\} \$\{usd\(KEEP_ONE\.price\)\}<\/span>/g) || []).length === 2 && /<span class="nowrap">\$\{wasPrice\(KEEP_ALL\)\} \$\{usd\(KEEP_ALL\.price\)\}<\/span>/.test(studioSrc));
   const legalSrc = fs.readFileSync(new URL("../../public/js/views/legal.js", import.meta.url), "utf8");
   ok("Terms and privacy policy name Keeper Headshots LLC", (legalSrc.match(/Keeper Headshots LLC \("Keeper Headshots", "we", "us"\)|run by Keeper Headshots LLC \("Keeper Headshots", "we", "us"\)/g) || []).length === 2);
   ok("preview offers are half price in the sale ($4.50 / $7.50), full price kept", PREVIEW_OFFERS.map((o) => `${o.price}/${o.listPrice}`).join(" ") === "4.5/8.99 7.5/14.99");

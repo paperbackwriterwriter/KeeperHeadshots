@@ -83,6 +83,13 @@ confirmed its address, and the 100 cap counts only invited and joined (D-08).
 Waiting on the owner:
 - The square widening can attach after a shoot shows "done" and its ready
   email has gone (B-N13).
+- Teams (6 Nov, low): going back to the look people joined with still shows
+  the "they keep the look" warning; a re-invited address still shows its
+  withdrawn row and banner; the join page shows "Start" to an unconfirmed
+  other spelling and only then says to confirm. Questions: owner sign-ups
+  still send CompleteRegistration to Meta; old accounts with no confirmation
+  flag count as confirmed for inbox matching; two tabs inviting at 99 can
+  reach 101.
 - Soro's blog script isn't named in the privacy policy (F4; owner chose to
   leave it, 6 Nov). Search only indexes titles and descriptions (F8).
 - A refund worked out with the per-shoot price rounded up can leave one shoot
