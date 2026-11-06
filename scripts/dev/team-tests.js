@@ -474,6 +474,79 @@ let final;
   ok("an invitation-confirmed account reset from another device keeps its team shoot, and the admin gains no credit", !!seat && reset.status === 200 && left.length === 1 && (await credits(adm)) === before, `${reset.status} shoots=${left.length} credits ${before}->${await credits(adm)}`);
 }
 
+// 9i. An invitation is for an inbox, however its address is written (D-08):
+// another spelling of it (case, Gmail dots, +tag) can accept once that
+// account has confirmed its own address, and can't be invited a second time.
+{
+  const adm = await account(`inbox-admin${t}@x.com`);
+  await buy(adm, "starter");
+  await adm("/api/team", { method: "POST", body: JSON.stringify({ name: "Inboxes", looks: LOOKS }) });
+  const invited = `Jo.Smith.${t}@gmail.com`;
+  const sent = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: invited }) })).j.results[0];
+  const before = await credits(adm);
+  const again = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: `josmith${t}+team@gmail.com` }) })).j.results[0];
+  ok("another spelling of an invited inbox isn't invited (or charged) again", again.ok === false && again.error.includes(`(as ${invited.toLowerCase()})`) && (await credits(adm)) === before, JSON.stringify(again));
+  const self = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: `Inbox-Admin${t}+me@x.com` }) })).j.results[0];
+  ok("another spelling of the admin's own address is refused as their own", self.ok === false && /your own address/.test(self.error), JSON.stringify(self));
+  const variant = `josmith${t}@gmail.com`;
+  const jo = await account(variant, { verify: false });
+  const page = (await jo(`/api/join/${tokenOf(sent.link)}`)).j;
+  ok("the invitation page knows it's the same inbox", page.sameInbox === true && page.email === invited.toLowerCase(), JSON.stringify(page));
+  const early = await jo(`/api/join/${tokenOf(sent.link)}`, { method: "POST" });
+  ok("another spelling can't accept before confirming its address", early.status === 403 && /first confirm that address/.test(early.j?.error || ""), `${early.status} ${early.j?.error}`);
+  await jo("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(variant) }) });
+  const r = await jo(`/api/join/${tokenOf(sent.link)}`, { method: "POST" });
+  ok("once confirmed, another spelling of the inbox accepts it", r.status === 200 && !!r.j.shootId, `${r.status} ${JSON.stringify(r.j)}`);
+  const other = await account(`josmith${t}@x.com`);
+  const sent2 = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: `jo.smith${t}@x.com` }) })).j.results[0];
+  const no = await other(`/api/join/${tokenOf(sent2.link)}`, { method: "POST" });
+  ok("outside Gmail, dots still make a different address", no.status === 403 && (await other(`/api/join/${tokenOf(sent2.link)}`)).j.sameInbox === false, `${no.status} ${no.j?.error}`);
+}
+
+// 9j. The team page says when people who joined earlier have other looks
+// (they keep theirs: D-02), so it doesn't claim everyone gets the new one.
+{
+  const adm = await account(`vary-admin${t}@x.com`);
+  await buy(adm, "starter");
+  await adm("/api/team", { method: "POST", body: JSON.stringify({ name: "Varied", looks: LOOKS }) });
+  const who = `vary${t}@x.com`;
+  const sent = (await adm("/api/team/invites", { method: "POST", body: JSON.stringify({ emails: who }) })).j.results[0];
+  await (await account(who))(`/api/join/${tokenOf(sent.link)}`, { method: "POST" });
+  const same = (await adm("/api/team")).j.team;
+  const renamed = (await adm("/api/team", { method: "POST", body: JSON.stringify({ name: "Varied Corp", looks: LOOKS }) })).j.team;
+  const changed = (await adm("/api/team", { method: "POST", body: JSON.stringify({ name: "Varied Corp", looks: [{ backdrop: "library", outfit: "camel-knit" }] }) })).j.team;
+  ok("the team page flags looks that vary only after a look change", !same.looksVary && !renamed.looksVary && changed.looksVary === true, JSON.stringify([same.looksVary, renamed.looksVary, changed.looksVary]));
+}
+
+// 9k. The 100-invitation cap counts only live invitations (invited or
+// joined): cancelled, withdrawn, expired and returned ones gave their shoot
+// back. Run in-process on a throwaway store (100 invites through the API
+// would take hours of the hourly limit).
+{
+  const os = await import("node:os"), fs = await import("node:fs"), path = await import("node:path");
+  process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "kh-cap-"));
+  const storage = await import("../../lib/storage.js");
+  const teamsLib = await import("../../lib/teams.js");
+  const uid = "usr_capadmin";
+  const owner = { id: uid, name: "Cap Admin", email: `cap-live${t}@x.com`, credits: 5, createdAt: new Date().toISOString(), emailVerified: true };
+  await storage.putJSON(`users/id/${uid}.json`, owner);
+  const team = await teamsLib.saveTeam(owner, { name: "Cappers Live", looks: LOOKS });
+  const fill = (statuses) => storage.updateJSON(`teams/${team.id}.json`, (tm) => {
+    const invites = {};
+    statuses.forEach((status, i) => (invites[`inv_${status}${i}`] = { id: `inv_${status}${i}`, email: `${status}${i}@x.com`, token: `tok_${status}_${i}_xxxxxxxxxxxxxxxxxxxx`, status, invitedAt: new Date().toISOString(), charged: false }));
+    return { ...tm, invites };
+  });
+  const ended = ["cancelled", "expired", "returned"];
+  const fresh = () => storage.getJSON(`users/id/${uid}.json`);
+  await fill(Array.from({ length: 120 }, (_, i) => ended[i % 3]));
+  const afterEnded = await teamsLib.invite(await fresh(), `new-live${t}@x.com`).then(() => true, (e) => e.message);
+  ok("cancelled, expired and returned invitations don't count toward the 100 cap", afterEnded === true, String(afterEnded));
+  await fill([...Array.from({ length: 60 }, () => "invited"), ...Array.from({ length: 40 }, () => "joined"), ...ended]);
+  const full = await teamsLib.invite(await fresh(), `one-more${t}@x.com`).then(() => "accepted", (e) => `${e.code}: ${e.message}`);
+  ok("100 live invitations (invited or joined) reach the cap", full.startsWith("invite_max: A team can have up to 100 people invited or joined at once."), full);
+  fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true });
+}
+
 // 10. A team seat is paid for by the admin: the member's free photo checks
 // don't gate it and aren't spent on it.
 {
@@ -517,7 +590,10 @@ let final;
   const fs = await import("node:fs");
   const read = (p) => fs.readFileSync(new URL(`../../${p}`, import.meta.url), "utf8");
   const admin = read("public/js/views/teamadmin.js");
-  ok("changing the look warns when people already joined", /id="lookWarn"/.test(admin) && admin.includes("They keep the look they started with. Only people who join from now on get the new look.") && admin.includes("Team saved. People who already joined keep the look they started with."));
+  ok("changing the look warns when people already joined", /id="lookWarn"/.test(admin) && admin.includes("They keep the look they started with. Only people who join from now on get the new look.") && admin.includes("Team saved. People who already joined keep the ${kept()} they started with.") && admin.includes('"look"'));
+  ok("changing the name warns too, and says which name they keep", admin.includes("They keep the team name ${joined === 1 ? \"their shoot was\" : \"their shoots were\"} set up with (${team.name}). Only people who join from now on get the new name.") && admin.includes("They keep the look and team name they started with. Only people who join from now on get the new look and name.") && /nameChanged\(\) \? "team name"/.test(admin) && /\$\("#teamName"\)\.addEventListener\("input", \(\) => \{[^}]*keptNote\(\)/.test(admin));
+  ok("the heading doesn't say everyone gets a look people who joined earlier don't", admin.includes('${t.looksVary ? "New joiners get" : "Everyone gets"}'));
+  ok("the join page accepts the same inbox written differently", read("public/js/views/join.js").includes("me.email.toLowerCase() === inv.email || inv.sameInbox"));
   ok("the team page describes what a refund changed", admin.includes("Your refund changed your team.") && admin.includes("Withdrawn · refund") && admin.includes("Unpaid since your refund"));
   const copy = ["public/js/views/team.js", "public/js/shared/faq.js", "public/js/views/account.js", "public/js/views/teamadmin.js", "lib/prerendered.js"].map(read).join("\n");
   ok("no page promises the admin everyone's finished headshots", !/everyone's finished headshots|Download everyone's headshots|download everyone's headshots|you'll see their finished headshots/.test(copy));

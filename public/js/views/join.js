@@ -40,7 +40,8 @@ export async function renderJoin({ root, navigate }) {
 
   const here = "/join";
   const me = state.user;
-  const sameEmail = me && me.email.toLowerCase() === inv.email;
+  // (Or the same inbox written differently: lib/teams.js inviteFor.)
+  const sameEmail = me && (me.email.toLowerCase() === inv.email || inv.sameInbox);
   const intro = html`<p class="eyebrow">${icon("users")} Team invitation</p>
     <h1 class="display h-2">${inv.team.ownerName} invited you to get your ${inv.team.name} headshot.</h1>
     <p class="lede">Your shoot is already paid for and set to the team's looks, so everyone matches. Upload a few recent photos of just you, and your headshots are ready in minutes.</p>
