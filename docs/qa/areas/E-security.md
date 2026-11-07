@@ -146,7 +146,7 @@ All 107 items above were re-checked on 7 Nov (still 83 route lines; E5-01/02/03/
 | E-N8 | Meta: owner and demo accounts get no eventId and send no InitiateCheckout, Purchase or CompleteRegistration; `charged` only for the account's own paid session | /mock-meta | OK |
 | E-N9 | Reset emails: at most 30 an hour per network, counted before the bot check | script | OK |
 | E-N10 | Resend and the invitation-link GET expire an invitation past 90 days (owner only) | code + team-tests | OK |
-| E-N11 | /api/contact: order of the bot check and the 5-per-network limit | code | Question: the bot check runs first, so bad tokens each cost a Cloudflare call (not testable locally) |
+| E-N11 | /api/contact: order of the bot check and the 5-per-network limit | code + suite | Question 7 Nov (the bot check ran first); owner chose limit first, done 7 Nov |
 | E-N12 | /api/billing/embed-error: at most 20 logged an hour per account; all control and invisible characters stripped | script | Fixed 7 Nov (E5-04) |
 
 ## 2. Findings

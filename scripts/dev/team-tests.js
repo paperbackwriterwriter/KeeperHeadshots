@@ -577,6 +577,20 @@ let final;
   await storage.updateJSON(`teams/${team.id}.json`, (tm) => ({ ...tm, invites: Object.fromEntries(Object.entries(tm.invites).map(([k, i]) => [k, { ...i, status: "cancelled" }])) }));
   const exact = await teamsLib.invite(await fresh(), `jo.legacy${t}@gmail.com`).then((r) => r.invite.email, (e) => e.message);
   ok("after cancelling it, the old account's own address can be invited (and accepted)", exact === `jo.legacy${t}@gmail.com` && teamsLib.inviteFor({ id: "usr_legacy", email: `jo.legacy${t}@gmail.com` }, exact) === true, exact);
+  // A refund-withdrawn invitation is marked re-invited (and hidden) once the
+  // same inbox, however it's spelled, was invited again, whatever happened
+  // after; an earlier invitation doesn't count.
+  const now = Date.now();
+  const at = (m) => new Date(now + m * 60000).toISOString();
+  await storage.updateJSON(`teams/${team.id}.json`, (tm) => ({ ...tm, invites: {
+    inv_old: { id: "inv_old", email: `g.g${t}@gmail.com`, token: "tok_old_xxxxxxxxxxxxxxxxxxxxxxxx", status: "invited", invitedAt: at(-10), charged: false },
+    inv_w: { id: "inv_w", email: `gg${t}@gmail.com`, token: "tok_w_xxxxxxxxxxxxxxxxxxxxxxxxxx", status: "cancelled", withdrawnByRefund: true, invitedAt: at(0), endedAt: at(1), charged: true },
+    inv_w2: { id: "inv_w2", email: `solo${t}@x.com`, token: "tok_w2_xxxxxxxxxxxxxxxxxxxxxxxxx", status: "cancelled", withdrawnByRefund: true, invitedAt: at(0), endedAt: at(1), charged: true },
+    inv_new: { id: "inv_new", email: `G.G${t}+team@gmail.com`, token: "tok_new_xxxxxxxxxxxxxxxxxxxxxxxx", status: "expired", invitedAt: at(5), charged: false },
+  } }));
+  const st = await teamsLib.teamStatus(await fresh());
+  const row = (id) => st.members.find((m) => m.id === id);
+  ok("a withdrawn invitation re-invited under another spelling is marked, whatever became of the new one", row("inv_w")?.status === "withdrawn" && row("inv_w")?.reinvited === true && row("inv_w2")?.status === "withdrawn" && !row("inv_w2")?.reinvited, JSON.stringify([row("inv_w"), row("inv_w2")]));
   ok("an old account without a confirmation flag can't accept another spelling's invitation", teamsLib.inviteFor(legacy, `jolegacy${t}@gmail.com`) === false && teamsLib.inviteFor(legacy, legacy.email) === true && teamsLib.variantBlock(legacy) === "exact" && teamsLib.variantBlock({ ...legacy, emailVerified: false }) === "code" && teamsLib.inviteFor({ ...legacy, emailVerified: true }, `jolegacy${t}@gmail.com`) === true);
   fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true });
 }
@@ -630,7 +644,7 @@ let final;
   ok("the join page accepts the same inbox written differently", read("public/js/views/join.js").includes("me.email.toLowerCase() === inv.email || inv.sameInbox"));
   const join = read("public/js/views/join.js");
   ok("the join page says to confirm (or ask for a new invitation) before offering to start", join.indexOf('inv.confirmNeeded === "code"') > 0 && join.indexOf('inv.confirmNeeded === "exact"') > 0 && join.indexOf('inv.confirmNeeded === "code"') < join.indexOf('id="accept"') && join.includes('href="/app/account"') && join.includes("to cancel it and invite ${me.email} instead"));
-  ok("a withdrawn invitation whose address was invited again isn't shown", /const reinvited = /.test(admin) && admin.includes("const shownMembers = (t) => t.members.filter((m) => !reinvited(t, m));") && admin.includes("${shownMembers(t).map((m) =>") && admin.includes("People <span class=\"mono muted\">${shownMembers(t).length}</span>") && /m\.status === "withdrawn" && !reinvited\(t, m\)/.test(admin));
+  ok("a withdrawn invitation whose address was invited again isn't shown", admin.includes("const reinvited = (t, m) => m.status === \"withdrawn\" && !!m.reinvited;") && admin.includes("const shownMembers = (t) => t.members.filter((m) => !reinvited(t, m));") && admin.includes("${shownMembers(t).map((m) =>") && admin.includes("People <span class=\"mono muted\">${shownMembers(t).length}</span>") && /m\.status === "withdrawn" && !reinvited\(t, m\)/.test(admin));
   ok("the team page describes what a refund changed", admin.includes("Your refund changed your team.") && admin.includes("Withdrawn · refund") && admin.includes("Unpaid since your refund"));
   const copy = ["public/js/views/team.js", "public/js/shared/faq.js", "public/js/views/account.js", "public/js/views/teamadmin.js", "lib/prerendered.js"].map(read).join("\n");
   ok("no page promises the admin everyone's finished headshots", !/everyone's finished headshots|Download everyone's headshots|download everyone's headshots|you'll see their finished headshots/.test(copy));

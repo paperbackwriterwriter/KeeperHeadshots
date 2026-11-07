@@ -31,7 +31,9 @@ const shootLabel = (m) => {
 const RECENT_MS = 30 * 24 * 60 * 60 * 1000;
 const who = (list) => list.map((m) => m.name || m.email).join(", ");
 // A withdrawn invitation whose address was invited again (or joined) is old news.
-const reinvited = (t, m) => m.status === "withdrawn" && t.members.some((o) => o !== m && ["invited", "joined"].includes(o.status) && (o.email || "").toLowerCase() === (m.email || "").toLowerCase());
+// (The server marks it: the same inbox, however it's spelled, invited again
+// afterwards, whatever became of that invitation; lib/teams.js teamStatus.)
+const reinvited = (t, m) => m.status === "withdrawn" && !!m.reinvited;
 const shownMembers = (t) => t.members.filter((m) => !reinvited(t, m));
 function refundNote(t) {
   const withdrawn = t.members.filter((m) => m.status === "withdrawn" && !reinvited(t, m) && Date.now() - Date.parse(m.endedAt || 0) < RECENT_MS);

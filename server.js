@@ -32,7 +32,7 @@ import { browserDetails, gpc, metaPixelId, track as trackMetaEvent } from "./lib
 import { runCleanup } from "./lib/cleanup.js";
 import { runBackup } from "./lib/backup.js";
 import { BUILD, BUILD_FILES } from "./lib/build.js";
-import { contactEnabled, validate as validateContact, rateLimited, submit as submitContact } from "./lib/contact.js";
+import { contactEnabled, validate as validateContact, atLimit as contactAtLimit, rateLimited, submit as submitContact } from "./lib/contact.js";
 import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExample, generateSquare as generateExampleSquare, generateSet as generateExampleSet, exampleImage, sheet as exampleSheet } from "./lib/examples.js";
 import crypto from "node:crypto";
 import { withCounter, readCounter, overLimit, hashId, DAY_MS } from "./lib/ratelimit.js";
@@ -294,6 +294,10 @@ app.post("/api/auth/signin", async (req, res) => {
 const safeNextPath = (next) => (typeof next === "string" && /^\/(app(\/|$|\?)|join$)/.test(next) ? next : null);
 const googleRedirectUri = (req) => `${appOrigin(req)}/api/auth/google/callback`;
 // (Checked in NFKC form, so look-alike dots and letters count as the real ones.)
+// Shoot names: control characters and invisible formatting ones (such as a
+// right-to-left override that makes a name display backwards) become spaces;
+// the zero-width joiner emoji sequences need is kept.
+const SHOOT_NAME_STRIP = /[\p{Cc}\u2028\u2029]|(?!\u200d)\p{Cf}/gu;
 const NAME_CHARS = /https?:|www\.|[<>@\u0000-\u001f\u00ad\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/i;
 // Anything shaped like a web address ("refunds.xyz") counts as one (lib/mail.js).
 const NAME_BAD = { test: (s) => NAME_CHARS.test(s) || ADDRESS_LIKE.test(s) };
@@ -805,7 +809,7 @@ app.post("/api/shoots", requireUser, async (req, res) => {
   const shoot = await shoots.create({
     id: id("sht"),
     userId: req.user.id,
-    name: (typeof req.body?.name === "string" && req.body.name.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 60)) || `Shoot No. ${String(count).padStart(2, "0")}`,
+    name: (typeof req.body?.name === "string" && req.body.name.replace(SHOOT_NAME_STRIP, " ").trim().slice(0, 60)) || `Shoot No. ${String(count).padStart(2, "0")}`,
     status: "draft",
     createdAt: now,
     selfies: [],
@@ -1377,7 +1381,7 @@ app.patch("/api/shoots/:id", requireUser, async (req, res) => {
   const body = req.body || {};
   let name;
   if ("name" in body) {
-    name = (typeof body.name === "string" ? body.name : "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 60);
+    name = (typeof body.name === "string" ? body.name : "").replace(SHOOT_NAME_STRIP, " ").trim().slice(0, 60);
     if (!name) return res.status(400).json({ error: "Give the shoot a name." });
   }
   let pick;
@@ -1890,6 +1894,9 @@ app.post("/api/contact", async (req, res) => {
   // (Counted only once the message can actually go: a failed security check
   // or the form being offline doesn't use up someone's hourly allowance.)
   if (!contactEnabled()) return res.status(503).json({ error: "Our contact form is offline right now.", code: "contact_not_configured" });
+  // (A network over its limit is refused before the bot check, so a flood of
+  // fake messages costs no Cloudflare calls.)
+  if (await contactAtLimit(req.ip || "unknown")) return res.status(429).json({ error: "You've sent several messages already. Please try again later." });
   const human = await checkHuman(req.body?.turnstileToken, { ip: req.ip, action: "contact" });
   if (!human.ok) return res.status(400).json({ error: "We couldn't confirm you're a person. Please complete the security check and try again.", code: "bot_check" });
   if (await rateLimited(req.ip || "unknown")) return res.status(429).json({ error: "You've sent several messages already. Please try again later." });

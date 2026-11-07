@@ -975,6 +975,19 @@ if (process.env.DATA_DIR) {
   ok("preview offers are half price in the sale ($4.50 / $7.50), full price kept", PREVIEW_OFFERS.map((o) => `${o.price}/${o.listPrice}`).join(" ") === "4.5/8.99 7.5/14.99");
 }
 
+// Owner's decisions of 7 Nov: shoot names lose invisible formatting
+// characters (emoji joiners kept); the contact form's limit comes before its
+// bot check.
+{
+  const src = (await import("node:fs")).readFileSync(new URL("../../server.js", import.meta.url), "utf8");
+  const lit = src.match(/const SHOOT_NAME_STRIP = (\/.*\/gu);/)?.[1];
+  const strip = lit && new Function(`return ${lit}`)();
+  const clean = (s) => s.replace(strip, " ").trim();
+  ok("shoot names drop right-to-left overrides and other invisible characters, keep emoji", !!strip && clean("Team\u202eA") === "Team A" && clean("a\u2066b\ufeffc\u0007d\u2028e") === "a b c d e" && clean("Family \u{1F468}\u200d\u{1F469}") === "Family \u{1F468}\u200d\u{1F469}" && (src.match(/\.replace\(SHOOT_NAME_STRIP, " "\)/g) || []).length === 2);
+  const contactRoute = src.slice(src.indexOf('app.post("/api/contact"'));
+  ok("the contact form refuses a network over its limit before the bot check", contactRoute.indexOf("contactAtLimit(") > 0 && contactRoute.indexOf("contactAtLimit(") < contactRoute.indexOf("checkHuman("));
+}
+
 const passed = results.filter((r) => r[1]).length;
 console.log(`\n${passed}/${results.length} passed`);
 process.exit(passed === results.length ? 0 : 1);
