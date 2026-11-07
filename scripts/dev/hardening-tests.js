@@ -147,6 +147,15 @@ if (process.env.QA_ADMIN_TOKEN) {
   for (let i = 0; i < 30; i++) refused.push((await g("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "nope" }) })).status);
   const good = await g("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
   ok("…and refused checkout requests don't count toward it", refused.every((s) => s === 400) && good.status === 200, `${refused[0]} ${good.status}`);
+  // Sent all at once, they still can't pass the limit (checked and claimed in
+  // one save).
+  const burst = await account(`checkout-burst${t}@x.com`);
+  const at = (await Promise.all(Array.from({ length: 40 }, () => burst("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) })))).map((r) => r.status);
+  // The embedded-form error report: any invisible or control character is
+  // stripped before logging, and it can't be used to flood the logs.
+  const src = (await import("node:fs")).readFileSync(new URL("../../server.js", import.meta.url), "utf8");
+  ok("embedded-form error reports are limited and stripped of invisible characters", src.includes('overLimit("embederr", req.user.id, 20)') && src.includes("/[\\p{Cc}\\p{Cf}\\u2028\\u2029]+/gu"));
+  ok("checkout starts sent at once still stop at 30", at.filter((s) => s === 200).length === 30 && at.filter((s) => s === 429).length === 10, at.join(","));
   const sync = await f("/api/billing/sync", { method: "POST" });
   ok("purchase sync still works", sync.status === 200, String(sync.status));
 }

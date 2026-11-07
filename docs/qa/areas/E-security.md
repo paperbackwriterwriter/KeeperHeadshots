@@ -130,6 +130,25 @@ Legend for "who": anon = anyone; user = signed in (requireUser: signed cookie + 
 
 Items checked: 12 middleware + 71 route handlers (all 83 lines) + 24 cross-cutting = **107**.
 
+### Added at the nightly re-check of 7 Nov 2026
+
+All 107 items above were re-checked on 7 Nov (still 83 route lines; E5-01/02/03/05/06 confirmed fixed, E5-04 fixed that night). New items:
+
+| Id | Item | How | Result (7 Nov) |
+|---|---|---|---|
+| E-N1 | Hourly checkout limit under concurrency: 45 checkouts at once from one account | script | Was 45 of 45 accepted (check and record were separate since 5 Nov); fixed: claimed in one save, exactly 30 pass |
+| E-N2 | /api default caching: every /api GET is `private, no-store` except /api/search, /api/showcase and /api/version | curl over all GETs | OK |
+| E-N3 | GET /api/join/:token tells only the signed-in viewer about themselves (sameInbox, confirmNeeded); anonymous sees sameInbox:false | script | OK |
+| E-N4 | Invitation inbox matching: Gmail dots/+tags only, and only for an account that confirmed its address itself; 403 invite_confirm_email / invite_other_email | script + team-tests | OK |
+| E-N5 | One strict address check (isEmailAddress) for signup, invite, contact; the looser lookup check only for sign-in and reset, mail never to the typed address | fuzz + code | OK |
+| E-N6 | Invitation caps: 25 per request, 100 live, 300 in all, checked inside the save; two requests at 99 | team-tests | OK |
+| E-N7 | Admin view of a team reshoot: only when both shoots point at each other, same member, done shots only; selfies and other admins 404 | reshoot-tests + probes | OK |
+| E-N8 | Meta: owner and demo accounts get no eventId and send no InitiateCheckout, Purchase or CompleteRegistration; `charged` only for the account's own paid session | /mock-meta | OK |
+| E-N9 | Reset emails: at most 30 an hour per network, counted before the bot check | script | OK |
+| E-N10 | Resend and the invitation-link GET expire an invitation past 90 days (owner only) | code + team-tests | OK |
+| E-N11 | /api/contact: order of the bot check and the 5-per-network limit | code | Question: the bot check runs first, so bad tokens each cost a Cloudflare call (not testable locally) |
+| E-N12 | /api/billing/embed-error: at most 20 logged an hour per account; all control and invisible characters stripped | script | Fixed 7 Nov (E5-04) |
+
 ## 2. Findings
 
 ### E5-01: contact form topic accepts inherited property names (low, bug)
@@ -154,7 +173,7 @@ Items checked: 12 middleware + 71 route handlers (all 83 lines) + 24 cross-cutti
 - Fix: `Object.hasOwn(EXAMPLE_JOBS, id)`.
 - Reproduced: yes.
 
-### E5-04: /api/billing/embed-error writes client text to logs almost unfiltered, with no rate limit (low, bug)
+### E5-04: /api/billing/embed-error writes client text to logs almost unfiltered, with no rate limit (low, bug; fixed 7 Nov)
 - Repro: `POST /api/billing/embed-error {"message":"‮\u0000<script>alert(1)</script>"}` as any user. server.log then holds the NUL byte and the bidi override (grep treats the file as binary). Only CR/LF are removed, so ANSI escapes would pass too. There's no overLimit, so one account can write about 300 bytes per request without limit.
 - Impact: log forging and terminal-escape content in Vercel or local log viewers; log flooding.
 - Code: server.js:1762.

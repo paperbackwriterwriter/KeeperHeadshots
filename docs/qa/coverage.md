@@ -91,6 +91,12 @@ same save, so two at once can't pass 100. Left as is: going back to the look
 people joined with still shows the "they keep the look" warning.
 
 Waiting on the owner:
+- Security (7 Nov, low): the contact form runs the bot check before the
+  5-per-network limit, so a flood of bad tokens each costs a Cloudflare call
+  (E-N11); shoot names keep right-to-left override characters (cosmetic).
+- Teams (7 Nov, low): the hidden "withdrawn" row compares addresses by
+  lowercase only, so a re-invite under another Gmail spelling still shows it;
+  it reappears if the re-invited person later deletes their shoot.
 - The square widening can attach after a shoot shows "done" and its ready
   email has gone (B-N13).
 - Soro's blog script isn't named in the privacy policy (F4; owner chose to

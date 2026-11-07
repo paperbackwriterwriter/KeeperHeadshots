@@ -76,7 +76,7 @@ export async function renderJoin({ root, navigate }) {
     return;
   }
   if (inv.confirmNeeded === "exact") {
-    shell(html`${intro}<div class="banner banner-warn">${icon("info")}<div><b>Ask for an invitation to this address.</b>This invitation was sent to ${inv.email}. To accept it as ${me.email}, ask ${inv.team.ownerName} to send it to ${me.email} instead, then open the new link.</div></div>`);
+    shell(html`${intro}<div class="banner banner-warn">${icon("info")}<div><b>Ask for an invitation to this address.</b>This invitation was sent to ${inv.email}. To accept it as ${me.email}, ask ${inv.team.ownerName} to cancel it and invite ${me.email} instead, then open the new link.</div></div>`);
     return;
   }
   shell(html`${intro}<div class="btn-row"><button class="btn btn-flash btn-lg" id="accept">Start my headshot ${icon("arrow-right")}</button></div>`);

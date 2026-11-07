@@ -1043,7 +1043,7 @@ body:has(.develop-bar) .toasts { bottom: calc(96px + env(safe-area-inset-bottom)
 .shoots-table td, .shoots-table th { white-space: nowrap; }
 .offer-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--s-4); align-items: end; margin-top: var(--s-2); }
 .offer-form .btn-row, .offer-form #offerResult { grid-column: 1 / -1; }
-@media (max-width: 560px) { .offer-form { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 600px) { .offer-form { grid-template-columns: minmax(0, 1fr); } }
 /* A preview's results: "Download this photo · $8.99" (the purchase), then
    "Get all + 2 more looks". */
 .keep-cta { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-3); margin: var(--s-2) 0 var(--s-4); }
@@ -1824,7 +1824,7 @@ textarea.input.share-quote { min-height: 96px; }
    iPhone Duo opened sideways, about 890 x 626): the phone layout's selfie pair
    is sized to the height, so the first screen still reaches the buttons, and
    the photo viewer keeps the photo beside its details instead of above them. */
-@media (min-width: 640px) and (max-width: 900px) and (min-height: 500px) and (max-height: 700px) and (orientation: landscape) {
+@media (min-width: 641px) and (max-width: 900px) and (min-height: 500px) and (max-height: 700px) and (orientation: landscape) {
   .hero-ba { max-width: min(420px, 48dvh); }
 }
 @media (min-width: 640px) and (max-width: 900px) and (max-height: 700px) and (orientation: landscape) {

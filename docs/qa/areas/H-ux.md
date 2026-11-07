@@ -97,6 +97,7 @@ Method:
 | 83 | Slow network: first load with slow /api/me | route delay 4 s | Blank page, no indicator (H8-12) |
 | 84 | Slow network: dashboard/shoot skeletons, buy spinner | route delay | OK |
 | 85 | Back/forward on looks sub-view; reload on looks | script | Picks lost; Back leaves the shoot (H8-10, owner decision) |
+| 86 | Foldables and phones held sideways: 402x874, 626x890, 890x626, 844x390 (layout audit with WIDTHS/HEIGHTS; 626 is in the default widths) | layout audit + browser | OK after 6-7 Nov fixes: shoot buttons 2x2, viewer photo beside details on short wide screens, home buttons on the first screen at 890x626 |
 
 ## 2. Findings
 

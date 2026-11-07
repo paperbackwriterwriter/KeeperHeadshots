@@ -72,7 +72,7 @@ How I tested:
 | 61 | Look warning: only after joins; for look, name or both; not for spaces only | browser | OK; going back to the joined look still warns (low, open) |
 | 62 | Name warning: says joined shoots keep the name they were set up with | browser | fixed 6 Nov (named the current name, not theirs) |
 | 63 | Heading: "Everyone gets" changes to "New joiners get" after a look change and back after reverting; a rename alone doesn't | browser + suite | OK |
-| 64 | Refund note: banner, "Withdrawn · refund" and "Unpaid since your refund" badges; banner 30 days; cleared when the debt is settled | API + browser + suite | OK; a re-invited address still shows its withdrawn row (low, open) |
+| 64 | Refund note: banner, "Withdrawn · refund" and "Unpaid since your refund" badges; banner 30 days; cleared when the debt is settled | API + browser + suite | OK; a re-invited (or joined) address no longer shows its withdrawn row (fixed 6 Nov) |
 | 65 | Team free reshoot: 2+ likeness holds, once, team looks, no charge; admin sees and downloads it; refused after a full refund | suite | OK |
 | 66 | moveSeat: deleting the original moves the seat to the reshoot (seatUsed), no shoot back, no second reshoot; not after a full refund | reshoot-tests | fixed 6 Nov (after a refund it gave a free develop) |
 | 67 | Gmail variants: a variant is refused as a duplicate and as the admin's own; trailing-dot domain refused as duplicate | script | OK |
@@ -81,7 +81,7 @@ How I tested:
 | 70 | Over 25 addresses: 400 with a count; the textarea keeps the text | API + code | OK |
 | 71 | Lapsed invite resend or link: 404, shoot comes back | API | OK |
 | 72 | Purchase after a refund debt: added is the net amount | API | OK |
-| 73 | Join page for an unconfirmed other spelling shows "Start" and only then says to confirm | browser | low, open |
+| 73 | Join page for an unconfirmed other spelling says to confirm first (or, for an account from before confirmation, to have the admin cancel and invite its own address) instead of "Start" | browser + suite | fixed 6 Nov; advice made workable 7 Nov |
 | 74 | billing-team-refund-tests binds port 0 (not runnable inside reviewers' port ranges) | - | note |
 
 Items checked on 6 Nov (rotation): 74 (59 + 15 new).

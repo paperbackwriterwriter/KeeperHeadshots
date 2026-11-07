@@ -1802,7 +1802,7 @@ app.post("/api/billing/checkout", requireUser, async (req, res) => {
   // comparing packages needs several; this still stops scripts flooding
   // Stripe with sessions.
   // (Only checkouts that start count: a refused request or a Stripe error
-  // doesn't use one up. Recorded below, once Stripe has made the session.)
+  // doesn't use one up.)
   const now = Date.now();
   const recentStarts = (u) => (u.checkoutStarts || []).filter((t) => now - t < 60 * 60 * 1000);
   if (recentStarts(req.user).length >= 30) return res.status(429).json({ error: "You've started several checkouts in the last hour. Please try again a little later, or contact us." });
@@ -1825,8 +1825,23 @@ app.post("/api/billing/checkout", requireUser, async (req, res) => {
       if (isKept(req.user, shootId, shotId)) return res.status(400).json({ error: "That headshot is already yours. Pick another one, or keep them all.", code: "kept" });
     }
   }
-  const checkout = await createCheckout(req.user, packageId, origin, { gpc: gpc(req), embedded, shootId, shotId, toTeam: req.body?.returnTo === "team", browser: browserDetails(req) });
-  await users.update(req.user.id, (u) => void (u.checkoutStarts = [...recentStarts(u), now])).catch((err) => console.error("[checkout] record start", err.message));
+  // (Claimed in the same save as the check, so requests sent at once can't
+  // all pass it; given back if Stripe or the package refuses the checkout.)
+  const stamp = now + Math.random(); // this request's own entry
+  let full = false;
+  await users.update(req.user.id, (u) => {
+    full = recentStarts(u).length >= 30;
+    if (full) return UNCHANGED;
+    u.checkoutStarts = [...recentStarts(u), stamp];
+  });
+  if (full) return res.status(429).json({ error: "You've started several checkouts in the last hour. Please try again a little later, or contact us." });
+  let checkout;
+  try {
+    checkout = await createCheckout(req.user, packageId, origin, { gpc: gpc(req), embedded, shootId, shotId, toTeam: req.body?.returnTo === "team", browser: browserDetails(req) });
+  } catch (err) {
+    await users.update(req.user.id, (u) => void (u.checkoutStarts = (u.checkoutStarts || []).filter((t) => t !== stamp))).catch((e) => console.error("[checkout] give back start", e.message));
+    throw err;
+  }
   // For the one "unfinished checkout" reminder (lib/reminders.js).
   // (Packages only: an offer is reminded about by the preview's "buy" email.)
   if (!shootId) await users.update(req.user.id, (u) => void (u.lastCheckout = { packageId, at: new Date().toISOString() })).catch((err) => console.error("[checkout] record", err.message));
@@ -1839,9 +1854,11 @@ app.post("/api/billing/checkout", requireUser, async (req, res) => {
 
 // The buy page reports here when Stripe's embedded form fails to load (it
 // then falls back to the hosted page), so the reason reaches the logs.
-app.post("/api/billing/embed-error", requireUser, (req, res) => {
+app.post("/api/billing/embed-error", requireUser, async (req, res) => {
+  // (At most 20 an hour per account reach the logs; the page doesn't wait on it.)
+  if (await overLimit("embederr", req.user.id, 20).catch(() => false)) return res.json({ ok: true });
   // (Printable text only: the message comes from the browser.)
-  console.warn("[checkout] embedded form failed for", req.user.id, "-", String(req.body?.message || "").slice(0, 300).replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]+/g, " "));
+  console.warn("[checkout] embedded form failed for", req.user.id, "-", String(req.body?.message || "").slice(0, 300).replace(/[\p{Cc}\p{Cf}\u2028\u2029]+/gu, " "));
   res.json({ ok: true });
 });
 

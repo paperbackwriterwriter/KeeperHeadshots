@@ -96,7 +96,7 @@ Method: a stack e2e script (mock Stripe/Meta, 65 checks), an in-process webhook 
 | 88 | Checkout limit: refused or failed requests don't count | hardening | fixed 5 Nov (they did, C3-4) |
 | 89 | Funnel totals for a net-negative refund period (a won dispute) | hardening (static) | fixed 5 Nov (showed "−$-24.50", C3-6) |
 | 90 | Signed-out checkout 401; demo sync does nothing | script | OK |
-| 91 | Owner purchases are sent to Meta (Purchase/InitiateCheckout) though left out of the funnel | script | owner question |
+| 91 | Owner purchases are sent to Meta (Purchase/InitiateCheckout) though left out of the funnel | script | decided 6 Nov: not sent (owner sign-ups neither) |
 | 92 | packageId sent as a non-string (["starter"]) is turned into text and accepted | script | harmless, noted |
 | 93 | Hosted checkout end to end in a browser: buy page, Stripe, /app toast "6 shoots added", credits 6 | Playwright | OK |
 | 94 | A webhook request without a valid Stripe signature (a bot) is logged as a warning, not an error, so it doesn't use up the day's alert emails | billing-dispute-tests | fixed 5 Nov (a live probe at 02:29 sent an alert) |

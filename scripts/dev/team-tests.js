@@ -568,6 +568,15 @@ let final;
   // as confirmed elsewhere, but can't take another spelling's invitation: the
   // admin sends it to its own address.
   const legacy = { id: "usr_legacy", email: `jo.legacy${t}@gmail.com`, createdAt: "2026-01-01T00:00:00.000Z" };
+  // What it's told to do works: the admin cancels the invitation to the other
+  // spelling (told how when inviting this one), then invites this address.
+  await fill([]);
+  await teamsLib.invite(await fresh(), `jolegacy${t}@gmail.com`);
+  const second = await teamsLib.invite(await fresh(), `jo.legacy${t}@gmail.com`).then(() => "accepted", (e) => e.message);
+  ok("inviting another spelling of a waiting invitation says to cancel that one first", second === `jo.legacy${t}@gmail.com is already on the team (as jolegacy${t}@gmail.com). To invite this address instead, cancel that invitation first.`, second);
+  await storage.updateJSON(`teams/${team.id}.json`, (tm) => ({ ...tm, invites: Object.fromEntries(Object.entries(tm.invites).map(([k, i]) => [k, { ...i, status: "cancelled" }])) }));
+  const exact = await teamsLib.invite(await fresh(), `jo.legacy${t}@gmail.com`).then((r) => r.invite.email, (e) => e.message);
+  ok("after cancelling it, the old account's own address can be invited (and accepted)", exact === `jo.legacy${t}@gmail.com` && teamsLib.inviteFor({ id: "usr_legacy", email: `jo.legacy${t}@gmail.com` }, exact) === true, exact);
   ok("an old account without a confirmation flag can't accept another spelling's invitation", teamsLib.inviteFor(legacy, `jolegacy${t}@gmail.com`) === false && teamsLib.inviteFor(legacy, legacy.email) === true && teamsLib.variantBlock(legacy) === "exact" && teamsLib.variantBlock({ ...legacy, emailVerified: false }) === "code" && teamsLib.inviteFor({ ...legacy, emailVerified: true }, `jolegacy${t}@gmail.com`) === true);
   fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true });
 }
@@ -620,7 +629,7 @@ let final;
   ok("the heading doesn't say everyone gets a look people who joined earlier don't", admin.includes('${t.looksVary ? "New joiners get" : "Everyone gets"}'));
   ok("the join page accepts the same inbox written differently", read("public/js/views/join.js").includes("me.email.toLowerCase() === inv.email || inv.sameInbox"));
   const join = read("public/js/views/join.js");
-  ok("the join page says to confirm (or ask for a new invitation) before offering to start", join.indexOf('inv.confirmNeeded === "code"') > 0 && join.indexOf('inv.confirmNeeded === "exact"') > 0 && join.indexOf('inv.confirmNeeded === "code"') < join.indexOf('id="accept"') && join.includes('href="/app/account"'));
+  ok("the join page says to confirm (or ask for a new invitation) before offering to start", join.indexOf('inv.confirmNeeded === "code"') > 0 && join.indexOf('inv.confirmNeeded === "exact"') > 0 && join.indexOf('inv.confirmNeeded === "code"') < join.indexOf('id="accept"') && join.includes('href="/app/account"') && join.includes("to cancel it and invite ${me.email} instead"));
   ok("a withdrawn invitation whose address was invited again isn't shown", /const reinvited = /.test(admin) && admin.includes("const shownMembers = (t) => t.members.filter((m) => !reinvited(t, m));") && admin.includes("${shownMembers(t).map((m) =>") && admin.includes("People <span class=\"mono muted\">${shownMembers(t).length}</span>") && /m\.status === "withdrawn" && !reinvited\(t, m\)/.test(admin));
   ok("the team page describes what a refund changed", admin.includes("Your refund changed your team.") && admin.includes("Withdrawn · refund") && admin.includes("Unpaid since your refund"));
   const copy = ["public/js/views/team.js", "public/js/shared/faq.js", "public/js/views/account.js", "public/js/views/teamadmin.js", "lib/prerendered.js"].map(read).join("\n");
