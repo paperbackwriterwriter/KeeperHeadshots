@@ -99,6 +99,11 @@ whatever became of that invitation. Stripe items stay in the nightly "For
 you" list until done.
 
 Waiting on the owner:
+- Public pages (8 Nov, notes): terms and refunds take their prices from the
+  catalog, so ending the sale changes them without a new date (terms promise
+  a new date and an email for important changes); a phone held sideways
+  (844x390) shows the home buttons below the first screen; the free reshoot
+  isn't mentioned on any public page.
 - The square widening can attach after a shoot shows "done" and its ready
   email has gone (B-N13).
 - Soro's blog script isn't named in the privacy policy (F4; owner chose to

@@ -590,6 +590,22 @@ let final;
   } }));
   const st = await teamsLib.teamStatus(await fresh());
   const row = (id) => st.members.find((m) => m.id === id);
+  // …and stays marked when the re-invited person deletes their account.
+  await storage.updateJSON(`teams/${team.id}.json`, (tm) => ({ ...tm, invites: { ...tm.invites, inv_new: { ...tm.invites.inv_new, status: "joined", userId: "usr_gone" }, inv_old: { ...tm.invites.inv_old, status: "cancelled", withdrawnByRefund: true, endedAt: at(-9) } } }));
+  await teamsLib.forgetMember(team.id, "usr_gone");
+  const gone = (await teamsLib.teamStatus(await fresh())).members;
+  ok("…and stays hidden after the re-invited person deletes their account", gone.find((m) => m.id === "inv_w")?.reinvited === true && gone.find((m) => m.id === "inv_new")?.status === "account_deleted", JSON.stringify(gone.map((m) => [m.id, m.status, m.reinvited || false])));
+  // Names (team and shoot): no right-to-left overrides or invisible characters;
+  // the joiners and tags that emoji and some languages need stay.
+  const ct = (s) => teamsLib.cleanText(s).trim();
+  ok("names drop overrides and invisible characters, keep what emoji and languages need", ct("Team\u202eA") === "TeamA" && ct("a\u0007b\u2028c") === "a b c" && ct("Jo\u00adhn") === "John" && ct("Fam \u{1F468}\u200d\u{1F469}") === "Fam \u{1F468}\u200d\u{1F469}" && ct("\u0645\u06cc\u200c\u062e") === "\u0645\u06cc\u200c\u062e" && ct("\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}") === "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}" && ct("a\u061cb\u2060c\u0085d") === "abc d");
+  const tm = await teamsLib.saveTeam(await fresh(), { name: "Acme\u202e\u061c Legal", looks: LOOKS });
+  // Contact form: 20 failed bot checks from a network stop further ones
+  // reaching Cloudflare this hour; other networks aren't affected.
+  const contactLib = await import("../../lib/contact.js");
+  for (let i = 0; i < 20; i++) await contactLib.noteBotFail(`203.0.113.${t % 50}`);
+  ok("contact: 20 failed bot checks from one network stop further ones", (await contactLib.botAtLimit(`203.0.113.${t % 50}`)) === true && (await contactLib.botAtLimit(`203.0.113.${(t % 50) + 100}`)) === false);
+  ok("team names (which become members' shoot names) are cleaned the same way", tm.name === "Acme Legal", JSON.stringify(tm.name));
   ok("a withdrawn invitation re-invited under another spelling is marked, whatever became of the new one", row("inv_w")?.status === "withdrawn" && row("inv_w")?.reinvited === true && row("inv_w2")?.status === "withdrawn" && !row("inv_w2")?.reinvited, JSON.stringify([row("inv_w"), row("inv_w2")]));
   ok("an old account without a confirmation flag can't accept another spelling's invitation", teamsLib.inviteFor(legacy, `jolegacy${t}@gmail.com`) === false && teamsLib.inviteFor(legacy, legacy.email) === true && teamsLib.variantBlock(legacy) === "exact" && teamsLib.variantBlock({ ...legacy, emailVerified: false }) === "code" && teamsLib.inviteFor({ ...legacy, emailVerified: true }, `jolegacy${t}@gmail.com`) === true);
   fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true });
@@ -648,6 +664,8 @@ let final;
   ok("the team page describes what a refund changed", admin.includes("Your refund changed your team.") && admin.includes("Withdrawn · refund") && admin.includes("Unpaid since your refund"));
   const copy = ["public/js/views/team.js", "public/js/shared/faq.js", "public/js/views/account.js", "public/js/views/teamadmin.js", "lib/prerendered.js"].map(read).join("\n");
   ok("no page promises the admin everyone's finished headshots", !/everyone's finished headshots|Download everyone's headshots|download everyone's headshots|you'll see their finished headshots/.test(copy));
+  const told = ["public/js/views/legal.js", "public/js/views/join.js", "lib/mail.js"].map(read).join("\n");
+  ok("privacy, join page and invite email say the admin sees the headshot the person chooses", !/(your|their) finished headshots/.test(told) && told.includes("can view and download the headshot you choose") && told.includes("will see and can download the headshot you choose.") && told.includes("only the headshot you choose."));
   ok("the copy promises each person's chosen headshot", read("public/js/views/team.js").includes("Download each person's chosen headshot") && read("public/js/shared/faq.js").includes("download each person's chosen headshot"));
 }
 

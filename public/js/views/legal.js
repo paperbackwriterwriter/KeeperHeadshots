@@ -6,7 +6,7 @@ import { KEEP_ONE_PRICE, KEEP_ALL_PRICE } from "../shared/catalog.js";
 // Privacy Policy and Terms of Service. Keep these in step with what the code
 // actually does (lib/meta.js, lib/billing.js, lib/store.js, lib/ai.js).
 // Each policy has its own date: change it only when that page's text changes.
-export const LEGAL_UPDATED = "November 6, 2026"; // privacy policy
+export const LEGAL_UPDATED = "November 8, 2026"; // privacy policy
 export const TERMS_UPDATED = "November 6, 2026";
 
 const mail = html`<a class="link" href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>`;
@@ -77,7 +77,7 @@ export function renderPrivacy({ root }) {
         <li><b>ImprovMX</b> and <b>Google (Gmail)</b>: receiving and answering the messages you send us.</li>
         <li><b>Meta</b> (Facebook and Instagram): advertising measurement, as described below.</li>
       </ul>
-      <p><b>Team headshots:</b> if a colleague invites you to their team, they see your name, email address and the progress of your shoot, and can view and download your finished headshots. They never see your selfies. If you invite people, we email each of them your invitation with your name and email address as the reply-to.</p>
+      <p><b>Team headshots:</b> if a colleague invites you to their team, they see your name, email address and the progress of your shoot, and can view and download the headshot you choose (or our pick of your best until you choose). They never see your selfies. If you invite people, we email each of them your invitation with your name and email address as the reply-to.</p>
       <p>We may also share information if the law requires it, to protect our rights or someone's safety, or with a buyer if Keeper Headshots is ever sold (this policy would still apply to your data). <b>We don't sell your personal information for money.</b></p>
 
       <h2 class="h-3">Advertising and cookies</h2>

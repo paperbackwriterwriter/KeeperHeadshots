@@ -72,7 +72,7 @@ How I tested:
 | 61 | Look warning: only after joins; for look, name or both; not for spaces only | browser | OK; going back to the joined look still warns (low, open) |
 | 62 | Name warning: says joined shoots keep the name they were set up with | browser | fixed 6 Nov (named the current name, not theirs) |
 | 63 | Heading: "Everyone gets" changes to "New joiners get" after a look change and back after reverting; a rename alone doesn't | browser + suite | OK |
-| 64 | Refund note: banner, "Withdrawn · refund" and "Unpaid since your refund" badges; banner 30 days; cleared when the debt is settled | API + browser + suite | OK; a re-invited (or joined) address no longer shows its withdrawn row (fixed 6 Nov) |
+| 64 | Refund note: banner, "Withdrawn · refund" and "Unpaid since your refund" badges; banner 30 days; cleared when the debt is settled | API + browser + suite | OK; a refund-withdrawn row is hidden once the same inbox (any spelling) was invited again, whatever became of it, including the person deleting their account (server flag; 6-8 Nov) |
 | 65 | Team free reshoot: 2+ likeness holds, once, team looks, no charge; admin sees and downloads it; refused after a full refund | suite | OK |
 | 66 | moveSeat: deleting the original moves the seat to the reshoot (seatUsed), no shoot back, no second reshoot; not after a full refund | reshoot-tests | fixed 6 Nov (after a refund it gave a free develop) |
 | 67 | Gmail variants: a variant is refused as a duplicate and as the admin's own; trailing-dot domain refused as duplicate | script | OK |

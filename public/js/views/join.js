@@ -46,7 +46,7 @@ export async function renderJoin({ root, navigate }) {
     <h1 class="display h-2">${inv.team.ownerName} invited you to get your ${inv.team.name} headshot.</h1>
     <p class="lede">Your shoot is already paid for and set to the team's looks, so everyone matches. Upload a few recent photos of just you, and your headshots are ready in minutes.</p>
     <div class="join-looks">${inv.team.looks.map((l) => html`<span class="chip">${l}</span>`)}</div>
-    <p class="small muted">Your photos stay private. ${inv.team.ownerName} will see and can download your finished headshots.</p>`;
+    <p class="small muted">Your photos stay private. ${inv.team.ownerName} will see and can download the headshot you choose.</p>`;
 
   if (inv.status !== "invited") {
     shell(html`${intro}<div class="banner banner-warn">${icon("info")}<div>This invitation has already been used or cancelled. If that wasn't you, ask ${inv.team.ownerName} for a new one.</div></div>`);

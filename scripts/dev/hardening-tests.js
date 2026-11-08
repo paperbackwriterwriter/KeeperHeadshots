@@ -980,12 +980,10 @@ if (process.env.DATA_DIR) {
 // bot check.
 {
   const src = (await import("node:fs")).readFileSync(new URL("../../server.js", import.meta.url), "utf8");
-  const lit = src.match(/const SHOOT_NAME_STRIP = (\/.*\/gu);/)?.[1];
-  const strip = lit && new Function(`return ${lit}`)();
-  const clean = (s) => s.replace(strip, " ").trim();
-  ok("shoot names drop right-to-left overrides and other invisible characters, keep emoji", !!strip && clean("Team\u202eA") === "Team A" && clean("a\u2066b\ufeffc\u0007d\u2028e") === "a b c d e" && clean("Family \u{1F468}\u200d\u{1F469}") === "Family \u{1F468}\u200d\u{1F469}" && (src.match(/\.replace\(SHOOT_NAME_STRIP, " "\)/g) || []).length === 2);
+  ok("shoot names are cleaned with the shared rule (create and rename)", (src.match(/teams\.cleanText\(/g) || []).length === 2);
   const contactRoute = src.slice(src.indexOf('app.post("/api/contact"'));
   ok("the contact form refuses a network over its limit before the bot check", contactRoute.indexOf("contactAtLimit(") > 0 && contactRoute.indexOf("contactAtLimit(") < contactRoute.indexOf("checkHuman("));
+  ok("…and counts failed bot checks (20 an hour) before asking Cloudflare again", contactRoute.indexOf("contactBotAtLimit(") > 0 && contactRoute.indexOf("contactBotAtLimit(") < contactRoute.indexOf("checkHuman(") && contactRoute.indexOf("noteContactBotFail(") > contactRoute.indexOf("checkHuman("));
 }
 
 const passed = results.filter((r) => r[1]).length;

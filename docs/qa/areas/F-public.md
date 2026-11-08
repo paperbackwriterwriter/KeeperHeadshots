@@ -80,6 +80,22 @@ Repo /home/user/keeperheadshots @ d1c7ac7. Stack: start-stack.sh 3616 4616 2616 
 | Legal entity: emails "Keeper Headshots LLC, Johnston IA"; terms/privacy "Keeper Headshots, based in Iowa" | mail.js POSTAL_ADDRESS | fixed 6 Nov: Terms and privacy name Keeper Headshots LLC |
 | Policy dates: privacy/terms Nov 1, refunds Nov 2, matching sitemap | | OK |
 
+### Added at the nightly re-check of 8 Nov 2026
+
+All 47 items above were re-checked on 8 Nov (45 pass, 2 changed by design: the sale ad images, the LLC name; F1, F2, F6, F7, F10, F11 confirmed fixed). New items:
+
+| Id | Item | How | Result (8 Nov) |
+|---|---|---|---|
+| F-N1 | Server title for every app route matches the app's, including /join and /join/<token> | curl titles vs app.js | /join had the generic title; fixed 8 Nov |
+| F-N2 | What the team admin sees is described the same everywhere (FAQ, team page, privacy, join page, invite email): the headshot each person chooses | grep + team-tests | Privacy, join page and invite email said "finished headshots"; fixed 8 Nov (privacy dated November 8) |
+| F-N3 | Every package and preview-offer price shows the sale price with the full price crossed out (home, team, buy, studio); JSON-LD, llms.txt, search and social images show the sale price | grep wasPrice + crawl | OK |
+| F-N4 | Home CDN cache max-age=60, stale-while-revalidate=540; other pages 86400 | curl -I | OK |
+| F-N5 | Footer "Your shoots": none signed out, one signed in, on every marketing page incl. the hydrated home page | two-context crawl | OK |
+| F-N6 | Foldables and sideways phones: no sideways scroll at 626x890, 890x626, 844x390; home buttons on the first screen at 890x626 | Playwright | OK |
+| F-N7 | Sale ad images match the catalog prices | view | OK |
+| F-N8 | When the sale ends (catalog price change): llms.txt, ad images, social images, prerender, policy dates (terms and refunds build prices from the catalog) and the sitemap all change together | checklist step on any catalog price change | note |
+| F-N9 | Prerendered pages equal the app's render (compared without writing the file) | scratch copy of scripts/prerender.js | OK (all 13 pages) |
+
 ## 2. Findings
 
 **F1 (medium, bug): the free-preview reminder email still quotes the old package price ($29).**
