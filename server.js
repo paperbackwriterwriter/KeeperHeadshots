@@ -1896,7 +1896,9 @@ app.post("/api/contact", async (req, res) => {
   if (await contactAtLimit(req.ip || "unknown")) return res.status(429).json({ error: "You've sent several messages already. Please try again later." });
   if (await contactBotAtLimit(req.ip || "unknown")) return res.status(429).json({ error: "Too many attempts from your network. Please try again later." });
   const human = await checkHuman(req.body?.turnstileToken, { ip: req.ip, action: "contact" });
-  if (!human.ok) await noteContactBotFail(req.ip || "unknown");
+  // (Only checks Cloudflare was asked about count: a missing token costs no
+  // call, and counting it would let anyone lock a shared network out.)
+  if (!human.ok && human.reason !== "missing") await noteContactBotFail(req.ip || "unknown");
   if (!human.ok) return res.status(400).json({ error: "We couldn't confirm you're a person. Please complete the security check and try again.", code: "bot_check" });
   if (await rateLimited(req.ip || "unknown")) return res.status(429).json({ error: "You've sent several messages already. Please try again later." });
   try {

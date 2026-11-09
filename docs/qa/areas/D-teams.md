@@ -61,7 +61,7 @@ How I tested:
 | 50 | teamadmin.js "Download N headshots" | — | known (saves 2 files; only the best pick) |
 | 51 | teamadmin.js status badges for every status | code read | OK |
 | 52 | team.js prices at the sale prices: $14.50/3 = $4.83, $19.50/6 = $3.25, $24.50/12 = $2.04; "~$2", "About $2"; was-prices $29/$39/$49 | browser | OK |
-| 53 | team.js / TEAM_FAQ promise "everyone's finished headshots" | — | known |
+| 53 | team.js / TEAM_FAQ promise "everyone's finished headshots" | — | fixed (3 Nov team page and FAQ; 8-9 Nov privacy, join page, invite email: "the headshot you choose, or our pick of your best until you do") |
 | 54 | team.js / TEAM_FAQ other promises (90-day lapse, cancel gives back, deleted before develop goes back, unused shoots don't expire) | script + suite | OK. The lapse returns the shoot only lazily: D-06. |
 | 55 | join.js: no token, invalid, used, signed out (signup/signin keep next and email), wrong account, accept, mine → redirect | browser + suite | OK. Stale owner name: D-07 |
 | 56 | Google sign-in or sign-up from /join returns to /join | script | OK |
@@ -150,5 +150,5 @@ Items checked on 6 Nov (rotation): 74 (59 + 15 new).
 - **Reproduced:** no (code read only; the mock doesn't produce likeness holds on demand).
 
 ### Known items met (not re-reported)
-- Team page and FAQ promise "everyone's finished headshots" but only the best pick is downloadable.
+- Team page and FAQ promised "everyone's finished headshots" but only the best pick is downloadable (fixed 3 Nov; the privacy policy, join page and invite email followed 8-9 Nov).
 - Admin "Download N headshots" saves 2 files.

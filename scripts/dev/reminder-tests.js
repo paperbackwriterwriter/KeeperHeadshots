@@ -75,6 +75,15 @@ await users.update(buyer.id, (u) => void (u.usage = { freeShootUsed: freeShoot }
     await storage.putJSON(`shoots/${teamShoot}.json`, { ...(await shoots.getMeta(teamShoot)), team: "team_x", updatedAt: ago(3) });
     const mDue = await dueReminder(await fresh(member));
     ok("pay-first: a team member's checked team shoot → develop reminder, no package needed", mDue?.kind === "develop" && mDue.needsPackage === false, JSON.stringify(mDue));
+    // …but not once a refund has left that seat unpaid (developing is refused).
+    const unpaid = await person("unpaidseat");
+    const unpaidShoot = await shoot(unpaid, { days: 3 });
+    await storage.putJSON(`shoots/${unpaidShoot}.json`, { ...(await shoots.getMeta(unpaidShoot)), team: { id: "team_x", unpaid: true }, updatedAt: ago(3) });
+    ok("no develop reminder for a team shoot a refund left unpaid", !(await dueReminder(await fresh(unpaid))));
+    // An account being deleted gets no reminder at all.
+    const leaving = await person("leaving", { lastCheckout: { packageId: "professional", at: ago(2) } });
+    await storage.putJSON(`cancelled/users/${leaving.id}.json`, { at: ago(0) });
+    ok("no reminder for an account being deleted", !(await dueReminder(await fresh(leaving))));
     await users.update(member.id, (u) => void (u.remindersOff = ago(0))); // keeps the run counts in section 3
     // Another address for a mailbox whose free shoot was used is a new
     // customer now, not a returning one.
@@ -241,6 +250,9 @@ await users.update(buyer.id, (u) => void (u.usage = { freeShootUsed: freeShoot }
   await users.update(sentTo.id, (u) => void (u.offers = { [`OFFER${t}`]: new Date().toISOString() }));
   const later = (await offerRecipients(`OFFER${t}`)).map((u) => u.id);
   ok("and not again to that inbox's other address on a later send", !later.includes(one.id) && !later.includes(two.id));
+  const going = await person("offergoing", { email: `offer.going${t}@x.com` });
+  await storage.putJSON(`cancelled/users/${going.id}.json`, { at: new Date().toISOString() });
+  ok("and not to an account being deleted (so the dry run counts what a send reaches)", !(await offerRecipients(`OFFER${t}`)).map((u) => u.id).includes(going.id));
 }
 
 fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true });

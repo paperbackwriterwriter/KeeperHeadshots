@@ -599,6 +599,7 @@ let final;
   // the joiners and tags that emoji and some languages need stay.
   const ct = (s) => teamsLib.cleanText(s).trim();
   ok("names drop overrides and invisible characters, keep what emoji and languages need", ct("Team\u202eA") === "TeamA" && ct("a\u0007b\u2028c") === "a b c" && ct("Jo\u00adhn") === "John" && ct("Fam \u{1F468}\u200d\u{1F469}") === "Fam \u{1F468}\u200d\u{1F469}" && ct("\u0645\u06cc\u200c\u062e") === "\u0645\u06cc\u200c\u062e" && ct("\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}") === "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}" && ct("a\u061cb\u2060c\u0085d") === "abc d");
+  ok("names with nothing visible count as empty; stray tag characters go, flags stay", ct("\u200c") === "" && ct("\u200d") === "" && ct("\u{E0041}\u{E0042}\u{E0043}") === "" && ct("A\u{E0041}B") === "AB" && ct("Go \u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}!") === "Go \u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}!");
   const tm = await teamsLib.saveTeam(await fresh(), { name: "Acme\u202e\u061c Legal", looks: LOOKS });
   // Contact form: 20 failed bot checks from a network stop further ones
   // reaching Cloudflare this hour; other networks aren't affected.
@@ -665,7 +666,7 @@ let final;
   const copy = ["public/js/views/team.js", "public/js/shared/faq.js", "public/js/views/account.js", "public/js/views/teamadmin.js", "lib/prerendered.js"].map(read).join("\n");
   ok("no page promises the admin everyone's finished headshots", !/everyone's finished headshots|Download everyone's headshots|download everyone's headshots|you'll see their finished headshots/.test(copy));
   const told = ["public/js/views/legal.js", "public/js/views/join.js", "lib/mail.js"].map(read).join("\n");
-  ok("privacy, join page and invite email say the admin sees the headshot the person chooses", !/(your|their) finished headshots/.test(told) && told.includes("can view and download the headshot you choose") && told.includes("will see and can download the headshot you choose.") && told.includes("only the headshot you choose."));
+  ok("privacy, join page and invite email say the admin sees the headshot the person chooses", !/(your|their) finished headshots/.test(told) && told.includes("can view and download the headshot you choose") && told.includes("will see and can download the headshot you choose (or our pick of your best until you do).") && told.includes("sees`} the headshot you choose (or our pick of your best until you do).") && !told.includes("only the headshot you choose"));
   ok("the copy promises each person's chosen headshot", read("public/js/views/team.js").includes("Download each person's chosen headshot") && read("public/js/shared/faq.js").includes("download each person's chosen headshot"));
 }
 

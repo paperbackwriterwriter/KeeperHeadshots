@@ -99,6 +99,8 @@ whatever became of that invitation. Stripe items stay in the nightly "For
 you" list until done.
 
 Waiting on the owner:
+- Emails (9 Nov, notes): a reshoot gets no develop reminder (gap, not a bug);
+  the 1-headshot ready email preheader says "with your best pick".
 - Public pages (8 Nov, notes): terms and refunds take their prices from the
   catalog, so ending the sale changes them without a new date (terms promise
   a new date and an email for important changes); a phone held sideways

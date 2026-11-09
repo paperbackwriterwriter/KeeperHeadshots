@@ -65,7 +65,7 @@ Repo /home/user/keeperheadshots @ d1c7ac7. Stack: start-stack.sh 3616 4616 2616 
 | Package unlocks previews (terms) | preview.js unlocksPreviews | OK |
 | Unused shoots don't expire while the account is open | cleanup deletes only undeveloped drafts (no credit used) | OK |
 | Team: admin names team, picks up to 4 looks, invites by pasted emails, each invite uses one shoot, cancelled or 90-day lapsed invite returns it, member must sign in with invited address, delete before develop returns seat, up to 100 invites | teams.js, teamadmin.js, server.js:1377 | OK |
-| Team: admin can "download everyone's finished headshots" (team page, FAQ, privacy, invite email) | | known (best pick only) |
+| Team: admin can "download everyone's finished headshots" (team page, FAQ, privacy, invite email) | | fixed: all say the chosen headshot, or our pick until one is chosen (3, 8, 9 Nov) |
 | Team: admin never sees selfies | teams | OK |
 | Cookies in privacy vs set: ahg_session 30d, kh_device 1y, kh_origin 1y, kh_google 10 min, kh_reauth 5 min, Meta _fbc/_fbp | auth.js, google.js, pixel.js | OK |
 | Session storage (autocheck, join token, search FAQ), local storage (photo tips) | grep of public/js | OK |
@@ -163,4 +163,4 @@ All 47 items above were re-checked on 8 Nov (45 pass, 2 changed by design: the s
 
 (F3 not used.)
 
-Known items met: team admin "download everyone's finished headshots" (team page step 4, TEAM_FAQ, privacy team paragraph, invite email); meta descriptions ~170 chars; /examples/ images 404 locally; desktop nav has no Contact link.
+Known items met (the admin wording was fixed 3-9 Nov): meta descriptions ~170 chars; /examples/ images 404 locally; desktop nav has no Contact link.

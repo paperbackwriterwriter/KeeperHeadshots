@@ -89,6 +89,25 @@ Existing suites run against my stack: cleanup 14/14, backup 19/19, backup-retry 
 
 Known items met: none of the brief's known items came up in this area.
 
+### Added at the nightly re-check of 9 Nov 2026
+
+All items above were re-checked on 9 Nov: G7-01, G7-06, G7-07, G7-08 and G7-09 confirmed fixed; G7-02 partly (send fixed, dry-run count fixed 9 Nov); G7-03/04/05/10/11 still open (known). New items:
+
+| Id | Item | How | Result (9 Nov) |
+|---|---|---|---|
+| E40 | Reset email's "set a password" variants (Google, no password) | render + forgot-password on a Google-only account | OK |
+| E41 | Checkout reminder link goes through /signin?next= and lands on /app/buy/<pkg> after sign-in | Playwright from mock-mail | OK |
+| E42 | Every price in emails comes from the catalog | `grep '\$[0-9]' lib/mail.js` empty; render | OK |
+| E43 | Invite email, join page and privacy agree on what the admin sees | render vs join.js and legal.js | Fixed 9 Nov ("or our pick of your best until you do"; no "only") |
+| E44 | Team and shoot names are cleaned before reaching subjects; names with nothing visible count as empty | live team name with controls/bidi; suite | Fixed 9 Nov (invisible-only names, tag characters outside flags, old team names on join) |
+| E45 | Contact, sign-up and invite addresses refuse list/display-name syntax | live contact "a,b@x.com" → 400 | OK |
+| E46 | No customer email on refund, dispute or invitation lapse; the owner learns through alerts | code read | OK |
+| J31 | Reminders skip accounts being deleted without raising an alert | seed cancelled/users marker, run the cron | Was an error alert every night; fixed 9 Nov |
+| J32 | No develop reminder for a team shoot a refund left unpaid | seed team.unpaid, run the cron | Was sent ("already paid for"); fixed 9 Nov |
+| J33 | Team reshoot: an abandoned moved-seat reshoot never returns a spent seat | crafted metas + cron | OK |
+| J34 | Takeover markers only for accounts that never paid; resume clears markers for paid or deleted accounts | takeover suite + cron report | OK |
+| J35 | Offer dry-run count equals what a send reaches | dry run vs send with an account being deleted | Fixed 9 Nov |
+
 ## 2. Findings
 
 **G7-01 (medium, bug): the preview "buy" reminder quotes the old package price.**

@@ -449,9 +449,9 @@ if (process.env.DATA_DIR) {
   ok("the ready email reads right for a single headshot", /1 headshot, checked for likeness and graded\./.test(one.text) && !/each/.test(one.text), one.text.split("\n")[2]);
   const inv = mail.teamInviteEmail({ ownerName: "Ada", teamName: "Acme", link: "https://x/join/t", looks: ["Glass Office · Navy Suit", "Studio Gray · White Shirt"] });
   ok("the invite email says looks when there are several", /team's looks \(Glass Office · Navy Suit and Studio Gray · White Shirt\)/.test(inv.text), inv.text.split("\n")[2]);
-  ok("and names the admin and team", inv.subject === "Ada invited you to get your Acme headshot" && /Ada sees only/.test(inv.text) && /<b>Acme<\/b>/.test(inv.html), inv.subject);
+  ok("and names the admin and team", inv.subject === "Ada invited you to get your Acme headshot" && /Ada sees the headshot you choose \(or our pick of your best until you do\)/.test(inv.text) && /<b>Acme<\/b>/.test(inv.html), inv.subject);
   const phish = mail.teamInviteEmail({ ownerName: "Payroll: re-verify at keeper-pay.xyz", teamName: "Payroll: re-verify at keeper-pay.xyz today", link: "https://x/join/t", looks: ["Studio Gray · White Shirt"] });
-  ok("a name or team name that reads like a web address isn't sent", !/keeper-pay/i.test(phish.subject + phish.text + phish.html) && phish.subject === "Your team admin invited you to get your team headshot" && /they see only/.test(phish.text), phish.subject);
+  ok("a name or team name that reads like a web address isn't sent", !/keeper-pay/i.test(phish.subject + phish.text + phish.html) && phish.subject === "Your team admin invited you to get your team headshot" && /they see the headshot you choose/.test(phish.text), phish.subject);
   const v = mail.verificationEmail({ name: "Sam", link: "https://x/verify?token=t", code: "123456" });
   ok("the confirmation email only asks to confirm the address (no free shoot)", /to confirm your email address/.test(v.text) && !/free/i.test(v.subject + v.text + v.html));
   // Marketing law: reminder and offer emails carry the postal address; account emails needn't.
@@ -983,7 +983,7 @@ if (process.env.DATA_DIR) {
   ok("shoot names are cleaned with the shared rule (create and rename)", (src.match(/teams\.cleanText\(/g) || []).length === 2);
   const contactRoute = src.slice(src.indexOf('app.post("/api/contact"'));
   ok("the contact form refuses a network over its limit before the bot check", contactRoute.indexOf("contactAtLimit(") > 0 && contactRoute.indexOf("contactAtLimit(") < contactRoute.indexOf("checkHuman("));
-  ok("…and counts failed bot checks (20 an hour) before asking Cloudflare again", contactRoute.indexOf("contactBotAtLimit(") > 0 && contactRoute.indexOf("contactBotAtLimit(") < contactRoute.indexOf("checkHuman(") && contactRoute.indexOf("noteContactBotFail(") > contactRoute.indexOf("checkHuman("));
+  ok("…and counts failed bot checks (20 an hour) before asking Cloudflare again", contactRoute.indexOf("contactBotAtLimit(") > 0 && contactRoute.indexOf("contactBotAtLimit(") < contactRoute.indexOf("checkHuman(") && contactRoute.indexOf("noteContactBotFail(") > contactRoute.indexOf("checkHuman(") && contactRoute.includes('if (!human.ok && human.reason !== "missing") await noteContactBotFail('));
 }
 
 const passed = results.filter((r) => r[1]).length;
