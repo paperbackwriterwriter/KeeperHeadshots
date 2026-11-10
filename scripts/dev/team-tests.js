@@ -600,6 +600,11 @@ let final;
   const ct = (s) => teamsLib.cleanText(s).trim();
   ok("names drop overrides and invisible characters, keep what emoji and languages need", ct("Team\u202eA") === "TeamA" && ct("a\u0007b\u2028c") === "a b c" && ct("Jo\u00adhn") === "John" && ct("Fam \u{1F468}\u200d\u{1F469}") === "Fam \u{1F468}\u200d\u{1F469}" && ct("\u0645\u06cc\u200c\u062e") === "\u0645\u06cc\u200c\u062e" && ct("\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}") === "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}" && ct("a\u061cb\u2060c\u0085d") === "abc d");
   ok("names with nothing visible count as empty; stray tag characters go, flags stay", ct("\u200c") === "" && ct("\u200d") === "" && ct("\u{E0041}\u{E0042}\u{E0043}") === "" && ct("A\u{E0041}B") === "AB" && ct("Go \u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}!") === "Go \u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}!");
+  ok("Hangul fillers and the braille blank count as nothing", ct("\u3164") === "" && ct("\u2800") === "" && ct("A\u3164B") === "AB");
+  const flagged = teamsLib.cleanName("A".repeat(55) + "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}");
+  ok("cutting a name to 60 never leaves half a flag or half an emoji", !/[\u{E0020}-\u{E007F}]/u.test(flagged) && [...flagged].length <= 60 && !/[\ud800-\udbff]$/.test(teamsLib.cleanName("A".repeat(59) + "\u{1F680}")), JSON.stringify(flagged));
+  await storage.updateJSON(`teams/${team.id}.json`, (tm0) => ({ ...tm0, name: "Old\u202e Name" }));
+  ok("a team name saved before the cleaning rule is cleaned when read", (await teamsLib.getTeam(team.id)).name === "Old Name");
   const tm = await teamsLib.saveTeam(await fresh(), { name: "Acme\u202e\u061c Legal", looks: LOOKS });
   // Contact form: 20 failed bot checks from a network stop further ones
   // reaching Cloudflare this hour; other networks aren't affected.

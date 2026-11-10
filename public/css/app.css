@@ -720,9 +720,10 @@ p, li, dd, .lede, figcaption { text-wrap: pretty; }
 .stepper li.current { color: var(--accent-text); }
 .stepper li.current::before { background: var(--flash-500); }
 .stepper li.current b { color: var(--text); }
-/* Small phones: all five steps fit without scrolling. Only the current step
-   shows its name; the others keep theirs for screen readers. */
-@media (max-width: 560px) {
+/* Phones (and unfolded phones up to 660px): all five steps fit without
+   scrolling. Only the current step shows its name; the others keep theirs for
+   screen readers. */
+@media (max-width: 660px) {
   .stepper { overflow: visible; }
   .stepper li { flex: 1 1 0; min-width: 0; }
   .stepper li.current { flex-grow: 2.6; }
@@ -899,7 +900,9 @@ p, li, dd, .lede, figcaption { text-wrap: pretty; }
 .look-editor { margin-top: var(--s-6); padding: var(--s-5); border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--border); scroll-margin-top: 88px; }
 .look-editor .opt-group:first-of-type { margin-top: var(--s-4); }
 .develop-bar { position: sticky; bottom: 0; z-index: 20; display: flex; align-items: center; gap: var(--s-4); margin-top: var(--s-6); padding: var(--s-3) 0 calc(var(--s-3) + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--border); }
-.develop-tally { margin: 0 0 0 auto; display: flex; align-items: baseline; gap: 8px; }
+.develop-tally { margin: 0 0 0 auto; display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+/* (Enlarged text: the bar wraps rather than push Develop off the screen.) */
+.develop-bar { flex-wrap: wrap; }
 .develop-tally strong { font-family: var(--font-display); font-size: 2rem; line-height: 1; }
 .develop-tally span { font-size: var(--fs-sm); color: var(--text-muted); }
 .looks-page { padding-bottom: var(--s-4); }
@@ -1453,7 +1456,8 @@ dialog.lightbox[open] { animation: zoomIn var(--dur-3) var(--ease-out); }
   .refs-actions .score-pill { height: 40px; }
   /* Four of them (photo check and three buttons): two rows of two, never
      three and a lone one (e.g. on a 626px-wide unfolded phone). */
-  .refs-actions:has(> :nth-child(4)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .refs-actions:has(> :nth-child(4)) { grid-template-columns: repeat(auto-fit, minmax(min(100%, max(8.5rem, calc((100% - 10px) / 2))), 1fr)); }
+  .refs-actions .score-pill { height: auto; min-height: 40px; }
 }
 /* A "Best for" chip with its note beside it; the note wraps in its own column. */
 .best-for { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }

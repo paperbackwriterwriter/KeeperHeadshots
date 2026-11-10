@@ -980,10 +980,21 @@ if (process.env.DATA_DIR) {
 // bot check.
 {
   const src = (await import("node:fs")).readFileSync(new URL("../../server.js", import.meta.url), "utf8");
-  ok("shoot names are cleaned with the shared rule (create and rename)", (src.match(/teams\.cleanText\(/g) || []).length === 2);
+  ok("shoot names are cleaned with the shared rule (create and rename)", (src.match(/teams\.cleanName\(/g) || []).length === 2);
   const contactRoute = src.slice(src.indexOf('app.post("/api/contact"'));
   ok("the contact form refuses a network over its limit before the bot check", contactRoute.indexOf("contactAtLimit(") > 0 && contactRoute.indexOf("contactAtLimit(") < contactRoute.indexOf("checkHuman("));
   ok("…and counts failed bot checks (20 an hour) before asking Cloudflare again", contactRoute.indexOf("contactBotAtLimit(") > 0 && contactRoute.indexOf("contactBotAtLimit(") < contactRoute.indexOf("checkHuman(") && contactRoute.indexOf("noteContactBotFail(") > contactRoute.indexOf("checkHuman(") && contactRoute.includes('if (!human.ok && human.reason !== "missing") await noteContactBotFail('));
+}
+
+// Area H, 10 Nov: enlarged text and in-between widths.
+{
+  const fs = await import("node:fs");
+  const css = fs.readFileSync(new URL("../../public/css/app.css", import.meta.url), "utf8");
+  const appJs = fs.readFileSync(new URL("../../public/js/app.js", import.meta.url), "utf8");
+  ok("the Develop bar wraps rather than push Develop off the screen", /\.develop-bar \{ flex-wrap: wrap; \}/.test(css) && /\.develop-tally \{[^}]*min-width: 0;/.test(css));
+  ok("four shoot actions go two by two only while two fit", css.includes(".refs-actions:has(> :nth-child(4)) { grid-template-columns: repeat(auto-fit, minmax(min(100%, max(8.5rem, calc((100% - 10px) / 2))), 1fr)); }") && css.includes(".refs-actions .score-pill { height: auto; min-height: 40px; }"));
+  ok("the step bar uses the phone layout up to 660px", /@media \(max-width: 660px\) \{\n  \.stepper \{ overflow: visible; \}/.test(css));
+  ok("focus moves to the heading when a confirmed panel is removed", appJs.includes("if (hadFocus && hadFocus !== document.body && !document.body.contains(hadFocus))"));
 }
 
 const passed = results.filter((r) => r[1]).length;

@@ -99,6 +99,13 @@ whatever became of that invitation. Stripe items stay in the nightly "For
 you" list until done.
 
 Waiting on the owner:
+- Teams/UX (10 Nov, questions): after confirming their address, a person
+  invited under another spelling has to find the invitation email again (no
+  link back); a person confirmed only through an invitation is told to enter
+  "the code from our email" before one was sent (the Account page says to
+  press "Send another"). Contact form: a one-character fake token still
+  counts as a failed check, so 20 of them lock a network out for the hour
+  (by design of the 7 Nov decision).
 - Emails (9 Nov, notes): a reshoot gets no develop reminder (gap, not a bug);
   the 1-headshot ready email preheader says "with your best pick".
 - Public pages (8 Nov, notes): terms and refunds take their prices from the

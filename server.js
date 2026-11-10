@@ -805,7 +805,7 @@ app.post("/api/shoots", requireUser, async (req, res) => {
   const shoot = await shoots.create({
     id: id("sht"),
     userId: req.user.id,
-    name: (typeof req.body?.name === "string" && teams.cleanText(req.body.name).trim().slice(0, 60)) || `Shoot No. ${String(count).padStart(2, "0")}`,
+    name: (typeof req.body?.name === "string" && teams.cleanName(req.body.name)) || `Shoot No. ${String(count).padStart(2, "0")}`,
     status: "draft",
     createdAt: now,
     selfies: [],
@@ -1377,7 +1377,7 @@ app.patch("/api/shoots/:id", requireUser, async (req, res) => {
   const body = req.body || {};
   let name;
   if ("name" in body) {
-    name = teams.cleanText(typeof body.name === "string" ? body.name : "").trim().slice(0, 60);
+    name = teams.cleanName(typeof body.name === "string" ? body.name : "");
     if (!name) return res.status(400).json({ error: "Give the shoot a name." });
   }
   let pick;

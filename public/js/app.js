@@ -364,6 +364,7 @@ function wireChrome() {
 // worked on (photos picked, looks chosen) is lost to a re-render.
 async function accountChanged() {
   const { planBanner, emptyDashboard } = await import("./views/dashboard.js");
+  const hadFocus = document.activeElement;
   document.querySelectorAll("[data-plan-banner]").forEach((el) => {
     const next = planBanner(el.dataset.planBanner);
     el.outerHTML = next ? next.v : "";
@@ -372,6 +373,11 @@ async function accountChanged() {
   document.querySelectorAll("[data-empty-dash]").forEach((el) => (el.outerHTML = emptyDashboard().v));
   // The account page's "Confirm your email" panel goes once it's confirmed.
   if (state.user?.mailboxConfirmed) document.querySelectorAll("[data-verify-panel]").forEach((el) => el.remove());
+  // (If the focused control went with a swapped panel, focus the heading.)
+  if (hadFocus && hadFocus !== document.body && !document.body.contains(hadFocus)) {
+    const h = document.querySelector("#main h1, main h1");
+    if (h) (h.setAttribute("tabindex", "-1"), h.focus());
+  }
   refreshUserChip();
   document.dispatchEvent(new CustomEvent("ahg:user-changed"));
   showRefundNotice();

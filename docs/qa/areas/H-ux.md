@@ -98,6 +98,16 @@ Method:
 | 84 | Slow network: dashboard/shoot skeletons, buy spinner | route delay | OK |
 | 85 | Back/forward on looks sub-view; reload on looks | script | Picks lost; Back leaves the shoot (H8-10, owner decision) |
 | 86 | Foldables and phones held sideways: 402x874, 626x890, 890x626, 844x390 (layout audit with WIDTHS/HEIGHTS; 626 is in the default widths) | layout audit + browser | OK after 6-7 Nov fixes: shoot buttons 2x2, viewer photo beside details on short wide screens, home buttons on the first screen at 890x626 |
+| 87 | Join page "First confirm your email address" (same Gmail inbox, unconfirmed) and "Ask for an invitation to this address" (legacy account): no Start button; 320/390/1280, both schemes, 200% | API + sweep | OK (10 Nov) |
+| 88 | Team page after a refund and re-invite: withdrawn row hidden, People count and refund note match the shown rows | mock refund + sync, re-invite | OK (10 Nov) |
+| 89 | Team settings name/look warning (role=status): shows on a change when someone joined, clears when reverted, ignores whitespace; the saved toast names what's kept | browser | OK (10 Nov) |
+| 90 | Preview offer buttons with crossed-out prices (results and viewer): readable both schemes at 320; screen readers hear "Was … now …" | sweep + axe | OK (10 Nov) |
+| 91 | Shoot action buttons at 320/390/402/626 and at 200% text | browser | 200% text forced 2x2 (pill overflowed, "Re-/grade"); fixed 10 Nov |
+| 92 | Photo viewer on short wide screens (890x626, 844x390), dark and 200% | sweep + axe | OK (10 Nov) |
+| 93 | Every signed-in screen at 402x874, 626x890, 890x626, 844x390 with axe | sweep | The step bar overflowed at 561-660px (axe serious); fixed 10 Nov |
+| 94 | Interactive states at 150%/200% text (looks picker Develop bar, viewer, settings forms), not only on load | browser | Develop bar pushed Develop off a phone screen (medium); fixed 10 Nov |
+| 95 | Confirm-code form (account page and dashboard): wrong/short code, rate limit, success (panel removed, toast, focus) | browser | Focus fell to the page on success; fixed 10 Nov (moves to the heading) |
+| 96 | Checkout-return toasts ("Payment received", owner "Order complete", cancelled, bogus) at 320: on screen, clear of the Develop bar, keyboard-dismissable | browser | OK (10 Nov) |
 
 ## 2. Findings
 

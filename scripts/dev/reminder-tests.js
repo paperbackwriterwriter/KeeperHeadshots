@@ -80,6 +80,18 @@ await users.update(buyer.id, (u) => void (u.usage = { freeShootUsed: freeShoot }
     const unpaidShoot = await shoot(unpaid, { days: 3 });
     await storage.putJSON(`shoots/${unpaidShoot}.json`, { ...(await shoots.getMeta(unpaidShoot)), team: { id: "team_x", unpaid: true }, updatedAt: ago(3) });
     ok("no develop reminder for a team shoot a refund left unpaid", !(await dueReminder(await fresh(unpaid))));
+    // …nor when the admin's package that paid for the seat was refunded (the
+    // admin still has the account; no flag is set, the debt makes it unpaid).
+    const adminR = await person("seatadmin", { creditsOwed: 1, purchases: [{ sessionId: "cs_paid_seat", shoots: 3, at: ago(9), refunded: true }], refunds: [{ sessionId: "cs_paid_seat", creditsTaken: 0, owedAdded: 1, at: ago(1) }] });
+    const owedSeat = await person("owedseat");
+    const owedShoot = await shoot(owedSeat, { days: 3 });
+    await storage.putJSON(`shoots/${owedShoot}.json`, { ...(await shoots.getMeta(owedShoot)), team: { id: "team_y", ownerId: adminR.id, paidBy: "cs_paid_seat" }, updatedAt: ago(3) });
+    ok("no develop reminder for a seat whose package was refunded (the admin owes it)", !(await dueReminder(await fresh(owedSeat))));
+    const paidSeat = await person("paidseat");
+    const paidShoot = await shoot(paidSeat, { days: 3 });
+    await storage.putJSON(`shoots/${paidShoot}.json`, { ...(await shoots.getMeta(paidShoot)), team: { id: "team_y", ownerId: adminR.id, paidBy: "cs_other" }, updatedAt: ago(3) });
+    ok("…while a seat paid by another package still gets it", (await dueReminder(await fresh(paidSeat)))?.kind === "develop");
+    await users.update(paidSeat.id, (u) => void (u.remindersOff = ago(0))); // keeps the run counts in section 3
     // An account being deleted gets no reminder at all.
     const leaving = await person("leaving", { lastCheckout: { packageId: "professional", at: ago(2) } });
     await storage.putJSON(`cancelled/users/${leaving.id}.json`, { at: ago(0) });
