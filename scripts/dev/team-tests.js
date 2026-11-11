@@ -605,6 +605,16 @@ let final;
   ok("cutting a name to 60 never leaves half a flag or half an emoji", !/[\u{E0020}-\u{E007F}]/u.test(flagged) && [...flagged].length <= 60 && !/[\ud800-\udbff]$/.test(teamsLib.cleanName("A".repeat(59) + "\u{1F680}")), JSON.stringify(flagged));
   await storage.updateJSON(`teams/${team.id}.json`, (tm0) => ({ ...tm0, name: "Old\u202e Name" }));
   ok("a team name saved before the cleaning rule is cleaned when read", (await teamsLib.getTeam(team.id)).name === "Old Name");
+  // The first invitation email gets the cleaned name too (invite() returns the cleaned team).
+  await storage.updateJSON(`users/id/${uid}.json`, (u0) => ({ ...u0, credits: 5 }));
+  await storage.updateJSON(`teams/${team.id}.json`, (tm0) => ({ ...tm0, invites: {}, name: "Dirty\u202e\u3164 Name" }));
+  const firstInvite = await teamsLib.invite(await fresh(), `first-clean${t}@x.com`);
+  ok("the first invitation goes out with the cleaned team name", firstInvite.team.name === "Dirty Name", JSON.stringify(firstInvite.team.name));
+  // Names are cut between whole characters as people see them (never through a
+  // flag, a family emoji, an accent or a keycap), within 60 code points.
+  const cuts = ["\u{1F468}\u200d\u{1F469}\u200d\u{1F467}", "\u{1F1FA}\u{1F1F8}", "\u2764\ufe0f", "\u{1F44D}\u{1F3FD}", "1\ufe0f\u20e3", "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}"];
+  const cutOk = cuts.every((g) => [57, 58, 59].every((n) => { const out = teamsLib.cleanName("a".repeat(n) + g); const tail = out.slice(n); return (tail === "" || tail === g) && [...out].length <= 60; }));
+  ok("cutting a name to 60 never goes through a flag, a family emoji, an accent or a keycap", cutOk);
   const tm = await teamsLib.saveTeam(await fresh(), { name: "Acme\u202e\u061c Legal", looks: LOOKS });
   // Contact form: 20 failed bot checks from a network stop further ones
   // reaching Cloudflare this hour; other networks aren't affected.

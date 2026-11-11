@@ -376,7 +376,7 @@ async function accountChanged() {
   // (If the focused control went with a swapped panel, focus the heading.)
   if (hadFocus && hadFocus !== document.body && !document.body.contains(hadFocus)) {
     const h = document.querySelector("#main h1, main h1");
-    if (h) (h.setAttribute("tabindex", "-1"), h.focus());
+    if (h) (h.setAttribute("tabindex", "-1"), h.focus({ preventScroll: true }));
   }
   refreshUserChip();
   document.dispatchEvent(new CustomEvent("ahg:user-changed"));
@@ -467,6 +467,7 @@ document.addEventListener("submit", async (e) => {
   const code = input.value.replace(/\D/g, "");
   if (code.length !== 6) return showError("Enter the 6 digits from the email."), input.focus();
   showError("");
+  const hadFocus = form.contains(document.activeElement); // (disabling the button drops focus to the page)
   const restore = busy(form.querySelector("button[type=submit]"), "Checking…");
   try {
     const res = await api("/api/auth/verify/code", { method: "POST", body: { code } });
@@ -476,6 +477,12 @@ document.addEventListener("submit", async (e) => {
     // Swaps just the banners, so a page in progress (photos being picked on
     // /app/new) keeps its state.
     await accountChanged();
+    // The panel (with its form) is gone: focus the heading, if the person was
+    // in the form, and nothing else took focus.
+    if (hadFocus && !form.isConnected && (!document.activeElement || document.activeElement === document.body)) {
+      const h = document.querySelector("#main h1, main h1");
+      if (h) (h.setAttribute("tabindex", "-1"), h.focus({ preventScroll: true }));
+    }
   } catch (e2) {
     restore();
     if (e2.status === 401) return navigate(`/signin?next=${encodeURIComponent(location.pathname)}`);

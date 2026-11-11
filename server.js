@@ -194,7 +194,7 @@ async function sendVerification(user, req) {
 app.post("/api/auth/signup", async (req, res) => {
   const { name, email, password } = req.body || {};
   const errors = {};
-  if (typeof name !== "string" || name.trim().length < 2) errors.name = "Tell us what to call you.";
+  if (typeof name !== "string" || accountName(name).length < 2) errors.name = "Tell us what to call you.";
   else if (String(name).trim().length > 80 || NAME_BAD.test(String(name).normalize("NFKC"))) errors.name = "Use just your name (2 to 80 characters, no links, web addresses or symbols like < >).";
   if (!isEmail(email)) errors.email = "Enter a valid email address.";
   if (!password || String(password).length < 8) errors.password = "Use at least 8 characters.";
@@ -211,7 +211,7 @@ app.post("/api/auth/signup", async (req, res) => {
   if (await overLimit("signupmail", canonicalEmail(email), SIGNUP_MAX_PER_MAILBOX, DAY_MS)) return res.status(429).json({ error: "This inbox has created a few accounts today. Sign in to one of them, or try again tomorrow.", fields: { email: "This inbox has created a few accounts today. Sign in instead?" } });
   const user = await users.create({
     id: id("usr"),
-    name: String(name).trim().replace(/\s+/g, " "),
+    name: accountName(name),
     email: String(email).toLowerCase().trim(),
     password: await hashPassword(String(password)),
     createdAt: new Date().toISOString(),
@@ -297,7 +297,10 @@ const googleRedirectUri = (req) => `${appOrigin(req)}/api/auth/google/callback`;
 const NAME_CHARS = /https?:|www\.|[<>@\u0000-\u001f\u00ad\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/i;
 // Anything shaped like a web address ("refunds.xyz") counts as one (lib/mail.js).
 const NAME_BAD = { test: (s) => NAME_CHARS.test(s) || ADDRESS_LIKE.test(s) };
-const nameOk = (s) => typeof s === "string" && s.trim().length >= 2 && s.trim().length <= 80 && !NAME_BAD.test(s.normalize("NFKC"));
+// (A name as people see it: invisible characters removed, spaces collapsed; at
+// least 2 visible characters.)
+const accountName = (s) => teams.cleanName(typeof s === "string" ? s : "", 80);
+const nameOk = (s) => typeof s === "string" && s.trim().length <= 80 && accountName(s).length >= 2 && !NAME_BAD.test(s.normalize("NFKC"));
 const googleCookie = { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" || !!process.env.VERCEL, path: "/api/auth/google" };
 
 const REAUTH_FRESH_S = 5 * 60;
@@ -360,7 +363,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
   if (!user) {
     // (Dots become spaces: "jo.ann" would read as a web address to nameOk.)
     const local = profile.email.split("@")[0].replace(/[^\p{L}\p{N} _'-]/gu, " ").replace(/\s+/g, " ").trim();
-    const name = [profile.name, profile.givenName, local].find(nameOk)?.trim().replace(/\s+/g, " ") || "Keeper member";
+    const name = accountName([profile.name, profile.givenName, local].find(nameOk)) || "Keeper member";
     user = await users.create({ id: id("usr"), name, email: profile.email, googleSub: profile.sub, createdAt: now, emailVerified: true, emailVerifiedAt: now, signupMethod: "google" });
     if (user) created = newlyVerified = true;
     else user = await users.byEmail(profile.email); // the same address signed up a moment ago
@@ -757,7 +760,7 @@ const summaryOf = (s) => ({
   cover: s.cover || s.selfies[0]?.file || null,
   checkScore: s.check?.overall_score ?? null,
   bestScore: s.bestScore ?? null,
-  team: s.team ? s.team.name : null,
+  team: s.team ? teams.cleanName(s.team.name) || "Team" : null,
 });
 
 app.get("/api/shoots", requireUser, async (req, res) => {
@@ -773,6 +776,9 @@ app.get("/api/shoots", requireUser, async (req, res) => {
 // An earlier holder's selfies kept on a shoot developing after a takeover
 // (purgeForTakeover) aren't listed (nor served: /media).
 function shown(shoot) {
+  // (A team shoot's name for the team was written when the person joined, perhaps
+  // before names were cleaned.)
+  if (shoot?.team && typeof shoot.team.name === "string") shoot = { ...shoot, team: { ...shoot.team, name: teams.cleanName(shoot.team.name) || "Team" } };
   if (!Array.isArray(shoot?.dropSelfies)) return shoot;
   // (Its photo check, score included, is of those selfies.)
   return { ...shoot, selfies: (shoot.selfies || []).filter((p) => !shoot.dropSelfies.includes(p.file)), check: null, dropSelfies: undefined };
@@ -1774,7 +1780,7 @@ app.post("/api/account/preferences", requireUser, async (req, res) => {
     if (want !== undefined) u.photoFormat = want;
     if (reminders === true) delete u.remindersOff;
     if (reminders === false) u.remindersOff = u.remindersOff || at;
-    if (name !== undefined) u.name = name.trim().replace(/\s+/g, " ");
+    if (name !== undefined) u.name = accountName(name);
     if (refundSeen) u.refunds = (u.refunds || []).map((r) => (r.noticeSeenAt || (r.at || "") > refundSeen ? r : { ...r, noticeSeenAt: at }));
   });
   res.json({ user: publicUser(user) });

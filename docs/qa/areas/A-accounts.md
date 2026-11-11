@@ -121,6 +121,23 @@ Run note: verification-delivery-tests writes `verification-delivery-shots/` into
 
 Items checked: 110 (rotation, 3 Nov). Findings: 1 high, 0 medium, 11 low (3 of the low ones are owner decisions).
 
+### Added at the nightly re-check of 11 Nov 2026
+
+All 110 items above were re-checked on 11 Nov. Fixed since 3 Nov and confirmed: A1-02 (item 33), A1-03 (item 20), A1-05 (item 46), A1-09 (item 5), A1-11 (item 78); A1-08 (item 67) fixed in code. Still open (known): items 18, 25, 35, 37, 42, 50, 98. New items:
+
+| Id | Item | How | Result (11 Nov) |
+|---|---|---|---|
+| N1 | Paid unconfirmed account, reset or Google sign-in from another browser keeps its draft and selfies, signs the maker out, removes the password; unpaid removes the draft | seed a purchase + draft, two browsers | OK |
+| N2 | "Did you create this account?" → No still removes a paid account's maker-added drafts (owner decision, 3 Nov) | /verify "No" | OK |
+| N3 | Sign-in and forgot use the loose address check; sign-up the strict one (an address with `:` signs in and resets, can't sign up) | API | OK |
+| N4 | Legacy account with no emailVerified field: counts as confirmed; takes an exact-address invitation but not a Gmail variant | in-process | OK |
+| N5 | Reset emails: 30 an hour per network, counting failed bot checks too | API with Turnstile on | OK |
+| N6 | Confirm-code form: wrong code keeps focus in the field with the error; right code removes the panel and moves focus to the page heading, with Enter, a click or Space on the button | browser | The button click and Space left focus on the page (disabled button); fixed 11 Nov |
+| N7 | Owner and demo accounts send nothing to Meta (verify link, Google, reset); a regular account sends exactly one CompleteRegistration | /mock-meta | OK |
+| N8 | Account mid-deletion: forgot sends no mail, unsubscribe 404, writes 409; reminders and offers skip it. Sign-in and /api/me still succeed; Google, reset and the email link show a raw "deleted" message (A1-12, A2-02) | seed cancelled/users marker | known |
+| N9 | Account names get the same cleaning as team and shoot names: invisible characters removed, a name with nothing visible refused (sign-up, name edit, Google fallback) | API | Was accepted (a blank name in invitation subjects); fixed 11 Nov |
+| N10 | Google delete re-check needs Google's sign-in time within 5 minutes (missing or old → stale; another account → failed) | google-tests | OK |
+
 ## 2. Findings
 
 ### A1-01 (high) bug, or owner decision: reset or Google sign-in from a second device wipes a paying customer's own unconfirmed account

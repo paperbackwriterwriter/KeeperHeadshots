@@ -980,7 +980,7 @@ if (process.env.DATA_DIR) {
 // bot check.
 {
   const src = (await import("node:fs")).readFileSync(new URL("../../server.js", import.meta.url), "utf8");
-  ok("shoot names are cleaned with the shared rule (create and rename)", (src.match(/teams\.cleanName\(/g) || []).length === 2);
+  ok("shoot names are cleaned with the shared rule (create and rename)", src.includes("teams.cleanName(req.body.name))") && src.includes('teams.cleanName(typeof body.name === "string" ? body.name : "")'));
   const contactRoute = src.slice(src.indexOf('app.post("/api/contact"'));
   ok("the contact form refuses a network over its limit before the bot check", contactRoute.indexOf("contactAtLimit(") > 0 && contactRoute.indexOf("contactAtLimit(") < contactRoute.indexOf("checkHuman("));
   ok("…and counts failed bot checks (20 an hour) before asking Cloudflare again", contactRoute.indexOf("contactBotAtLimit(") > 0 && contactRoute.indexOf("contactBotAtLimit(") < contactRoute.indexOf("checkHuman(") && contactRoute.indexOf("noteContactBotFail(") > contactRoute.indexOf("checkHuman(") && contactRoute.includes('if (!human.ok && human.reason !== "missing") await noteContactBotFail('));
@@ -994,7 +994,20 @@ if (process.env.DATA_DIR) {
   ok("the Develop bar wraps rather than push Develop off the screen", /\.develop-bar \{ flex-wrap: wrap; \}/.test(css) && /\.develop-tally \{[^}]*min-width: 0;/.test(css));
   ok("four shoot actions go two by two only while two fit", css.includes(".refs-actions:has(> :nth-child(4)) { grid-template-columns: repeat(auto-fit, minmax(min(100%, max(8.5rem, calc((100% - 10px) / 2))), 1fr)); }") && css.includes(".refs-actions .score-pill { height: auto; min-height: 40px; }"));
   ok("the step bar uses the phone layout up to 660px", /@media \(max-width: 660px\) \{\n  \.stepper \{ overflow: visible; \}/.test(css));
-  ok("focus moves to the heading when a confirmed panel is removed", appJs.includes("if (hadFocus && hadFocus !== document.body && !document.body.contains(hadFocus))"));
+  ok("focus moves to the heading when a confirmed panel is removed (Enter in the input, or the button)", appJs.includes("if (hadFocus && hadFocus !== document.body && !document.body.contains(hadFocus))") && appJs.includes("const hadFocus = form.contains(document.activeElement);") && appJs.includes("if (hadFocus && !form.isConnected &&") && !/h\.focus\(\)/.test(appJs));
+}
+
+// Area A, 11 Nov: account names are cleaned like team and shoot names.
+{
+  const blank = ["\u3164\u3164", "\u2800\u2800", "\u2060\u2060", "\u0085\u0085", "\u{E0041}\u{E0042}"];
+  const refused = [];
+  for (const [i, nm] of blank.entries()) refused.push((await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: nm, email: `blankname${i}${t}@x.com`, password: "password123" }) })).status);
+  ok("sign-up refuses a name made only of invisible characters", refused.every((s) => s === 400), refused.join(","));
+  const f = await account(`cleanname${t}@x.com`);
+  const upd = await f("/api/account/preferences", { method: "POST", body: JSON.stringify({ name: "Jo \u3164Ann\u{E0041}  Lee" }) });
+  ok("a name is saved without invisible characters and with one space between words", upd.status === 200 && upd.j?.user?.name === "Jo Ann Lee", upd.j?.user?.name);
+  const blankEdit = await f("/api/account/preferences", { method: "POST", body: JSON.stringify({ name: "\u3164\u3164" }) });
+  ok("…and renaming to only invisible characters is refused", blankEdit.status === 400 && blankEdit.j?.field === "name", String(blankEdit.status));
 }
 
 const passed = results.filter((r) => r[1]).length;

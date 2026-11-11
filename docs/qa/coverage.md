@@ -99,6 +99,18 @@ whatever became of that invitation. Stripe items stay in the nightly "For
 you" list until done.
 
 Waiting on the owner:
+- Live (11 Nov): between 17:33 and 19:19 UTC on 10 Nov, 8 requests timed out
+  after 300 seconds (the shoot worker six times, the home page twice, one from
+  Hong Kong), each shortly after a new server instance started; none in the
+  7 days before and none since. The home page's one storage read (customers'
+  shared headshots) has no time limit of its own; a limit would keep a stalled
+  read from holding the page for 5 minutes. Not fixed: the cause isn't shown.
+- Accounts (11 Nov, low): an account mid-deletion still gets a raw "deleted"
+  message from the email-link confirm (A2-02, with A1-12); the browser
+  Pixel's page views are still sent for owner and demo sessions (only events
+  are blocked).
+- UX (11 Nov, low): at 200% text on a phone the Develop bar is taller and the
+  toast can overlap it.
 - Teams/UX (10 Nov, questions): after confirming their address, a person
   invited under another spelling has to find the invitation email again (no
   link back); a person confirmed only through an invitation is told to enter
