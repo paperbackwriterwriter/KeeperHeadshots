@@ -99,6 +99,11 @@ whatever became of that invitation. Stripe items stay in the nightly "For
 you" list until done.
 
 Waiting on the owner:
+- Shoots (12 Nov): B3-1 to B3-6 in docs/qa/areas/B-shoots.md (no time limit on
+  storage and review AI calls; a killed /more-looks or /check can lose a credit;
+  a dead review worker waits 6 minutes; photo viewer at phone-sideways heights;
+  a 3+1 button row at 641-700 px). The first is the likeliest cause class for
+  the 10 Nov timeouts, still not proven.
 - Live (11 Nov): between 17:33 and 19:19 UTC on 10 Nov, 8 requests timed out
   after 300 seconds (the shoot worker six times, the home page twice, one from
   Hong Kong), each shortly after a new server instance started; none in the

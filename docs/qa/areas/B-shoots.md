@@ -119,3 +119,21 @@ Items checked on 4 Nov (rotation): 93 (74 + 19 new).
 **B2-7** low, bug. POST /check on a shoot stuck in "checking" past the lease is refused 409 "A photo check is already running" by the route's early status check (server.js:879), so beginCheck's staleRun takeover (lib/pipeline.js:75) is dead code; recovery only happens through a GET poll (advance). Repro: set status checking with checkStartedAt 10 min old, POST /check -> 409. Fix: drop the early 409 or let it through when stale. Reproduced: yes (low impact: the studio page polls GET and recovers).
 
 Counts: ~95 inventory items checked; findings: 0 high, 0 medium, 7 low (6 bug, 1 owner decision).
+
+## Added at the nightly re-check, 12 Nov
+| Item | Check |
+|---|---|
+| B-N20 | Storage calls on the shoot path (blob get/head/put/list/del and the body read) have a time limit. Currently NONE (open question B3-1). |
+| B-N21 | A cron or worker run ends below maxDuration (about 280 s) whatever happens; the 290 s job lease does not outlive the function. |
+| B-N22 | A dead review worker is re-claimed within about 5 minutes (today: after the 6-minute sweep, with "Grading timed out" though frames are fine; B3-3). |
+| B-N23 | /more-looks killed between taking the paid look and adding the looks returns the credit or completes (B3-2). |
+| B-N24 | /check killed mid-run returns the free check (B3-4). |
+| B-N25 | Free retry within 15 s of the last: 429 retry_soon asserted in a suite with a fast-failing mock. |
+| B-N26 | Reshoot and other derived shoot names are whole-character and cleaned (no lone surrogate). Fixed 12 Nov. |
+| B-N27 | Photo viewer at 844x390, 780x360, 640x400: the download button and Prev/Next are reachable without scrolling the panel (B3-5, open). |
+| B-N28 | axe label-content-name-mismatch on the looks page (fixed 12 Nov). |
+| B-N29 | Photo-check and button row at 641-720 px: no three-and-one wrap (B3-6, open, cosmetic). |
+| B-N30 | Team shoot's team name and shoot names with invisible characters are cleaned in the list and the shoot page. |
+
+**B3-1** (owner decision, cause not proven) No time limit on storage calls (lib/storage.js) or on photo-check and review AI calls (lib/ai.js, SDK default 120 s with one retry); a hung call becomes a 300 s kill, which fits 10 Nov. Recovery after a kill is by the 6-minute sweeps. Option: `abortSignal` on every blob call plus a run deadline of about 280 s.
+**B3-2** low-medium. /more-looks takes the paid look before adding looks, with no recovery record (millisecond window). **B3-3** low. A dead review worker's claim isn't retaken for 6 minutes. **B3-4** low. /check counts the free check before the AI call and returns it only in the catch. **B3-5** low UX. Viewer panel scrolls at phone-sideways heights; download button half cut off. **B3-6** cosmetic. Button row wraps 3+1 at 641-700 px.

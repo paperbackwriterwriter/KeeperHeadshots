@@ -695,7 +695,7 @@ export async function renderStudio(ctx, id) {
       $("#slots").innerHTML = html`${looks.map((l, i) => {
         const look = lookFor(l.backdrop, l.outfit);
         return html`<li class="look-card-wrap">
-          <button type="button" class="look-card" data-select="${i}" aria-pressed="${i === active}" aria-label="Look ${i + 1}: ${lookName(l.backdrop, l.outfit)}${i === active ? ", editing" : ""}">
+          <button type="button" class="look-card" data-select="${i}" aria-pressed="${i === active}" aria-label="Look ${i + 1}: ${lookName(l.backdrop, l.outfit)}${i === active ? ", editing" : ", tap to edit"}">
             <img src="${preview(l)}" alt="" />
             <span class="look-num">${i + 1}</span>
             <span class="look-text"><b>${look.backdrop.name}</b><span>${look.outfit.name}</span></span>

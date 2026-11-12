@@ -508,7 +508,7 @@ if (process.env.DATA_DIR) {
   ok("a body value that can't be turned into text is refused, not a crash", odd.status === 400 && nested.status === 400, `${odd.status} ${nested.status}`);
   const bidi = await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Ada \u202Egnitekram\u202C Lovelace", email: `bidi${t}@x.com`, password: "password123" }) });
   const zw = await f("/api/auth/signup", { method: "POST", body: JSON.stringify({ name: "Ada\u200B Lovelace", email: `zw${t}@x.com`, password: "password123" }) });
-  ok("names can't carry direction or zero-width characters", bidi.status === 400 && zw.status === 400, `${bidi.status} ${zw.status}`);
+  ok("names can't carry direction overrides; a zero-width space is cleaned away", bidi.status === 400 && zw.status === 201 && zw.j?.user?.name === "Ada Lovelace", `${bidi.status} ${zw.status} ${zw.j?.user?.name}`);
 }
 
 // 26. A download link opened after signing out goes to the sign-in page, not to a saved error file.
@@ -1008,6 +1008,18 @@ if (process.env.DATA_DIR) {
   ok("a name is saved without invisible characters and with one space between words", upd.status === 200 && upd.j?.user?.name === "Jo Ann Lee", upd.j?.user?.name);
   const blankEdit = await f("/api/account/preferences", { method: "POST", body: JSON.stringify({ name: "\u3164\u3164" }) });
   ok("…and renaming to only invisible characters is refused", blankEdit.status === 400 && blankEdit.j?.field === "name", String(blankEdit.status));
+}
+
+// Area B night, 12 Nov: names that need joiners are accepted; web addresses hidden by
+// invisible characters are still refused.
+{
+  const post = async (name, i) => (await client()("/api/auth/signup", { method: "POST", body: JSON.stringify({ name, email: `nm12${i}${t}@x.com`, password: "password123" }) }));
+  const persian = await post("\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645 \u0639\u0644\u06cc", 1);
+  const hebrew = await post("\u05d3\u05d5\u05d3\u200f \u05db\u05d4\u05df", 2);
+  const zwsp = await post("Jo\u200bAnn", 3);
+  ok("names with ZWNJ, direction marks or a zero-width space are accepted and cleaned", persian.status === 201 && persian.j?.user?.name === "\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645 \u0639\u0644\u06cc" && hebrew.status === 201 && hebrew.j?.user?.name === "\u05d3\u05d5\u05d3 \u05db\u05d4\u05df" && zwsp.status === 201 && zwsp.j?.user?.name === "JoAnn", JSON.stringify([persian.status, persian.j?.user?.name, hebrew.status, hebrew.j?.user?.name, zwsp.status, zwsp.j?.user?.name]));
+  const hidden = [await post("refunds\u2800.xyz", 4), await post("Bob refunds.\u2800xyz", 5), await post("Jo\u202e Ann", 6)].map((r) => r.status);
+  ok("a web address hidden by an invisible character is still refused (and overrides)", hidden.every((s) => s === 400), hidden.join(","));
 }
 
 const passed = results.filter((r) => r[1]).length;

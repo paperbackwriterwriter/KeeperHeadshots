@@ -195,7 +195,7 @@ app.post("/api/auth/signup", async (req, res) => {
   const { name, email, password } = req.body || {};
   const errors = {};
   if (typeof name !== "string" || accountName(name).length < 2) errors.name = "Tell us what to call you.";
-  else if (String(name).trim().length > 80 || NAME_BAD.test(String(name).normalize("NFKC"))) errors.name = "Use just your name (2 to 80 characters, no links, web addresses or symbols like < >).";
+  else if (String(name).trim().length > 80 || nameBad(String(name))) errors.name = "Use just your name (2 to 80 characters, no links, web addresses or symbols like < >).";
   if (!isEmail(email)) errors.email = "Enter a valid email address.";
   if (!password || String(password).length < 8) errors.password = "Use at least 8 characters.";
   else if (String(password).length > 200) errors.password = "Use 200 characters or fewer.";
@@ -294,13 +294,18 @@ app.post("/api/auth/signin", async (req, res) => {
 const safeNextPath = (next) => (typeof next === "string" && /^\/(app(\/|$|\?)|join$)/.test(next) ? next : null);
 const googleRedirectUri = (req) => `${appOrigin(req)}/api/auth/google/callback`;
 // (Checked in NFKC form, so look-alike dots and letters count as the real ones.)
-const NAME_CHARS = /https?:|www\.|[<>@\u0000-\u001f\u00ad\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/i;
+// (Zero-width and direction marks \u200b-\u200f aren't refused here: the name is
+// cleaned, which keeps the joiners Persian, Hindi or Sinhala names need and
+// removes the rest. Overrides and isolates are still refused.)
+const NAME_CHARS = /https?:|www\.|[<>@\u0000-\u001f\u00ad\u202a-\u202e\u2066-\u2069\ufeff]/i;
 // Anything shaped like a web address ("refunds.xyz") counts as one (lib/mail.js).
 const NAME_BAD = { test: (s) => NAME_CHARS.test(s) || ADDRESS_LIKE.test(s) };
 // (A name as people see it: invisible characters removed, spaces collapsed; at
 // least 2 visible characters.)
 const accountName = (s) => teams.cleanName(typeof s === "string" ? s : "", 80);
-const nameOk = (s) => typeof s === "string" && s.trim().length <= 80 && accountName(s).length >= 2 && !NAME_BAD.test(s.normalize("NFKC"));
+// (Checked as typed and as cleaned, so an invisible character inside "refunds.xyz" can't hide it.)
+const nameBad = (s) => NAME_BAD.test(s.normalize("NFKC")) || NAME_BAD.test(accountName(s).normalize("NFKC"));
+const nameOk = (s) => typeof s === "string" && s.trim().length <= 80 && accountName(s).length >= 2 && !nameBad(s);
 const googleCookie = { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" || !!process.env.VERCEL, path: "/api/auth/google" };
 
 const REAUTH_FRESH_S = 5 * 60;
@@ -1337,7 +1342,7 @@ app.post("/api/shoots/:id/reshoot", requireUser, async (req, res) => {
     const made = await shoots.create({
       id: sid,
       userId: req.user.id,
-      name: `${String(shoot.name || "Shoot").slice(0, 49)} · reshoot`,
+      name: `${teams.cleanName(String(shoot.name || "Shoot"), 49) || "Shoot"} · reshoot`,
       status: "draft",
       createdAt: new Date().toISOString(),
       selfies: [],
@@ -1463,7 +1468,7 @@ async function sendInvite(req, team, inv) {
   if (!mailEnabled()) return false;
   if (await inviteMailCapped(team, inv)) return "capped";
   const link = `${appOrigin(req)}/join/${inv.token}`;
-  const { subject, text, html } = teamInviteEmail({ ownerName: req.user.name, teamName: team.name, link, looks: lookNames(team.looks) });
+  const { subject, text, html } = teamInviteEmail({ ownerName: accountName(req.user.name), teamName: team.name, link, looks: lookNames(team.looks) });
   await sendMail({ from: { name: "Keeper Headshots", address: MAIL_FROM }, replyTo: { name: req.user.name, address: req.user.email }, to: inv.email, subject, text, html });
   await teams.markSent(team.id, inv.id);
   return true;
