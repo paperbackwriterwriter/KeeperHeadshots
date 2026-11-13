@@ -104,10 +104,15 @@ and write up to 600 characters at /app/review, with a name to show and a
 permission tick-box; one review per account, replaced on re-send and then
 pending again; the owner approves, declines or deletes at /app/reviews;
 /api/reviews returns approved ones with the count and average. One request
-email ("review" reminder) 3 to 30 days after a customer's own shoot finishes,
-once ever, not for team members, the demo account, refunded customers or
-anyone who turned reminders off. Deleted with the account. NOT yet shown on
-the home page (owner to decide). Belongs to area G (emails) and H (screens).
+email ("review" reminder) from 3 days after a customer's own shoot finishes
+(no upper limit, so earlier customers are asked once too), once ever, not for
+team members, the demo account, refunded customers or anyone who turned
+reminders off. Deleted with the account. Owner's decisions, 13 Nov: approved
+reviews show on the home page (a "Reviews" section with the average, up to
+six, hidden until one is approved; in the server's HTML like the customer
+results); all ratings are handled the same; a 4 or 5 star reviewer with a
+finished paid shoot and nothing shared yet is invited to share a headshot.
+No star-rating structured data is published. Belongs to areas F, G and H.
 
 Waiting on the owner:
 - Payments (13 Nov, low): C4-1 and C4-2 in docs/qa/areas/C-payments.md (a seat

@@ -23,7 +23,7 @@ export function renderReview({ root }) {
   </main>`.v;
   const body = $("#rvBody", root);
 
-  const paint = ({ eligible, review }) => {
+  const paint = ({ eligible, review, shareShootId }) => {
     if (!eligible && !review) {
       body.innerHTML = html`<div class="panel" style="margin-top:24px"><p>Reviews are for customers who have bought a package or a headshot.</p><div class="btn-row" style="margin-top:12px"><a class="btn btn-ghost" href="/app" data-link>Back to your shoots</a></div></div>`.v;
       return;
@@ -31,7 +31,7 @@ export function renderReview({ root }) {
     const [cls, label, text] = review ? STATUS[review.status] || STATUS.pending : [];
     body.innerHTML = html`<section class="panel review-panel" style="margin-top:24px">
       ${review
-        ? html`<div class="review-current"><p><span class="badge ${cls}">${label}</span></p><p>${stars(review.rating)} <b>${review.name}</b></p>${review.text ? html`<p><q>${review.text}</q></p>` : ""}<p class="small muted">${text}</p></div>`
+        ? html`<div class="review-current"><p><span class="badge ${cls}">${label}</span></p><p>${stars(review.rating)} <b>${review.name}</b></p>${review.text ? html`<p><q>${review.text}</q></p>` : ""}<p class="small muted">${text}</p>${review.rating >= 4 && shareShootId ? html`<p class="small">Happy with your headshots? <a class="link" href="/app/shoot/${shareShootId}" data-link>Share one on our home page</a> ("Share your results" on your shoot). You choose the photo, and nothing is shown until we approve it.</p>` : ""}</div>`
         : ""}
       ${eligible
         ? html`<form class="review-form" id="rvForm" novalidate>
@@ -83,7 +83,9 @@ export function renderReview({ root }) {
         try {
           const r = await api("/api/review", { method: "POST", body: { rating, text: f.text.value, name, consent: true } });
           if (disposed) return;
-          paint({ eligible: true, review: r.review });
+          const again = await api("/api/review/mine").catch(() => null);
+          if (disposed) return;
+          paint(again || { eligible: true, review: r.review });
           toast("Thank you for your review!", "success");
           $("#main h1", root)?.focus?.();
         } catch (e2) {

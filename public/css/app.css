@@ -1926,3 +1926,7 @@ dialog.search-dialog::backdrop { background: rgba(8, 12, 20, 0.55); }
 .stars-shown .stars-off { color: var(--border-strong, var(--border)); }
 .rva-item { display: grid; gap: 8px; justify-items: start; min-width: 0; }
 .rva-item p { overflow-wrap: anywhere; max-width: 100%; }
+.review-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: var(--s-5); margin-top: var(--s-6); }
+.review-card { margin: 0; display: grid; gap: 10px; align-content: start; min-width: 0; padding: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); overflow-wrap: anywhere; }
+.review-card blockquote { margin: 0; font-family: var(--font-display); font-size: var(--fs-lg); line-height: 1.35; text-wrap: pretty; }
+.review-card figcaption span { color: var(--text-muted); font-size: var(--fs-sm); }

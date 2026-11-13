@@ -28,6 +28,7 @@ import { background, ingestSelfie, beginCheck, runCheck, statusWithoutCheck, adv
 import { lookFor, MAX_LOOKS, MAX_SELFIES, MAX_RESUMES, MIN_CHECK_SCORE, RECOMMENDED_CHECK_SCORE, PHOTO_FORMATS, isPreviewOffer } from "./public/js/shared/catalog.js";
 import { seed, DEMO } from "./scripts/seed.js";
 import { customersSection } from "./public/js/shared/customers.js";
+import { reviewsSection } from "./public/js/shared/reviews.js";
 import { planFor, ownerEmail, creditSource, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, CHOOSE_PACKAGE, EMAIL_UNCONFIRMED } from "./lib/plan.js";
 import { browserDetails, gpc, metaPixelId, track as trackMetaEvent } from "./lib/meta.js";
 import { runCleanup } from "./lib/cleanup.js";
@@ -2205,7 +2206,15 @@ app.post("/api/owner/showcase/:id", requireUser, async (req, res) => {
 // paying customer, at /app/review. An owner approves them at /app/reviews.
 app.get("/api/review/mine", requireUser, async (req, res) => {
   res.set("Cache-Control", "no-store");
-  res.json({ eligible: reviews.canReview(req.user), review: reviews.ownReview(await reviews.get(req.user.id)) });
+  const review = reviews.ownReview(await reviews.get(req.user.id));
+  // A happy customer is invited to share a headshot too (lib/showcase.js):
+  // their newest finished shoot of their own, unless they already shared one.
+  let shareShootId = null;
+  if (review?.rating >= 4 && !req.user.demo && !(await showcase.forUser(req.user.id))) {
+    const mine = (await shoots.forUser(req.user.id)).filter((m) => m.status === "done" && !m.sample && (m.shots || []).length && !isPreview(m, req.user));
+    shareShootId = mine.sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)))[0]?.id || null;
+  }
+  res.json({ eligible: reviews.canReview(req.user), review, shareShootId });
 });
 app.post("/api/review", requireUser, async (req, res) => {
   if (req.user.demo) return res.status(403).json({ error: DEMO_READ_ONLY, code: "demo_read_only" });
@@ -2490,6 +2499,13 @@ async function withCustomers(html) {
   // read as a replacement pattern (which would paste the page into itself).
   return entries.length ? html.replace(EMPTY_CUSTOMERS, () => customersSection(entries)) : html;
 }
+// The same for approved reviews (lib/reviews.js).
+const EMPTY_REVIEWS = /<section class="section" id="reviews"[^>]*>\s*<\/section>/;
+async function withReviews(html) {
+  if (!EMPTY_REVIEWS.test(html)) return html;
+  const data = await reviews.approved().catch(() => null);
+  return data?.count ? html.replace(EMPTY_REVIEWS, () => reviewsSection(data)) : html;
+}
 
 // Public pages are the same for everyone (accounts load in the browser), so
 // Vercel's CDN may serve them for a minute and refresh in the background:
@@ -2516,7 +2532,7 @@ app.get(/.*/, async (req, res) => {
   // The home page carries the approved customer headshots in its HTML, so
   // search engines see them (the browser fills the same section in later).
   if (clean === "/") {
-    html = await withCustomers(html);
+    html = await withReviews(await withCustomers(html));
     res.set("Vercel-CDN-Cache-Control", HOME_CDN_CACHE);
   }
   if (!isCanonicalHost(req.get("host"))) res.set("X-Robots-Tag", "noindex");

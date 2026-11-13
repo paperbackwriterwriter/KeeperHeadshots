@@ -54,7 +54,9 @@ const fails = async (fn) => { try { await fn(); return null; } catch (err) { ret
   ok("…not before 3 days", !(await dueReminder(await fresh(early))));
   const late = await person("late", { purchases: bought });
   await doneShoot(late, 31);
-  ok("…and not after 30", !(await dueReminder(await fresh(late))));
+  ok("…and an earlier customer is still asked, once (owner's decision, 13 Nov)", (await dueReminder(await fresh(late)))?.kind === "review");
+  await users.update(late.id, (u) => void (u.reminders = { review: ago(1) })); // so the run below is about the first customer
+  ok("…never again after that", !(await dueReminder(await fresh(late))));
   const free = await person("free", { credits: 0 });
   const fs1 = await doneShoot(free, 40);
   await users.update(free.id, (u) => void (u.usage = { freeShootUsed: fs1 }));
@@ -163,6 +165,11 @@ async function account(email, name = "QA Person") {
   const yes = await owner(`/api/owner/reviews/${meId}`, { method: "POST", body: JSON.stringify({ status: "approved" }) });
   const mine2 = await f("/api/review/mine");
   ok("approving it shows the customer it's approved", yes.status === 200 && mine2.j?.review?.status === "approved", `${yes.status} ${mine2.j?.review?.status}`);
+  const home = async () => (await fetch(B + "/")).text();
+  const pub1 = await anon("/api/reviews");
+  const page = await home();
+  ok("an approved review is on the public list and in the home page's HTML, with the average", pub1.j?.count >= 1 && pub1.j.reviews.some((r) => r.name === "Rita" && r.rating === 5) && /<section class="section" id="reviews"[^>]*>[\s\S]*Rated \d\.\d out of 5[\s\S]*LinkedIn/.test(page) && !page.includes(email), `${pub1.j?.count} ${pub1.j?.average}`);
+  ok("a happy reviewer with no finished shoot gets no invitation to share one", mine2.j?.shareShootId === null);
   const gone = await f("/api/review/mine", { method: "DELETE" });
   ok("the customer can delete their review", gone.status === 200 && (await f("/api/review/mine")).j?.review === null && !(await owner("/api/owner/reviews")).j?.reviews?.some((r) => r.id === meId));
   await f("/api/review", { method: "POST", body: JSON.stringify({ rating: 3, text: "Fine", name: "Rita", consent: true }) });

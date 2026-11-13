@@ -1,5 +1,6 @@
 import { $, $$, html, icon, raw, greaseCircle, state, logoMark, wordmark, example } from "../core.js";
 import { customersInner } from "../shared/customers.js";
+import { reviewsInner } from "../shared/reviews.js";
 import { BACKDROPS, OUTFITS, PACKAGES, usd, FROM_PRICE } from "../shared/catalog.js";
 import { wasPrice } from "./price.js";
 import { FAQ } from "../shared/faq.js";
@@ -274,6 +275,9 @@ export function renderLanding({ root, hydrate = false }) {
     <!-- Customer results: filled in only when customers have shared some (lib/showcase.js) -->
     <section class="section" id="customers" style="padding-top:0" aria-labelledby="customersTitle" hidden></section>
 
+    <!-- Reviews: filled in only once a customer's review is approved (lib/reviews.js) -->
+    <section class="section" id="reviews" style="padding-top:0" aria-labelledby="reviewsTitle" hidden></section>
+
     <!-- FAQ -->
     <section class="section" id="faq" style="padding-top:0">
       <div class="container faq">
@@ -315,11 +319,31 @@ export function renderLanding({ root, hydrate = false }) {
   const stopReel = stripReel();
   rendered = performance.now();
   customerResults();
+  customerReviews();
   return () => {
     stopHero?.();
     stopStrip?.();
     stopReel?.();
   };
+}
+
+// Approved reviews with their average; the section stays hidden until there's one.
+async function customerReviews() {
+  let data = null;
+  try {
+    data = await (await fetch("/api/reviews")).json();
+  } catch {
+    return;
+  }
+  const slot = $("#reviews");
+  if (!slot) return;
+  if (!data?.count || !data.reviews?.length) {
+    slot.hidden = true;
+    slot.replaceChildren();
+    return;
+  }
+  slot.innerHTML = reviewsInner(data);
+  slot.hidden = false;
 }
 
 // Headshots customers shared with their permission, once approved. The
