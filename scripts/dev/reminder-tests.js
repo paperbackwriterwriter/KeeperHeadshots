@@ -125,7 +125,9 @@ await users.update(buyer.id, (u) => void (u.usage = { freeShootUsed: freeShoot }
   const paid = await person("paid", { purchases: [{ id: "cs_1" }] });
   const ps = await shoot(paid, { days: 5, status: "done", developed: true });
   await users.update(paid.id, (u) => void (u.usage = { freeShootUsed: ps }));
-  ok("no buy reminder after a purchase", !(await dueReminder(await fresh(paid))));
+  ok("no buy reminder after a purchase (a customer is asked for a review instead: review-tests.js)", (await dueReminder(await fresh(paid)))?.kind === "review");
+  await users.update(paid.id, (u) => void (u.reminders = { ...u.reminders, review: ago(1) })); // already asked, so the counts below stay about the others
+  ok("…and nothing more once that was sent", !(await dueReminder(await fresh(paid))));
   const credited = await person("credited", { credits: 2 });
   const cs = await shoot(credited, { days: 5, status: "done", developed: true });
   await users.update(credited.id, (u) => void (u.usage = { freeShootUsed: cs }));

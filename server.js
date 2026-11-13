@@ -10,6 +10,7 @@ import { backend, createJSON, getJSON, putJSON, updateJSON, del, list as listKey
 import { runReminders, checkUnsubscribeToken } from "./lib/reminders.js";
 import { ogImage } from "./lib/og.js";
 import * as showcase from "./lib/showcase.js";
+import * as reviews from "./lib/reviews.js";
 import { CONTACT_TO } from "./lib/contact.js";
 import { knownDevice, originDevice, markOrigin, newOriginId, hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailCode, checkEmailCode, emailVerified, ownsMailbox, resetToken, checkResetToken, markReauth, reauthed, clearReauth } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM, ADDRESS_LIKE, isEmailAddress } from "./lib/mail.js";
@@ -1677,6 +1678,7 @@ async function purgeForTakeover(userId) {
   }
   // Their shared headshot (name and words) goes too.
   await showcase.removeForUserBefore(userId, since);
+  await reviews.removeBefore(userId, since);
   const gone = new Set([...list.map((meta) => meta.id), ...removedBefore]);
   for (const meta of list) if (meta.team && !(meta.shots || []).length) await teams.returnSeat(meta).catch((err) => console.error("[takeover] return seat", meta.id, err.message));
   for (const meta of list) await shoots.remove(meta);
@@ -1757,6 +1759,7 @@ app.post("/api/account/delete", requireUser, async (req, res) => {
   // Teams they were a member of keep the seat, not their name or address.
   await teams.forgetMemberEverywhere(req.user.id);
   await showcase.removeForUser(req.user.id);
+  await reviews.remove(req.user.id);
   await users.remove(req.user);
   // The funnel keeps its day totals; the per-person "already counted" markers go.
   await del(STEPS.map((step) => `stats/seen/${step}/${req.user.id}.json`)).catch(noteStats);
@@ -2196,6 +2199,59 @@ app.post("/api/owner/showcase/:id", requireUser, async (req, res) => {
   if (!e) return res.status(404).json({ error: "That entry is gone." });
   console.log("[showcase]", e.status, e.id);
   res.json({ entry: showcase.ownEntry(e) });
+});
+
+// Customer reviews (lib/reviews.js): a star rating and a few words from a
+// paying customer, at /app/review. An owner approves them at /app/reviews.
+app.get("/api/review/mine", requireUser, async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ eligible: reviews.canReview(req.user), review: reviews.ownReview(await reviews.get(req.user.id)) });
+});
+app.post("/api/review", requireUser, async (req, res) => {
+  if (req.user.demo) return res.status(403).json({ error: DEMO_READ_ONLY, code: "demo_read_only" });
+  if (!reviews.canReview(req.user)) return res.status(403).json({ error: "Reviews are for customers who have bought a package or a headshot.", code: "not_customer" });
+  if (await overLimit("review", req.user.id, 10)) return res.status(429).json({ error: "Too many attempts. Please wait a little and try again." });
+  try {
+    const { review, first } = await reviews.submit(req.user, req.body || {});
+    console.log("[review] sent", req.user.id, review.rating);
+    if (first && mailEnabled()) {
+      sendMail({
+        from: { name: "Keeper Headshots website", address: MAIL_FROM },
+        to: CONTACT_TO,
+        subject: `[Review] ${review.name} gave ${review.rating} of 5 stars`,
+        text: [`${review.name} rated Keeper Headshots ${review.rating} of 5.`, review.text ? `\n"${review.text}"` : "", `\nApprove or decline it: ${appOrigin(req)}/app/reviews`].join("\n"),
+      }).catch((err) => console.error("[review] notify", err.message));
+    }
+    res.json({ review: reviews.ownReview(review) });
+  } catch (err) {
+    if (!err.status) throw err;
+    res.status(err.status).json({ error: err.message, ...(err.field ? { fields: { [err.field]: err.message } } : {}) });
+  }
+});
+app.delete("/api/review/mine", requireUser, async (req, res) => {
+  if (req.user.demo) return res.status(403).json({ error: DEMO_READ_ONLY, code: "demo_read_only" });
+  await reviews.remove(req.user.id);
+  console.log("[review] deleted", req.user.id);
+  res.json({ ok: true });
+});
+app.get("/api/reviews", async (req, res) => {
+  res.set("Cache-Control", "public, max-age=60, s-maxage=300, stale-while-revalidate=60");
+  res.json(await reviews.approved());
+});
+app.get("/api/owner/reviews", requireUser, async (req, res) => {
+  if (!isOwner(req.user)) return res.status(404).json({ error: "Not found" });
+  res.set("Cache-Control", "no-store");
+  const all = await reviews.forOwner();
+  const people = await Promise.all(all.map((r) => users.byId(r.userId).catch(() => null)));
+  res.json({ reviews: all.map((r, i) => ({ ...reviews.ownReview(r), id: r.userId, decidedAt: r.decidedAt, email: people[i]?.email || null })) });
+});
+app.post("/api/owner/reviews/:id", requireUser, async (req, res) => {
+  if (!isOwner(req.user)) return res.status(404).json({ error: "Not found" });
+  if (req.body?.remove === true) return res.json({ ok: await reviews.remove(req.params.id) });
+  const r = await reviews.decide(req.params.id, String(req.body?.status || ""));
+  if (!r) return res.status(404).json({ error: "That review is gone." });
+  console.log("[review]", r.status, r.userId);
+  res.json({ review: reviews.ownReview(r) });
 });
 
 // Social preview images for the landing pages (lib/og.js).

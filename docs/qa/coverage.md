@@ -98,6 +98,17 @@ stays hidden once the same inbox, however spelled, was invited again,
 whatever became of that invitation. Stripe items stay in the nightly "For
 you" list until done.
 
+Customer reviews (owner request, 13 Nov; lib/reviews.js, scripts/dev/review-tests.js):
+a paying customer (any purchase not fully refunded) can rate the site 1 to 5
+and write up to 600 characters at /app/review, with a name to show and a
+permission tick-box; one review per account, replaced on re-send and then
+pending again; the owner approves, declines or deletes at /app/reviews;
+/api/reviews returns approved ones with the count and average. One request
+email ("review" reminder) 3 to 30 days after a customer's own shoot finishes,
+once ever, not for team members, the demo account, refunded customers or
+anyone who turned reminders off. Deleted with the account. NOT yet shown on
+the home page (owner to decide). Belongs to area G (emails) and H (screens).
+
 Waiting on the owner:
 - Payments (13 Nov, low): C4-1 and C4-2 in docs/qa/areas/C-payments.md (a seat
   stays paid after both packages behind it are refunded; the purchase toast

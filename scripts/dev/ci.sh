@@ -42,7 +42,7 @@ server() {
     RESEND_API_KEY=re_test RESEND_BASE_URL=$M META_PIXEL_ID=123456 META_CAPI_TOKEN=tok META_GRAPH_BASE=$M \
     STRIPE_SECRET_KEY=sk_test_mock STRIPE_API_BASE=$M STRIPE_PUBLISHABLE_KEY=pk_test_mockmockmock \
     GOOGLE_CLIENT_ID=ci-client.apps.googleusercontent.com GOOGLE_CLIENT_SECRET=gs-ci-secret GOOGLE_AUTH_URL=$M/google/auth GOOGLE_TOKEN_URL=$M/google/token \
-    ADMIN_TOKEN=ci-admin-token-ci-admin-token OWNER_EMAILS=owner-ci@example.com,funnel-owner@example.com,funnel-owner2@example.com,slots-owner@example.com,showcase-owner@example.com,invite-owner@example.com,preview-owner@example.com RENDER_SLOTS=3 \
+    ADMIN_TOKEN=ci-admin-token-ci-admin-token OWNER_EMAILS=owner-ci@example.com,review-owner@example.com,funnel-owner@example.com,funnel-owner2@example.com,slots-owner@example.com,showcase-owner@example.com,invite-owner@example.com,preview-owner@example.com RENDER_SLOTS=3 \
     node server.js >"$WORK/server-$1.log" 2>&1 &
   PIDS+=($!)
 }
@@ -92,6 +92,7 @@ run billing-team-refund node scripts/dev/billing-team-refund-tests.js
 run takeover node scripts/dev/takeover-tests.js
 run reminders node scripts/dev/reminder-tests.js
 run showcase node scripts/dev/showcase-tests.js
+run reviews node scripts/dev/review-tests.js
 run blog node scripts/dev/blog-tests.js
 run preview node scripts/dev/preview-tests.js
 run reshoot env DATA_DIR="$DATA" node scripts/dev/reshoot-tests.js

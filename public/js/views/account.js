@@ -58,7 +58,8 @@ export function renderAccount({ root, navigate }) {
         <div><dt>Shoots left</dt><dd>${shootsLeft(u.plan, credits)}</dd></div>
       </dl>
     </section>
-    ${u.plan?.tier === "owner" ? html`<p class="small" style="margin-top:12px"><a class="link" href="/app/funnel" data-link>Sales funnel</a>: sign-ups, photo checks, shoots and purchases by day. <a class="link" href="/app/showcase" data-link>Customer results</a>: headshots offered for the home page (owner only).</p>` : ""}
+    ${u.plan?.tier === "owner" ? html`<p class="small" style="margin-top:12px"><a class="link" href="/app/funnel" data-link>Sales funnel</a>: sign-ups, photo checks, shoots and purchases by day. <a class="link" href="/app/showcase" data-link>Customer results</a>: headshots offered for the home page. <a class="link" href="/app/reviews" data-link>Customer reviews</a>: ratings and reviews to approve (owner only).</p>` : ""}
+    ${u.purchased && !u.demo ? html`<p class="small" style="margin-top:12px"><a class="link" href="/app/review" data-link>Review Keeper Headshots</a>: rate us and say a few words about your headshots.</p>` : ""}
     ${u.demo || u.mailboxConfirmed !== false
       ? ""
       : html`<section class="panel prefs" data-verify-panel aria-labelledby="verify-title">
@@ -104,7 +105,7 @@ export function renderAccount({ root, navigate }) {
       ? ""
       : html`<section class="panel prefs" aria-labelledby="reminders-title">
       <h2 class="h-3" id="reminders-title">Reminder emails</h2>
-      <p class="muted">At most two reminders, ever: one if your photos pass the check but you haven't developed them, and one after an unfinished checkout (or, if you have one, after a free preview shoot). If you haven't bought, we may occasionally email an offer, such as a discount code; this switch stops those too. Emails about your account and orders always arrive.</p>
+      <p class="muted">At most two reminders, ever: one if your photos pass the check but you haven't developed them, and one after an unfinished checkout (or, if you have one, after a free preview shoot). After you buy, we ask once for a review. If you haven't bought, we may occasionally email an offer, such as a discount code; this switch stops those too. Emails about your account and orders always arrive.</p>
       <label class="check"><input type="checkbox" id="remindersOn" ${u.emailReminders !== false ? raw("checked") : ""} /> <span>Send me reminder emails</span></label>
     </section>`}
 
