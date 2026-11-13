@@ -99,6 +99,11 @@ whatever became of that invitation. Stripe items stay in the nightly "For
 you" list until done.
 
 Waiting on the owner:
+- Payments (13 Nov, low): C4-1 and C4-2 in docs/qa/areas/C-payments.md (a seat
+  stays paid after both packages behind it are refunded; the purchase toast
+  overstates shoots added for a buyer who owed some). Questions: is Stripe's
+  own receipt email on; should someone who bought one headshot get credit
+  toward "all + 2 more looks".
 - Shoots (12 Nov): B3-1 to B3-6 in docs/qa/areas/B-shoots.md (no time limit on
   storage and review AI calls; a killed /more-looks or /check can lose a credit;
   a dead review worker waits 6 minutes; photo viewer at phone-sideways heights;

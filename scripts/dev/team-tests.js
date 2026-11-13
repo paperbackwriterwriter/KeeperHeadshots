@@ -616,9 +616,11 @@ let final;
   const cutOk = cuts.every((g) => [57, 58, 59].every((n) => { const out = teamsLib.cleanName("a".repeat(n) + g); const tail = out.slice(n); return (tail === "" || tail === g) && [...out].length <= 60; }));
   ok("cutting a name to 60 never goes through a flag, a family emoji, an accent or a keycap", cutOk);
   ok("a pile of combining marks longer than the limit is cut, not emptied", teamsLib.cleanName("e" + "\u0301".repeat(70)) !== "" && [...teamsLib.cleanName("e" + "\u0301".repeat(70))].length <= 60);
-  const ownerClean = teamsLib.cleanTeam({ name: "A", ownerName: "\u3164\u3164" }).ownerName === "Your team admin" && teamsLib.cleanTeam({ name: "A", ownerName: "Ada\u202e" }).ownerName === "Ada";
+  const ownerClean = teamsLib.cleanTeam({ name: "A", ownerName: "\u3164\u3164" }).ownerName === "" && teamsLib.cleanTeam({ name: "A", ownerName: "Ada\u202e" }).ownerName === "Ada";
   const teamsSrc = (await import("node:fs")).readFileSync(new URL("../../lib/teams.js", import.meta.url), "utf8");
   ok("a team's admin name is cleaned when read; the joiner's shoot name keeps the word headshot; members' names are cleaned", ownerClean && teamsSrc.includes('cleanName(`${cleanName(team.name, 50) || "Team"} headshot`)') && teamsSrc.includes("name: cleanName(user.name, 80) || null"));
+  const fam = teamsLib.cleanName("\u{1F468}" + "\u200d\u{1F469}".repeat(60), 60);
+  ok("a cut never leaves a joiner at the end, and a name can't start or end with one", !/[\u200c\u200d]$/.test(fam) && fam.isWellFormed() && teamsLib.cleanName("A\u200d") === "A" && teamsLib.cleanName("\u200cAda") === "Ada", JSON.stringify([fam.length, teamsLib.cleanName("A\u200d")]));
   const tm = await teamsLib.saveTeam(await fresh(), { name: "Acme\u202e\u061c Legal", looks: LOOKS });
   // Contact form: 20 failed bot checks from a network stop further ones
   // reaching Cloudflare this hour; other networks aren't affected.

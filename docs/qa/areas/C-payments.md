@@ -120,3 +120,20 @@ Items checked on 5 Nov (rotation): 94 (81 + 13 new).
 **C3-7 (low, bug, doc only): billing.js:257-258 comment still uses the old $29 example** ($9.66 / $19.33 / $9.19). At $14.50 the steps are $4.83 / $9.66 / $14.50. Fix: update the comment. Reproduced: n/a.
 
 Counts: 81 items checked; 0 high, 0 medium, 7 low (1 owner decision, 6 bugs); 1 known item met.
+
+## Added at the nightly re-check, 13 Nov
+| Item | Check |
+|---|---|
+| 95 | Webhook over HTTP: unsigned, wrong secret, tampered body and hour-old replay give 400; a paid event repeated and racing /confirm grants once with one Purchase. |
+| 96 | Pay-first end to end: new account has no plan; creating a shoot gives 402; buy; develop uses 1 and records paidBy; partial then full refund; buying again works. |
+| 97 | Global Privacy Control: no InitiateCheckout, session marked gpc, no server Purchase. |
+| 98 | Returns to /app/team and to the shoot page (keep, keep-plus) show the right toast; the buy page for a kept shot goes back to the shoot. |
+| 99 | A refund of a package that settled an earlier debt takes the seat's payment back (C4-1, OPEN). |
+| 100 | Purchase toast count when the webhook grants first and the buyer owed shoots (C4-2, OPEN). |
+| 101 | Refund of an older, fully spent package leaves a newer package's shoots alone. |
+| 102 | Adaptive pricing: sessions stay in USD; a non-USD event would be booked as USD cents (informational; check the webhook endpoint's API version in Stripe). |
+| 103 | The app sends no purchase receipt or refund email; Stripe's receipt setting is the only one. |
+
+**C4-1** low, bug. Admin buys A, a member joins (not developed), A refunded (seat unpaid, owes 1), admin buys B (debt settled, seat paid), B refunded in full: seat still paid. lib/billing.js reconcileRefund only re-adds debt for seats whose paidBy is the refunded session. Fix: record how many shoots a purchase settled and let its refund re-add up to that many.
+**C4-2** low, bug. dashboard.js passes no count to the purchase note when the webhook granted first, so an admin who owed 2 and buys Starter reads "3 shoots added" but gets 1. Fix: store the added count on the payment record and return it from confirm.
+Unverified: a failed or cancelled refund never gives shoots back; a crash between the account update and the funnel booking leaves the sale unbooked; a refunded keep re-locks with no notice; keep then keep-plus gets no credit (owner question); a second dispute after a won one takes nothing.

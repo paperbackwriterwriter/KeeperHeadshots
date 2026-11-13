@@ -43,13 +43,13 @@ export async function renderJoin({ root, navigate }) {
   // (Or the same inbox written differently: lib/teams.js inviteFor.)
   const sameEmail = me && (me.email.toLowerCase() === inv.email || inv.sameInbox);
   const intro = html`<p class="eyebrow">${icon("users")} Team invitation</p>
-    <h1 class="display h-2">${inv.team.ownerName} invited you to get your ${inv.team.name} headshot.</h1>
+    <h1 class="display h-2">${inv.team.ownerName || "Your team admin"} invited you to get your ${inv.team.name} headshot.</h1>
     <p class="lede">Your shoot is already paid for and set to the team's looks, so everyone matches. Upload a few recent photos of just you, and your headshots are ready in minutes.</p>
     <div class="join-looks">${inv.team.looks.map((l) => html`<span class="chip">${l}</span>`)}</div>
-    <p class="small muted">Your photos stay private. ${inv.team.ownerName} will see and can download the headshot you choose (or our pick of your best until you do).</p>`;
+    <p class="small muted">Your photos stay private. ${inv.team.ownerName || "Your team admin"} will see and can download the headshot you choose (or our pick of your best until you do).</p>`;
 
   if (inv.status !== "invited") {
-    shell(html`${intro}<div class="banner banner-warn">${icon("info")}<div>This invitation has already been used or cancelled. If that wasn't you, ask ${inv.team.ownerName} for a new one.</div></div>`);
+    shell(html`${intro}<div class="banner banner-warn">${icon("info")}<div>This invitation has already been used or cancelled. If that wasn't you, ask ${inv.team.ownerName || "your team admin"} for a new one.</div></div>`);
     return;
   }
   if (!me) {
@@ -76,7 +76,7 @@ export async function renderJoin({ root, navigate }) {
     return;
   }
   if (inv.confirmNeeded === "exact") {
-    shell(html`${intro}<div class="banner banner-warn">${icon("info")}<div><b>Ask for an invitation to this address.</b>This invitation was sent to ${inv.email}. To accept it as ${me.email}, ask ${inv.team.ownerName} to cancel it and invite ${me.email} instead, then open the new link.</div></div>`);
+    shell(html`${intro}<div class="banner banner-warn">${icon("info")}<div><b>Ask for an invitation to this address.</b>This invitation was sent to ${inv.email}. To accept it as ${me.email}, ask ${inv.team.ownerName || "your team admin"} to cancel it and invite ${me.email} instead, then open the new link.</div></div>`);
     return;
   }
   shell(html`${intro}<div class="btn-row"><button class="btn btn-flash btn-lg" id="accept">Start my headshot ${icon("arrow-right")}</button></div>`);

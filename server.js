@@ -304,7 +304,7 @@ const NAME_BAD = { test: (s) => NAME_CHARS.test(s) || ADDRESS_LIKE.test(s) };
 // least 2 visible characters.)
 const accountName = (s) => teams.cleanName(typeof s === "string" ? s : "", 80);
 // (Checked as typed and as cleaned, so an invisible character inside "refunds.xyz" can't hide it.)
-const nameBad = (s) => NAME_BAD.test(s.normalize("NFKC")) || NAME_BAD.test(accountName(s).normalize("NFKC"));
+const nameBad = (s) => [s, accountName(s), accountName(s).replace(/[\u200c\u200d]/g, "")].some((v) => NAME_BAD.test(v.normalize("NFKC")));
 const nameOk = (s) => typeof s === "string" && s.trim().length <= 80 && accountName(s).length >= 2 && !nameBad(s);
 const googleCookie = { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" || !!process.env.VERCEL, path: "/api/auth/google" };
 
@@ -783,7 +783,7 @@ app.get("/api/shoots", requireUser, async (req, res) => {
 function shown(shoot) {
   // (A team shoot's name for the team was written when the person joined, perhaps
   // before names were cleaned.)
-  if (shoot?.team && typeof shoot.team.name === "string") shoot = { ...shoot, team: { ...shoot.team, name: teams.cleanName(shoot.team.name) || "Team" } };
+  if (shoot?.team && typeof shoot.team.name === "string") shoot = { ...shoot, team: { ...shoot.team, name: teams.cleanName(shoot.team.name) || "Team", ...(typeof shoot.team.ownerName === "string" ? { ownerName: teams.cleanName(shoot.team.ownerName, 80) } : {}) } };
   if (!Array.isArray(shoot?.dropSelfies)) return shoot;
   // (Its photo check, score included, is of those selfies.)
   return { ...shoot, selfies: (shoot.selfies || []).filter((p) => !shoot.dropSelfies.includes(p.file)), check: null, dropSelfies: undefined };
@@ -1469,7 +1469,7 @@ async function sendInvite(req, team, inv) {
   if (await inviteMailCapped(team, inv)) return "capped";
   const link = `${appOrigin(req)}/join/${inv.token}`;
   const { subject, text, html } = teamInviteEmail({ ownerName: accountName(req.user.name), teamName: team.name, link, looks: lookNames(team.looks) });
-  await sendMail({ from: { name: "Keeper Headshots", address: MAIL_FROM }, replyTo: { name: req.user.name, address: req.user.email }, to: inv.email, subject, text, html });
+  await sendMail({ from: { name: "Keeper Headshots", address: MAIL_FROM }, replyTo: { name: accountName(req.user.name) || "Keeper member", address: req.user.email }, to: inv.email, subject, text, html });
   await teams.markSent(team.id, inv.id);
   return true;
 }

@@ -1020,6 +1020,10 @@ if (process.env.DATA_DIR) {
   ok("names with ZWNJ, direction marks or a zero-width space are accepted and cleaned", persian.status === 201 && persian.j?.user?.name === "\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645 \u0639\u0644\u06cc" && hebrew.status === 201 && hebrew.j?.user?.name === "\u05d3\u05d5\u05d3 \u05db\u05d4\u05df" && zwsp.status === 201 && zwsp.j?.user?.name === "JoAnn", JSON.stringify([persian.status, persian.j?.user?.name, hebrew.status, hebrew.j?.user?.name, zwsp.status, zwsp.j?.user?.name]));
   const hidden = [await post("refunds\u2800.xyz", 4), await post("Bob refunds.\u2800xyz", 5), await post("Jo\u202e Ann", 6)].map((r) => r.status);
   ok("a web address hidden by an invisible character is still refused (and overrides)", hidden.every((s) => s === 400), hidden.join(","));
+  const joined = [await post("http\u200c://evil", 7), await post("ht\u200dtps://evil-login", 8), await post("www\u200d. paypal", 9), await post("A\u200d", 10)].map((r) => r.status);
+  ok("a joiner inside http:// or www. doesn't hide a link, and one letter plus a joiner is too short", joined.every((s) => s === 400), joined.join(","));
+  const hindi = await post("\u0915\u094d\u200d\u0937 \u0930\u093e\u091c", 11);
+  ok("a name with a joiner between letters is still accepted", hindi.status === 201 && hindi.j?.user?.name === "\u0915\u094d\u200d\u0937 \u0930\u093e\u091c", `${hindi.status} ${hindi.j?.user?.name}`);
 }
 
 const passed = results.filter((r) => r[1]).length;
