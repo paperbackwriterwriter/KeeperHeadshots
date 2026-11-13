@@ -107,7 +107,9 @@ pending again; the owner approves, declines or deletes at /app/reviews;
 email ("review" reminder) from 3 days after a customer's own shoot finishes
 (no upper limit, so earlier customers are asked once too), once ever, not for
 team members, the demo account, refunded customers or anyone who turned
-reminders off. Deleted with the account. Owner's decisions, 13 Nov: approved
+reminders off. It IS sent to a paying customer whose address was never
+confirmed (owner's decision, 13 Nov: 5 of 6 November buyers hadn't
+confirmed); every other reminder still needs a confirmed address. Deleted with the account. Owner's decisions, 13 Nov: approved
 reviews show on the home page (a "Reviews" section with the average, up to
 six, hidden until one is approved; in the server's HTML like the customer
 results); all ratings are handled the same; a 4 or 5 star reviewer with a

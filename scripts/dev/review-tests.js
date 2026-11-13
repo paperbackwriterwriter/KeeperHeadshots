@@ -81,7 +81,18 @@ const fails = async (fn) => { try { await fn(); return null; } catch (err) { ret
   const unconfirmed = await person("unconfirmed", { purchases: bought, emailVerified: false });
   await doneShoot(unconfirmed, 4);
   const reasons = [await reviewSkipReason(await fresh(early)), await reviewSkipReason(await fresh(off)), await reviewSkipReason(await fresh(already)), await reviewSkipReason(await fresh(unconfirmed)), await reviewSkipReason(await fresh(free)), await reviewSkipReason(await fresh(late))];
-  ok("the job can say why a paying customer isn't asked yet", /^shoot last changed 2\.0 days ago/.test(reasons[0]) && reasons[1] === "reminders turned off" && reasons[2] === "already reviewed" && reasons[3] === "address not confirmed" && reasons[4] === null && reasons[5] === null && !(await dueReminder(await fresh(unconfirmed))), JSON.stringify(reasons));
+  ok("the job can say why a paying customer isn't asked yet", /^shoot last changed 2\.0 days ago/.test(reasons[0]) && reasons[1] === "reminders turned off" && reasons[2] === "already reviewed" && reasons[3] !== "address not confirmed" && reasons[4] === null && reasons[5] === null, JSON.stringify(reasons));
+
+  ok("a paying customer who never confirmed their address is still asked (owner's decision, 13 Nov)", (await dueReminder(await fresh(unconfirmed)))?.kind === "review");
+  const unpaid = await person("unpaid", { emailVerified: false, credits: 0 });
+  const us = await doneShoot(unpaid, 4);
+  await users.update(unpaid.id, (u) => void (u.usage = { freeShootUsed: us }));
+  const undeveloped = await person("undeveloped", { purchases: bought, emailVerified: false });
+  const cs = `sht_revc${t}`;
+  await shoots.create({ id: cs, userId: undeveloped.id, name: cs, status: "checked", createdAt: ago(3), selfies: [], shots: [], check: { at: ago(3), ok: true } });
+  await storage.putJSON(`shoots/${cs}.json`, { ...(await shoots.getMeta(cs)), updatedAt: ago(3) });
+  ok("…but an unconfirmed address gets no other reminder, paid or not", !(await dueReminder(await fresh(unpaid))) && !(await dueReminder(await fresh(undeveloped))));
+  await users.update(unconfirmed.id, (u) => void (u.reminders = { review: ago(1) })); // so the run below is about the first customer
 
   const before = (await fetch(`${M}/mock-mail`).then((r) => r.json()).catch(() => [])).length;
   const r1 = await runReminders({ origin: "https://example.test", state: {} });
