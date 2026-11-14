@@ -119,6 +119,11 @@ const fails = async (fn) => { try { await fn(); return null; } catch (err) { ret
   ok("an approved review is listed with the count and average, without the account", pub.count === 1 && pub.average === 4 && pub.reviews[0].name === "Wren" && !JSON.stringify(pub).includes(u.id) && !JSON.stringify(pub).includes(u.email), JSON.stringify(pub));
   const second = await reviews.submit(u, { rating: 2, text: "", name: "Wren", consent: true });
   ok("sending it again replaces it and it waits for approval again", second.review.status === "pending" && second.review.createdAt === review.createdAt && (await reviews.approved()).count === 0 && (await reviews.forOwner()).filter((r) => r.userId === u.id).length === 1);
+  const read = (await reviews.get(u.id)).updatedAt;
+  await reviews.submit(u, { rating: 1, text: "Changed after the owner read it", name: "Wren", consent: true });
+  const stale = await fails(() => reviews.decide(u.id, "approved", read));
+  ok("approving a version the customer has since changed is refused, and nothing is published", stale?.status === 409 && (await reviews.get(u.id)).status === "pending" && (await reviews.approved()).count === 0, String(stale?.status));
+  ok("…and the version the owner did read can be approved", (await reviews.decide(u.id, "rejected", (await reviews.get(u.id)).updatedAt))?.status === "rejected");
   ok("an unknown decision or account is refused", !!(await fails(() => reviews.decide(u.id, "published"))) && (await reviews.decide("usr_nobody123", "approved")) === null && (await reviews.decide("../users/x", "approved")) === null);
   await reviews.remove(u.id);
   ok("deleting it removes it", (await reviews.get(u.id)) === null && (await reviews.approved()).count === 0);
@@ -178,7 +183,7 @@ async function account(email, name = "QA Person") {
   const list = await owner("/api/owner/reviews");
   const row = (list.j?.reviews || []).find((r) => r.id === meId);
   ok("the owner sees it with the customer's address, and was emailed", list.status === 200 && row?.email === email && row?.rating === 5 && (await mailFor("hello@keeperheadshots.com").catch(() => [])).concat(await fetch(`${M}/mock-mail`).then((r) => r.json())).some((m) => /\[Review\] Rita gave 5 of 5 stars/.test(m.subject)), JSON.stringify([list.status, row]));
-  const yes = await owner(`/api/owner/reviews/${meId}`, { method: "POST", body: JSON.stringify({ status: "approved" }) });
+  const yes = await owner(`/api/owner/reviews/${meId}`, { method: "POST", body: JSON.stringify({ status: "approved", seen: row?.updatedAt }) });
   const mine2 = await f("/api/review/mine");
   ok("approving it shows the customer it's approved", yes.status === 200 && mine2.j?.review?.status === "approved", `${yes.status} ${mine2.j?.review?.status}`);
   const home = async () => (await fetch(B + "/")).text();
@@ -186,9 +191,28 @@ async function account(email, name = "QA Person") {
   const page = await home();
   ok("an approved review is on the public list and in the home page's HTML, with the average", pub1.j?.count >= 1 && pub1.j.reviews.some((r) => r.name === "Rita" && r.rating === 5) && /<section class="section" id="reviews"[^>]*>[\s\S]*Rated \d\.\d out of 5[\s\S]*LinkedIn/.test(page) && !page.includes(email), `${pub1.j?.count} ${pub1.j?.average}`);
   ok("a happy reviewer with no finished shoot gets no invitation to share one", mine2.j?.shareShootId === null);
+  ok("browsers don't keep the public list (a deleted review goes within minutes)", /max-age=0/.test((await fetch(B + "/api/reviews")).headers.get("cache-control") || ""));
+  const staleSeen = await owner(`/api/owner/reviews/${meId}`, { method: "POST", body: JSON.stringify({ status: "rejected", seen: "2000-01-01T00:00:00.000Z" }) });
+  ok("the owner page's decision is refused when the review changed since it was loaded", staleSeen.status === 409 && (await f("/api/review/mine")).j?.review?.status === "approved", `${staleSeen.status}`);
   const gone = await f("/api/review/mine", { method: "DELETE" });
   ok("the customer can delete their review", gone.status === 200 && (await f("/api/review/mine")).j?.review === null && !(await owner("/api/owner/reviews")).j?.reviews?.some((r) => r.id === meId));
   await f("/api/review", { method: "POST", body: JSON.stringify({ rating: 3, text: "Fine", name: "Rita", consent: true }) });
+  {
+    // A fully refunded customer's review comes down.
+    const g = await account(`revrefund${t}@x.com`, "Refund Person");
+    const { j: co } = await g("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) });
+    const rs = new URL(co.url).pathname.split("/").pop();
+    await fetch(`${M}/mock-pay/${rs}`, { redirect: "manual" });
+    await g("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: rs }) });
+    await g("/api/review", { method: "POST", body: JSON.stringify({ rating: 5, text: "Before the refund", name: "Ref", consent: true }) });
+    const gid = (await g("/api/me")).j?.user?.id;
+    const seen = (await g("/api/review/mine")).j?.review?.updatedAt;
+    await owner(`/api/owner/reviews/${gid}`, { method: "POST", body: JSON.stringify({ status: "approved", seen }) });
+    await fetch(`${M}/mock-refund/${rs}`, { redirect: "manual" });
+    await g("/api/billing/sync", { method: "POST", body: "{}" });
+    const after = await g("/api/review/mine");
+    ok("a full refund takes the customer's review down", after.j?.review === null && after.j?.eligible === false && !(await anon("/api/reviews")).j?.reviews?.some((r) => r.text === "Before the refund"), JSON.stringify(after.j));
+  }
   const del = await f("/api/account/delete", { method: "POST", body: JSON.stringify({ password: "password123" }) });
   const after = await owner("/api/owner/reviews");
   ok("deleting the account deletes the review", del.status === 200 && !after.j?.reviews?.some((r) => r.id === meId), `${del.status} ${JSON.stringify(del.j).slice(0, 120)}`);

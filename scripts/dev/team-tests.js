@@ -131,6 +131,20 @@ let final;
   ok("admin can't see the member's selfies", (await admin(`/media/${sid}/${selfie}`)).status === 404);
   const stranger = await account(`stranger${t}@x.com`);
   ok("a stranger can't download it", (await stranger(`/media/${sid}/${name}`)).status === 404);
+  // Only the headshot shown for that person: when they choose another, the
+  // earlier one is no longer the admin's to download (14 Nov).
+  const other = final.shots.find((x) => x.status === "done" && x.file !== m.pick);
+  if (other) {
+    const otherName = other.file.split("/")[1];
+    ok("admin can't download a frame the person didn't choose", (await admin(`/media/${sid}/${otherName}`)).status === 404);
+    await member(`/api/shoots/${shootId}`, { method: "PATCH", body: JSON.stringify({ pickedShotId: other.id }) });
+    const m2 = (await admin("/api/team")).j.team.members.find((x) => x.email === alice);
+    ok("after the person chooses another, the admin gets that one and loses the earlier one", m2?.pick === other.file && (await admin(`/media/${sid}/${otherName}`)).status === 200 && (await admin(`/media/${sid}/${name}`)).status === 404, JSON.stringify([m2?.pick, other.file]));
+    await member(`/api/shoots/${shootId}`, { method: "PATCH", body: JSON.stringify({ pickedShotId: final.shots.find((x) => x.file === m.pick)?.id }) });
+  } else ok("(a second finished frame to test the admin's access with)", false);
+  // A member's new name reaches the team page.
+  await member("/api/account/preferences", { method: "POST", body: JSON.stringify({ name: "Alice Renamed" }) });
+  ok("a member's change of name shows on the team page", (await admin("/api/team")).j.team.members.find((x) => x.email === alice)?.name === "Alice Renamed");
 }
 
 // 6b. More than 25 addresses at once is refused with a message, not cut short.

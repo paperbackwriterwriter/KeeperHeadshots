@@ -152,3 +152,16 @@ Items checked on 6 Nov (rotation): 74 (59 + 15 new).
 ### Known items met (not re-reported)
 - Team page and FAQ promised "everyone's finished headshots" but only the best pick is downloadable (fixed 3 Nov; the privacy policy, join page and invite email followed 8-9 Nov).
 - Admin "Download N headshots" saves 2 files.
+
+## Added at the nightly re-check, 14 Nov
+| Item | Check |
+|---|---|
+| 75 | The admin can download only the headshot the team page shows for each person (their choice, or our pick until they choose); another frame of the same shoot gives 404, and after the person chooses another the earlier one gives 404 (fixed 14 Nov; team-tests). |
+| 76 | A member's change of name shows on the team page (fixed 14 Nov; team-tests). |
+| 77 | Review request for a member confirmed only by an invitation who also bought: not sent today (owner question). |
+| 78 | A team admin who paid but has no shoot of their own is never asked for a review (owner question). |
+| 79 | A pure team member (no purchase): /app/review says reviews are for customers; no review link on the Account page. |
+| 80 | A joined member can't be removed by the admin (DELETE gives 409): owner question (someone who left the company). |
+| 81 | A lapsed invitation via resend, link or join all give 404 and the shoot goes back. |
+| 82 | The invitation email's HTML escapes & and quotes in team and admin names. |
+Unverified: a team free reshoot has no team field, so it may count as the member's own shoot for a review request (only for members who also bought); a won dispute doesn't bring back invitations a refund withdrew.

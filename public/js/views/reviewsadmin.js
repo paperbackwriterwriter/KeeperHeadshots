@@ -11,7 +11,7 @@ export function renderReviewsAdmin({ root, navigate }) {
   let disposed = false;
   root.innerHTML = html`<main id="main" class="container app-main view-enter">
     <div class="page-head"><div><p class="eyebrow">Owner</p><h1 class="display h-1" style="margin-top:8px">Customer reviews</h1></div></div>
-    <p class="muted" style="max-width:64ch">Ratings and reviews from paying customers, newest first. Each customer is asked once by email, three days after a shoot finishes. Customers can change or delete theirs at any time; a changed review waits for approval again.</p>
+    <p class="muted" style="max-width:64ch">Ratings and reviews from paying customers, newest first. Each paying customer is asked once by email, at least three days after a shoot of their own finishes. Customers can change or delete theirs at any time; a changed review waits for approval again.</p>
     <div id="rvaBody" aria-live="polite"><div class="skel" style="height:240px;border-radius:18px;margin-top:24px"></div></div>
   </main>`.v;
   const body = $("#rvaBody", root);
@@ -31,7 +31,7 @@ export function renderReviewsAdmin({ root, navigate }) {
       ? html`<p class="small muted" style="margin-top:16px">${list.length} ${list.length === 1 ? "review" : "reviews"}${avg ? html` · ${ok.length} approved, average ${avg} of 5` : ""}</p>
         <div class="sc-list">${list.map((r) => {
           const [cls, label] = STATUS[r.status] || STATUS.pending;
-          return html`<article class="panel rva-item" data-id="${r.id}">
+          return html`<article class="panel rva-item" data-id="${r.id}" data-seen="${r.updatedAt || ""}">
             <p><span class="badge ${cls}">${label}</span></p>
             <p>${stars(r.rating)} <b>${r.name}</b></p>
             ${r.text ? html`<p><q>${r.text}</q></p>` : html`<p class="small muted">No written review.</p>`}
@@ -54,12 +54,13 @@ export function renderReviewsAdmin({ root, navigate }) {
     if (act === "remove" && !confirm("Delete this review?")) return;
     const restore = busy(b, "Saving…");
     try {
-      await api(`/api/owner/reviews/${id}`, { method: "POST", body: act === "remove" ? { remove: true } : { status: act } });
+      await api(`/api/owner/reviews/${id}`, { method: "POST", body: act === "remove" ? { remove: true } : { status: act, seen: b.closest("[data-seen]")?.dataset.seen } });
       toast(act === "approved" ? "Approved." : act === "remove" ? "Deleted." : "Declined.", "success");
       load();
     } catch (err) {
       restore();
       toast(err.message, "error");
+      if (err.status === 409) load();
     }
   });
   load();

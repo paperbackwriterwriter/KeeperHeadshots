@@ -2219,7 +2219,7 @@ app.get("/api/review/mine", requireUser, async (req, res) => {
 app.post("/api/review", requireUser, async (req, res) => {
   if (req.user.demo) return res.status(403).json({ error: DEMO_READ_ONLY, code: "demo_read_only" });
   if (!reviews.canReview(req.user)) return res.status(403).json({ error: "Reviews are for customers who have bought a package or a headshot.", code: "not_customer" });
-  if (await overLimit("review", req.user.id, 10)) return res.status(429).json({ error: "Too many attempts. Please wait a little and try again." });
+  if (await overLimit("review", req.user.id, 30)) return res.status(429).json({ error: "Too many attempts. Please wait a little and try again." });
   try {
     const { review, first } = await reviews.submit(req.user, req.body || {});
     console.log("[review] sent", req.user.id, review.rating);
@@ -2244,7 +2244,9 @@ app.delete("/api/review/mine", requireUser, async (req, res) => {
   res.json({ ok: true });
 });
 app.get("/api/reviews", async (req, res) => {
-  res.set("Cache-Control", "public, max-age=60, s-maxage=300, stale-while-revalidate=60");
+  // (Browsers don't keep it; the CDN does for a few minutes, so a deleted or
+  // declined review is gone within the 10 minutes the privacy policy promises.)
+  res.set("Cache-Control", "public, max-age=0, s-maxage=240, stale-while-revalidate=60");
   res.json(await reviews.approved());
 });
 app.get("/api/owner/reviews", requireUser, async (req, res) => {
@@ -2257,7 +2259,13 @@ app.get("/api/owner/reviews", requireUser, async (req, res) => {
 app.post("/api/owner/reviews/:id", requireUser, async (req, res) => {
   if (!isOwner(req.user)) return res.status(404).json({ error: "Not found" });
   if (req.body?.remove === true) return res.json({ ok: await reviews.remove(req.params.id) });
-  const r = await reviews.decide(req.params.id, String(req.body?.status || ""));
+  let r;
+  try {
+    r = await reviews.decide(req.params.id, String(req.body?.status || ""), typeof req.body?.seen === "string" ? req.body.seen : null);
+  } catch (err) {
+    if (!err.status) throw err;
+    return res.status(err.status).json({ error: err.message });
+  }
   if (!r) return res.status(404).json({ error: "That review is gone." });
   console.log("[review]", r.status, r.userId);
   res.json({ review: reviews.ownReview(r) });
