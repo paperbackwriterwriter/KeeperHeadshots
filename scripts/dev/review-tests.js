@@ -83,15 +83,36 @@ const fails = async (fn) => { try { await fn(); return null; } catch (err) { ret
   const reasons = [await reviewSkipReason(await fresh(early)), await reviewSkipReason(await fresh(off)), await reviewSkipReason(await fresh(already)), await reviewSkipReason(await fresh(unconfirmed)), await reviewSkipReason(await fresh(free)), await reviewSkipReason(await fresh(late))];
   ok("the job can say why a paying customer isn't asked yet", /^shoot last changed 2\.0 days ago/.test(reasons[0]) && reasons[1] === "reminders turned off" && reasons[2] === "already reviewed" && reasons[3] !== "address not confirmed" && reasons[4] === null && reasons[5] === null, JSON.stringify(reasons));
 
+  const invited = await person("invited", { purchases: bought, emailVerifiedVia: "invite" });
+  await doneShoot(invited, 4);
+  ok("a buyer confirmed only through a team invitation is asked too (owner's decision, 14 Nov)", (await dueReminder(await fresh(invited)))?.kind === "review");
+  await users.update(invited.id, (u) => void (u.reminders = { review: ago(1) }));
+  const invitedFree = await person("invitedfree", { emailVerifiedVia: "invite", credits: 0 });
+  await doneShoot(invitedFree, 4, { team: { id: "team_y", name: "Acme" }, paidWith: "team" });
+  ok("…but a team member who didn't buy gets nothing", !(await dueReminder(await fresh(invitedFree))));
+  // "start": a paying customer who hasn't started a shoot of their own.
+  const idle = await person("idle", { purchases: [{ ...bought[0], at: ago(3) }], credits: 3 });
+  const idleEarly = await person("idleearly", { purchases: [{ ...bought[0], at: ago(1) }], credits: 3 });
+  const idleUnconfirmed = await person("idleunconf", { purchases: [{ ...bought[0], at: ago(3) }], credits: 3, emailVerified: false });
+  const drafted = await person("drafted", { purchases: [{ ...bought[0], at: ago(3) }], credits: 3 });
+  await shoots.create({ id: `sht_revd${t}`, userId: drafted.id, name: "d", status: "draft", createdAt: ago(3), selfies: [], shots: [] });
+  const begun = await person("begun", { purchases: [{ ...bought[0], at: ago(3) }], credits: 3 });
+  await shoots.create({ id: `sht_revb${t}`, userId: begun.id, name: "b", status: "draft", createdAt: ago(3), selfies: [{ file: "x/y.jpg" }], shots: [] });
+  ok("a paying customer who hasn't started a shoot gets one 'start' nudge after 2 days (also unconfirmed; an empty draft counts as not started)", (await dueReminder(await fresh(idle)))?.kind === "start" && !(await dueReminder(await fresh(idleEarly))) && (await dueReminder(await fresh(idleUnconfirmed)))?.kind === "start" && (await dueReminder(await fresh(drafted)))?.kind === "start" && (await dueReminder(await fresh(begun)))?.kind !== "start");
+  const unconfDev = await person("unconfdev", { purchases: bought, emailVerified: false, credits: 2 });
+  const ud = `sht_revu${t}`;
+  await shoots.create({ id: ud, userId: unconfDev.id, name: ud, status: "checked", createdAt: ago(3), selfies: [], shots: [], check: { at: ago(3), ok: true } });
+  await storage.putJSON(`shoots/${ud}.json`, { ...(await shoots.getMeta(ud)), updatedAt: ago(3) });
+  ok("an unconfirmed paying customer whose photos passed the check gets the 'ready to develop' reminder (14 Nov)", (await dueReminder(await fresh(unconfDev)))?.kind === "develop");
+  const startMail = reminderEmail({ kind: "start", name: "Ada Lovelace", link: "https://x/app/new", pricing: "https://x/#pricing", unsubscribe: "https://x/u" });
+  ok("the 'start' email greets by first name and links to a new shoot", startMail.text.includes("Hi Ada,") && startMail.text.includes("https://x/app/new") && startMail.html.includes("Start my shoot"));
+  for (const p of [idle, idleUnconfirmed, drafted, unconfDev]) await users.update(p.id, (u) => void (u.reminders = { start: ago(1), develop: ago(1) }));
   ok("a paying customer who never confirmed their address is still asked (owner's decision, 13 Nov)", (await dueReminder(await fresh(unconfirmed)))?.kind === "review");
   const unpaid = await person("unpaid", { emailVerified: false, credits: 0 });
   const us = await doneShoot(unpaid, 4);
   await users.update(unpaid.id, (u) => void (u.usage = { freeShootUsed: us }));
-  const undeveloped = await person("undeveloped", { purchases: bought, emailVerified: false });
-  const cs = `sht_revc${t}`;
-  await shoots.create({ id: cs, userId: undeveloped.id, name: cs, status: "checked", createdAt: ago(3), selfies: [], shots: [], check: { at: ago(3), ok: true } });
-  await storage.putJSON(`shoots/${cs}.json`, { ...(await shoots.getMeta(cs)), updatedAt: ago(3) });
-  ok("…but an unconfirmed address gets no other reminder, paid or not", !(await dueReminder(await fresh(unpaid))) && !(await dueReminder(await fresh(undeveloped))));
+  const abandoned = await person("abandoned", { emailVerified: false, lastCheckout: { packageId: "starter", at: ago(2) } });
+  ok("…but an unconfirmed address that hasn't paid gets no reminder", !(await dueReminder(await fresh(unpaid))) && !(await dueReminder(await fresh(abandoned))));
   await users.update(unconfirmed.id, (u) => void (u.reminders = { review: ago(1) })); // so the run below is about the first customer
 
   const before = (await fetch(`${M}/mock-mail`).then((r) => r.json()).catch(() => [])).length;
@@ -111,6 +132,10 @@ const fails = async (fn) => { try { await fn(); return null; } catch (err) { ret
   const bad = async (fields) => (await fails(() => reviews.submit(u, { rating: 5, text: "Good", name: "Wren", consent: true, ...fields })))?.field || null;
   const checks = [await bad({ rating: 0 }), await bad({ rating: 6 }), await bad({ rating: 4.5 }), await bad({ rating: "x" }), await bad({ name: "" }), await bad({ name: "ㅤㅤ" }), await bad({ name: "www.evil.xyz" }), await bad({ name: "a@b.co" }), await bad({ text: "see http://evil.example" }), await bad({ text: "visit evil.xyz now" }), await bad({ text: "x".repeat(601) }), await bad({ consent: "yes" }), await bad({ consent: undefined })];
   ok("bad ratings, names, links, long text and missing permission are refused", JSON.stringify(checks) === JSON.stringify(["rating", "rating", "rating", "rating", "name", "name", "name", "name", "text", "text", "text", "consent", "consent"]), JSON.stringify(checks));
+  const ok1 = await fails(() => reviews.submit(u, { rating: 5, text: "Great service.Highly recommend. Quick turnaround.Loved it", name: "Wren", consent: true }));
+  const ips = [await bad({ text: "go to 203.0.113.9 now" }), await bad({ text: "shop at keeper-deals.co today" }), await bad({ text: "evil\u3002com" })];
+  ok("a missing space after a full stop is fine; web endings and IP addresses are still refused (14 Nov)", ok1 === null && JSON.stringify(ips) === JSON.stringify(["text", "text", "text"]), JSON.stringify([ok1?.message, ips]));
+  await reviews.remove(u.id); // so the next check starts from no review
   const { review, first } = await reviews.submit(u, { rating: 4, text: "  Loved <b>it</b>‮\n very   much ", name: " Wren​ ", consent: true });
   ok("a review is saved cleaned, waiting for approval", review.rating === 4 && review.text === "Loved b it /b very much" && review.name === "Wren" && review.status === "pending" && first === true, JSON.stringify(review));
   ok("nothing is public before approval", (await reviews.approved()).count === 0);

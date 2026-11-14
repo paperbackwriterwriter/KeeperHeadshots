@@ -105,7 +105,7 @@ export function renderAccount({ root, navigate }) {
       ? ""
       : html`<section class="panel prefs" aria-labelledby="reminders-title">
       <h2 class="h-3" id="reminders-title">Reminder emails</h2>
-      <p class="muted">At most two reminders, ever: one if your photos pass the check but you haven't developed them, and one after an unfinished checkout (or, if you have one, after a free preview shoot). After you buy, we ask once for a review. If you haven't bought, we may occasionally email an offer, such as a discount code; this switch stops those too. Emails about your account and orders always arrive.</p>
+      <p class="muted">At most two reminders, ever: one if your photos pass the check but you haven't developed them, and one after an unfinished checkout (or, if you have one, after a free preview shoot). After you buy, we may send one note if you haven't started your shoot, and we ask once for a review. If you haven't bought, we may occasionally email an offer, such as a discount code; this switch stops those too. Emails about your account and orders always arrive.</p>
       <label class="check"><input type="checkbox" id="remindersOn" ${u.emailReminders !== false ? raw("checked") : ""} /> <span>Send me reminder emails</span></label>
     </section>`}
 

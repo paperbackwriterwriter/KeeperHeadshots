@@ -98,6 +98,14 @@ stays hidden once the same inbox, however spelled, was invited again,
 whatever became of that invitation. Stripe items stay in the nightly "For
 you" list until done.
 
+Owner's decisions, 14 Nov: a paying customer whose address is unconfirmed or
+confirmed only through a team invitation gets the after-purchase emails
+("develop", the new "start" nudge 2 to 30 days after buying with no shoot
+started, and "review"); nobody else unconfirmed gets any reminder. A review
+may contain "word.word" unless the second word is a web ending or it is an IP
+address. A team admin can't remove a joined member (keep). A team admin with
+no shoot of their own is not asked for a review (not chosen).
+
 Customer reviews (owner request, 13 Nov; lib/reviews.js, scripts/dev/review-tests.js):
 a paying customer (any purchase not fully refunded) can rate the site 1 to 5
 and write up to 600 characters at /app/review, with a name to show and a
@@ -117,11 +125,6 @@ finished paid shoot and nothing shared yet is invited to share a headshot.
 No star-rating structured data is published. Belongs to areas F, G and H.
 
 Waiting on the owner:
-- Teams and reviews (14 Nov, questions): a member confirmed only by an
-  invitation who also bought isn't asked for a review (an unconfirmed buyer
-  is); a team admin with no shoot of their own is never asked; a joined member
-  can't be removed by the admin; "Great service.Highly recommend" (no space)
-  is refused in a review as a web address (the same rule as home-page quotes).
 - Payments (13 Nov, low): C4-1 and C4-2 in docs/qa/areas/C-payments.md (a seat
   stays paid after both packages behind it are refunded; the purchase toast
   overstates shoots added for a buyer who owed some). Questions: is Stripe's

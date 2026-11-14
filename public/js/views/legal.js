@@ -6,7 +6,7 @@ import { KEEP_ONE_PRICE, KEEP_ALL_PRICE } from "../shared/catalog.js";
 // Privacy Policy and Terms of Service. Keep these in step with what the code
 // actually does (lib/meta.js, lib/billing.js, lib/store.js, lib/ai.js).
 // Each policy has its own date: change it only when that page's text changes.
-export const LEGAL_UPDATED = "November 14, 2026"; // privacy policy
+export const LEGAL_UPDATED = "November 14, 2026"; // privacy policy (reminders after purchase)
 export const TERMS_UPDATED = "November 6, 2026";
 
 const mail = html`<a class="link" href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>`;
@@ -49,7 +49,7 @@ export function renderPrivacy({ root }) {
       <ul>
         <li>To run the studio: check your photos, create your headshots, run our quality check on every headshot, and show you the results.</li>
         <li>To manage your account and purchases, including refunds, and to send account emails such as the link that confirms your email address and a note when your headshots are ready.</li>
-        <li>To send at most two reminder emails: one if your photos pass the check but you haven't developed them, and one if you start a checkout and don't finish it (or, if you have one, after a free preview shoot); and, after you buy, one request for a review. Every reminder has a link to stop them, and you can turn them off on your <a class="link" href="/app/account" data-link>Account page</a>. Now and then we may also email an offer, such as a discount code, to people who signed up but haven't bought; the same link and setting stop those too.</li>
+        <li>To send at most two reminder emails: one if your photos pass the check but you haven't developed them, and one if you start a checkout and don't finish it (or, if you have one, after a free preview shoot); and, after you buy, one note if you haven't started your shoot and one request for a review. If you've bought from us, these can reach your address before you've confirmed it. Every reminder has a link to stop them, and you can turn them off on your <a class="link" href="/app/account" data-link>Account page</a>. Now and then we may also email an offer, such as a discount code, to people who signed up but haven't bought; the same link and setting stop those too.</li>
         <li>To answer your messages and help with your shoots.</li>
         <li>To keep the service secure and prevent fraud and abuse, including misuse of free preview shoots.</li>
         <li>To measure how well our ads work (see "Advertising and cookies" below).</li>
