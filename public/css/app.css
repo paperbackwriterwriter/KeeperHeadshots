@@ -393,6 +393,8 @@ h1[tabindex="-1"]:focus, h1[tabindex="-1"]:focus-visible { box-shadow: none; out
 .tag-keeper { position: absolute; z-index: 3; right: -12px; top: 0; white-space: nowrap; background: var(--surface-raised); border-radius: var(--r-pill); padding: 8px 14px 8px 10px; display: inline-flex; gap: 8px; align-items: center; box-shadow: var(--shadow-2); font-size: var(--fs-sm); font-weight: 700; }
 .sheet-frame img, .polaroid img { transition: opacity 0.45s var(--ease-out) calc(var(--d, 0) * 35ms); }
 .sheet.swapping .sheet-frame img, .sheet.swapping .polaroid img { opacity: 0; }
+.hero-ba img { transition: opacity 0.4s ease; }
+.hero-ba.swapping img { opacity: 0; }
 .hero-visual { min-width: 0; }
 .sheet-controls { max-width: 540px; margin: 6px 0 0 auto; display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
 .sheet-dots { display: flex; gap: 2px; }

@@ -471,11 +471,20 @@ function stripReel() {
 // Rotate the hero through example people. The next set is decoded before the
 // swap so frames never flash empty. Pauses on hover/focus, when the tab is
 // hidden, or via the button; no autoplay for reduced-motion users.
+// On phones the selfie-and-headshot pair at the top rotates too (owner's
+// request, 14 Nov); the contact sheet further down only fetches its new
+// photos once it's on screen.
 function heroCycle() {
   const sheet = $("#heroSheet");
   if (!sheet) return null;
   const imgs = $$(".sheet-frame img", sheet);
   const selfie = $(".polaroid img", sheet);
+  const pair = $(".hero-ba");
+  const [pairSelfie, pairShot] = pair ? $$("img", pair) : [];
+  const pairShown = () => !!pair && pair.offsetParent !== null;
+  let sheetVisible = !("IntersectionObserver" in window);
+  let pairVisible = false;
+  let sheetAt = 0; // the person the contact sheet shows (it can lag behind the pair)
   const dots = $$(".sheet-dot");
   const pauseBtn = $("#heroPause");
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -484,29 +493,63 @@ function heroCycle() {
   let hovering = false;
   let busy = false;
   let timer = null;
-  let visible = !("IntersectionObserver" in window);
   let warmTimer = null;
   let warmed = false;
   const urls = (i) => [example(`${HERO_SETS[i][0]}-selfie`, [180, 300, 360].find((w) => w >= selfie.clientWidth * devicePixelRatio) || 360), ...imgs.map((im, j) => {
     const width = [180, 360, 600].find((w) => w >= im.clientWidth * devicePixelRatio) || 600;
     return example(`${HERO_SETS[i][0]}-${j + 1}`, width);
   })];
-  const preload = (i) =>
-    Promise.all(urls(i).map((u) => { const im = new Image(); im.src = u; return im.decode(); }));
+  const pairWidth = () => [180, 300, 360].find((w) => w >= (pairShot?.clientWidth || 0) * devicePixelRatio) || 360;
+  const pairUrls = (i) => [example(`${HERO_SETS[i][0]}-selfie`, pairWidth()), example(`${HERO_SETS[i][0]}-${HERO_SETS[i][2] + 1}`, pairWidth())];
+  const load = (list) => Promise.all(list.map((u) => { const im = new Image(); im.src = u; return im.decode(); }));
+  const preload = (i) => load(urls(i));
 
   const setPauseUI = () => {
     pauseBtn.setAttribute("aria-label", paused ? "Play examples" : "Pause examples");
     pauseBtn.innerHTML = icon(paused ? "play" : "pause").v;
   };
+  // The phone pair: this person's selfie and their best-pick headshot.
+  async function showPair(i) {
+    if (!pairShown()) return true;
+    try {
+      await load(pairUrls(i));
+    } catch {
+      return false;
+    }
+    pair.classList.add("swapping");
+    await new Promise((r) => setTimeout(r, reduce ? 0 : 420));
+    const [s, h] = pairUrls(i);
+    pairSelfie.srcset = pairSources(`${HERO_SETS[i][0]}-selfie`);
+    pairSelfie.src = s;
+    pairShot.srcset = pairSources(`${HERO_SETS[i][0]}-${HERO_SETS[i][2] + 1}`);
+    pairShot.src = h;
+    pair.classList.remove("swapping");
+    return true;
+  }
   async function show(i) {
     if (busy || i === current) return;
     busy = true;
+    // Only the pair is on screen (a phone, scrolled to the top): swap it and
+    // leave the contact sheet's ten photos for when it comes into view.
+    if (pairShown() && !sheetVisible) {
+      if (await showPair(i)) current = i;
+      dots.forEach((d, j) => d.setAttribute("aria-pressed", String(j === current)));
+      busy = false;
+      return;
+    }
     try {
       await preload(i);
     } catch {
       busy = false;
       return; // a missing image: stay on the current person
     }
+    showPair(i);
+    await swapSheet(i);
+    dots.forEach((d, j) => d.setAttribute("aria-pressed", String(j === i)));
+    current = i;
+    busy = false;
+  }
+  async function swapSheet(i) {
     sheet.classList.add("swapping");
     await new Promise((r) => setTimeout(r, reduce ? 0 : 520));
     const [sel, ...frames] = urls(i);
@@ -527,12 +570,20 @@ function heroCycle() {
       if (!reduce) circle.remove();
     }
     sheet.classList.remove("swapping");
-    dots.forEach((d, j) => d.setAttribute("aria-pressed", String(j === i)));
-    current = i;
+    sheetAt = i;
+  }
+  // The contact sheet comes into view showing someone else: catch it up.
+  async function catchUpSheet() {
+    if (busy || sheetAt === current) return;
+    busy = true;
+    try {
+      await preload(current);
+      await swapSheet(current);
+    } catch {}
     busy = false;
   }
   const tick = () => {
-    if (visible && !paused && !hovering && !document.hidden) show((current + 1) % HERO_SETS.length);
+    if ((sheetVisible || pairVisible) && !paused && !hovering && !document.hidden) show((current + 1) % HERO_SETS.length);
   };
   const start = () => {
     clearInterval(timer);
@@ -546,6 +597,9 @@ function heroCycle() {
   // Keyboard focus inside the sheet pauses too (mouse clicks don't count).
   sheet.addEventListener("focusin", (e) => { if (e.target.matches(":focus-visible")) hovering = true; });
   sheet.addEventListener("focusout", () => (hovering = false));
+  // A pointer resting on the pair holds the person too.
+  pair?.addEventListener("pointerenter", () => (hovering = true));
+  pair?.addEventListener("pointerleave", () => (hovering = false));
   setPauseUI();
   start();
   // On phones the contact sheet starts below the first screen. Don't fetch
@@ -556,11 +610,19 @@ function heroCycle() {
     warmTimer = setTimeout(() => preload(1).catch(() => {}), 2500);
   };
   const io = "IntersectionObserver" in window ? new IntersectionObserver((entries) => {
-    visible = entries.some((entry) => entry.isIntersecting);
-    if (visible) warm();
+    for (const entry of entries) {
+      if (entry.target === sheet) sheetVisible = entry.isIntersecting;
+      else pairVisible = entry.isIntersecting;
+    }
+    if (sheetVisible) {
+      warm();
+      catchUpSheet();
+    }
   }) : null;
-  if (io) io.observe(sheet);
-  else warm();
+  if (io) {
+    io.observe(sheet);
+    if (pair) io.observe(pair);
+  } else warm();
   return () => {
     clearInterval(timer);
     clearTimeout(warmTimer);
