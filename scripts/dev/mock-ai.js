@@ -166,6 +166,10 @@ function stripe(req, res, raw) {
   const json = (o, code = 200) => (res.writeHead(code, { "content-type": "application/json" }), res.end(JSON.stringify(o)));
   if (req.method === "POST" && url.pathname === "/v1/customers") return json({ id: `cus_mock${++stripeSeq}`, object: "customer", email: form.email });
   if (req.method === "POST" && url.pathname === "/v1/checkout/sessions") {
+    // As Stripe does: no icon or logo on an embedded form (15 Nov).
+    if (form.ui_mode === "embedded_page" && Object.keys(form).some((k) => /^branding_settings\[(icon|logo)\]/.test(k))) {
+      return json({ error: { type: "invalid_request_error", message: "You cannot set `icon` when `ui_mode` is `embedded_page`." } }, 400);
+    }
     const id = `cs_mock_${++stripeSeq}`;
     const s = {
       id, object: "checkout.session", customer: form.customer, client_reference_id: form.client_reference_id, payment_status: "unpaid",
@@ -173,6 +177,7 @@ function stripe(req, res, raw) {
       metadata: Object.fromEntries(Object.entries(form).filter(([k]) => k.startsWith("metadata[")).map(([k, v]) => [k.slice(9, -1), v])),
       success_url: form.success_url || form.return_url, cancel_url: form.cancel_url, ui_mode: form.ui_mode || "hosted_page",
       status: "open", allow_promotion_codes: form.allow_promotion_codes === "true", total_details: { amount_discount: 0 },
+      branding_settings: Object.fromEntries(Object.entries(form).filter(([k]) => k.startsWith("branding_settings[")).map(([k, v]) => [k.slice(18, -1), v])),
       // Embedded sessions have a client secret instead of a hosted-page URL.
       ...(form.ui_mode === "embedded_page" ? { url: null, client_secret: `${id}_secret_mock`, return_url: form.return_url } : { url: `http://localhost:${PORT}/mock-pay/${id}` }),
     };

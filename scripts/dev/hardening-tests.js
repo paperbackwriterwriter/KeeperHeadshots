@@ -138,6 +138,16 @@ if (process.env.QA_ADMIN_TOKEN) {
   const f = await account(`buyer${t}@x.com`);
   const bad = await f("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: "../../x" }) });
   ok("confirm rejects a malformed session id", bad.status === 400, String(bad.status));
+  // The payment form is styled to match the site (14 Nov).
+  const styler = await account(`styled${t}@x.com`);
+  const styled = (await styler("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter", embedded: true }) })).j;
+  const sid = String(styled?.clientSecret || "").split("_secret")[0];
+  const sess = sid ? await fetch(`${M}/v1/checkout/sessions/${sid}`).then((r) => r.json()) : null;
+  const hosted = (await styler("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) })).j;
+  const hsid = String(hosted?.url || "").split("/").pop();
+  const hsess = hsid ? await fetch(`${M}/v1/checkout/sessions/${hsid}`).then((r) => r.json()) : null;
+  ok("Stripe's own page (the fallback) also gets the site's icon", hsess?.branding_settings?.["icon][type"] === "url" || JSON.stringify(hsess?.branding_settings || {}).includes("apple-touch-icon"), JSON.stringify(hsess?.branding_settings));
+  ok("the payment form gets the site's colours (ivory background, oxblood button, rounded, Inter)", sess?.branding_settings?.background_color === "#fbf8f2" && sess.branding_settings.button_color === "#7a2e2e" && sess.branding_settings.border_style === "rounded" && sess.branding_settings.font_family === "inter" && !Object.keys(sess.branding_settings).some((k) => k.startsWith("icon")), JSON.stringify(sess?.branding_settings));
   const starts = [];
   for (let i = 0; i < 31; i++) starts.push((await f("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "starter" }) })).status);
   ok("checkout starts limited to 30 an hour (buy-page visits count)", starts.slice(0, 30).every((s) => s === 200) && starts[30] === 429, starts.join(","));
