@@ -1576,13 +1576,21 @@ select.input { appearance: none; padding-right: 44px; cursor: pointer; backgroun
 .checkout-features svg { color: var(--accent-text); margin-top: 3px; }
 .checkout-note { display: flex; gap: 10px; align-items: flex-start; font-size: var(--fs-sm); color: var(--text-muted); }
 .checkout-note svg { color: var(--accent-text); margin-top: 2px; }
-.checkout-frame { min-height: 520px; background: #ffffff; border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-2); overflow: hidden; padding: 8px 0; }
+.checkout-frame { min-height: 520px; background: #fbf8f2; border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-2); overflow: hidden; padding: 8px 0; }
 .checkout-loading { min-height: 500px; display: grid; place-items: center; align-content: center; gap: 12px; color: var(--text-muted); font-size: var(--fs-sm); }
 .checkout-loading .spinner { width: 28px; height: 28px; }
 .checkout-fine { margin-top: var(--s-3); text-align: center; }
 @media (max-width: 860px) {
   .checkout { grid-template-columns: 1fr; }
   .checkout-summary { position: static; }
+  /* On a phone the payment form comes right after the name, price and
+     guarantee; the feature list and other packages follow it. */
+  .checkout { gap: var(--s-3); }
+  .checkout-summary { display: contents; }
+  .checkout-summary > * { order: 1; }
+  .checkout-pay { order: 2; margin-top: var(--s-2); }
+  .checkout-summary > .checkout-features, .checkout-summary > .checkout-others { order: 3; }
+  .checkout-summary > .checkout-features { margin-top: var(--s-4); }
 }
 
 /* ---------- Dark theme (follows the device setting) ----------
