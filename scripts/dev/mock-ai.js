@@ -173,7 +173,6 @@ function stripe(req, res, raw) {
       metadata: Object.fromEntries(Object.entries(form).filter(([k]) => k.startsWith("metadata[")).map(([k, v]) => [k.slice(9, -1), v])),
       success_url: form.success_url || form.return_url, cancel_url: form.cancel_url, ui_mode: form.ui_mode || "hosted_page",
       status: "open", allow_promotion_codes: form.allow_promotion_codes === "true", total_details: { amount_discount: 0 },
-      branding_settings: Object.fromEntries(Object.entries(form).filter(([k]) => k.startsWith("branding_settings[")).map(([k, v]) => [k.slice(18, -1), v])),
       // Embedded sessions have a client secret instead of a hosted-page URL.
       ...(form.ui_mode === "embedded_page" ? { url: null, client_secret: `${id}_secret_mock`, return_url: form.return_url } : { url: `http://localhost:${PORT}/mock-pay/${id}` }),
     };
