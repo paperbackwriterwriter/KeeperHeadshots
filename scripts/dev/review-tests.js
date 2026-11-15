@@ -99,6 +99,9 @@ const fails = async (fn) => { try { await fn(); return null; } catch (err) { ret
   const begun = await person("begun", { purchases: [{ ...bought[0], at: ago(3) }], credits: 3 });
   await shoots.create({ id: `sht_revb${t}`, userId: begun.id, name: "b", status: "draft", createdAt: ago(3), selfies: [{ file: "x/y.jpg" }], shots: [] });
   ok("a paying customer who hasn't started a shoot gets one 'start' nudge after 2 days (also unconfirmed; an empty draft counts as not started)", (await dueReminder(await fresh(idle)))?.kind === "start" && !(await dueReminder(await fresh(idleEarly))) && (await dueReminder(await fresh(idleUnconfirmed)))?.kind === "start" && (await dueReminder(await fresh(drafted)))?.kind === "start" && (await dueReminder(await fresh(begun)))?.kind !== "start");
+  const admin = await person("teamadmin", { purchases: [{ ...bought[0], at: ago(3), shoots: 5 }], credits: 5, teamId: "team_abc" });
+  const zero = await person("zero", { purchases: [{ ...bought[0], at: ago(3), amount: 0 }], credits: 3, emailVerified: false });
+  ok("no 'start' for a team admin, and nothing for an unconfirmed address whose only purchase was free (15 Nov)", (await dueReminder(await fresh(admin)))?.kind !== "start" && !(await dueReminder(await fresh(zero))), JSON.stringify([(await dueReminder(await fresh(admin)))?.kind, (await dueReminder(await fresh(zero)))?.kind]));
   const unconfDev = await person("unconfdev", { purchases: bought, emailVerified: false, credits: 2 });
   const ud = `sht_revu${t}`;
   await shoots.create({ id: ud, userId: unconfDev.id, name: ud, status: "checked", createdAt: ago(3), selfies: [], shots: [], check: { at: ago(3), ok: true } });
@@ -131,11 +134,24 @@ const fails = async (fn) => { try { await fn(); return null; } catch (err) { ret
   const u = await person("writer", { purchases: bought });
   const bad = async (fields) => (await fails(() => reviews.submit(u, { rating: 5, text: "Good", name: "Wren", consent: true, ...fields })))?.field || null;
   const checks = [await bad({ rating: 0 }), await bad({ rating: 6 }), await bad({ rating: 4.5 }), await bad({ rating: "x" }), await bad({ name: "" }), await bad({ name: "ㅤㅤ" }), await bad({ name: "www.evil.xyz" }), await bad({ name: "a@b.co" }), await bad({ text: "see http://evil.example" }), await bad({ text: "visit evil.xyz now" }), await bad({ text: "x".repeat(601) }), await bad({ consent: "yes" }), await bad({ consent: undefined })];
+  const freebie = await person("freebie", { purchases: [{ ...bought[0], amount: 0 }] });
+  const legacy = await person("legacy", { purchases: [{ sessionId: "cs_old", packageId: "starter", shoots: 3 }] });
+  ok("a purchase made entirely with a 100%-off code doesn't allow a review; an old record with no amount does (15 Nov)", !reviews.canReview(freebie) && reviews.canReview(legacy));
   ok("bad ratings, names, links, long text and missing permission are refused", JSON.stringify(checks) === JSON.stringify(["rating", "rating", "rating", "rating", "name", "name", "name", "name", "text", "text", "text", "consent", "consent"]), JSON.stringify(checks));
   const ok1 = await fails(() => reviews.submit(u, { rating: 5, text: "Great service.Highly recommend. Quick turnaround.Loved it", name: "Wren", consent: true }));
   const ips = [await bad({ text: "go to 203.0.113.9 now" }), await bad({ text: "shop at keeper-deals.co today" }), await bad({ text: "evil\u3002com" })];
   ok("a missing space after a full stop is fine; web endings and IP addresses are still refused (14 Nov)", ok1 === null && JSON.stringify(ips) === JSON.stringify(["text", "text", "text"]), JSON.stringify([ok1?.message, ips]));
   await reviews.remove(u.id); // so the next check starts from no review
+  // 15 Nov: ordinary missing spaces pass; shorteners, odd web endings and emails don't; names stay strict.
+  const fine = [];
+  for (const text of ["Highly recommend.It was quick", "Loved it.No complaints", "Great job.Top notch", "Worth it.Life saver", "Easy.One click and done", "Fast.Me and my wife loved it", "4.5 stars, e.g. for LinkedIn"]) {
+    fine.push((await fails(() => reviews.submit(u, { rating: 5, text, name: "Wren", consent: true }))) === null);
+    await reviews.remove(u.id);
+  }
+  const blocked = [];
+  for (const text of ["linktr.ee/janedoe", "rb.gy/abc", "see shop.lol", "keeper.photography rocks", "mail jane@seznam.cz", "jane@mail.ee"]) blocked.push(await bad({ text }));
+  const strictName = [await bad({ name: "Wren.Shop" }), await bad({ name: "a@b.co" })];
+  ok("ordinary sentences with a missing space pass; links, shorteners and emails are refused; names stay strict (15 Nov)", fine.every(Boolean) && blocked.every((f) => f === "text") && strictName.every((f) => f === "name"), JSON.stringify([fine, blocked, strictName]));
   const { review, first } = await reviews.submit(u, { rating: 4, text: "  Loved <b>it</b>‮\n very   much ", name: " Wren​ ", consent: true });
   ok("a review is saved cleaned, waiting for approval", review.rating === 4 && review.text === "Loved b it /b very much" && review.name === "Wren" && review.status === "pending" && first === true, JSON.stringify(review));
   ok("nothing is public before approval", (await reviews.approved()).count === 0);
@@ -222,6 +238,8 @@ async function account(email, name = "QA Person") {
   const gone = await f("/api/review/mine", { method: "DELETE" });
   ok("the customer can delete their review", gone.status === 200 && (await f("/api/review/mine")).j?.review === null && !(await owner("/api/owner/reviews")).j?.reviews?.some((r) => r.id === meId));
   await f("/api/review", { method: "POST", body: JSON.stringify({ rating: 3, text: "Fine", name: "Rita", consent: true }) });
+  const notices = (await fetch(`${M}/mock-mail`).then((r) => r.json())).filter((m) => /^\[Review\] Rita gave/.test(m.subject));
+  ok("deleting and re-sending a review doesn't email the owner again the same day (15 Nov)", notices.length === 1, String(notices.length));
   {
     // A fully refunded customer's review comes down.
     const g = await account(`revrefund${t}@x.com`, "Refund Person");

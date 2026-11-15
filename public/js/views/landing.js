@@ -68,10 +68,13 @@ export function renderLanding({ root, hydrate = false }) {
         <div>
           <p class="eyebrow" data-reveal style="--i:0"><span class="dot"></span>The AI headshot studio</p>
           <h1 class="display h-hero" data-reveal style="--i:1">Professional AI headshots, <em>without</em> the photo shoot.</h1>
-          <div class="hero-ba" role="img" aria-label="Example: a casual selfie, and a professional headshot made from it" data-reveal style="--i:2">
-            <figure><picture>${raw(PHONE_ONLY)}<img src="${example("hero-selfie", 360)}" srcset="${pairSources("hero-selfie")}" sizes="${PAIR_SIZES}" alt="" width="360" height="480" fetchpriority="high" /></picture><figcaption>Your selfie</figcaption></figure>
-            <span class="hero-ba-arrow" aria-hidden="true">${icon("arrow-right")}</span>
-            <figure><picture>${raw(PHONE_ONLY)}<img src="${example("hero-2", 360)}" srcset="${pairSources("hero-2")}" sizes="${PAIR_SIZES}" alt="" width="360" height="480" fetchpriority="high" /></picture><figcaption>Your headshot</figcaption></figure>
+          <div class="hero-ba-wrap" data-reveal style="--i:2">
+            <div class="hero-ba" role="img" aria-label="Example: a casual selfie, and a professional headshot made from it">
+              <figure><picture>${raw(PHONE_ONLY)}<img src="${example("hero-selfie", 360)}" srcset="${pairSources("hero-selfie")}" sizes="${PAIR_SIZES}" alt="" width="360" height="480" fetchpriority="high" /></picture><figcaption>Your selfie</figcaption></figure>
+              <span class="hero-ba-arrow" aria-hidden="true">${icon("arrow-right")}</span>
+              <figure><picture>${raw(PHONE_ONLY)}<img src="${example("hero-2", 360)}" srcset="${pairSources("hero-2")}" sizes="${PAIR_SIZES}" alt="" width="360" height="480" fetchpriority="high" /></picture><figcaption>Your headshot</figcaption></figure>
+            </div>
+            <button type="button" class="hero-ba-pause" id="heroPairPause" aria-label="Pause examples">${icon("pause")}</button>
           </div>
           <p class="lede" data-reveal style="--i:2">Upload a few selfies. Our AI studio checks your photos, develops studio-quality headshots in the looks you choose, then grades every frame so you know exactly which one to use.</p>
           <div class="hero-ctas" data-reveal style="--i:3">
@@ -487,6 +490,7 @@ function heroCycle() {
   let sheetAt = 0; // the person the contact sheet shows (it can lag behind the pair)
   const dots = $$(".sheet-dot");
   const pauseBtn = $("#heroPause");
+  const pairPauseBtn = $("#heroPairPause");
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   let current = 0;
   let paused = reduce;
@@ -505,12 +509,15 @@ function heroCycle() {
   const preload = (i) => load(urls(i));
 
   const setPauseUI = () => {
-    pauseBtn.setAttribute("aria-label", paused ? "Play examples" : "Pause examples");
-    pauseBtn.innerHTML = icon(paused ? "play" : "pause").v;
+    for (const b of [pauseBtn, pairPauseBtn].filter(Boolean)) {
+      b.setAttribute("aria-label", paused ? "Play examples" : "Pause examples");
+      b.innerHTML = icon(paused ? "play" : "pause").v;
+    }
   };
+  let pairAt = 0; // the person the phone pair shows (it can lag behind too)
   // The phone pair: this person's selfie and their best-pick headshot.
   async function showPair(i) {
-    if (!pairShown()) return true;
+    if (!pairShown() || pairAt === i) return true;
     try {
       await load(pairUrls(i));
     } catch {
@@ -524,6 +531,7 @@ function heroCycle() {
     pairShot.srcset = pairSources(`${HERO_SETS[i][0]}-${HERO_SETS[i][2] + 1}`);
     pairShot.src = h;
     pair.classList.remove("swapping");
+    pairAt = i;
     return true;
   }
   async function show(i) {
@@ -531,8 +539,10 @@ function heroCycle() {
     busy = true;
     // Only the pair is on screen (a phone, scrolled to the top): swap it and
     // leave the contact sheet's ten photos for when it comes into view.
+    // (A person whose photos won't load is skipped, not retried for ever.)
     if (pairShown() && !sheetVisible) {
-      if (await showPair(i)) current = i;
+      await showPair(i);
+      current = i;
       dots.forEach((d, j) => d.setAttribute("aria-pressed", String(j === current)));
       busy = false;
       return;
@@ -540,10 +550,11 @@ function heroCycle() {
     try {
       await preload(i);
     } catch {
+      current = i; // a missing image: move on next time
       busy = false;
-      return; // a missing image: stay on the current person
+      return;
     }
-    showPair(i);
+    if (pairVisible) await showPair(i);
     await swapSheet(i);
     dots.forEach((d, j) => d.setAttribute("aria-pressed", String(j === i)));
     current = i;
@@ -592,6 +603,7 @@ function heroCycle() {
 
   dots.forEach((d) => d.addEventListener("click", () => { show(Number(d.dataset.set)); start(); }));
   pauseBtn.addEventListener("click", () => { paused = !paused; setPauseUI(); });
+  pairPauseBtn?.addEventListener("click", () => { paused = !paused; setPauseUI(); });
   sheet.addEventListener("mouseenter", () => (hovering = true));
   sheet.addEventListener("mouseleave", () => (hovering = false));
   // Keyboard focus inside the sheet pauses too (mouse clicks don't count).
@@ -617,6 +629,11 @@ function heroCycle() {
     if (sheetVisible) {
       warm();
       catchUpSheet();
+    }
+    // The pair comes back into view showing someone else: catch it up.
+    if (pairVisible && !busy && pairAt !== current) {
+      busy = true;
+      showPair(current).finally(() => (busy = false));
     }
   }) : null;
   if (io) {

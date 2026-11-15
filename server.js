@@ -2223,7 +2223,9 @@ app.post("/api/review", requireUser, async (req, res) => {
   try {
     const { review, first } = await reviews.submit(req.user, req.body || {});
     console.log("[review] sent", req.user.id, review.rating);
-    if (first && mailEnabled()) {
+    // (At most once a day per customer, so deleting and re-sending can't
+    // flood the owner's inbox.)
+    if (first && mailEnabled() && !(await overLimit("reviewnotice", req.user.id, 1, DAY_MS))) {
       sendMail({
         from: { name: "Keeper Headshots website", address: MAIL_FROM },
         to: CONTACT_TO,

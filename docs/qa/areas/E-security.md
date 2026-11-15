@@ -195,3 +195,13 @@ All 107 items above were re-checked on 7 Nov (still 83 route lines; E5-01/02/03/
 - Reproduced: yes.
 
 Known items met: requests without Origin pass (M7); queue ce-type (M4); appOrigin uses Host (links in local emails); Google auth_time (routes 8 and 39); team admin can download every done shot, not just the pick (media team rows).
+
+## Added at the nightly re-check, 15 Nov
+| Item | Check |
+|---|---|
+| E-N13..E-N18 | The six review routes: not a customer 403; owner routes 404 for a user, 401 signed out; rating whole 1-5; name without links or @; text up to 600 with links, emails, IPs and lower-case "word.word" refused, <> removed; consent exactly true; owner decision ids validated, unknown status 400, stale version 409; /api/reviews public without ids or addresses. |
+| E-N19 | The home page's server-filled reviews section is escaped (script tags, $` $' $&, quotes, direction overrides). |
+| E-N20 | After-purchase emails to an unconfirmed address only after a real payment (not a 100%-off code); a review needs a real payment; the owner's review notice at most once a day per customer (fixed 15 Nov; review-tests). |
+| E-N21 | A team admin downloads only the shown pick (plain, square, sizes); other frames, selfies and derived names 404; follows the member's change of pick. |
+| E-N22 | Checkout styling fallback: retried without styling only for a Stripe refusal about the styling; any other refusal is raised once (checked with a stand-in, 15 Nov). |
+Unverified: a deleted review may stay on the live home page up to about 11 minutes (CDN 600 s plus each server's 60 s copy) against the policy's "about 10 minutes"; an owner approval sent without the version skips the version check (owner-only); a customer's edit at the same moment as an approval could be overwritten.
