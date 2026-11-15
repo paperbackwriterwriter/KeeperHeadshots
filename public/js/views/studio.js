@@ -30,7 +30,7 @@ const keepAllButton = (s, total) =>
 function keepCta(s, pick, total) {
   return html`<section class="keep-cta" aria-label="Keep your headshots">
     <a class="btn btn-flash btn-lg btn-block" href="${keepHref(s, pick)}" data-link>${icon("download")} <span>Download this photo · <span class="nowrap">${wasPrice(KEEP_ONE)} ${usd(KEEP_ONE.price)}</span></span></a>
-    <p class="keep-cta-note">Full resolution, no watermark, in every size (LinkedIn, square, banner, email signature). One-time.</p>
+    <p class="keep-cta-note">Full resolution, in every size (LinkedIn, square, banner, email signature). One-time.</p>
     ${keepAllButton(s, total)}
   </section>`;
 }
@@ -985,7 +985,7 @@ export async function renderStudio(ctx, id) {
 
     if (s.sample || plan?.tier === "demo") {
       return html`<section class="upsell" id="upgrade" aria-labelledby="upsellTitle">
-        <div><p class="eyebrow">Your turn</p><h2 class="display h-2" id="upsellTitle">Make headshots like these from your own selfies.</h2><p class="upsell-sub">Every paid shoot has up to ${MAX_LOOKS_ALL} looks and ${MAX_LOOKS_ALL * TAKES_PER_LOOK} headshots, checked and graded by AI, with no watermark. Packages start at ${FROM_PRICE}, and your first one is covered by our money-back guarantee.</p></div>
+        <div><p class="eyebrow">Your turn</p><h2 class="display h-2" id="upsellTitle">Make headshots like these from your own selfies.</h2><p class="upsell-sub">Every paid shoot has up to ${MAX_LOOKS_ALL} looks and ${MAX_LOOKS_ALL * TAKES_PER_LOOK} headshots, checked and graded by AI. Packages start at ${FROM_PRICE}, and your first one is covered by our money-back guarantee.</p></div>
         <div class="upsell-actions">${state.user && !state.user.demo ? html`<a class="btn btn-flash btn-lg" href="/#pricing">See packages ${icon("arrow-right")}</a>` : html`<a class="btn btn-flash btn-lg" href="/signup" data-link>Create your account ${icon("arrow-right")}</a>`}</div>
       </section>`;
     }
@@ -1213,7 +1213,7 @@ export async function renderStudio(ctx, id) {
             : html`<p style="color:#a9b1bd">Not graded yet.</p>`}
           ${locked && !isKept(s, t.id)
             ? html`<button class="btn btn-flash" type="button" data-keep="${t.id}">${icon("download")} <span>Download this photo · <span class="nowrap">${wasPrice(KEEP_ONE)} ${usd(KEEP_ONE.price)}</span></span></button>
-              <p class="lb-sizes">Full resolution, no watermark, in every size. One-time.</p>`
+              <p class="lb-sizes">Full resolution, in every size. One-time.</p>`
             : html`${(() => {
             // Both shapes are always offered; the chosen format goes first.
             const sq = currentFormat() === "square";

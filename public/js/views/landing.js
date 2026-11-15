@@ -248,7 +248,7 @@ export function renderLanding({ root, hydrate = false }) {
             <p class="eyebrow" data-reveal>Pricing</p>
             <h2 class="display h-1" data-reveal style="--i:1;margin-top:16px">One payment. <em>No</em> subscription.</h2>
           </div>
-          <p class="lede" data-reveal style="--i:2">Pick a package and get up to 4 looks and 8 headshots in every shoot, with no watermark. Your first package is covered by our <a class="link" href="/refunds" data-link><span class="nowrap">money-back</span> guarantee</a>.</p>
+          <p class="lede" data-reveal style="--i:2">Pick a package and get up to 4 looks and 8 headshots in every shoot. Your first package is covered by our <a class="link" href="/refunds" data-link><span class="nowrap">money-back</span> guarantee</a>.</p>
         </div>
         <div class="pricing">
           ${PACKAGES.map(

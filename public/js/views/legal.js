@@ -7,7 +7,7 @@ import { KEEP_ONE_PRICE, KEEP_ALL_PRICE } from "../shared/catalog.js";
 // actually does (lib/meta.js, lib/billing.js, lib/store.js, lib/ai.js).
 // Each policy has its own date: change it only when that page's text changes.
 export const LEGAL_UPDATED = "November 14, 2026"; // privacy policy (reminders after purchase)
-export const TERMS_UPDATED = "November 6, 2026";
+export const TERMS_UPDATED = "November 15, 2026";
 
 const mail = html`<a class="link" href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>`;
 
@@ -153,7 +153,7 @@ export function renderTerms({ root }) {
 
       <h2 class="h-3">2. The service</h2>
       <p>Keeper Headshots uses AI to create professional headshots from photos you upload. Each shoot checks your photos, creates headshots in the looks you choose, runs a quality check on every headshot and grades the results. Shoots come in paid packages, bought before you start a shoot. Your first package is covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>.</p>
-      <p>New accounts no longer get a free shoot. If you already have a free preview shoot from before, it stays a preview: its headshots carry a watermark and are provided at a reduced size. Keeping your pick (${KEEP_ONE_PRICE}) unlocks that one headshot at full resolution; keeping them all (${KEEP_ALL_PRICE}) or buying any package unlocks every headshot from the preview. Free shoots were limited to one per person.</p>
+      <p>New accounts no longer get a free shoot. If you already have a free preview shoot from before, it stays a preview: its headshots are provided as marked previews at a reduced size. Keeping your pick (${KEEP_ONE_PRICE}) unlocks that one headshot at full resolution; keeping them all (${KEEP_ALL_PRICE}) or buying any package unlocks every headshot from the preview. Free shoots were limited to one per person.</p>
 
       <h2 class="h-3">3. Your account</h2>
       <ul>
