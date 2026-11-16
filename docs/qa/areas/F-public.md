@@ -96,6 +96,19 @@ All 47 items above were re-checked on 8 Nov (45 pass, 2 changed by design: the s
 | F-N8 | When the sale ends (catalog price change): llms.txt, ad images, social images, prerender, policy dates (terms and refunds build prices from the catalog) and the sitemap all change together | checklist step on any catalog price change | note |
 | F-N9 | Prerendered pages equal the app's render (compared without writing the file) | scratch copy of scripts/prerender.js | OK (all 13 pages) |
 
+### Added at the nightly re-check of 16 Nov 2026
+
+Every item above was re-checked on 16 Nov (all pass or are known; "no watermark", terms section 2 and the privacy retention list changed by design). New items:
+
+| Id | Item | How | Result (16 Nov) |
+|---|---|---|---|
+| F-N10 | Reviews section: hidden with none approved; server HTML equals the browser's fill; average and stars match; names and text escaped on both paths; no rating structured data; axe and layout at 5 sizes, light and dark | browser + axe | OK |
+| F-N11 | Phone selfie/headshot pair: rotates, pause stops it, labels update, hidden at 901 px and wider; a dot click changes the contact sheet too | homepage-tests + browser at 390 | Dot click while the sheet was scrolling into view left the sheet on the old person (homepage-tests failing since 14 Nov evening); fixed 16 Nov |
+| F-N12 | /app/buy/*: summary, form, details order; crossed-out price; axe at 5 sizes, light and dark (Stripe stood in) | browser + axe | OK |
+| F-N13 | The privacy policy's reminder count matches the reminder kinds in lib/reminders.js | read both | Question for the owner (F12) |
+| F-N14 | The sitemap date of `/` follows changes to the home page copy and FAQ, not only the policies | git log vs sitemap | Was 2 Nov after the 15 Nov copy change; fixed 16 Nov |
+| F-N15 | No "watermark" in any public HTML, JSON-LD, llms.txt, search result, email or social image | crawl + grep | OK |
+
 ## 2. Findings
 
 **F1 (medium, bug): the free-preview reminder email still quotes the old package price ($29).**
@@ -160,6 +173,11 @@ All 47 items above were re-checked on 8 Nov (45 pass, 2 changed by design: the s
 - Emails carry "Keeper Headshots LLC, 7006 Peckham Street, Johnston, IA 50131" (mail.js:71). The Terms say the agreement is with "Keeper Headshots ('we')… based in Iowa".
 - Usually the contracting party is the LLC. Consider "Keeper Headshots LLC" in Terms §1 and the Privacy intro.
 - Reproduced: n/a (copy).
+
+**F12 (low, owner decision): the privacy policy's reminder sentence starts "at most two reminder emails".**
+- The same sentence then lists four (develop, checkout, and after a purchase the "start" note and the review request); the code sends at most one of each, ever.
+- Read whole, it is accurate; read quickly, "two" undersells it. A clearer wording ("at most one of each of these") changes a policy sentence, so it needs a new policy date: left for the owner.
+- Reproduced: yes (16 Nov, one account received checkout, start, develop and review in turn in a throwaway store).
 
 (F3 not used.)
 

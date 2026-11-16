@@ -163,6 +163,9 @@ try {
     await storage.putJSON(`shoots/${c.sid}.json`, { id: c.sid, userId: c.uid });
     assert.equal(await restorePhoto(ce, { apply: true }), "erased");
     assert.equal(await recordErased(`users/id/${c.uid}.json`, { id: c.uid }), true);
+    // 16 Nov: a deleted account's review isn't brought back either.
+    assert.equal(await recordErased(`reviews/${c.uid}.json`, { userId: c.uid, rating: 5 }), true);
+    assert.equal(await recordErased(`reviews/usr_stillhere01.json`, { userId: "usr_stillhere01", rating: 5 }), false);
   });
   await test("restoration fails closed if remote erasure checks are unavailable", async () => {
     offline = true; await assert.rejects(restorePhoto(ce, { apply: true }), /offline/); offline = false;

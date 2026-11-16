@@ -24,8 +24,8 @@ ok("sign-up isn't a result", !searchSite("create your account").some((r) => r.ur
   ok("blog articles are searched", r[0]?.type === "Article" && r[0].url === "/blog/what-to-wear-for-headshots", JSON.stringify(r[0]));
 }
 {
-  const s = searchSite("subscription")[0]?.snippet || "";
-  ok("snippets show the matching passage", /subscription/i.test(s) && s.length <= 170, s);
+  const s = searchSite("usable")[0]?.snippet || "";
+  ok("snippets show the matching passage", /usable/i.test(s) && s.startsWith("…") && s.length <= 170, s);
 }
 {
   const prices = searchSite("price").filter((r) => r.type === "Pricing").map((r) => r.snippet);

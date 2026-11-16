@@ -534,17 +534,20 @@ function heroCycle() {
     pairAt = i;
     return true;
   }
-  async function show(i) {
+  // `chosen`: a dot on the contact sheet was clicked, so the sheet changes too.
+  async function show(i, chosen = false) {
     if (busy || i === current) return;
     busy = true;
     // Only the pair is on screen (a phone, scrolled to the top): swap it and
     // leave the contact sheet's ten photos for when it comes into view.
     // (A person whose photos won't load is skipped, not retried for ever.)
-    if (pairShown() && !sheetVisible) {
+    if (pairShown() && !sheetVisible && !chosen) {
       await showPair(i);
       current = i;
       dots.forEach((d, j) => d.setAttribute("aria-pressed", String(j === current)));
       busy = false;
+      // The sheet scrolled into view meanwhile (its catch-up was skipped while busy).
+      if (sheetVisible) catchUpSheet();
       return;
     }
     try {
@@ -601,7 +604,7 @@ function heroCycle() {
     timer = setInterval(tick, CYCLE_MS);
   };
 
-  dots.forEach((d) => d.addEventListener("click", () => { show(Number(d.dataset.set)); start(); }));
+  dots.forEach((d) => d.addEventListener("click", () => { show(Number(d.dataset.set), true); start(); }));
   pauseBtn.addEventListener("click", () => { paused = !paused; setPauseUI(); });
   pairPauseBtn?.addEventListener("click", () => { paused = !paused; setPauseUI(); });
   sheet.addEventListener("mouseenter", () => (hovering = true));
@@ -633,7 +636,10 @@ function heroCycle() {
     // The pair comes back into view showing someone else: catch it up.
     if (pairVisible && !busy && pairAt !== current) {
       busy = true;
-      showPair(current).finally(() => (busy = false));
+      showPair(current).finally(() => {
+        busy = false;
+        if (sheetVisible) catchUpSheet();
+      });
     }
   }) : null;
   if (io) {
