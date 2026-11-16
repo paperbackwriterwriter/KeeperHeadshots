@@ -2,7 +2,7 @@
 //   (new) upload -> draft/checking -> checked (photo check + looks) -> generating/reviewing -> done (proofs)
 
 import { $, $$, html, raw, icon, api, state, toast, media, squareMedia, sizeMedia, PROFILE_KIT, busy, spinner, greaseCircle, silhouette, esc, reduceMotion, loadSession } from "../core.js";
-import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, MAX_RESUMES, MIN_CHECK_SCORE, RECOMMENDED_CHECK_SCORE, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, PREVIEW_OFFERS, FROM_PRICE, lookFor, usd } from "../shared/catalog.js";
+import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, MAX_RESUMES, MIN_CHECK_SCORE, RECOMMENDED_CHECK_SCORE, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, PREVIEW_OFFERS, FROM_PRICE, lookFor, usd, keepPlusPrice, keepCreditFor } from "../shared/catalog.js";
 import { wasPrice } from "./price.js";
 import { portraitDataURL } from "../shared/portrait.js";
 import { aiBanner, planBanner, confirmPurchase } from "./dashboard.js";
@@ -25,8 +25,12 @@ const extraLooks = (s) => (s && !s.sample ? state.user?.extraLooks?.[s.id] || 0 
 const [KEEP_ONE, KEEP_ALL] = PREVIEW_OFFERS;
 const keepHref = (s, shot) => `/app/buy/${KEEP_ONE.id}?shoot=${encodeURIComponent(s.id)}&shot=${encodeURIComponent(shot.id)}`;
 const keepAllHref = (s) => `/app/buy/${KEEP_ALL.id}?shoot=${encodeURIComponent(s.id)}`;
-const keepAllButton = (s, total) =>
-  html`<a class="btn btn-ghost btn-lg btn-block" href="${keepAllHref(s)}" data-link>Get all ${total} + ${KEEP_ALL.looks} more looks · <span class="nowrap">${wasPrice(KEEP_ALL)} ${usd(KEEP_ALL.price)}</span></a>`;
+// What's already paid for a pick from this shoot counts toward keeping them
+// all (catalog keepPlusPrice): "· $14.99 $3 (your $4.50 pick counted)".
+const keepAllButton = (s, total) => {
+  const plus = keepPlusPrice(keepCreditFor(state.user, s.id));
+  return html`<a class="btn btn-ghost btn-lg btn-block" href="${keepAllHref(s)}" data-link>Get all ${total} + ${KEEP_ALL.looks} more looks · <span class="nowrap">${wasPrice(KEEP_ALL)} ${usd(plus.price)}</span>${plus.note ? html` <span class="nowrap">(${plus.note})</span>` : ""}</a>`;
+};
 function keepCta(s, pick, total) {
   return html`<section class="keep-cta" aria-label="Keep your headshots">
     <a class="btn btn-flash btn-lg btn-block" href="${keepHref(s, pick)}" data-link>${icon("download")} <span>Download this photo · <span class="nowrap">${wasPrice(KEEP_ONE)} ${usd(KEEP_ONE.price)}</span></span></a>

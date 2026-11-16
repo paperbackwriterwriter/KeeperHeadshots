@@ -165,6 +165,29 @@ export function packageAddedNote(pkg, added) {
 // The legacy preview offers' prices, for copy: "$4.50", "$7.50".
 export const KEEP_ONE_PRICE = usd(PREVIEW_OFFERS[0].price);
 export const KEEP_ALL_PRICE = usd(PREVIEW_OFFERS[1].price);
+// "Keep them all" for a shoot whose pick was already bought (owner, 16 Nov):
+// what was paid for the pick counts toward it, so only the difference is
+// charged, but never under Stripe's smallest charge ($0.50), even when the
+// picks cost more. `credit` is { cents, picks } (lib/preview.js keepCredits).
+// Returns the price, the credit given and what was paid (in dollars), and the
+// note shown with the price ("your $4.50 pick counted").
+export const MIN_CHARGE_CENTS = 50;
+export function keepPlusPrice(credit) {
+  const full = Math.round(PREVIEW_OFFERS[1].price * 100);
+  const paid = Math.max(0, Math.round(credit?.cents || 0));
+  const off = Math.min(paid, full - MIN_CHARGE_CENTS);
+  const picks = credit?.picks || 1;
+  return { price: (full - off) / 100, credit: off / 100, paid: paid / 100, note: off ? `your ${usd(paid / 100)} pick${picks === 1 ? "" : "s"} counted` : "" };
+}
+// In the browser: that shoot's credit as the server sends it with the account
+// (user.keepCredit); from a server that doesn't send it, estimated from the
+// headshots kept there at the "Keep your pick" price. The checkout's own
+// price (server) is what's charged.
+export const keepCreditFor = (user, shootId) => {
+  if (user?.keepCredit) return user.keepCredit[shootId] || null;
+  const picks = user?.kept?.[shootId]?.length || 0;
+  return picks ? { cents: picks * Math.round(PREVIEW_OFFERS[0].price * 100), picks } : null;
+};
 export const offerFor = (id) => PACKAGES.find((p) => p.id === id) || PREVIEW_OFFERS.find((p) => p.id === id) || null;
 export const isPreviewOffer = (id) => PREVIEW_OFFERS.some((p) => p.id === id);
 

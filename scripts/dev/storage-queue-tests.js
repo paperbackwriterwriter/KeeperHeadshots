@@ -105,5 +105,84 @@ try {
     const out = await b.updateJSON("ratelimit/signin.json", (r) => ({ n: r.n + 1 }));
     assert.deepEqual(out, { n: 3 }); assert.deepEqual(JSON.parse(raw), { n: 3 }); assert.equal(puts, 2);
   });
+  // Time limits (docs/qa/areas/B-shoots.md B-N20): a Blob call that never
+  // answers fails in seconds rather than at the 300 s function limit.
+  process.env.STORAGE_TIMEOUT_MS = "300";
+  const blobCopy = async (name) => {
+    const f = path.join(dir, name);
+    await fs.writeFile(f, (await fs.readFile(new URL("../../lib/storage.js", import.meta.url), "utf8")).replace("const useBlob = ", "const useBlob = true || ") + "\nexport const setSdk = (x) => (blobSdk = x);\n");
+    return import(pathToFileURL(f));
+  };
+  const never = () => new Promise(() => {});
+  const within = async (ms, p) => { const t0 = Date.now(); const out = await p; const took = Date.now() - t0; assert.ok(took < ms, `took ${took} ms`); return { out, took }; };
+  const tb = await blobCopy("blob-timeouts.mjs");
+  await test("a read that never answers is retried once, then fails with a 503 within the limit", async () => {
+    let gets = 0; const signals = [];
+    tb.setSdk({ get: (key, o) => { gets++; signals.push(o.abortSignal); return never(); } });
+    const { out: err } = await within(1_500, tb.getJSON("shoots/sht_x.json").then(() => null, (e) => e));
+    assert.ok(err instanceof tb.StorageTimeoutError, String(err)); assert.equal(err.status, 503); assert.match(err.message, /taking longer than usual/);
+    assert.equal(gets, 2); assert.ok(signals.every((s) => s?.aborted), "each attempt's request is aborted");
+    assert.equal(signals[0].reason?.name, "AbortError"); // the SDK bails on an AbortError (it retries a TimeoutError)
+  });
+  await test("a read that hangs once succeeds on its retry", async () => {
+    let gets = 0;
+    tb.setSdk({ get: async () => (++gets === 1 ? never() : { statusCode: 200, stream: new Blob([JSON.stringify({ n: 7 })]).stream() }) });
+    assert.deepEqual(await tb.getJSON("shoots/sht_x.json"), { n: 7 }); assert.equal(gets, 2);
+  });
+  await test("a download whose body stalls is cut off too", async () => {
+    let gets = 0;
+    tb.setSdk({ get: async () => { gets++; return { statusCode: 200, blob: { size: 10 }, stream: new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode("{")); } }) }; } });
+    await within(1_500, assert.rejects(tb.getFile("media/sht_x/a.jpg"), tb.StorageTimeoutError)); assert.equal(gets, 2);
+  });
+  await test("a big download gets more time for its body (1 s per MB)", async () => {
+    tb.setSdk({ get: async () => ({ statusCode: 200, blob: { size: 3e6 }, stream: new ReadableStream({ async pull(c) { await new Promise((r) => setTimeout(r, 600)); c.enqueue(new Uint8Array(4)); c.close(); } }) }) });
+    assert.equal((await tb.getFile("backups/day.json.gz")).length, 4);
+  });
+  await test("a write that never answers fails within the limit and isn't repeated", async () => {
+    let puts = 0;
+    tb.setSdk({ put: (k, b, o) => { puts++; assert.ok(o.abortSignal); return never(); } });
+    await within(1_000, assert.rejects(tb.putJSON("shoots/sht_x.json", { n: 1 }), tb.StorageTimeoutError)); assert.equal(puts, 1);
+    puts = 0;
+    tb.setSdk({ put: () => (puts++, never()), head: () => never() });
+    await within(1_500, assert.rejects(tb.createJSON("jobs/x.json", { n: 1 }), tb.StorageTimeoutError)); assert.equal(puts, 1);
+  });
+  await test("update: a hung head is retried once; a hung conditional write fails without a second write", async () => {
+    let heads = 0, puts = 0;
+    tb.setSdk({
+      BlobPreconditionFailedError: class extends Error {}, BlobNotFoundError: class extends Error {},
+      head: async () => (++heads === 1 ? never() : { etag: "1" }),
+      get: async () => ({ statusCode: 200, stream: new Blob(['{"n":1}']).stream() }),
+      put: () => (puts++, never()),
+    });
+    await within(1_500, assert.rejects(tb.updateJSON("users/id/usr_x.json", (r) => ({ n: r.n + 1 })), tb.StorageTimeoutError));
+    assert.equal(heads, 2); assert.equal(puts, 1);
+  });
+  await test("list, folders and delete are time-limited (list pages retried once)", async () => {
+    let lists = 0, dels = 0;
+    tb.setSdk({ list: () => (lists++, never()), del: () => (dels++, never()) });
+    await within(1_500, assert.rejects(tb.list("shoots/"), tb.StorageTimeoutError)); assert.equal(lists, 2);
+    await within(1_500, assert.rejects(tb.listPage("shoots/"), tb.StorageTimeoutError));
+    await within(1_500, assert.rejects(tb.listFolders("media/"), tb.StorageTimeoutError));
+    await within(1_000, assert.rejects(tb.del(["a", "b"]), tb.StorageTimeoutError)); assert.equal(dels, 1);
+  });
+  await test("the real Blob SDK against a service that never answers gives up at the limit", async () => {
+    // A Blob API stand-in that accepts connections and never replies.
+    const http = await import("node:http");
+    const hung = http.createServer(() => {});
+    await new Promise((r) => hung.listen(0, "127.0.0.1", r));
+    process.env.VERCEL_BLOB_API_URL = `http://127.0.0.1:${hung.address().port}`;
+    process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_teststore_secret";
+    try {
+      tb.setSdk(await import("@vercel/blob"));
+      await within(1_500, assert.rejects(tb.putJSON("x.json", { n: 1 }), tb.StorageTimeoutError));
+      await within(1_500, assert.rejects(tb.list("shoots/"), tb.StorageTimeoutError));
+      await within(1_500, assert.rejects(tb.updateJSON("x.json", (r) => r), tb.StorageTimeoutError));
+      await within(1_000, assert.rejects(tb.del("x.json"), tb.StorageTimeoutError));
+    } finally {
+      delete process.env.VERCEL_BLOB_API_URL; delete process.env.BLOB_READ_WRITE_TOKEN;
+      hung.closeAllConnections(); hung.close();
+    }
+  });
+  delete process.env.STORAGE_TIMEOUT_MS;
 } finally { await fs.rm(dir, { recursive: true, force: true }); }
 console.log(`\n${passed}/${passed} passed`);

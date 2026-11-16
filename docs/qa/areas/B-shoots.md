@@ -123,11 +123,11 @@ Counts: ~95 inventory items checked; findings: 0 high, 0 medium, 7 low (6 bug, 1
 ## Added at the nightly re-check, 12 Nov
 | Item | Check |
 |---|---|
-| B-N20 | Storage calls on the shoot path (blob get/head/put/list/del and the body read) have a time limit. Currently NONE (open question B3-1). |
+| B-N20 | Storage calls on the shoot path (blob get/head/put/list/del and the body read) have a time limit. Done 16 Nov (owner): 20 s per Blob call plus 1 s/MB for bodies (max 120 s), reads retried once, writes not; the SDK's own retries are cut off by a plain abort (storage-queue-tests). |
 | B-N21 | A cron or worker run ends below maxDuration (about 280 s) whatever happens; the 290 s job lease does not outlive the function. |
 | B-N22 | A dead review worker is re-claimed within about 5 minutes (today: after the 6-minute sweep, with "Grading timed out" though frames are fine; B3-3). |
-| B-N23 | /more-looks killed between taking the paid look and adding the looks returns the credit or completes (B3-2). |
-| B-N24 | /check killed mid-run returns the free check (B3-4). |
+| B-N23 | /more-looks killed between taking the paid look and adding the looks returns the credit or completes (B3-2; done 16 Nov: u.addingLooks record, settled by the user's next request after 6 min; interrupted-take-tests). |
+| B-N24 | /check killed mid-run returns the free check (B3-4; done 16 Nov: u.checking record and mailbox holds; interrupted-take-tests). |
 | B-N25 | Free retry within 15 s of the last: 429 retry_soon asserted in a suite with a fast-failing mock. |
 | B-N26 | Reshoot and other derived shoot names are whole-character and cleaned (no lone surrogate). Fixed 12 Nov. |
 | B-N27 | Photo viewer at 844x390, 780x360, 640x400: the download button and Prev/Next are reachable without scrolling the panel (B3-5, open). |
@@ -135,5 +135,5 @@ Counts: ~95 inventory items checked; findings: 0 high, 0 medium, 7 low (6 bug, 1
 | B-N29 | Photo-check and button row at 641-720 px: no three-and-one wrap (B3-6, open, cosmetic). |
 | B-N30 | Team shoot's team name and shoot names with invisible characters are cleaned in the list and the shoot page. |
 
-**B3-1** (owner decision, cause not proven) No time limit on storage calls (lib/storage.js) or on photo-check and review AI calls (lib/ai.js, SDK default 120 s with one retry); a hung call becomes a 300 s kill, which fits 10 Nov. Recovery after a kill is by the 6-minute sweeps. Option: `abortSignal` on every blob call plus a run deadline of about 280 s.
-**B3-2** low-medium. /more-looks takes the paid look before adding looks, with no recovery record (millisecond window). **B3-3** low. A dead review worker's claim isn't retaken for 6 minutes. **B3-4** low. /check counts the free check before the AI call and returns it only in the catch. **B3-5** low UX. Viewer panel scrolls at phone-sideways heights; download button half cut off. **B3-6** cosmetic. Button row wraps 3+1 at 641-700 px.
+**B3-1** (done 16 Nov at the owner's request: storage time limits in lib/storage.js; photo check and grading have a 150 s budget in lib/ai.js. Still open: a whole-run deadline, B-N21, and lib/backup-target.js's own Blob calls. Cause of 10 Nov still not proven; the Blob SDK retries a TimeoutError up to 10 times with growing pauses, which fits.) No time limit on storage calls (lib/storage.js) or on photo-check and review AI calls (lib/ai.js, SDK default 120 s with one retry); a hung call becomes a 300 s kill, which fits 10 Nov. Recovery after a kill is by the 6-minute sweeps. Option: `abortSignal` on every blob call plus a run deadline of about 280 s.
+**B3-2** low-medium (done 16 Nov, with B3-4). /more-looks takes the paid look before adding looks, with no recovery record (millisecond window). **B3-3** low. A dead review worker's claim isn't retaken for 6 minutes. **B3-4** low. /check counts the free check before the AI call and returns it only in the catch. **B3-5** low UX. Viewer panel scrolls at phone-sideways heights; download button half cut off. **B3-6** cosmetic. Button row wraps 3+1 at 641-700 px.

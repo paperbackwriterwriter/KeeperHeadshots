@@ -126,11 +126,10 @@ No star-rating structured data is published. Belongs to areas F, G and H.
 
 Waiting on the owner:
 - Payments (13 Nov, low): C4-1 and C4-2 fixed 16 Nov at the owner's request
-  (docs/qa/areas/C-payments.md). Questions: is Stripe's
-  own receipt email on; should someone who bought one headshot get credit
-  toward "all + 2 more looks".
-- Shoots (12 Nov): B3-1 to B3-6 in docs/qa/areas/B-shoots.md (no time limit on
-  storage and review AI calls; a killed /more-looks or /check can lose a credit;
+  (docs/qa/areas/C-payments.md). Stripe receipts turned
+  on and keep-pick credit toward "all + 2 more looks" added, both 16 Nov.
+- Shoots (12 Nov): B3-1 to B3-6 in docs/qa/areas/B-shoots.md (B3-1 storage and
+  AI time limits and B3-2/B3-4 lost credits fixed 16 Nov; still open:
   a dead review worker waits 6 minutes; photo viewer at phone-sideways heights;
   a 3+1 button row at 641-700 px). The first is the likeliest cause class for
   the 10 Nov timeouts, still not proven.

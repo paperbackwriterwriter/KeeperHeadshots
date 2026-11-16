@@ -1,7 +1,7 @@
 // DEV/QA ONLY — the headshot brief puts likeness first (lib/ai.js buildPrompt).
 import assert from "node:assert/strict";
 import http from "node:http";
-import { buildPrompt, sceneBrief, qaHeadshot } from "../../lib/ai.js";
+import { buildPrompt, sceneBrief, qaHeadshot, checkSelfies, reviewShots, AIError } from "../../lib/ai.js";
 
 const look = { outfit: { prompt: "a navy suit" }, backdrop: { prompt: "a grey studio backdrop", light: "soft key light" } };
 let passed = 0;
@@ -67,9 +67,12 @@ test("site examples keep their stock poses and expressions", () => {
 // identical for every frame of a shoot, with only the candidate after it.
 {
   const sent = [];
+  // mode (the time-limit tests below): "hang" never answers; "fail" answers 500.
+  let mode = null, calls = 0;
   const server = http.createServer((req, res) => {
     let raw = "";
     req.on("data", (c) => (raw += c)).on("end", () => {
+      if (mode) { calls++; if (mode === "fail") { res.writeHead(500, { "content-type": "application/json" }); res.end('{"type":"error","error":{"type":"api_error","message":"x"}}'); } return; }
       sent.push(JSON.parse(raw));
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ id: "msg_t", type: "message", role: "assistant", model: "m", stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 10, output_tokens: 10 },
@@ -84,7 +87,29 @@ test("site examples keep their stock poses and expressions", () => {
   const qaLook = { backdrop: { name: "Studio" }, outfit: { name: "Navy suit" } };
   await qaHeadshot({ references, candidate: ref("frame1"), look: qaLook });
   await qaHeadshot({ references, candidate: ref("frame2"), look: { ...qaLook, outfit: { name: "White shirt" } } });
-  server.close();
+  // The photo check and the grading have a total time budget below the 300 s
+  // function limit (docs/qa/areas/B-shoots.md B3-1): a call that never
+  // answers fails with the usual "couldn't reach" AIError once the budget is
+  // spent, and a quick failure is tried once more while time is left.
+  const budget = async (name, call) => {
+    mode = "hang"; calls = 0;
+    const t0 = Date.now();
+    const err = await call(6_000).then(() => null, (e) => e);
+    const took = Date.now() - t0;
+    test(`${name}: a call that never answers fails once its budget is spent`, () => {
+      assert.ok(err instanceof AIError && err.retryable, String(err)); assert.match(err.message, /couldn't reach the AI studio/);
+      assert.ok(took >= 5_500 && took < 8_000, `took ${took} ms`); assert.equal(calls, 1);
+    });
+    mode = "fail"; calls = 0;
+    const err2 = await call(40_000).then(() => null, (e) => e);
+    test(`${name}: a quick server error is retried once within the budget`, () => {
+      assert.ok(err2 instanceof AIError && err2.retryable, String(err2)); assert.equal(calls, 2);
+    });
+  };
+  await budget("photo check", (budgetMs) => checkSelfies([ref("a"), ref("b")], { budgetMs }));
+  await budget("grading", (budgetMs) => reviewShots({ references, shots: [{ ...ref("f"), frame: 1, label: "Studio · Navy suit" }], budgetMs }));
+  mode = null;
+  server.closeAllConnections(); server.close();
   const marked = (b) => b.messages[0].content.findIndex((c) => c.cache_control);
   const prefix = (b) => JSON.stringify([b.system, b.output_config, b.thinking, b.messages[0].content.slice(0, marked(b) + 1)]);
   test("quality check marks the last reference photo for caching", () => {

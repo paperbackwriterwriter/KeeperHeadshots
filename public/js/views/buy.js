@@ -1,6 +1,6 @@
 import { $, html, icon, api, spinner, state } from "../core.js";
 import { pixel, pageUrl } from "../pixel.js";
-import { PACKAGES, PREVIEW_OFFERS, offerFor, isPreviewOffer, usd } from "../shared/catalog.js";
+import { PACKAGES, PREVIEW_OFFERS, offerFor, isPreviewOffer, usd, keepPlusPrice, keepCreditFor } from "../shared/catalog.js";
 import { wasPrice } from "./price.js";
 
 // /app/buy/:package — checkout. With a Stripe publishable key configured,
@@ -45,7 +45,12 @@ export function renderBuy({ root }, packageId) {
   // Bought from the team page: Stripe sends the admin back there.
   const toTeam = !offer && q.get("return") === "team";
   const back = offer ? `/app/shoot/${shootId}` : toTeam ? "/app/team" : "/app";
-  const headline = offer ? `${pkg.name}: ${usd(pkg.price)}` : `${pkg?.name}: ${pkg?.shoots} shoots for ${pkg ? usd(pkg.price) : ""}`;
+  // "Keep them all" after a pick from the same shoot: the pick's price counts
+  // toward it (catalog keepPlusPrice). Shown from what the browser knows, then
+  // from the checkout the server started (its value is what's charged).
+  const plus = offer && shootId ? keepPlusPrice(keepCreditFor(state.user, shootId)) : null;
+  const priceOf = (p) => (p.id === "keep-plus" && plus ? plus.price : p.price);
+  const headline = offer ? `${pkg.name}: ${usd(priceOf(pkg))}` : `${pkg?.name}: ${pkg?.shoots} shoots for ${pkg ? usd(pkg.price) : ""}`;
   const body = (extra) => ({ packageId: pkg.id, ...(offer ? { shootId, ...(pkg.id === "keep" ? { shotId } : {}) } : {}), ...(toTeam ? { returnTo: "team" } : {}), pageUrl: pageUrl(), ...extra });
   let disposed = false;
   let checkout = null;
@@ -114,7 +119,8 @@ export function renderBuy({ root }, packageId) {
           ${testNote()}
           <p class="eyebrow">${icon("lock")} Secure checkout</p>
           <h1 class="display h-2" id="order-title">${offer ? pkg.name : `${pkg.name} package`}</h1>
-          <p class="checkout-price">${wasPrice(pkg)}<strong class="tabular">${usd(pkg.price)}</strong><span>one-time · no subscription</span></p>
+          <p class="checkout-price">${wasPrice(pkg)}<strong class="tabular" id="checkoutPrice">${usd(priceOf(pkg))}</strong><span>one-time · no subscription</span></p>
+          <p class="small muted" id="keepCredit" ${pkg.id === "keep-plus" && plus?.note ? "" : "hidden"}>${pkg.id === "keep-plus" && plus?.note ? `Your price is lower: ${plus.note}.` : ""}</p>
           <p class="checkout-note">${icon("shield-check")}<span>${offer ? "One-time payment. Your headshots stay in your account to download any time." : html`Your first package is covered by our <a class="link" href="/refunds" data-link>money-back guarantee</a>. Unused shoots don't expire while your account is open.`}</span></p>
         </section>
         <section class="checkout-pay" aria-label="Payment">
@@ -123,7 +129,7 @@ export function renderBuy({ root }, packageId) {
         </section>
         <section class="checkout-details" aria-label="What's included">
           <ul class="checkout-features">${pkg.features.map((f) => html`<li>${icon("check")}<span>${f}</span></li>`)}</ul>
-          <p class="small muted checkout-others">${offer ? (others.length ? "Rather have" : "") : "Want a different package?"} ${others.map((p, i) => html`${i ? " or " : ""}<a class="link" href="${link(p)}" data-link>${p.name} (${usd(p.price)})</a>`)}${offer ? html`${others.length ? "? Or a" : "Or a"} package for more shoots: ${PACKAGES.map((p, i) => html`${i ? ", " : ""}<a class="link" href="/app/buy/${p.id}" data-link>${p.name} (${usd(p.price)})</a>`)}` : ""}.</p>
+          <p class="small muted checkout-others">${offer ? (others.length ? "Rather have" : "") : "Want a different package?"} ${others.map((p, i) => html`${i ? " or " : ""}<a class="link" href="${link(p)}" data-link>${p.name} (${usd(priceOf(p))})</a>`)}${offer ? html`${others.length ? "? Or a" : "Or a"} package for more shoots: ${PACKAGES.map((p, i) => html`${i ? ", " : ""}<a class="link" href="/app/buy/${p.id}" data-link>${p.name} (${usd(p.price)})</a>`)}` : ""}.</p>
         </section>
       </div>
     </main>`.v;
@@ -146,6 +152,15 @@ export function renderBuy({ root }, packageId) {
           return;
         }
         if (disposed) return;
+        // The price the server charges, if the browser's estimate differed
+        // (e.g. the pick was bought with a promotion code).
+        if (pkg.id === "keep-plus" && typeof session.value === "number" && session.value !== priceOf(pkg)) {
+          const off = PREVIEW_OFFERS[1].price - session.value;
+          $("#checkoutPrice").textContent = usd(session.value);
+          const note = $("#keepCredit");
+          note.textContent = off > 0.005 ? `Your price is lower: ${usd(Math.round(off * 100) / 100)} of your pick counted.` : "";
+          note.hidden = !(off > 0.005);
+        }
         const stripe = Stripe(key);
         // Stripe.js "dahlia" renamed initEmbeddedCheckout() to
         // createEmbeddedCheckoutPage() (the old name now throws).

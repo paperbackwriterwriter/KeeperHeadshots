@@ -71,6 +71,7 @@ run() {
 run prompts node scripts/dev/prompt-tests.js
 run search node scripts/dev/search-tests.js
 run check-gate node scripts/dev/check-gate-tests.js
+run interrupted-take env DATA_DIR="$DATA" node scripts/dev/interrupted-take-tests.js
 run race node scripts/dev/race-tests.js
 run reset node scripts/dev/reset-tests.js
 run signout node scripts/dev/signout-tests.js

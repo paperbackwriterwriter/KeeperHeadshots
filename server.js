@@ -730,7 +730,8 @@ app.post("/api/auth/signout-all", requireUser, async (req, res) => {
 });
 
 app.get("/api/me", async (req, res) => {
-  const user = await currentUser(req);
+  // (A photo check or extra looks a stopped request took come back here.)
+  const user = await settleInterrupted(await currentUser(req));
   const { vision, imaging } = aiStatus();
   const optOut = gpc(req);
   // Session and privacy settings belong to this request, never a shared cache.
@@ -916,9 +917,65 @@ function requireAI(kind, res) {
 // instance left behind (see the generate route).
 const STALE_CLAIM_MS = Number(process.env.STALE_CLAIM_MS || 2 * 60 * 1000);
 
+// A free photo check, or an extra look, counts as used only once its step
+// completes. Taking one records it on the account with the time
+// (u.checking, u.addingLooks), and finishing the step clears the record. A
+// record older than any request can run (Vercel stops a function at 300 s)
+// was left by one that was stopped partway: the next request from that
+// account settles it, giving back what the step didn't finish (or keeping
+// it if the step did). Each settlement is conditional on the record, in the
+// same atomic write, so nothing is given back twice.
+const PENDING_TAKE_MS = Number(process.env.PENDING_TAKE_MS || 6 * 60 * 1000);
+const pendingStale = (p) => !(Date.now() - Date.parse(p?.at) <= PENDING_TAKE_MS);
+async function settleInterrupted(user) {
+  if (!user || ![...Object.values(user.checking || {}), ...Object.values(user.addingLooks || {})].some(pendingStale)) return user;
+  for (const [key, p] of Object.entries(user.checking || {})) if (pendingStale(p)) await settleCheck(user.id, key, p).catch((e) => console.error("[check] settle", key, e.message));
+  for (const [sid, p] of Object.entries(user.addingLooks || {})) if (pendingStale(p)) await settleLooks(user.id, sid, p).catch((e) => console.error("[more-looks] settle", sid, e.message));
+  return (await users.byId(user.id).catch(() => null)) || user;
+}
+function dropPending(u, key) {
+  delete u.checking[key];
+  if (!Object.keys(u.checking).length) delete u.checking;
+}
+// A photo check the request didn't see through: it finished if the shoot
+// holds a result from this run; otherwise its free check (and its place in
+// the day's count) comes back. A finished retake is given back as the check
+// endpoint would have.
+async function settleCheck(uid, key, p) {
+  // (A failed read throws: the record stays for a later request.)
+  const m = p.sid ? await shoots.getMeta(p.sid) : null;
+  const done = !!m && m.checkStartedAt === p.at && m.status !== "checking" && !!m.check?.at && Date.parse(m.check.at) >= Date.parse(p.at);
+  const retake = done && m.check.verdict === "retake";
+  const held = p.email ? await mailboxChecks.unhold(p.email, key, done ? (retake ? "free" : false) : true) : null;
+  await users.update(uid, (u) => {
+    const q = u.checking?.[key];
+    if (!q) return UNCHANGED;
+    dropPending(u, key);
+    if (q.account && (!done || retake)) u.usage = { ...u.usage, checks: Math.max(0, (u.usage?.checks || 0) - 1) };
+    const d = u.usage?.checkDay;
+    if (q.daily && !done && d?.date === q.day) u.usage = { ...u.usage, checkDay: { date: d.date, n: Math.max(0, d.n - 1) } };
+  });
+  if (retake && held === "free") await shoots.updateMeta(p.sid, (x) => (x.check && x.checkStartedAt === p.at ? void (x.check.refunded = true) : false)).catch(() => {});
+}
+// Extra looks taken for a shoot that didn't get them come back.
+async function settleLooks(uid, sid, p) {
+  const m = await shoots.getMeta(sid);
+  const have = new Set((m?.looks || []).map((l) => lookFor(l.backdrop, l.outfit)?.id));
+  const added = !!m && (p.looks || []).length > 0 && p.looks.every((id) => have.has(id));
+  await users.update(uid, (u) => {
+    const q = u.addingLooks?.[sid];
+    if (!q || q.at !== p.at) return UNCHANGED;
+    delete u.addingLooks[sid];
+    if (!Object.keys(u.addingLooks).length) delete u.addingLooks;
+    // (A shoot deleted since takes its unused extra looks with it.)
+    if (!added && m && q.n > 0) u.extraLooks = { ...u.extraLooks, [sid]: (u.extraLooks?.[sid] || 0) + q.n };
+  });
+}
+
 app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   const meta = await ownShoot(req, res, { full: false });
   if (!meta || !requireAI("vision", res)) return;
+  req.user = await settleInterrupted(req.user);
   if (meta.sample) return res.status(400).json({ error: "Sample shoots are read-only. Start a new shoot to use your own photos." });
   if (!meta.selfies.length) return res.status(400).json({ error: "Add at least one photo first." });
   if (meta.status === "checking") return res.status(409).json({ error: "A photo check is already running for this shoot." });
@@ -967,10 +1024,19 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
   let mailboxTotal = 0;
   const today = new Date().toISOString().slice(0, 10);
   const dayMsg = `That's ${DAILY_CHECKS} photo checks today. You can check more photos tomorrow.`;
-  let extraReserved = false;
+  // What this check takes is recorded on the account first (see
+  // settleInterrupted), named by the run, and the mailbox reservations carry
+  // the same name: if the request is stopped partway, they come back.
+  const pendingKey = `${meta.id}@${startedAt}`;
+  const takes = counted || perMailbox || extra;
+  let marked = false;
   try {
+    if (takes) {
+      await users.update(req.user.id, (u) => void (u.checking = { ...u.checking, [pendingKey]: { sid: meta.id, at: startedAt, email: req.user.email, day: today } }));
+      marked = true;
+    }
     if (perMailbox && !extra) {
-      const total = await mailboxChecks.reserve(req.user.email, FREE.checks, req.user.usage?.checks || 0);
+      const total = await mailboxChecks.reserve(req.user.email, FREE.checks, req.user.usage?.checks || 0, pendingKey);
       if (total === null) {
         await users.update(req.user.id, (u) => (u.usage = { ...u.usage, checks: Math.max(u.usage?.checks || 0, FREE.checks) })).catch(() => {});
         // The last free check went to another request just now.
@@ -982,8 +1048,7 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
       }
     }
     if (extra) {
-      if (!(await mailboxChecks.reserveToday(req.user.email, FREE.checksPerDayBeforeShoot, today))) throw new PlanError(extraDayMsg, "daily_checks", 429);
-      extraReserved = true;
+      if (!(await mailboxChecks.reserveToday(req.user.email, FREE.checksPerDayBeforeShoot, today, pendingKey))) throw new PlanError(extraDayMsg, "daily_checks", 429);
     }
     if (counted) {
       await users.update(req.user.id, (u) => {
@@ -994,11 +1059,15 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
         if (day >= DAILY_CHECKS) throw new PlanError(dayMsg, "daily_checks", 429);
         // Shows what's left for the whole mailbox, not just this address.
         u.usage = { ...u.usage, ...(teamSeat || extra ? {} : { checks: Math.max((u.usage?.checks || 0) + 1, mailboxTotal) }), checkDay: { date: today, n: day + 1 } };
+        // (In the same write: what a stopped request gives back.)
+        if (u.checking?.[pendingKey]) Object.assign(u.checking[pendingKey], { account: !(teamSeat || extra), daily: true });
       });
     }
   } catch (err) {
-    if (mailboxReserved) await mailboxChecks.release(req.user.email);
-    if (extraReserved) await mailboxChecks.releaseToday(req.user.email, today);
+    if (marked) {
+      await mailboxChecks.unhold(req.user.email, pendingKey, true).catch(() => {});
+      await users.update(req.user.id, (u) => (u.checking?.[pendingKey] ? void dropPending(u, pendingKey) : UNCHANGED)).catch(() => {});
+    }
     await shoots.updateMeta(meta.id, (m) => (m.status === "checking" && m.checkStartedAt === startedAt ? void Object.assign(m, { status: statusWithoutCheck(m) }) : false)).catch(() => {});
     throw err;
   }
@@ -1009,24 +1078,38 @@ app.post("/api/shoots/:id/check", requireUser, async (req, res) => {
     // A check that asks for new selfies doesn't use up a free check: retaking
     // them isn't held against anyone. (It still counts toward the daily cap.)
     const checked = await shoots.getMeta(meta.id).catch(() => null);
-    if (checked?.check?.verdict === "retake" && checked.checkStartedAt === startedAt) {
-      if (mailboxReserved) await mailboxChecks.release(req.user.email);
-      // (A check past the free allowance, before the free shoot, still counts
-      // toward that day's allowance: it's the cap on these.)
-      if (counted && !teamSeat && !extra) await users.update(req.user.id, (u) => void (u.usage = { ...u.usage, checks: Math.max(0, (u.usage?.checks || 0) - 1) })).catch(() => {});
-      // Going ahead with these photos anyway (generate) counts it after all.
-      if (mailboxReserved) await shoots.updateMeta(meta.id, (m) => (m.check && m.checkStartedAt === startedAt ? void (m.check.refunded = true) : false)).catch(() => {});
-    }
-  } catch (err) {
-    if (mailboxReserved) await mailboxChecks.release(req.user.email);
-    if (extraReserved) await mailboxChecks.releaseToday(req.user.email, today);
-    if (counted)
+    const retake = checked?.check?.verdict === "retake" && checked.checkStartedAt === startedAt;
+    // The check is done: what it took is kept (the account's record goes
+    // last, so a request stopped before then is settled the same way).
+    if (marked) await mailboxChecks.unhold(req.user.email, pendingKey, retake && mailboxReserved ? "free" : false).catch(() => {});
+    // (A check past the free allowance, before the free shoot, still counts
+    // toward that day's allowance: it's the cap on these.)
+    const giveBack = retake && counted && !teamSeat && !extra;
+    if (marked || giveBack)
       await users
         .update(req.user.id, (u) => {
-          const d = u.usage?.checkDay;
-          u.usage = { ...u.usage, ...(teamSeat || extra ? {} : { checks: Math.max(0, (u.usage?.checks || 0) - 1) }), ...(d?.date === today ? { checkDay: { date: today, n: Math.max(0, d.n - 1) } } : {}) };
+          const had = !!u.checking?.[pendingKey];
+          if (had) dropPending(u, pendingKey);
+          if (giveBack) u.usage = { ...u.usage, checks: Math.max(0, (u.usage?.checks || 0) - 1) };
+          else if (!had) return UNCHANGED;
         })
         .catch(() => {});
+    // Going ahead with these photos anyway (generate) counts it after all.
+    if (retake && mailboxReserved) await shoots.updateMeta(meta.id, (m) => (m.check && m.checkStartedAt === startedAt ? void (m.check.refunded = true) : false)).catch(() => {});
+  } catch (err) {
+    // Given back once: only while this check's record is on the account.
+    if (marked) {
+      await mailboxChecks.unhold(req.user.email, pendingKey, true).catch(() => {});
+      await users
+        .update(req.user.id, (u) => {
+          const q = u.checking?.[pendingKey];
+          if (!q) return UNCHANGED;
+          dropPending(u, pendingKey);
+          const d = u.usage?.checkDay;
+          u.usage = { ...u.usage, ...(q.account ? { checks: Math.max(0, (u.usage?.checks || 0) - 1) } : {}), ...(q.daily && d?.date === today ? { checkDay: { date: today, n: Math.max(0, d.n - 1) } } : {}) };
+        })
+        .catch(() => {});
+    }
     throw err;
   }
   res.json({ shoot: await shoots.get(meta.id) });
@@ -1201,11 +1284,13 @@ async function countRefundedCheck(user) {
 
 // Extra looks bought with a preview offer ("Preview + 2 more looks"): they're
 // added to that shoot and developed. The credit is taken first, atomically,
-// and given back if the shoot can't take them.
+// and given back if the shoot can't take them (or the request is stopped
+// before it could: settleInterrupted).
 // Frames are rendered from the shoot's selfies: without them (removed at a
 // takeover, server.js purgeForTakeover) there's nothing to render from.
 const NO_SELFIES = "This shoot's selfies were removed, so it can't develop more headshots. Start a new shoot with your own selfies.";
 app.post("/api/shoots/:id/more-looks", requireUser, async (req, res) => {
+  req.user = await settleInterrupted(req.user);
   const meta = await ownShoot(req, res, { full: false });
   if (!meta || !requireAI("imaging", res) || !requireAI("vision", res)) return;
   if (!(meta.selfies || []).length) return res.status(409).json({ error: NO_SELFIES, code: "no_selfies" });
@@ -1218,26 +1303,48 @@ app.post("/api/shoots/:id/more-looks", requireUser, async (req, res) => {
   if (!looks.length) return res.status(400).json({ error: "Pick a look this shoot doesn't have yet." });
   if (looks.length > have) return res.status(400).json({ error: `Pick up to ${have} look${have === 1 ? "" : "s"}.` });
   if (existing.size + looks.length > MAX_LOOKS) return res.status(400).json({ error: `A shoot has at most ${MAX_LOOKS} looks. Pick ${Math.max(0, MAX_LOOKS - existing.size)} or fewer.` });
+  // Taken with a record of what was taken (settleInterrupted), in one write,
+  // and the record is cleared once the shoot has the looks: a request
+  // stopped in between gives them back. While a record is there, the shoot's
+  // looks are being added.
   let taken = false;
+  let busy = false;
+  const at = new Date().toISOString();
   await users.update(req.user.id, (u) => {
-    taken = false;
+    taken = busy = false;
+    if (u.addingLooks?.[meta.id]) {
+      busy = true;
+      return UNCHANGED;
+    }
     const left = u.extraLooks?.[meta.id] || 0;
     if (left < looks.length) return UNCHANGED;
     u.extraLooks = { ...u.extraLooks, [meta.id]: left - looks.length };
     if (!u.extraLooks[meta.id]) delete u.extraLooks[meta.id];
+    u.addingLooks = { ...u.addingLooks, [meta.id]: { n: looks.length, looks: looks.map((l) => l.id), at } };
     taken = true;
   });
+  if (busy) return res.status(409).json({ error: "This shoot is busy. Try again in a moment." });
   if (!taken) return res.status(409).json({ error: "Those looks have already been added." });
-  const giveBack = () => users.update(req.user.id, (u) => void (u.extraLooks = { ...u.extraLooks, [meta.id]: (u.extraLooks?.[meta.id] || 0) + looks.length })).catch((e) => console.error("[more-looks] refund", e.message));
+  // Settles this request's record: given back (refund) or kept.
+  const settle = (refund) =>
+    users
+      .update(req.user.id, (u) => {
+        if (u.addingLooks?.[meta.id]?.at !== at) return UNCHANGED;
+        delete u.addingLooks[meta.id];
+        if (!Object.keys(u.addingLooks).length) delete u.addingLooks;
+        if (refund) u.extraLooks = { ...u.extraLooks, [meta.id]: (u.extraLooks?.[meta.id] || 0) + looks.length };
+      })
+      .catch((e) => console.error("[more-looks] settle", e.message));
   try {
     if (!(await addLooks(meta.id, looks))) {
-      await giveBack();
+      await settle(true);
       return res.status(409).json({ error: "This shoot is busy. Try again in a moment." });
     }
   } catch (err) {
-    await giveBack();
+    await settle(true);
     throw err;
   }
+  await settle(false);
   res.status(202).json({ shoot: await shoots.get(meta.id), user: publicUser(await users.byId(req.user.id)) });
 });
 

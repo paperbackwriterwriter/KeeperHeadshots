@@ -8,6 +8,8 @@
 import sharp from "sharp";
 import { portraitSVG } from "../../public/js/shared/portrait.js";
 import { reminderEmail, offerEmail } from "../../lib/mail.js";
+import { keepCredits } from "../../lib/preview.js";
+import { keepPlusPrice, keepCreditFor } from "../../public/js/shared/catalog.js";
 const B = process.env.BASE || "http://localhost:3100", M = process.env.MOCK || "http://localhost:4010";
 const OWNER = process.env.PREVIEW_OWNER || "preview-owner@example.com";
 const results = [];
@@ -308,6 +310,58 @@ let previewBytes = 0;
   await two("/api/billing/sync", { method: "POST", body: "{}" });
   const afterB = (await two("/api/me")).j.user.plan.credits;
   ok("refunding one package leaves the other's credits", afterA === 3 && afterB === 0, `${afterA} then ${afterB}`);
+}
+
+// 4f. "Keep them all" after keeping a pick from the same shoot: what was paid
+// for the pick counts toward it (owner, 16 Nov), never below Stripe's $0.50.
+{
+  const paidKeep = (cents, extra = {}) => ({ sessionId: `cs_${cents}_${Math.random()}`, packageId: "keep", shootId: "sht_a", shotId: "x", amount: cents, ...extra });
+  ok("credit: a same-shoot pick counts at what was paid", keepCredits({ purchases: [paidKeep(450)] }).sht_a?.cents === 450 && keepPlusPrice(keepCredits({ purchases: [paidKeep(450)] }).sht_a).price === 3);
+  ok("credit: not for another shoot", keepCredits({ purchases: [paidKeep(450)] }).sht_b === undefined && keepPlusPrice(keepCredits({ purchases: [paidKeep(450)] }).sht_b).price === 7.5);
+  ok("credit: not for a refunded pick", keepCredits({ purchases: [paidKeep(450, { refunded: true })] }).sht_a === undefined);
+  const part = paidKeep(450);
+  ok("credit: a partly refunded pick counts what's left", keepCredits({ purchases: [part], refunds: [{ sessionId: part.sessionId, amountRefunded: 200 }] }).sht_a?.cents === 250);
+  ok("credit: a free (100%-off) pick counts nothing", keepCredits({ purchases: [paidKeep(0)] }).sht_a === undefined);
+  ok("credit: other purchases don't count", keepCredits({ purchases: [{ ...paidKeep(750), packageId: "keep-plus" }, { ...paidKeep(1450), packageId: "starter", shootId: undefined }] }).sht_a === undefined);
+  const two = keepPlusPrice({ cents: 900, picks: 2 });
+  ok("credit: never under $0.50, however much the picks cost", two.price === 0.5 && two.credit === 7 && two.note === "your $9 picks counted", JSON.stringify(two));
+  ok("credit: the note names the pick", keepPlusPrice({ cents: 450, picks: 1 }).note === "your $4.50 pick counted" && keepPlusPrice(null).note === "" && keepPlusPrice(null).price === 7.5);
+  ok("credit: the browser uses the server's figure, else estimates from kept headshots", keepCreditFor({ keepCredit: {}, kept: { s: ["a"] } }, "s") === null && keepCreditFor({ kept: { s: ["a"] } }, "s")?.cents === 450 && keepCreditFor({ keepCredit: { s: { cents: 225, picks: 1 } } }, "s")?.cents === 225);
+
+  const pay = async (f, packageId, shootId, shotId, promo = "") => {
+    const { j } = await f("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId, shootId, shotId }) });
+    const id = new URL(j.url).pathname.split("/").pop();
+    await fetch(`${M}/mock-pay/${id}${promo ? `?promo=${promo}` : ""}`, { redirect: "manual" });
+    return { id, value: j.value, conf: (await f("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: id }) })).j };
+  };
+  const mockSession = (id) => fetch(`${M}/v1/checkout/sessions/${id}`).then((r) => r.json());
+  const sam = await account(`samcredit${t}@x.com`, "Sam Credit");
+  const samShoot = await doneShoot(sam);
+  const [pick, other] = samShoot.shots.filter((x) => x.status === "done");
+  const k = await pay(sam, "keep", samShoot.id, pick.id);
+  ok("(Sam keeps a pick for $4.50)", k.conf.granted === true && k.value === 4.5 && (await mockSession(k.id)).amount_total === 450);
+  const all = await pay(sam, "keep-plus", samShoot.id);
+  const sess = await mockSession(all.id);
+  ok("'Keep them all' for the same shoot costs the difference: $3", all.value === 3 && sess.amount_total === 300 && sess.metadata?.keepCredit === "450", JSON.stringify({ value: all.value, amount: sess.amount_total, md: sess.metadata }));
+  ok("and unlocks the whole shoot", all.conf.granted === true && all.conf.value === 3 && all.conf.user.previewsUnlocked === true && all.conf.user.extraLooks[samShoot.id] === 2 && !/no-cache/.test((await get(sam, `/media/${other.file}`)).cache));
+  await fetch(`${M}/mock-refund/${all.id}`);
+  const synced = (await sam("/api/billing/sync", { method: "POST", body: "{}" })).j;
+  ok("refunding 'Keep them all' locks the rest again", synced.user.previewsUnlocked === false && !synced.user.extraLooks[samShoot.id] && /no-cache/.test((await get(sam, `/media/${other.file}`)).cache), JSON.stringify({ unlocked: synced.user?.previewsUnlocked, looks: synced.user?.extraLooks }));
+  ok("but leaves the earlier pick unlocked", synced.user.purchased === true && JSON.stringify(synced.user.kept[samShoot.id]) === JSON.stringify([pick.id]) && !/no-cache/.test((await get(sam, `/media/${pick.file}`)).cache), JSON.stringify(synced.user?.kept));
+  const again = await sam("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "keep-plus", shootId: samShoot.id }) });
+  ok("and the pick still counts toward buying it again", again.status === 200 && again.j.value === 3, JSON.stringify(again.j));
+
+  // A refunded pick counts nothing; a discounted one counts what was paid.
+  const rio = await account(`riocredit${t}@x.com`, "Rio Credit");
+  const rioShoot = await doneShoot(rio);
+  const rioPick = rioShoot.shots.find((x) => x.status === "done");
+  const half = await pay(rio, "keep", rioShoot.id, rioPick.id, "HALF");
+  const discounted = (await rio("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "keep-plus", shootId: rioShoot.id }) })).j;
+  ok("a pick bought at half price counts what was paid ($2.25)", half.conf.granted === true && discounted.value === 5.25 && (await mockSession(new URL(discounted.url).pathname.split("/").pop())).amount_total === 525, JSON.stringify(discounted));
+  await fetch(`${M}/mock-refund/${half.id}`);
+  const rioSynced = (await rio("/api/billing/sync", { method: "POST", body: "{}" })).j;
+  const full = (await rio("/api/billing/checkout", { method: "POST", body: JSON.stringify({ packageId: "keep-plus", shootId: rioShoot.id }) })).j;
+  ok("a refunded pick counts nothing: full price", !rioSynced.user.kept?.[rioShoot.id] && full.value === 7.5 && (await mockSession(new URL(full.url).pathname.split("/").pop())).amount_total === 750, JSON.stringify({ kept: rioSynced.user?.kept, value: full.value }));
 }
 
 // 5. A paid shoot is never a preview.
