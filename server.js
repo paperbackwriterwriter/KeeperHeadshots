@@ -2522,9 +2522,11 @@ async function withReviews(html) {
 // visitors (and bots probing for WordPress) rarely wait on a cold function.
 // Browsers still revalidate every time; each deploy clears the CDN.
 const PAGE_CDN_CACHE = "max-age=60, stale-while-revalidate=86400";
-// The home page carries customers' shared headshots: a copy at most 10
-// minutes old in all, as the privacy policy promises when one is taken down.
-const HOME_CDN_CACHE = "max-age=60, stale-while-revalidate=540";
+// The home page carries customers' shared headshots and reviews: a copy at
+// most 10 minutes old in all, as the privacy policy promises when one is taken
+// down (9 minutes here, plus up to a minute each server keeps the lists:
+// lib/reviews.js and lib/showcase.js approved()).
+const HOME_CDN_CACHE = "max-age=60, stale-while-revalidate=480";
 app.get(/.*/, async (req, res) => {
   res.set("Vercel-CDN-Cache-Control", PAGE_CDN_CACHE);
   res.set("Content-Security-Policy", /^\/blog(\/|$)/.test(req.path) ? BLOG_CSP : CSP);

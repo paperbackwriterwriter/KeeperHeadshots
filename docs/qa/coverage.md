@@ -125,9 +125,8 @@ finished paid shoot and nothing shared yet is invited to share a headshot.
 No star-rating structured data is published. Belongs to areas F, G and H.
 
 Waiting on the owner:
-- Payments (13 Nov, low): C4-1 and C4-2 in docs/qa/areas/C-payments.md (a seat
-  stays paid after both packages behind it are refunded; the purchase toast
-  overstates shoots added for a buyer who owed some). Questions: is Stripe's
+- Payments (13 Nov, low): C4-1 and C4-2 fixed 16 Nov at the owner's request
+  (docs/qa/areas/C-payments.md). Questions: is Stripe's
   own receipt email on; should someone who bought one headshot get credit
   toward "all + 2 more looks".
 - Shoots (12 Nov): B3-1 to B3-6 in docs/qa/areas/B-shoots.md (no time limit on

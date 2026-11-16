@@ -89,7 +89,7 @@ All 47 items above were re-checked on 8 Nov (45 pass, 2 changed by design: the s
 | F-N1 | Server title for every app route matches the app's, including /join and /join/<token> | curl titles vs app.js | /join had the generic title; fixed 8 Nov |
 | F-N2 | What the team admin sees is described the same everywhere (FAQ, team page, privacy, join page, invite email): the headshot each person chooses | grep + team-tests | Privacy, join page and invite email said "finished headshots"; fixed 8 Nov (privacy dated November 8) |
 | F-N3 | Every package and preview-offer price shows the sale price with the full price crossed out (home, team, buy, studio); JSON-LD, llms.txt, search and social images show the sale price | grep wasPrice + crawl | OK |
-| F-N4 | Home CDN cache max-age=60, stale-while-revalidate=540; other pages 86400 | curl -I | OK |
+| F-N4 | Home CDN cache max-age=60, stale-while-revalidate=480 (480 since 16 Nov, so a taken-down review or headshot is gone within 10 minutes with the 60 s server cache); other pages 86400 | curl -I | OK |
 | F-N5 | Footer "Your shoots": none signed out, one signed in, on every marketing page incl. the hydrated home page | two-context crawl | OK |
 | F-N6 | Foldables and sideways phones: no sideways scroll at 626x890, 890x626, 844x390; home buttons on the first screen at 890x626 | Playwright | OK |
 | F-N7 | Sale ad images match the catalog prices | view | OK |
@@ -105,7 +105,7 @@ Every item above was re-checked on 16 Nov (all pass or are known; "no watermark"
 | F-N10 | Reviews section: hidden with none approved; server HTML equals the browser's fill; average and stars match; names and text escaped on both paths; no rating structured data; axe and layout at 5 sizes, light and dark | browser + axe | OK |
 | F-N11 | Phone selfie/headshot pair: rotates, pause stops it, labels update, hidden at 901 px and wider; a dot click changes the contact sheet too | homepage-tests + browser at 390 | Dot click while the sheet was scrolling into view left the sheet on the old person (homepage-tests failing since 14 Nov evening); fixed 16 Nov |
 | F-N12 | /app/buy/*: summary, form, details order; crossed-out price; axe at 5 sizes, light and dark (Stripe stood in) | browser + axe | OK |
-| F-N13 | The privacy policy's reminder count matches the reminder kinds in lib/reminders.js | read both | Question for the owner (F12) |
+| F-N13 | The privacy policy's reminder count matches the reminder kinds in lib/reminders.js | read both | Reworded 16 Nov at the owner's request (F12) |
 | F-N14 | The sitemap date of `/` follows changes to the home page copy and FAQ, not only the policies | git log vs sitemap | Was 2 Nov after the 15 Nov copy change; fixed 16 Nov |
 | F-N15 | No "watermark" in any public HTML, JSON-LD, llms.txt, search result, email or social image | crawl + grep | OK |
 
@@ -174,7 +174,7 @@ Every item above was re-checked on 16 Nov (all pass or are known; "no watermark"
 - Usually the contracting party is the LLC. Consider "Keeper Headshots LLC" in Terms §1 and the Privacy intro.
 - Reproduced: n/a (copy).
 
-**F12 (low, owner decision): the privacy policy's reminder sentence starts "at most two reminder emails".**
+**F12 (low, owner decision; done 16 Nov: "reminder emails, at most one of each", privacy dated November 16): the privacy policy's reminder sentence started "at most two reminder emails".**
 - The same sentence then lists four (develop, checkout, and after a purchase the "start" note and the review request); the code sends at most one of each, ever.
 - Read whole, it is accurate; read quickly, "two" undersells it. A clearer wording ("at most one of each of these") changes a policy sentence, so it needs a new policy date: left for the owner.
 - Reproduced: yes (16 Nov, one account received checkout, start, develop and review in turn in a throwaway store).

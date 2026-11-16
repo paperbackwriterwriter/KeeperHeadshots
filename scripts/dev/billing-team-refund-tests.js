@@ -14,6 +14,8 @@ const sessions = new Map();
 const stripeStub = http.createServer((req, res) => {
   res.setHeader("content-type", "application/json");
   const pi = new URL(req.url, "http://x").searchParams.get("payment_intent");
+  const one = /^\/v1\/checkout\/sessions\/(cs_\w+)/.exec(req.url);
+  if (one && sessions.has(one[1])) return res.end(JSON.stringify(sessions.get(one[1])));
   if (req.url.startsWith("/v1/checkout/sessions")) return res.end(JSON.stringify({ object: "list", data: [...sessions.values()].filter((s) => s.payment_intent.id === pi), has_more: false }));
   res.statusCode = 404;
   res.end("{}");
@@ -25,7 +27,7 @@ const { default: Stripe } = await import("stripe");
 const { users, shoots } = await import("../../lib/store.js");
 const teams = await import("../../lib/teams.js");
 const { getJSON, updateJSON } = await import("../../lib/storage.js");
-const { handleWebhook } = await import("../../lib/billing.js");
+const { handleWebhook, confirm } = await import("../../lib/billing.js");
 const { BACKDROPS, OUTFITS } = await import("../../public/js/shared/catalog.js");
 
 let passed = 0;
@@ -294,6 +296,90 @@ try {
     assert.ok((await users.byId(uid)).creditsOwed > 0);
     assert.equal(await teams.seatPaid(await shoots.getMeta(aSeat)), true, "A's seat");
     assert.equal(await teams.seatPaid(await shoots.getMeta(bSeat)), false, "B's seat");
+  });
+
+  // C4-1: A's refund leaves A's seat owed; package B settles it; B's refund
+  // puts that debt back (not only debt for seats B itself paid for).
+  const settledByB = async (tag) => {
+    const uid = `usr_settle_${tag}`, a = `cs_settle_${tag}_A`, b = `cs_settle_${tag}_B`;
+    await person(uid, `settle-${tag}@example.com`);
+    await buy(uid, a, "2026-10-10T00:00:00Z");
+    await teams.saveTeam(await users.byId(uid), { name: "Settle Team", looks: [look] });
+    const { invite } = await teams.invite(await users.byId(uid), `settle-${tag}-m@example.com`);
+    const seat = (await teams.accept(await person(`usr_settle_${tag}_m`, `settle-${tag}-m@example.com`), invite.token)).shootId;
+    assert.equal((await shoots.getMeta(seat)).team.paidBy, a);
+    await users.update(uid, (u) => void (u.credits = 0)); // A's other two spent on the admin's own shoots
+    await refund(a);
+    assert.equal((await users.byId(uid)).creditsOwed, 1);
+    assert.equal(await teams.seatPaid(await shoots.getMeta(seat)), false);
+    await buy(uid, b, "2026-10-12T00:00:00Z");
+    const admin = await users.byId(uid);
+    assert.ok(!admin.creditsOwed);
+    assert.equal(admin.credits, 2);
+    assert.equal(admin.purchases.find((p) => p.sessionId === b).paidOff, 1);
+    assert.equal(await teams.seatPaid(await shoots.getMeta(seat)), true);
+    return { uid, b, seat, paid: async () => teams.seatPaid(await shoots.getMeta(seat)) };
+  };
+
+  await test("a refund of a package that settled an earlier refund's debt makes that seat unpaid again (C4-1)", async () => {
+    const f = await settledByB("refund");
+    // An older package with shoots of its own: B's refund mustn't take them.
+    await buy(f.uid, "cs_settle_refund_C", "2026-10-11T00:00:00Z");
+    assert.equal((await users.byId(f.uid)).credits, 5);
+    await refund(f.b);
+    let admin = await users.byId(f.uid);
+    assert.equal(admin.creditsOwed, 1);
+    assert.equal(admin.credits, 3, "package C's shoots stay");
+    assert.equal(await f.paid(), false);
+    await refund(f.b); // a repeated webhook changes nothing
+    admin = await users.byId(f.uid);
+    assert.equal(admin.creditsOwed, 1);
+    assert.equal(admin.credits, 3);
+  });
+
+  await test("a partial then full refund of the settling package puts the debt back once (C4-1)", async () => {
+    const f = await settledByB("partial");
+    await refund(f.b, 967); // one of B's two unused shoots
+    let admin = await users.byId(f.uid);
+    assert.equal(admin.credits, 1);
+    assert.ok(!admin.creditsOwed);
+    assert.equal(await f.paid(), true);
+    await refund(f.b);
+    admin = await users.byId(f.uid);
+    assert.equal(admin.credits, 0);
+    assert.equal(admin.creditsOwed, 1);
+    assert.equal(await f.paid(), false);
+  });
+
+  await test("a won chargeback of the settling package settles the debt again (C4-1)", async () => {
+    const f = await settledByB("dispute");
+    const pi = sessions.get(f.b).payment_intent;
+    const dispute = (status) => ({ id: "dp_settle_B", object: "dispute", amount: 2900, charge: pi.latest_charge.id, payment_intent: pi.id, status });
+    await send("charge.dispute.funds_withdrawn", dispute("needs_response"));
+    let admin = await users.byId(f.uid);
+    assert.equal(admin.creditsOwed, 1);
+    assert.equal(admin.credits, 0);
+    assert.equal(await f.paid(), false);
+    await send("charge.dispute.closed", dispute("won"));
+    admin = await users.byId(f.uid);
+    assert.ok(!admin.creditsOwed, JSON.stringify(admin.creditsOwed));
+    assert.equal(admin.credits, 2);
+    assert.equal(await f.paid(), true);
+  });
+
+  await test("confirm after the webhook granted it reports the shoots actually added (C4-2)", async () => {
+    const uid = "usr_confirm_owed";
+    await person(uid, "confirm-owed@example.com");
+    await users.update(uid, (u) => void (u.creditsOwed = 2));
+    await buy(uid, "cs_confirm_owed", "2026-10-13T00:00:00Z"); // the webhook grants it
+    const res = await confirm(await users.byId(uid), "cs_confirm_owed");
+    assert.equal(res.granted, false);
+    assert.equal(res.added, 1, JSON.stringify(res));
+    assert.equal((await users.byId(uid)).credits, 1);
+    assert.equal((await getJSON("payments/cs_confirm_owed.json")).added, 1);
+    // An older record without the count: none reported (the browser shows the package's).
+    await updateJSON("payments/cs_confirm_owed.json", (r) => { delete r.added; return r; });
+    assert.equal((await confirm(await users.byId(uid), "cs_confirm_owed")).added, null);
   });
 
   await test("a deleted admin's earlier refund isn't counted twice when the refund grows", async () => {

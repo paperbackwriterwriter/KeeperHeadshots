@@ -30,7 +30,7 @@ const keepAllButton = (s, total) =>
 function keepCta(s, pick, total) {
   return html`<section class="keep-cta" aria-label="Keep your headshots">
     <a class="btn btn-flash btn-lg btn-block" href="${keepHref(s, pick)}" data-link>${icon("download")} <span>Download this photo · <span class="nowrap">${wasPrice(KEEP_ONE)} ${usd(KEEP_ONE.price)}</span></span></a>
-    <p class="keep-cta-note">Full resolution, in every size (LinkedIn, square, banner, email signature). One-time.</p>
+    <p class="keep-cta-note">Full resolution, without the preview mark, in every size (LinkedIn, square, banner, email signature). One-time.</p>
     ${keepAllButton(s, total)}
   </section>`;
 }
@@ -1213,7 +1213,7 @@ export async function renderStudio(ctx, id) {
             : html`<p style="color:#a9b1bd">Not graded yet.</p>`}
           ${locked && !isKept(s, t.id)
             ? html`<button class="btn btn-flash" type="button" data-keep="${t.id}">${icon("download")} <span>Download this photo · <span class="nowrap">${wasPrice(KEEP_ONE)} ${usd(KEEP_ONE.price)}</span></span></button>
-              <p class="lb-sizes">Full resolution, in every size. One-time.</p>`
+              <p class="lb-sizes">Full resolution, without the preview mark, in every size. One-time.</p>`
             : html`${(() => {
             // Both shapes are always offered; the chosen format goes first.
             const sq = currentFormat() === "square";
