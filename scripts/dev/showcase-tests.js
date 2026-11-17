@@ -81,6 +81,18 @@ const before = await shown();
     if ((await dana(`/api/shoots/${shoot.id}`)).j.shoot.status === "done") break;
   }
   ok("a regrade doesn't send it again", (await ready()).length === 1);
+  // 17 Nov: a grading that comes back with a write-up but no grades is shown
+  // as unfinished (retry), and the earlier grades stay.
+  const graded = Object.keys((await dana(`/api/shoots/${shoot.id}`)).j.shoot.review?.shots || {}).length;
+  await fetch(`${M}/mock-review-empty`, { method: "POST" });
+  await dana(`/api/shoots/${shoot.id}/review`, { method: "POST", body: "{}" });
+  let after;
+  for (let i = 0; i < 30; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    after = (await dana(`/api/shoots/${shoot.id}`)).j.shoot;
+    if (after.status === "done") break;
+  }
+  ok("a grading with no grades is shown as unfinished, keeping the earlier grades", graded > 0 && /didn't come back/.test(after.reviewError || "") && Object.keys(after.review?.shots || {}).length === graded, JSON.stringify({ graded, err: after.reviewError, now: Object.keys(after.review?.shots || {}).length }));
 }
 
 // 1. Offering needs permission, one of your own finished headshots, and a name.

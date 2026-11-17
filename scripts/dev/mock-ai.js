@@ -87,6 +87,7 @@ function qaResult() {
     : { likeness: 9, likeness_notes: "Face shape, eyes and hairline match the references.", professional: 9, issues: [], head_box: process.env.MOCK_QA_TIGHT && qaCalls % 2 === 0 ? { top: 0.02, bottom: 0.45, left: 0.3, right: 0.7 } : { top: 0.14, bottom: 0.52, left: 0.33, right: 0.67 }, pass: true, retake_direction: "" };
 }
 
+let reviewEmpty = false;
 async function anthropic(req, res, body) {
   const system = typeof body.system === "string" ? body.system : JSON.stringify(body.system);
   const content = body.messages?.[0]?.content || [];
@@ -101,6 +102,8 @@ async function anthropic(req, res, body) {
     out = reviewResult(frames.length);
     out.shots.forEach((sh, i) => (sh.frame = frames[i]));
     out.best_frame = frames[0];
+    // POST /mock-review-empty: the next grading has a write-up but no grades.
+    if (reviewEmpty) (reviewEmpty = false), (out.shots = []);
   }
   res.writeHead(200, { "content-type": "application/json", "request-id": "req_mock" });
   res.end(JSON.stringify({
@@ -270,6 +273,7 @@ http
       return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify({ id }));
     }
     // Image calls in flight right now (render-race waits for 0 before it measures).
+    if (req.url === "/mock-review-empty") return (reviewEmpty = true), res.writeHead(200, { "content-type": "application/json" }), res.end("{}");
     if (req.url === "/mock-inflight") return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify({ inflight, renders: rendersInflight }));
     if (req.url === "/mock-meta") return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify(metaEvents));
     if (req.url === "/mock-mail") return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify(mail));
