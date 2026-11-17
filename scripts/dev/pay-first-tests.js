@@ -42,11 +42,11 @@ async function account(email, name, { verify = false, base = B } = {}) {
   if (verify) await f("/api/auth/verify", { method: "POST", body: JSON.stringify({ created: true, token: await verifyToken(email) }) }, base);
   return f;
 }
-async function pay(f, body) {
+async function pay(f, body, promo = "FREE") {
   const c = await f("/api/billing/checkout", { method: "POST", body: JSON.stringify(body) });
   if (c.status !== 200) return { checkout: c };
   const id = new URL(c.j.url).pathname.split("/").pop();
-  await fetch(`${M}/mock-pay/${id}?promo=FREE`, { redirect: "manual" });
+  await fetch(`${M}/mock-pay/${id}${promo ? `?promo=${promo}` : ""}`, { redirect: "manual" });
   return { checkout: c, confirm: (await f("/api/billing/confirm", { method: "POST", body: JSON.stringify({ sessionId: id }) })).j };
 }
 const photo = async (i) => "data:image/jpeg;base64," + (await sharp(Buffer.from(portraitSVG("pf" + i, { outfit: "white-shirt" }))).resize(900, 1125).jpeg().toBuffer()).toString("base64");
@@ -123,7 +123,8 @@ const sam = await account(samEmail, "Sam Pay");
 // 3. Sam (email never confirmed) buys Starter, then creates, uploads, checks
 // and develops a full shoot: 4 looks, 8 headshots, no watermark.
 {
-  const { checkout, confirm } = await pay(sam, { packageId: "starter" });
+  // (Real money: a 100%-off order doesn't count as paying, block 3c.)
+  const { checkout, confirm } = await pay(sam, { packageId: "starter" }, "");
   ok("an unconfirmed account can start checkout", checkout.status === 200 && checkout.j.value === 14.5, `${checkout.status} ${JSON.stringify(checkout.j)}`);
   ok("buying Starter adds 3 shoots", confirm?.granted === true && confirm.user.plan.tier === "paid" && confirm.user.plan.credits === 3 && confirm.user.plan.canDevelop === true && confirm.user.plan.started === true, JSON.stringify(confirm?.user?.plan));
   ok("…and hasn't developed a shoot yet (\"your first shoot\")", confirm?.user?.plan?.returning === false, JSON.stringify(confirm?.user?.plan));
@@ -166,6 +167,23 @@ const sam = await account(samEmail, "Sam Pay");
   const sess = more.status === 200 ? new URL(more.j.url).pathname.split("/").pop() : "";
   const back = sess ? (await fetch(`${M}/mock-pay/${sess}?promo=FREE`, { redirect: "manual" })).headers.get("location") || "" : "";
   ok("a package bought from the team page returns to the team page", /\/app\/team\?checkout=success/.test(back), `${more.status} ${back}`);
+}
+
+// 3c. An unconfirmed account whose only order was 100% off gets no
+// "headshots ready" email: the address may not be theirs (17 Nov, as E6-01).
+{
+  const zedEmail = `zed${t}@x.com`;
+  const zed = await account(zedEmail, "Zed Free");
+  const { confirm } = await pay(zed, { packageId: "starter" });
+  ok("a 100%-off order still adds the shoots", confirm?.user?.plan?.credits === 3, JSON.stringify(confirm?.user?.plan));
+  const id = (await zed("/api/shoots", { method: "POST", body: "{}" })).j.shoot.id;
+  for (let i = 0; i < 3; i++) await zed(`/api/shoots/${id}/selfies`, { method: "POST", body: JSON.stringify({ photo: await photo(20 + i) }) });
+  await zed(`/api/shoots/${id}/check`, { method: "POST", body: "{}" });
+  await zed(`/api/shoots/${id}/generate`, { method: "POST", body: JSON.stringify({ looks: LOOKS4 }) });
+  const s = await waitDone(zed, id);
+  await new Promise((r) => setTimeout(r, 500));
+  const ready = (await mails()).filter((m) => m.to.includes(zedEmail) && /headshots are ready/i.test(m.subject));
+  ok("an unconfirmed account whose only order was free gets no 'headshots ready' email", s.status === "done" && ready.length === 0, `${s.status} ${ready.length}`);
 }
 
 // 3b. A draft made while free shoots were offered (or any draft on an account

@@ -398,6 +398,55 @@ try {
     await refund("cs_grown"); // the whole package: now the seat isn't paid for
     assert.equal(await teams.seatPaid(await shoots.getMeta(seat)), false);
   });
+
+  // 17 Nov review of C4-1: the seat B's shoot paid for was returned before B
+  // was refunded; that shoot is on the balance, claimed by no package.
+  await test("a seat returned between the settling package and its refund leaves no free shoot", async () => {
+    const f = await settledByB("returned");
+    assert.equal(await teams.returnSeat(await shoots.getMeta(f.seat)), true);
+    assert.equal((await users.byId(f.uid)).credits, 3);
+    await refund(f.b);
+    let admin = await users.byId(f.uid);
+    assert.equal(admin.credits, 0, "both packages refunded: nothing left");
+    assert.ok(!admin.creditsOwed);
+    await refund(f.b); // a repeated webhook changes nothing
+    admin = await users.byId(f.uid);
+    assert.equal(admin.credits, 0);
+    assert.ok(!admin.creditsOwed);
+  });
+
+  // 17 Nov review: a refunded "Keep your pick" whose price counted toward a
+  // "Keep them all" for the same shoot is reported to the owner.
+  await test("refunding a pick that counted toward 'Keep them all' is logged for the owner", async () => {
+    const uid = "usr_keep_credit";
+    await person(uid, "keep-credit@example.com");
+    const offer = (sid, packageId, amount, extra) => ({
+      id: sid, object: "checkout.session", payment_status: "paid", status: "complete", amount_total: amount, currency: "usd",
+      client_reference_id: uid, metadata: { userId: uid, packageId, shoots: "0", shootId: "sht_keepcredit1", ...extra }, total_details: {},
+      payment_intent: { id: `pi_${sid}`, object: "payment_intent", latest_charge: { id: `ch_${sid}`, object: "charge", amount, amount_refunded: 0 } },
+    });
+    const pick = offer("cs_kc_pick", "keep", 450, { shotId: "sht_keepcredit1_1", looks: "0" });
+    const all = offer("cs_kc_all", "keep-plus", 300, { looks: "2", keepCredit: "450" });
+    const other = offer("cs_kc_other", "keep", 450, { shootId: "sht_keepcredit2", shotId: "sht_keepcredit2_1", looks: "0" });
+    for (const s of [pick, all, other]) {
+      sessions.set(s.id, s);
+      await send("checkout.session.completed", s);
+    }
+    const logged = [];
+    const error = console.error;
+    console.error = (...a) => logged.push(a.join(" "));
+    try {
+      for (const s of [other, pick]) {
+        s.payment_intent.latest_charge.amount_refunded = s.amount_total;
+        await send("charge.refunded", { id: s.payment_intent.latest_charge.id, object: "charge", payment_intent: s.payment_intent.id, amount: s.amount_total, amount_refunded: s.amount_total });
+      }
+    } finally {
+      console.error = error;
+    }
+    const notes = logged.filter((l) => /toward "Keep them all"/.test(l));
+    assert.equal(notes.length, 1, logged.join("\n"));
+    assert.match(notes[0], /refund cs_kc_pick: this "Keep your pick" counted \$4\.50 toward "Keep them all" cs_kc_all/);
+  });
 } finally {
   stripeStub.close();
   await fs.rm(dir, { recursive: true, force: true });

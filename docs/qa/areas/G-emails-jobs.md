@@ -108,6 +108,25 @@ All items above were re-checked on 9 Nov: G7-01, G7-06, G7-07, G7-08 and G7-09 c
 | J34 | Takeover markers only for accounts that never paid; resume clears markers for paid or deleted accounts | takeover suite + cron report | OK |
 | J35 | Offer dry-run count equals what a send reaches | dry run vs send with an account being deleted | Fixed 9 Nov |
 
+### Added at the nightly re-check of 17 Nov 2026
+
+All 81 items above (E1-E46, J1-J35) were re-checked on 17 Nov: pass, except E22 (G17-3, fixed 17 Nov) and E36 (G17-4, fixed 17 Nov); E31 receipts now come from Stripe (turned on 16 Nov); G7-03/04/05/10/11 still open (G7-10 now measured: with every shoot read stalling, cleanup + takeovers + reminders take about 324 s). New items:
+
+| Id | Item | How | Result (17 Nov) |
+|---|---|---|---|
+| G-N1 | A storage time-out during the reminder claim or its hand-back doesn't lose the reminder for good | stalling storage harness | G17-1, open |
+| G-N2 | A slow mail provider (answer after the 15 s abort) doesn't cause a second send | stand-in Resend replying after 16 s | G17-2, open |
+| G-N3 | The cron route still runs reminders and takeovers when one cleanup step times out; each job under a stalled store stays under 300 s | harness + route read | G17-6, open |
+| G-N4 | "start" reminder: 2-30 days after buying, no own shoot, not team admins, sent to unconfirmed payers, links /app/new | live cron | OK |
+| G-N5 | Review request: paid customers only, from 3 days after the shoot finished, once; not for 100%-off orders, refunds or team admins | live cron + suites | OK |
+| G-N6 | Skip-reason log line "[reminders] review not due" | live logs | OK (team admins log "no shoot of their own" nightly, by design) |
+| G-N7 | Owner's review notice email (plain text, cleaned name, once a day) | code read | OK |
+| G-N8 | Privacy policy, Account page and code agree on the reminder kinds | read all three | Account page said "at most two"; fixed 17 Nov (G17-4) |
+| G-N9 | A restore leaves out reviews deleted by the customer or by a refund | restore-backup --apply on a stack | G17-5, open |
+| G-N10 | The ready email needs real payment from an unconfirmed address (as E6-01) | pay-first-tests 3c | 100%-off order got it; fixed 17 Nov (G17-3) |
+| G-N11 | The keep-pick credit stays out of emails (offers go only to non-buyers) | render | OK |
+| G-N12 | Emails at 390 and 1280, light and dark: no overflow (HTML declares color-scheme light) | Playwright | OK |
+
 ## 2. Findings
 
 **G7-01 (medium, bug): the preview "buy" reminder quotes the old package price.**
@@ -152,3 +171,12 @@ Team-invite expiry (lib/cleanup.js:130), contact and rate-limit listing (:115, :
 Repro: zz-g7-funnel.mjs. With now = 2026-11-02T05:30Z (11:30 pm Chicago on the 25-hour day), the rows hold 2026-11-01 twice. The same happens at 11:30 pm local on later days (e.g. Nov 9) for the rest of the 30/90-day window, so totals double-count that day and the window is one day short. At 12:30 am on 15 Mar 2027 a date is skipped. Cause: lib/stats.js:80, `day(Date.now() - i*DAY_MS)`. Fix: step through calendar dates (date arithmetic on the YYYY-MM-DD string). Reproduced: yes.
 
 Counts: 69 items checked (39 email, 30 job). Findings: 0 high, 2 medium (G7-01, G7-02), 9 low (one of them an owner decision, G7-07).
+
+**Found 17 Nov:**
+- **G17-1** (low, open): a storage time-out while claiming a reminder, or while handing a failed one back, leaves it recorded as sent; that customer never gets it (lib/reminders.js claim and hand-back). Fix: on a failed claim re-read and hand back; log a failed hand-back as an error.
+- **G17-2** (low, open): a mail provider that accepts but answers after the 15 s abort gets the reminder handed back and sent again the next night (lib/mail.js, lib/reminders.js; lib/outreach.js has the same pattern). Fix: hand back only on a definite refusal, or send an idempotency key.
+- **G17-3** (low, fixed 17 Nov): an unconfirmed address whose only order was 100% off got "Your headshots are ready" (lib/notify.js counted any purchase); now real payment, as E6-01. Test: pay-first-tests 3c.
+- **G17-4** (low, fixed 17 Nov): the Account page said "At most two reminders, ever" and listed four; now "At most one of each reminder", as the privacy policy (16 Nov).
+- **G17-5** (low, open): a restore from backup brings back a review the customer deleted, or one removed by a refund (only deleted accounts are guarded). Fix: an erasure marker on review removal, checked by recordErased.
+- **G17-6** (low, open): one timed-out storage call in the cleanup's listing steps stops that day's takeover resume and reminders (server.js cleanup route has no catch around runCleanup; lib/cleanup.js steps unguarded). Fix: catch runCleanup like the next two steps; guard each step.
+Unverified (17 Nov): a timed-out team read counts a seat as paid in the develop nudge; the review clock follows the shoot's updatedAt; reviewSkipReason doubles nightly shoot reads; a non-410 claim error stops the whole offer send (as G7-02); a backup night could pass 300 s on a very slow store.
