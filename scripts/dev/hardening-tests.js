@@ -979,6 +979,10 @@ if (process.env.DATA_DIR) {
   const homeHtml = await (await raw("/")).text();
   ok("the footer has no 'Your shoots' link for signed-out visitors", !/href="\/app"[^>]*>Your shoots</.test(homeHtml) && /Create account/.test(homeHtml));
   const studioSrc = fs.readFileSync(new URL("../../public/js/views/studio.js", import.meta.url), "utf8");
+  // 18 Nov: the keep-pick credit note wraps (it overflowed a 320 px phone),
+  // and the shoot's lead line doesn't promise scores when grading failed.
+  ok("the 'Get all' button's credit note can wrap (one label, not side-by-side pieces)", /data-link><span>Get all [^\n]*plus\.note \? html` <span>\(\$\{plus\.note\}\)<\/span>` : ""\}<\/span><\/a>/.test(studioSrc));
+  ok("an unfinished grading's shoot says so above the frames", /s\.reviewError \? "Every frame is below\. Grading didn't finish/.test(studioSrc));
   ok("preview offer buttons show the crossed-out full price, kept with the sale price", (studioSrc.match(/<span class="nowrap">\$\{wasPrice\(KEEP_ONE\)\} \$\{usd\(KEEP_ONE\.price\)\}<\/span>/g) || []).length === 2 && /<span class="nowrap">\$\{wasPrice\(KEEP_ALL\)\} \$\{usd\((?:KEEP_ALL|plus)\.price\)\}<\/span>/.test(studioSrc)); // (plus: less a keep pick's credit, 16 Nov)
   const legalSrc = fs.readFileSync(new URL("../../public/js/views/legal.js", import.meta.url), "utf8");
   ok("Terms and privacy policy name Keeper Headshots LLC", (legalSrc.match(/Keeper Headshots LLC \("Keeper Headshots", "we", "us"\)|run by Keeper Headshots LLC \("Keeper Headshots", "we", "us"\)/g) || []).length === 2);

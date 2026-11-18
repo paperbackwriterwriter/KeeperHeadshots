@@ -29,7 +29,7 @@ const keepAllHref = (s) => `/app/buy/${KEEP_ALL.id}?shoot=${encodeURIComponent(s
 // all (catalog keepPlusPrice): "· $14.99 $3 (your $4.50 pick counted)".
 const keepAllButton = (s, total) => {
   const plus = keepPlusPrice(keepCreditFor(state.user, s.id));
-  return html`<a class="btn btn-ghost btn-lg btn-block" href="${keepAllHref(s)}" data-link>Get all ${total} + ${KEEP_ALL.looks} more looks · <span class="nowrap">${wasPrice(KEEP_ALL)} ${usd(plus.price)}</span>${plus.note ? html` <span class="nowrap">(${plus.note})</span>` : ""}</a>`;
+  return html`<a class="btn btn-ghost btn-lg btn-block" href="${keepAllHref(s)}" data-link><span>Get all ${total} + ${KEEP_ALL.looks} more looks · <span class="nowrap">${wasPrice(KEEP_ALL)} ${usd(plus.price)}</span>${plus.note ? html` <span>(${plus.note})</span>` : ""}</span></a>`;
 };
 function keepCta(s, pick, total) {
   return html`<section class="keep-cta" aria-label="Keep your headshots">
@@ -1059,7 +1059,7 @@ export async function renderStudio(ctx, id) {
         <div>
           <p class="eyebrow"><span class="dot"></span>${r ? "Retoucher's verdict" : "Your proofs"}\u00a0· ${s.name}</p>
           <h1 class="display h-1">${r?.headline || `${plural(done.length, "headshot")}, developed.`}</h1>
-          <p class="lede">${r?.summary || "Every frame is below. Grading scores will appear here once the AI review completes."}</p>
+          <p class="lede">${r?.summary || (s.reviewError ? "Every frame is below. Grading didn't finish: retry it to see the scores and the best pick." : "Every frame is below. Grading scores will appear here once the AI review completes.")}</p>
           <div class="scoreboard">
             <div><strong class="tabular">${r ? keepers : done.length}</strong><span>${r ? "Keepers" : "Headshots"}</span></div>
             <div><strong class="tabular">${avgLikeness}<small>/10</small></strong><span>Avg. likeness</span></div>

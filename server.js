@@ -1479,10 +1479,13 @@ app.post("/api/shoots/:id/review", requireUser, async (req, res) => {
   if (LIVE.includes(shoot.status)) return res.status(409).json({ error: "This shoot is still in progress." });
   const plan = planFor(req.user);
   if (plan.tier === "demo") throw new PlanError(DEMO_READ_ONLY, "demo_read_only", 403);
-  if (plan.tier !== "owner" && (shoot.regrades || 0) >= FREE.regradesPerShoot) throw new PlanError(`You can re-grade a shoot up to ${FREE.regradesPerShoot} times.`, "regrade_limit", 429);
+  // Retrying a grading that didn't finish ("Retry grading") isn't a regrade:
+  // it doesn't count toward the limit (18 Nov).
+  if (!shoot.reviewError && plan.tier !== "owner" && (shoot.regrades || 0) >= FREE.regradesPerShoot) throw new PlanError(`You can re-grade a shoot up to ${FREE.regradesPerShoot} times.`, "regrade_limit", 429);
   // Counted in the same write that starts the grading, so a start that's
   // refused (already grading, or developing again) doesn't use one.
   const next = await startReview(shoot.id, (m) => {
+    if (m.reviewError) return;
     if (plan.tier !== "owner" && (m.regrades || 0) >= FREE.regradesPerShoot) throw new PlanError(`You can re-grade a shoot up to ${FREE.regradesPerShoot} times.`, "regrade_limit", 429);
     m.regrades = (m.regrades || 0) + 1;
   });

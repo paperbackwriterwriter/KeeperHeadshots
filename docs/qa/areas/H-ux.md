@@ -109,6 +109,22 @@ Method:
 | 95 | Confirm-code form (account page and dashboard): wrong/short code, rate limit, success (panel removed, toast, focus) | browser | Focus fell to the page on success; fixed 10 Nov (moves to the heading) |
 | 96 | Checkout-return toasts ("Payment received", owner "Order complete", cancelled, bogus) at 320: on screen, clear of the Develop bar, keyboard-dismissable | browser | OK (10 Nov) |
 
+### Added at the nightly re-check of 18 Nov 2026
+
+All 96 items were re-checked on 18 Nov (sweep of 42 signed-in states x 5 sizes x light/dark with axe: 416/420 clean, the 4 failures H18-1). Changed since 11 Nov: items 56, 57 (H8-09) and 62 (H8-07) fixed; 60, 63, 82 (H8-05) changed; H8-01, H8-04, H8-06, H8-11, H8-12 still open. New items:
+
+| Id | Item | How | Result (18 Nov) |
+|---|---|---|---|
+| 97 | "Get all" keep button with a pick credit at 320 px and 200% text | sweep | overflowed (H18-1); fixed 18 Nov |
+| 98 | Grading-didn't-finish banner: first and later gradings, wording, announcement, Retry at the regrade limit | browser | Retry hit the regrade limit (H18-2) and the lead line promised scores (H18-6); fixed 18 Nov; banner has no role (open) |
+| 99 | /app/review: errors, send, delete, focus, axe, all sizes | keyboard + axe | focus lands on the page; server error not announced (H18-4, open) |
+| 100 | /app/reviews: actions, focus, button names | keyboard + axe | focus lost on repaint; buttons unnamed per review (H18-4, H18-5, open) |
+| 101 | A storage time-out (503) on each screen's first load and on /api/me | 503 stand-in | /api/me failure lands on /signin (H18-3, open); join page heading (H18-7, open) |
+| 102 | Interrupted photo check and extra looks: what the customer sees, credits back | store edits | OK |
+| 103 | Purchase toast for an account that owes shoots | browser | OK |
+| 104 | Keep-plus checkout price with a pick credit | stand-in Stripe form | OK |
+| 105 | Team page 30 s refresh focus right after an action | keyboard | buttons without an id lose focus on the next tick (open, with H8-04) |
+
 ## 2. Findings
 
 **H8-01 (medium, bug): `busy()` and repaints drop keyboard focus to `<body>` after in-place actions.**
@@ -199,3 +215,12 @@ Method:
 Known items met (not re-reported): mobile menu focus on open; Retakes filter in the viewer; format change in another tab; take-down focus; admin download saves two files.
 
 Note: the working tree has uncommitted changes in lib/*.js, public/js/app.js and public/js/views/account.js that I did not make. My line numbers are from the working tree as it was during the audit.
+
+**Found 18 Nov:**
+- **H18-1** (medium, fixed 18 Nov): the "Get all" keep button's credit note ("your $4.50 pick counted") could not wrap: a 320 px phone scrolled sideways (337 px; 504 px at 200% text): the button laid its pieces side by side. Its label is now one wrapping line (320 px at 100% and 200%).
+- **H18-2** (medium, fixed 18 Nov): "Retry grading" counted toward the 2 regrades, so repeated unfinished gradings left a dead button ("You can re-grade a shoot up to 2 times"). Retrying a grading that didn't finish no longer counts. Test: showcase-tests.
+- **H18-3** (medium-low, open): any /api/me failure (a 503 storage time-out, offline) leaves the app signed out and auth routes send a signed-in person to /signin with no message (app.js loadSession catch). Fix: on a non-401 error show "Couldn't reach your account" with Try again.
+- **H18-4** (low, open): /app/review focuses an h1 without tabindex (focus on BODY) after send and delete; a server error on the text isn't announced (no role=alert, no aria-invalid); /app/reviews loses focus when the list repaints.
+- **H18-5** (low, open): owner review buttons read only "Approve"/"Decline"/"Delete" (no reviewer name).
+- **H18-6** (low, fixed 18 Nov): with grading unfinished and no earlier grades, the lead line said scores "will appear here once the AI review completes" next to the "grading didn't finish" banner. Open: the banner has no role, so a retry that fails again isn't announced.
+- **H18-7** (low, open): a time-out on the join page shows "This invitation doesn't work"; the team page and /app/review show the time-out message with no Try again.

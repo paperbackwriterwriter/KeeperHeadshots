@@ -88,6 +88,7 @@ function qaResult() {
 }
 
 let reviewEmpty = false;
+let reviewPartial = false;
 async function anthropic(req, res, body) {
   const system = typeof body.system === "string" ? body.system : JSON.stringify(body.system);
   const content = body.messages?.[0]?.content || [];
@@ -104,6 +105,8 @@ async function anthropic(req, res, body) {
     out.best_frame = frames[0];
     // POST /mock-review-empty: the next grading has a write-up but no grades.
     if (reviewEmpty) (reviewEmpty = false), (out.shots = []);
+    // POST /mock-review-partial: the next grading leaves out the last frame.
+    if (reviewPartial) (reviewPartial = false), out.shots.pop();
   }
   res.writeHead(200, { "content-type": "application/json", "request-id": "req_mock" });
   res.end(JSON.stringify({
@@ -273,6 +276,7 @@ http
       return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify({ id }));
     }
     // Image calls in flight right now (render-race waits for 0 before it measures).
+    if (req.url === "/mock-review-partial") return (reviewPartial = true), res.writeHead(200, { "content-type": "application/json" }), res.end("{}");
     if (req.url === "/mock-review-empty") return (reviewEmpty = true), res.writeHead(200, { "content-type": "application/json" }), res.end("{}");
     if (req.url === "/mock-inflight") return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify({ inflight, renders: rendersInflight }));
     if (req.url === "/mock-meta") return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify(metaEvents));

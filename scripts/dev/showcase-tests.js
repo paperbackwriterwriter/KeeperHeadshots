@@ -93,6 +93,26 @@ const before = await shown();
     if (after.status === "done") break;
   }
   ok("a grading with no grades is shown as unfinished, keeping the earlier grades", graded > 0 && /didn't come back/.test(after.reviewError || "") && Object.keys(after.review?.shots || {}).length === graded, JSON.stringify({ graded, err: after.reviewError, now: Object.keys(after.review?.shots || {}).length }));
+  // 18 Nov: retrying it isn't a regrade (both regrades are used by now), and a
+  // grading that leaves a frame out shows the rest and says it didn't finish.
+  const used = after.regrades;
+  await fetch(`${M}/mock-review-partial`, { method: "POST" });
+  const retry = await dana(`/api/shoots/${shoot.id}/review`, { method: "POST", body: "{}" });
+  for (let i = 0; i < 30; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    after = (await dana(`/api/shoots/${shoot.id}`)).j.shoot;
+    if (after.status === "done") break;
+  }
+  ok("retrying an unfinished grading doesn't use up a regrade", used === 2 && retry.status === 202 && after.regrades === 2, JSON.stringify({ used, status: retry.status, now: after.regrades }));
+  ok("a grading that leaves a frame out shows the other grades and says it didn't finish", /One of your headshots wasn't graded/.test(after.reviewError || "") && Object.keys(after.review?.shots || {}).length === graded - 1, JSON.stringify({ err: after.reviewError, now: Object.keys(after.review?.shots || {}).length, graded }));
+  // And a retry that grades every frame clears it.
+  await dana(`/api/shoots/${shoot.id}/review`, { method: "POST", body: "{}" });
+  for (let i = 0; i < 30; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    after = (await dana(`/api/shoots/${shoot.id}`)).j.shoot;
+    if (after.status === "done") break;
+  }
+  ok("a full grading afterwards clears it", !after.reviewError && Object.keys(after.review?.shots || {}).length === graded && after.regrades === 2, JSON.stringify({ err: after.reviewError, now: Object.keys(after.review?.shots || {}).length }));
 }
 
 // 1. Offering needs permission, one of your own finished headshots, and a name.
