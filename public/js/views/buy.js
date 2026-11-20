@@ -30,6 +30,33 @@ function loadStripe() {
   }));
 }
 
+// Facebook's built-in browser on Android (Nov 2026: 1 of 11 buyers who
+// reached checkout there paid, against 3 of 5 in Facebook on iPhone, and
+// none of them tried and failed to pay). Before the payment form loads,
+// those visitors are offered this same page in Chrome, where their saved
+// cards fill in; "Continue here" keeps the usual form. Every other browser,
+// Facebook on iPhone included, goes straight to checkout as before.
+const ANDROID_FACEBOOK = /Android/i.test(navigator.userAgent) && /FBAN|FBAV|FB_IAB/.test(navigator.userAgent);
+const STAY_KEY = "kh-pay-here"; // "Continue here" chosen in this tab
+const stayedHere = () => {
+  try {
+    return sessionStorage.getItem(STAY_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+const stayHere = () => {
+  try {
+    sessionStorage.setItem(STAY_KEY, "1");
+  } catch {}
+};
+// An Android intent link opens Chrome on this exact page. Without Chrome,
+// Android follows the fallback: the same page as a plain link.
+function chromeHref() {
+  const fallback = encodeURIComponent(location.href);
+  return `intent://${location.host}${location.pathname}${location.search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${fallback};end`;
+}
+
 // On previews and local copies Stripe runs in test mode: say so, with the
 // test card, so nobody mistakes it for a real payment.
 const testNote = () =>
@@ -98,15 +125,35 @@ export function renderBuy({ root }, packageId) {
   // The key normally arrives with the session (core.js). A tab opened before
   // a deploy can be running older core code without it, so ask the server.
   const withKey = async () => state.stripe?.publishableKey || (await api("/api/me").catch(() => null))?.stripe?.publishableKey || null;
-  withKey().then((key) => {
-    if (disposed) return;
-    if (key) embed(key);
-    else redirect();
-  });
+  const start = () =>
+    withKey().then((key) => {
+      if (disposed) return;
+      if (key) embed(key);
+      else redirect();
+    });
+  // No checkout is started (and no checkout event sent) until they choose.
+  if (ANDROID_FACEBOOK && !stayedHere()) offerChrome();
+  else start();
   return () => {
     disposed = true;
     checkout?.destroy();
   };
+
+  // Android Facebook app: pay in Chrome, or carry on here.
+  function offerChrome() {
+    shell(html`${testNote()}<p class="eyebrow">${icon("lock")} Secure checkout</p>
+      <h1 class="display h-2">${headline}</h1>
+      <p class="lede">Checkout is quicker in Chrome, where your saved cards fill in for you. You'll sign in to your Keeper account there, then pay.</p>
+      <div style="display:flex;flex-direction:column;gap:10px;align-items:stretch;max-width:360px;margin:0 auto">
+        <a class="btn btn-flash btn-lg btn-block" id="payInChrome" href="${chromeHref()}">Open in Chrome to pay ${icon("arrow-right")}</a>
+        <button type="button" class="btn btn-ghost btn-block" id="payHere">Continue here</button>
+      </div>
+      <p class="small muted" style="margin-top:16px">Facebook opened this page in its own browser.</p>`);
+    $("#payHere").addEventListener("click", () => {
+      stayHere();
+      start();
+    });
+  }
 
   // Embedded checkout: order summary beside Stripe's payment form.
   function embed(key) {
