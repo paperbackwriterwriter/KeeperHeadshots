@@ -2465,16 +2465,31 @@ function cronOnly(req, res, next) {
   next();
 }
 
-// Storage clean-up (lib/cleanup.js).
+// Storage clean-up (lib/cleanup.js), then takeovers, then reminders. Each of
+// the three always runs, whatever happened to the one before, and each has a
+// hard stop (175 s, 35 s, 70 s, then 10 s to save the reminders' place) so a
+// stalled store can't push the run past the function's 300 s limit. The
+// clean-up's own budget (150 s) leaves its last steps and saving its place
+// room before its hard stop.
+const stopAfter = (promise, ms, what) =>
+  Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve({ error: `${what} stopped after ${ms / 1000} s` }), ms).unref())]);
 app.get("/api/cron/cleanup", cronOnly, async (req, res) => {
-  const report = await runCleanup({ budgetMs: 180_000 });
-  report.takeovers = await resumeTakeovers(Date.now() + 30_000).catch((err) => (console.error("[takeover] resume", err.message), { error: err.message }));
+  const report = await stopAfter(runCleanup({ budgetMs: 150_000 }), 175_000, "cleanup").catch((err) => ({ error: err.message }));
+  if (report.error) console.error("[cleanup] failed, so its remaining steps are skipped until tomorrow (takeovers and reminders still run):", report.error);
+  report.takeovers = await stopAfter(resumeTakeovers(Date.now() + 30_000), 35_000, "takeovers").catch((err) => (console.error("[takeover] resume", err.message), { error: err.message }));
   console.log("[cleanup]", JSON.stringify(report));
   // Then the day's reminder emails (lib/reminders.js), resuming where the
   // last run stopped. A problem here never undoes the clean-up.
-  const state = (await getJSON(REMINDER_STATE).catch(() => null)) || {};
-  report.reminders = await runReminders({ origin: appOrigin(req), deadline: Date.now() + 60_000, state }).catch((err) => (console.error("[reminders]", err.message), { error: err.message }));
-  await putJSON(REMINDER_STATE, state).catch((err) => console.error("[reminders] state", err.message));
+  const state = {};
+  const reminders = async () => {
+    Object.assign(state, (await getJSON(REMINDER_STATE).catch(() => null)) || {});
+    return runReminders({ origin: appOrigin(req), deadline: Date.now() + 60_000, state });
+  };
+  report.reminders = await stopAfter(reminders(), 70_000, "reminders").catch((err) => ({ error: err.message }));
+  if (report.reminders.error) console.error("[reminders]", report.reminders.error);
+  await stopAfter(putJSON(REMINDER_STATE, state), 10_000, "saving the reminders' place")
+    .then((r) => r?.error && console.error("[reminders] state", r.error))
+    .catch((err) => console.error("[reminders] state", err.message));
   console.log("[reminders]", JSON.stringify(report.reminders));
   res.json(report);
 });

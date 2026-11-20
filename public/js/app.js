@@ -179,9 +179,34 @@ function focusHeading() {
 let renderSeq = 0;
 let lastRoute = null;
 
-async function render({ restoreY = null } = {}) {
+// /api/me failed for a reason other than being signed out (a storage
+// time-out, offline): whether there is an account is unknown, so pages that
+// need one say so and offer Try again rather than sending a signed-in person
+// to sign in. Public pages carry on as signed out meanwhile.
+let sessionError = null;
+
+function sessionPanel(err, { focusRetry = false } = {}) {
+  document.title = "Couldn't reach your account · Keeper Headshots";
+  const detail = err?.status === 0 ? err.message : "That's taking longer than usual. Please try again.";
+  app.innerHTML = html`${marketingNav()}<main id="main" class="container app-main"><div class="empty" data-session-error><h1 class="display h-1">We couldn't reach your account just now</h1><p class="lede" role="alert">${detail}</p><button class="btn btn-ink" type="button" data-session-retry>${icon("refresh-cw")} Try again</button></div></main>`.v;
+  document.documentElement.classList.remove("hydrating");
+  wireChrome();
+  if (focusRetry) $("[data-session-retry]")?.focus();
+  else focusHeading();
+}
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-session-retry]");
+  if (!btn || btn.disabled) return;
+  const focusRetry = document.activeElement === btn;
+  busy(btn, "Trying again…");
+  render({ focusRetry });
+});
+
+async function render({ restoreY = null, sessionChecked = false, focusRetry = false } = {}) {
   const seq = ++renderSeq;
   lastRoute = location.pathname + location.search;
+  if (state.user) sessionError = null;
   cleanup?.();
   cleanup = null;
   // On the first load, public pages arrive with prerendered content (lib/seo.js).
@@ -199,6 +224,23 @@ async function render({ restoreY = null } = {}) {
     wireChrome();
     focusHeading();
     return;
+  }
+  // The account couldn't be loaded earlier: ask again (Try again, or the next
+  // page that needs it). Only a definite answer (signed in, or signed out)
+  // moves on; another failure shows the panel again, on the page asked for.
+  if (route.auth && !state.user && sessionError) {
+    if (!sessionChecked) {
+      try {
+        await loadSession();
+        sessionError = null;
+      } catch (err) {
+        if (seq !== renderSeq) return;
+        sessionError = err.status === 401 ? null : err;
+      }
+      if (seq !== renderSeq) return;
+    }
+    if (!state.user && sessionError) return sessionPanel(sessionError, { focusRetry });
+    showRefundNotice();
   }
   // Sign-in comes back to the same page, query included (e.g. /app/buy/pro?x).
   // Buying a package is how new customers start, so that goes to sign-up.
@@ -592,10 +634,11 @@ const googleReturn = (() => {
 })();
 
 loadSession()
-  .catch(() => {})
+  // (A 401 is a definite "signed out"; anything else leaves it unknown.)
+  .catch((err) => void (sessionError = err.status === 401 ? null : err))
   .finally(() => {
     // Not on a password reset link: nothing may see that URL's one-time token.
-    const rendering = render();
+    const rendering = render({ sessionChecked: true });
     rendering.then(showRefundNotice);
     initSearch();
     if (location.pathname !== "/reset") initPixel({ afterRender: rendering });

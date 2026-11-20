@@ -211,6 +211,67 @@ await users.update(buyer.id, (u) => void (u.usage = { freeShootUsed: freeShoot }
   ok("then no buy reminder too", !(await dueReminder(await fresh(both))), JSON.stringify((await fresh(both)).reminders));
 }
 
+// 3c. Storage time-outs and a slow or refusing mail provider: a reminder is
+// never lost for good, and never sent twice (G17-1, G17-2).
+const fsp = (await import("node:fs/promises")).default;
+const realRename = fsp.rename;
+// Makes the next (after `skip`) write to this account's record report a
+// storage time-out, after landing (land) or without landing.
+function writeTimesOut(uid, { land = true, skip = 0 } = {}) {
+  const target = path.join("users", "id", `${uid}.json`);
+  fsp.rename = async (from, to) => {
+    if (!to.endsWith(target) || skip-- > 0) return realRename(from, to);
+    fsp.rename = realRename;
+    if (land) await realRename(from, to);
+    else await fsp.rm(from, { force: true });
+    throw new storage.StorageTimeoutError("write", `users/id/${uid}.json`, 20000);
+  };
+}
+const mockSwitch = (what, body) => fetch(`${M}/${what}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+{
+  const landed = await person("claimlands");
+  await shoot(landed, { days: 3 });
+  writeTimesOut(landed.id);
+  const r = await runReminders({ origin: "https://example.test", state: {} });
+  ok("a claim that lands but reports a time-out still sends the reminder", r.sent === 1 && (await mailsTo(landed.email)).length === 1 && !!(await fresh(landed)).reminders?.develop, JSON.stringify(r));
+
+  const lost = await person("claimlost");
+  await shoot(lost, { days: 3 });
+  writeTimesOut(lost.id, { land: false });
+  const r1 = await runReminders({ origin: "https://example.test", state: {} });
+  ok("a claim that times out without landing isn't recorded as sent", r1.sent === 0 && !(await fresh(lost)).reminders?.develop && (await mailsTo(lost.email)).length === 0, JSON.stringify(r1));
+  const r2 = await runReminders({ origin: "https://example.test", state: {} });
+  ok("…and the next run sends it", r2.sent === 1 && (await mailsTo(lost.email)).length === 1, JSON.stringify(r2));
+
+  const slow = await person("slowmail");
+  await shoot(slow, { days: 3 });
+  await mockSwitch("mock-mail-slow", { ms: 16000 });
+  const s1 = await runReminders({ origin: "https://example.test", state: {} });
+  ok("a send the provider accepts but answers after the 15 s abort stays recorded as sent", s1.failed === 1 && !!(await fresh(slow)).reminders?.develop, JSON.stringify(s1));
+  const s2 = await runReminders({ origin: "https://example.test", state: {} });
+  ok("…so it isn't sent a second time", s2.sent === 0 && (await mailsTo(slow.email)).length === 1, JSON.stringify(s2));
+
+  const refused = await person("refusedmail");
+  await shoot(refused, { days: 3 });
+  await mockSwitch("mock-mail-refuse", { status: 500 });
+  const f1 = await runReminders({ origin: "https://example.test", state: {} });
+  ok("a definite refusal (HTTP error) hands the reminder back", f1.failed === 1 && !(await fresh(refused)).reminders?.develop && (await mailsTo(refused.email)).length === 0, JSON.stringify(f1));
+  const f2 = await runReminders({ origin: "https://example.test", state: {} });
+  ok("…and the next run sends it", f2.sent === 1 && (await mailsTo(refused.email)).length === 1, JSON.stringify(f2));
+
+  const stuck = await person("handbackfails");
+  await shoot(stuck, { days: 3 });
+  await mockSwitch("mock-mail-refuse", { status: 500 });
+  writeTimesOut(stuck.id, { land: false, skip: 1 }); // the claim lands, the hand-back doesn't
+  const errors = [];
+  const realError = console.error;
+  console.error = (...a) => (errors.push(a.join(" ")), realError(...a));
+  await runReminders({ origin: "https://example.test", state: {} });
+  console.error = realError;
+  ok("a failed hand-back is logged as an error naming the account and kind", errors.some((e) => /hand-back failed/.test(e) && e.includes(stuck.id) && e.includes("develop")), JSON.stringify(errors));
+  await users.update(stuck.id, (u) => void (u.remindersOff = ago(0))); // keeps later runs about the others
+}
+
 // 4. Against the server: the unsubscribe page's call, mail apps' one-click
 // POST, and the account-page switch.
 {
@@ -267,6 +328,33 @@ await users.update(buyer.id, (u) => void (u.usage = { freeShootUsed: freeShoot }
   const going = await person("offergoing", { email: `offer.going${t}@x.com` });
   await storage.putJSON(`cancelled/users/${going.id}.json`, { at: new Date().toISOString() });
   ok("and not to an account being deleted (so the dry run counts what a send reaches)", !(await offerRecipients(`OFFER${t}`)).map((u) => u.id).includes(going.id));
+}
+
+// The nightly cron route: a cleanup step whose storage call times out
+// doesn't stop the takeovers or the reminders, and the route still answers
+// with its report (G17-6).
+{
+  Object.assign(process.env, { VERCEL: "1", CRON_SECRET: "rem-cron-secret-rem-cron-secret" });
+  const { default: app } = await import("../../server.js");
+  delete process.env.VERCEL;
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((r) => server.once("listening", r));
+  const late = await person("croncheck");
+  await shoot(late, { days: 3 });
+  const realReaddir = fsp.readdir;
+  fsp.readdir = async (dir, ...rest) => {
+    if (String(dir).endsWith(`${path.sep}contact`)) throw new storage.StorageTimeoutError("list", "contact/", 20000);
+    return realReaddir(dir, ...rest);
+  };
+  try {
+    const res = await fetch(`http://127.0.0.1:${server.address().port}/api/cron/cleanup`, { headers: { authorization: `Bearer ${process.env.CRON_SECRET}` } });
+    const report = await res.json().catch(() => null);
+    ok("a cleanup step that times out is reported, and the route answers with its report", res.status === 200 && report?.failedSteps?.includes("contact messages") && report.errors >= 1 && !!report.takeovers, `${res.status} ${JSON.stringify(report)}`);
+    ok("…and the day's reminders still run", report?.reminders?.sent >= 1 && (await mailsTo(late.email)).length === 1, JSON.stringify(report?.reminders));
+  } finally {
+    fsp.readdir = realReaddir;
+    server.close();
+  }
 }
 
 fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true });

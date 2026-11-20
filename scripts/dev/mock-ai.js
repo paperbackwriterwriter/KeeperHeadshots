@@ -264,6 +264,16 @@ http
       console.log(`[mock] turnstile ${ok ? "pass" : "fail"}`);
       return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify(ok ? { success: true, action: "signup", hostname: "localhost" } : { success: false, "error-codes": ["invalid-input-response"] }));
     }
+    // Test switches for the Resend stand-in: POST /mock-mail-slow {"ms":16000}
+    // keeps the next message but answers after ms (as a provider that accepts
+    // and replies late); POST /mock-mail-refuse {"status":500} refuses the next one.
+    if (req.url === "/mock-mail-slow" && req.method === "POST") return (mailSlowMs = Number(JSON.parse(raw || "{}").ms) || 16_000), res.writeHead(200, { "content-type": "application/json" }), res.end("{}");
+    if (req.url === "/mock-mail-refuse" && req.method === "POST") return (mailRefuse = Number(JSON.parse(raw || "{}").status) || 500), res.writeHead(200, { "content-type": "application/json" }), res.end("{}");
+    if (req.url === "/emails" && req.method === "POST" && mailRefuse) {
+      const status = mailRefuse;
+      mailRefuse = 0;
+      return res.writeHead(status, { "content-type": "application/json" }), res.end(JSON.stringify({ statusCode: status, name: "application_error", message: "Refused by the mock" }));
+    }
     if (req.url === "/emails" && req.method === "POST") {
       const m = JSON.parse(raw || "{}");
       if (!/^Bearer \S+/.test(req.headers.authorization || "")) return res.writeHead(401, { "content-type": "application/json" }), res.end(JSON.stringify({ statusCode: 401, name: "missing_api_key", message: "Missing API key" }));
@@ -273,6 +283,11 @@ http
       const links = [...new Set(`${m.text || ""} ${m.html || ""}`.match(/https?:\/\/[^\s"<>]+/g) || [])].map((l) => l.replace(/&amp;/g, "&"));
       mail.push({ from: m.from, to, rawTo: m.to, replyTo: m.reply_to, subject: m.subject, links, text: m.text, headers: m.headers, via: "resend", id });
       console.log(`[mock] resend to=${to.join(",")} subject="${m.subject}"`);
+      if (mailSlowMs) {
+        const ms = mailSlowMs;
+        mailSlowMs = 0;
+        await sleep(ms);
+      }
       return res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify({ id }));
     }
     // Image calls in flight right now (render-race waits for 0 before it measures).
@@ -296,6 +311,7 @@ http
 // SMTP sink: accepts any login and stores each message (decoded enough to read
 // links out of quoted-printable bodies).
 const mail = [];
+let mailSlowMs = 0, mailRefuse = 0;
 const qp = (s) => s.replace(/=\r?\n/g, "").replace(/=([0-9A-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
 net
   .createServer((sock) => {

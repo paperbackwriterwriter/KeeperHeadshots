@@ -14,10 +14,10 @@ const WORDS = ["", "Poor", "Fair", "Good", "Very good", "Excellent"];
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "";
 export const stars = (n) => html`<span class="stars-shown" role="img" aria-label="${n} of 5 stars">${"★".repeat(n)}<span class="stars-off">${"★".repeat(5 - n)}</span></span>`;
 
-export function renderReview({ root }) {
+export function renderReview({ root, navigate }) {
   let disposed = false;
   root.innerHTML = html`<main id="main" class="container app-main view-enter">
-    <div class="page-head"><div><p class="eyebrow">Your review</p><h1 class="display h-1" style="margin-top:8px">How did your headshots turn out?</h1></div></div>
+    <div class="page-head"><div><p class="eyebrow">Your review</p><h1 class="display h-1" style="margin-top:8px" tabindex="-1">How did your headshots turn out?</h1></div></div>
     <p class="muted" style="max-width:64ch">Rate Keeper Headshots and say a few words. Honest feedback helps other people decide, and helps us improve.</p>
     <div id="rvBody" aria-live="polite"><div class="skel" style="height:240px;border-radius:18px;margin-top:24px"></div></div>
   </main>`.v;
@@ -41,9 +41,9 @@ export function renderReview({ root }) {
           <p class="small muted" id="rvWord" aria-hidden="true">${review ? WORDS[review.rating] : "Choose 1 to 5 stars."}</p>
         </fieldset>
         <span class="field-error" id="err-rvRating" role="alert" hidden></span>
-        <div class="field"><label for="rvText">Your review <span class="muted">(optional)</span></label><textarea class="input" id="rvText" name="text" rows="5" maxlength="${LIMITS.text}" placeholder="What did you use your headshots for? What stood out?" aria-describedby="err-rvText">${review?.text || ""}</textarea><span class="field-error" id="err-rvText" hidden></span></div>
-        <div class="field" style="max-width:320px"><label for="rvName">Name to show</label><input class="input" id="rvName" name="name" maxlength="${LIMITS.name}" autocomplete="given-name" value="${review?.name || firstName(state.user?.name)}" required aria-describedby="err-rvName" /><span class="field-error" id="err-rvName" hidden></span></div>
-        <label class="check"><input type="checkbox" id="rvConsent" /> <span>I give Keeper Headshots permission to show this review, with the name above, on keeperheadshots.com. I can delete it at any time.</span></label>
+        <div class="field"><label for="rvText">Your review <span class="muted">(optional)</span></label><textarea class="input" id="rvText" name="text" rows="5" maxlength="${LIMITS.text}" placeholder="What did you use your headshots for? What stood out?" aria-describedby="err-rvText">${review?.text || ""}</textarea><span class="field-error" id="err-rvText" role="alert" hidden></span></div>
+        <div class="field" style="max-width:320px"><label for="rvName">Name to show</label><input class="input" id="rvName" name="name" maxlength="${LIMITS.name}" autocomplete="given-name" value="${review?.name || firstName(state.user?.name)}" required aria-describedby="err-rvName" /><span class="field-error" id="err-rvName" role="alert" hidden></span></div>
+        <label class="check"><input type="checkbox" id="rvConsent" aria-describedby="err-rvConsent" /> <span>I give Keeper Headshots permission to show this review, with the name above, on keeperheadshots.com. I can delete it at any time.</span></label>
         <span class="field-error" id="err-rvConsent" role="alert" hidden></span>
         <div class="btn-row">
           <button class="btn btn-flash" type="submit">${icon("send")} ${review ? "Send the new review" : "Send review"}</button>
@@ -57,11 +57,16 @@ export function renderReview({ root }) {
 
   const wire = (data) => {
     const f = $("#rvForm", body);
+    // The field's error (role=alert, linked by aria-describedby) is announced;
+    // the field itself is marked invalid. (The star fieldset is a group, which
+    // takes no aria-invalid: its alert says it.)
     const err = (id, msg) => {
       const el = $(`#err-${id}`, body);
       if (!el) return;
       el.textContent = msg || "";
       el.hidden = !msg;
+      const field = id === "rvRating" ? null : $(`#${id}`, body);
+      if (field) msg ? field.setAttribute("aria-invalid", "true") : field.removeAttribute("aria-invalid");
     };
     const show = () => {
       const v = Number($('input[name="rating"]:checked', body)?.value || 0);
@@ -93,8 +98,10 @@ export function renderReview({ root }) {
           const fields = e2.data?.fields || {};
           const map = { rating: "rvRating", text: "rvText", name: "rvName", consent: "rvConsent" };
           const hit = Object.keys(map).find((k) => fields[k]);
-          if (hit) err(map[hit], fields[hit]);
-          else toast(e2.message, "error");
+          if (hit) {
+            err(map[hit], fields[hit]);
+            (hit === "rating" ? $('input[name="rating"]:checked', f) || $("#rvStar5", f) : $(`#${map[hit]}`, f))?.focus();
+          } else toast(e2.message, "error");
         }
       });
     }
@@ -106,6 +113,7 @@ export function renderReview({ root }) {
         if (disposed) return;
         paint({ eligible: data.eligible, review: null });
         toast("Your review is deleted.", "success");
+        $("#main h1", root)?.focus(); // (the button is gone with the review)
       } catch (e2) {
         restore();
         toast(e2.message, "error");
@@ -116,7 +124,11 @@ export function renderReview({ root }) {
   api("/api/review/mine")
     .then((d) => !disposed && paint(d))
     .catch((err) => {
-      if (!disposed) body.innerHTML = html`<div class="banner banner-danger"><div><b>Couldn't load this page.</b> ${err.message}</div></div>`.v;
+      if (disposed) return;
+      // A time-out or no connection may pass: offer to load the page again.
+      const retry = err.status >= 500 || err.status === 0;
+      body.innerHTML = html`<div class="banner banner-danger"><div><b>Couldn't load this page.</b> ${err.message}</div>${retry ? html`<button class="btn btn-sm btn-ink" type="button" id="rvRetry">Try again</button>` : ""}</div>`.v;
+      $("#rvRetry", body)?.addEventListener("click", () => navigate(location.pathname + location.search, { replace: true }));
     });
   return () => (disposed = true);
 }

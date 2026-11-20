@@ -30,6 +30,13 @@ export async function renderJoin({ root, navigate }) {
   try {
     inv = await api(`/api/join/${encodeURIComponent(token)}`);
   } catch (err) {
+    // A time-out or no connection says nothing about the invitation itself:
+    // say we couldn't load it and offer to try again (the router re-runs this page).
+    if (err.status >= 500 || err.status === 0) {
+      shell(html`<p class="eyebrow">${icon("users")} Team invitation</p><h1 class="display h-2">We couldn't load this invitation.</h1><p class="lede">${err.message}</p><div class="btn-row"><button class="btn btn-flash btn-lg" type="button" id="joinRetry">${icon("refresh-cw")} Try again</button><a class="btn btn-ghost btn-lg" href="/" data-link>Go to Keeper Headshots</a></div>`);
+      root.querySelector("#joinRetry").addEventListener("click", () => navigate(location.pathname + location.search, { replace: true }));
+      return;
+    }
     shell(html`<p class="eyebrow">${icon("users")} Team invitation</p><h1 class="display h-2">This invitation doesn't work.</h1><p class="lede">${err.message}</p><div class="btn-row"><a class="btn btn-flash btn-lg" href="/" data-link>Go to Keeper Headshots</a></div>`);
     return;
   }

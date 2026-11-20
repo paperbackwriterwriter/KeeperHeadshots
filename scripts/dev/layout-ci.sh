@@ -39,10 +39,12 @@ BROWSER="$BROWSER" node scripts/dev/layout-audit.mjs "$OUT" || status=$?
 BROWSER="$BROWSER" node scripts/dev/verification-delivery-tests.js "$OUT/verification-delivery" || status=$?
 BROWSER="$BROWSER" node scripts/dev/privacy-tests.js "$OUT/privacy" || status=$?
 BROWSER="$BROWSER" node scripts/dev/homepage-tests.js "$OUT/homepage" || status=$?
+BROWSER="$BROWSER" node scripts/dev/session-error-tests.js "$OUT/session-error" || status=$?
 BROWSER="$BROWSER" node scripts/dev/gateway-csp-tests.js "$OUT/gateway-csp" || status=$?
 BROWSER="$BROWSER" node scripts/dev/dashboard-history-tests.js "$OUT/dashboard-history" || status=$?
 BROWSER="$BROWSER" node scripts/dev/retake-flow-tests.js "$OUT/retake-flow" || status=$?
 BROWSER="$BROWSER" node scripts/dev/text-resize-tests.js "$OUT/text-resize" || status=$?
 BROWSER="$BROWSER" node scripts/dev/pay-first-browser-tests.js "$OUT/pay-first" || status=$?
+BASE=http://localhost:3100 MOCK=http://localhost:4010 node scripts/dev/review-a11y-tests.js || status=$?
 if [ $status -ne 0 ]; then echo "== server log"; tail -40 "$WORK/server.log"; fi
 exit $status

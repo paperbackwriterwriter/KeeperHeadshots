@@ -65,7 +65,10 @@ export async function renderTeamAdmin({ root, navigate }) {
   try {
     await load();
   } catch (err) {
-    root.innerHTML = html`<main id="main" class="container app-main"><div class="banner banner-danger">${icon("circle-alert")}<div><b>Couldn't load your team.</b> ${err.message}</div></div></main>`.v;
+    // A time-out or no connection may pass: offer to load the page again.
+    const retry = err.status >= 500 || err.status === 0;
+    root.innerHTML = html`<main id="main" class="container app-main"><div class="banner banner-danger">${icon("circle-alert")}<div><b>Couldn't load your team.</b> ${err.message}</div>${retry ? html`<button class="btn btn-sm btn-ink" type="button" id="teamRetry">Try again</button>` : ""}</div></main>`.v;
+    root.querySelector("#teamRetry")?.addEventListener("click", () => navigate(location.pathname + location.search, { replace: true }));
     return;
   }
   if (disposed) return;

@@ -90,6 +90,33 @@ await shoot("sht_zzOldDraft", { days: 150 });
 const bad = await runCleanup();
 ok("a damaged record doesn't stop the run", bad.errors >= 1 && bad.finished === true && !(await exists("sht_zzOldDraft")), `errors=${bad.errors}`);
 
+// A step whose storage call times out (G17-6) is reported and skipped; the
+// steps before and after it still run, and the run doesn't throw.
+{
+  const fsp = (await import("node:fs/promises")).default;
+  const realReaddir = fsp.readdir;
+  await shoot("sht_zzOldDraft2", { days: 150 });
+  await storage.putJSON(`contact/${ago(500).replace(/[:.]/g, "-")}-cccc.json`, { old: true });
+  await storage.putJSON(`ratelimit/contact/def/${ago(4).slice(0, 13)}.json`, { n: 1 });
+  fsp.readdir = async (d, ...rest) => {
+    if (String(d).endsWith(`${path.sep}shots`) || String(d).endsWith(`${path.sep}contact`)) throw new storage.StorageTimeoutError("list", d, 20000);
+    return realReaddir(d, ...rest);
+  };
+  const before = await storage.getJSON("cron/cleanup-state.json");
+  let timed, threw = null;
+  try {
+    timed = await runCleanup();
+  } catch (err) {
+    threw = err;
+  } finally {
+    fsp.readdir = realReaddir;
+  }
+  ok("a timed-out listing doesn't throw out of the clean-up", !threw && !!timed, threw?.message);
+  ok("the failed steps are named in the report and counted", JSON.stringify(timed?.failedSteps) === JSON.stringify(["orphaned files", "contact messages"]) && timed.errors >= 2 && timed.finished === false, JSON.stringify(timed));
+  ok("the other steps still run (drafts, rate-limit counters)", !(await exists("sht_zzOldDraft2")) && timed?.rateLimitDeleted === 1 && (await storage.list("contact/")).length === 2, JSON.stringify(timed));
+  ok("a failed listing keeps its saved place", (await storage.getJSON("cron/cleanup-state.json"))?.orphans === (before?.orphans ?? null));
+}
+
 fs.rmSync(dir, { recursive: true, force: true });
 const passed = results.filter(Boolean).length;
 console.log(`\n${passed}/${results.length} passed`);

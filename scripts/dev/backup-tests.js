@@ -133,6 +133,51 @@ ok("restored records rebuild current indexes so recovered shoots are visible", i
   ok("restore leaves a deleted admin's team and invitations gone, and brings back a current one's", !back[0] && !back[1] && back[2]?.ownerId === "usr_kept" && back[3]?.teamId === "team_kept", JSON.stringify(back.map(Boolean)));
 }
 
+// A review the customer deleted, or one taken down after a full refund, isn't
+// brought back by a restore (the privacy policy says a deleted review goes);
+// one written again after its deletion, and an untouched one, are.
+{
+  const reviews = await import("../../lib/reviews.js");
+  const buyer = (uid, refunded = false) => storage.putJSON(`users/id/${uid}.json`, { id: uid, email: `${uid}@x.com`, purchases: [{ amount: 1450, refunded }] });
+  const review = (uid, text) => reviews.submit({ id: uid }, { rating: 5, text, name: "Rev Person", consent: true });
+  const uids = ["usr_revdel", "usr_revrefund", "usr_revagain", "usr_revkept"];
+  const rkeys = uids.map((u) => `reviews/${u}.json`);
+  const markers = uids.map((u) => `cancelled/reviews/${u}.json`);
+  const reviewsNow = () => Promise.all(rkeys.map((k) => storage.getJSON(k)));
+  const last = (s) => s.split("\n").find((l) => /^(Restored|Would restore)/.test(l));
+  for (const uid of uids) { await buyer(uid); await review(uid, `first ${uid}`); }
+  // Before: the backup holds all four reviews.
+  const before = await runBackup();
+  const BEFORE = "backups/incomplete/zz-rst19/before.json.gz";
+  await storage.putFile(BEFORE, await storage.getFile(before.key), "application/gzip");
+  await reviews.remove("usr_revdel"); // the customer deletes it (DELETE /api/review/mine)
+  await buyer("usr_revrefund", true); await reviews.removeIfNotCustomer("usr_revrefund"); // a full refund
+  await reviews.remove("usr_revagain"); await new Promise((r) => setTimeout(r, 5)); await review("usr_revagain", "second"); // reviews again
+  const marker = await storage.getJSON(markers[0]);
+  ok("removing a review leaves a marker with only a time in it", marker && Object.keys(marker).join() === "at" && !!(await storage.getJSON(markers[1])) && !(await storage.getJSON(markers[3])), JSON.stringify(marker));
+  // Restore the earlier backup after the reviews are lost.
+  await storage.del(rkeys);
+  const out1 = run("--backup", BEFORE, "--only", "reviews/", "--apply");
+  const back1 = await reviewsNow();
+  ok("restore leaves out a review the customer deleted or a refund took down", !back1[0] && !back1[1], last(out1));
+  ok("an untouched review is restored", back1[3]?.text === "first usr_revkept");
+  ok("the review deleted before it was written again isn't brought back", !back1[2]);
+  // The backup taken after: a store that lost the reviews AND the markers
+  // (they're only in the backup), dry run and apply.
+  await review("usr_revagain", "second");
+  const after = await runBackup();
+  const afterSnap = await readBackup(after.key);
+  ok("the nightly backup carries the removal markers", markers.slice(0, 3).every((k) => !!afterSnap.records[k]?.at) && afterSnap.records[rkeys[2]]?.text === "second");
+  await storage.del([...rkeys, ...markers]);
+  const dry2 = run("--backup", after.key, "--only", "reviews/");
+  const out2 = run("--backup", after.key, "--only", "reviews/", "--apply");
+  const back2 = await reviewsNow();
+  ok("markers only in the backup: deleted reviews stay gone, the dry run agrees", !back2[0] && !back2[1] && /Would restore 2 records/.test(dry2) && /Restored 2 records/.test(out2), `${last(dry2)} | ${last(out2)}`);
+  ok("a review written again after its deletion is restored, and an untouched one", back2[2]?.text === "second" && back2[3]?.text === "first usr_revkept");
+  await review("usr_revdel", "new after deletion");
+  ok("a new review after a deletion isn't blocked", (await reviews.get("usr_revdel"))?.text === "new after deletion");
+}
+
 // A backup store that can't be reached (store id set, no OIDC token here):
 // tonight's copy still lands in the main store, and it's reported.
 process.env.BACKUP_STORE_ID = "store_unreachable";
