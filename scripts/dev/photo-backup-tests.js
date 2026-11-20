@@ -238,6 +238,33 @@ try {
     assert.equal(reads, 0, `${reads} marker reads`);
     assert.ok(!out.entries.some((e) => e.uid === v.uid && !e.carried), "the erased shoot isn't copied");
   });
+  // 20 Nov: the check before each copy uses the main store's markers listed
+  // once (they were most of the site's storage requests); the check after
+  // the upload still reads them fresh, and an erased account isn't copied.
+  await test("the nightly copy reads the main store's erasure markers once per photo, not twice", async () => {
+    const w = await fixture("w");
+    const x = await fixture("x");
+    await storage.putJSON(`cancelled/users/${x.uid}.json`, { cancelled: true });
+    const records = {}; for (const key of await storage.list("shoots/")) records[key] = await storage.getJSON(key);
+    for (const key of await storage.list("showcase/")) if (key.endsWith(".json")) records[key] = await storage.getJSON(key);
+    const reads = new Map();
+    const readFile = fs.readFile;
+    fs.readFile = async (file, ...rest) => {
+      const rel = path.relative(root, String(file)).split(path.sep).join("/");
+      const m = /(?:^|\/)((?:cancelled|photo-erased)\/(?:users|shoots)\/[\w-]+\.json)$/.exec(rel);
+      if (m) reads.set(m[1], (reads.get(m[1]) || 0) + 1);
+      return readFile.call(fs, file, ...rest);
+    };
+    let out;
+    try { out = await backupPhotos({ records, now, deadline: Date.now() + 20_000 }); }
+    finally { fs.readFile = readFile; }
+    const copiedW = out.entries.filter((e) => e.uid === w.uid && !e.carried).length;
+    assert.equal(copiedW, 3, "the live account's photos are copied");
+    assert.ok(!out.entries.some((e) => e.uid === x.uid && !e.carried), "the deleted account's photos aren't");
+    // Only the check after each upload reads them: once per copied photo.
+    assert.equal(reads.get(`cancelled/users/${w.uid}.json`), copiedW, JSON.stringify(Object.fromEntries(reads)));
+    assert.ok(!reads.get(`cancelled/users/${x.uid}.json`), "nothing is read for an account deleted before the run");
+  });
   await test("a photo that can't be copied tonight but was copied yesterday doesn't fail the backup", async () => {
     await fixture("s");
     const records = {}; for (const key of await storage.list("shoots/")) records[key] = await storage.getJSON(key);

@@ -20,6 +20,10 @@ const HERO_SETS = [
   ["hero", 96, 1], ["p1", 95, 5], ["p2", 94, 0], ["p3", 97, 8], ["p4", 95, 3], ["p5", 96, 4], ["p6", 94, 1], ["p7", 95, 5], ["p8", 97, 0],
 ];
 const CYCLE_MS = 8000;
+// The hero rotates on its own through this many people, then stops on the
+// last (owner, 20 Nov: each person is ten more photo requests). The dots, and
+// Play once it has stopped, still show the others.
+const AUTO_PEOPLE = 3;
 const frameSources = (id) => [180, 360, 600].map((w) => `${example(id, w)} ${w}w`).join(", ");
 // The phone hero's selfie and headshot (up to 190px wide): 300px covers
 // high-density screens without downloading the 360px or larger variants.
@@ -499,6 +503,8 @@ function heroCycle() {
   let timer = null;
   let warmTimer = null;
   let warmed = false;
+  let autoShown = 1; // people shown by the rotation itself
+  let autoLimit = AUTO_PEOPLE; // no limit once the visitor presses Play
   const urls = (i) => [example(`${HERO_SETS[i][0]}-selfie`, [180, 300, 360].find((w) => w >= selfie.clientWidth * devicePixelRatio) || 360), ...imgs.map((im, j) => {
     const width = [180, 360, 600].find((w) => w >= im.clientWidth * devicePixelRatio) || 600;
     return example(`${HERO_SETS[i][0]}-${j + 1}`, width);
@@ -597,7 +603,17 @@ function heroCycle() {
     busy = false;
   }
   const tick = () => {
-    if ((sheetVisible || pairVisible) && !paused && !hovering && !document.hidden) show((current + 1) % HERO_SETS.length);
+    if (paused) return;
+    if (autoShown >= autoLimit) {
+      // Done: the button offers Play, which carries on through everyone.
+      clearInterval(timer);
+      paused = true;
+      setPauseUI();
+      return;
+    }
+    if (!(sheetVisible || pairVisible) || hovering || document.hidden || busy) return;
+    const before = current;
+    show((current + 1) % HERO_SETS.length).then(() => { if (current !== before) autoShown++; });
   };
   const start = () => {
     clearInterval(timer);
@@ -605,8 +621,13 @@ function heroCycle() {
   };
 
   dots.forEach((d) => d.addEventListener("click", () => { show(Number(d.dataset.set), true); start(); }));
-  pauseBtn.addEventListener("click", () => { paused = !paused; setPauseUI(); });
-  pairPauseBtn?.addEventListener("click", () => { paused = !paused; setPauseUI(); });
+  const togglePause = () => {
+    paused = !paused;
+    if (!paused && autoShown >= autoLimit) (autoLimit = Infinity), start();
+    setPauseUI();
+  };
+  pauseBtn.addEventListener("click", togglePause);
+  pairPauseBtn?.addEventListener("click", togglePause);
   sheet.addEventListener("mouseenter", () => (hovering = true));
   sheet.addEventListener("mouseleave", () => (hovering = false));
   // Keyboard focus inside the sheet pauses too (mouse clicks don't count).

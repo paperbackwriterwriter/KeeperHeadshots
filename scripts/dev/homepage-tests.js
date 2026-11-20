@@ -30,8 +30,8 @@ let browser;
 let passed = 0;
 const pass = (name) => { passed++; console.log(`PASS ${name}`); };
 
-async function contextFor({ width = 390, signedIn = false, scale = 1, stalledFrames = false, failedSession = false, adVisitor = true } = {}) {
-  const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: scale, reducedMotion: "reduce" });
+async function contextFor({ width = 390, signedIn = false, scale = 1, stalledFrames = false, failedSession = false, adVisitor = true, motion = false } = {}) {
+  const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: scale, reducedMotion: motion ? "no-preference" : "reduce" });
   // A returning ad visitor (Meta's cookie), so the browser SDK loads (pixel.js pixelWanted).
   if (adVisitor) await context.addCookies([{ name: "_fbp", value: "fb.1.1700000000000.1", url: BASE }]);
   await context.addInitScript((stalled) => {
@@ -262,6 +262,41 @@ try {
     const regs = await page.evaluate(() => window.__metaCalls.filter((c) => c[0] === "track" && c[1] === "CompleteRegistration").length);
     assert.equal(regs, 1);
     pass("a sign-up confirmed on /app by an ordinary visitor still sends CompleteRegistration");
+    await context.close();
+  }
+  // 20 Nov (owner): the hero rotates through 3 people, then stops on the
+  // third; Play carries on through the rest.
+  {
+    const context = await contextFor({ width: 1280, adVisitor: false, motion: true });
+    const page = await context.newPage();
+    await page.clock.install();
+    await page.goto(BASE + "/");
+    await page.locator("#heroSheet").waitFor();
+    const shown = () => page.evaluate(() => [...document.querySelectorAll(".sheet-dot")].findIndex((d) => d.getAttribute("aria-pressed") === "true"));
+    const seen = [await shown()];
+    for (let n = 0; n < 5; n++) {
+      await page.clock.runFor(8000);
+      // The swap waits for the photos to decode and a 520 ms fade.
+      for (let k = 0; k < 20; k++) {
+        await page.clock.runFor(100);
+        await page.waitForTimeout(30);
+      }
+      seen.push(await shown());
+    }
+    assert.deepEqual([...new Set(seen)], [0, 1, 2], JSON.stringify(seen));
+    assert.equal(seen.at(-1), 2);
+    assert.equal(await page.locator("#heroPause").getAttribute("aria-label"), "Play examples");
+    await page.locator("#heroPause").click();
+    assert.equal(await page.locator("#heroPause").getAttribute("aria-label"), "Pause examples");
+    await page.clock.runFor(8000);
+    await page.waitForFunction(() => document.querySelector('[data-set="3"]').getAttribute("aria-pressed") === "true", null, { polling: 50, timeout: 5000 }).catch(async () => {
+      for (let k = 0; k < 20; k++) {
+        await page.clock.runFor(100);
+        await page.waitForTimeout(30);
+      }
+    });
+    assert.equal(await shown(), 3);
+    pass("the hero rotates through 3 people, then stops; Play carries on");
     await context.close();
   }
   console.log(`${passed} homepage cases passed`);
