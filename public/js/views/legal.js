@@ -6,7 +6,7 @@ import { KEEP_ONE_PRICE, KEEP_ALL_PRICE } from "../shared/catalog.js";
 // Privacy Policy and Terms of Service. Keep these in step with what the code
 // actually does (lib/meta.js, lib/billing.js, lib/store.js, lib/ai.js).
 // Each policy has its own date: change it only when that page's text changes.
-export const LEGAL_UPDATED = "November 16, 2026"; // privacy policy (reminder wording)
+export const LEGAL_UPDATED = "November 20, 2026"; // privacy policy (interrupted deletions finished within a day)
 export const TERMS_UPDATED = "November 16, 2026";
 
 const mail = html`<a class="link" href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>`;
@@ -104,7 +104,7 @@ export function renderPrivacy({ root }) {
         <li><b>Photo backups:</b> we keep private recovery copies of selfies, headshots and shared customer photos for up to seven days. Deleting a photo, shoot, shared headshot or account also requests deletion of its recovery copies and prevents them from being restored. If backup storage is temporarily unavailable, we retry deletion; a recovery copy can remain until it is deleted or expires.</li>
         <li><b>Cancellation records:</b> after deletion, we keep a cancellation marker against the random account and shoot numbers, or a scrambled photo filename, so a background worker or backup restore cannot bring back deleted data. These markers contain no names, email addresses, photos or headshots.</li>
         <li><b>Unfinished shoots:</b> a shoot that was never developed, and hasn't been changed for 90 days, is deleted automatically with its selfies.</li>
-        <li><b>Account details:</b> while your account is open. You can delete your account at any time on your <a class="link" href="/app/account" data-link>Account page</a>. That removes your account and all your shoots, selfies and headshots straight away. If you email us instead, we'll do it within 30 days. Our nightly backups hold account and shoot records for 30 days, so a deleted record can remain in a backup for up to 30 days.</li>
+        <li><b>Account details:</b> while your account is open. You can delete your account at any time on your <a class="link" href="/app/account" data-link>Account page</a>. That removes your account and all your shoots, selfies and headshots straight away (if something interrupts it, we finish it automatically within a day). If you email us instead, we'll do it within 30 days. Our nightly backups hold account and shoot records for 30 days, so a deleted record can remain in a backup for up to 30 days.</li>
         <li><b>Free-shoot record:</b> if you used a free shoot (we offered one to new accounts until October 2026), we keep a scrambled (hashed) copy of your email address after your account is deleted, with a note that the free shoot was used. That stops a free shoot being claimed twice. It doesn't include your name, photos or anything else. The count of free photo checks used by an email inbox is kept the same way, so that variations of one address (like name+1@…) share one allowance.</li>
         <li><b>Reviews:</b> until you delete your review or your account, your purchases are fully refunded, or the account is taken over by the email address's owner as described above.</li>
         <li><b>Shared headshots:</b> if you shared a headshot for our home page, until you take it down, delete that shoot, delete your account, the package that paid for it is fully refunded (yours, or your team admin's for a team shoot), or the account is taken over by the email address's owner as described above.</li>

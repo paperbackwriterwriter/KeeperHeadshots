@@ -117,6 +117,94 @@ ok("a damaged record doesn't stop the run", bad.errors >= 1 && bad.finished === 
   ok("a failed listing keeps its saved place", (await storage.getJSON("cron/cleanup-state.json"))?.orphans === (before?.orphans ?? null));
 }
 
+// A20-1: an account deletion that stopped partway (a storage time-out after
+// the marker) is finished by the clean-up once it's 10 minutes old; a
+// deletion still running, and accounts without a marker, are left alone.
+{
+  const crypto = await import("node:crypto");
+  const { users } = await import("../../lib/store.js");
+  const { currentUser, setSession } = await import("../../lib/auth.js");
+  const fsp = (await import("node:fs/promises")).default;
+  const STUCK_MS = 10 * 60 * 1000;
+  const marker = (uid) => storage.getJSON(`cancelled/users/${uid}.json`);
+  const age = async (uid, ms) => storage.putJSON(`cancelled/users/${uid}.json`, { ...(await marker(uid)), at: new Date(Date.now() - ms).toISOString() });
+  const hash = (email) => crypto.createHash("sha256").update(email).digest("hex");
+  const signedIn = (user) => {
+    const jar = {};
+    setSession({ cookie: (n, v) => (jar[n] = v) }, user);
+    return currentUser({ cookies: jar });
+  };
+  async function account(uid, email) {
+    const u = await users.create({ id: uid, email, name: uid, createdAt: ago(30), usage: { checks: 1 } });
+    const sid = `sht_${uid.slice(4)}01`;
+    await shoots.create({ id: sid, userId: uid, name: "mine", status: "done", createdAt: ago(5), selfies: [], shots: [{ id: "shot_d1", lookId: "x", backdrop: "studio-gray", outfit: "navy-suit", take: 0 }] });
+    await saveMedia(sid, Buffer.from("x"), "jpg");
+    await storage.putJSON(`reviews/${uid}.json`, { userId: uid, rating: 5, text: "Great", status: "pending" });
+    return u;
+  }
+  const gone = await account("usr_zzDelStop1", "stop@example.com");
+  const kept = await account("usr_zzDelKeep1", "keep@example.com");
+  const sid = "sht_zzDelStop101";
+  // POST /api/account/delete stops partway: a storage time-out removing the
+  // shoot, after the marker was written. (On the old code the marker is
+  // written straight from the route, so simulate it the same way there.)
+  const realRm = fsp.rm;
+  let thrown = 0;
+  fsp.rm = async (p, ...rest) => {
+    if (!thrown && String(p) === path.join(dir, "shoots", `${sid}.json`)) {
+      thrown++;
+      throw new storage.StorageTimeoutError("del", p, 20000);
+    }
+    return realRm(p, ...rest);
+  };
+  let stopped = null;
+  try {
+    await users.beginRemoval(gone.id);
+    await users.remove(gone);
+  } catch (err) {
+    stopped = err;
+  } finally {
+    fsp.rm = realRm;
+  }
+  const m0 = await marker(gone.id);
+  ok("deletion: a time-out stops it after the marker (setup)", stopped instanceof storage.StorageTimeoutError && m0 && !m0.erased && !!(await users.byId(gone.id)) && !!(await signedIn(gone)), stopped?.message);
+
+  const fresh = await runCleanup();
+  ok("deletion: one started under 10 minutes ago is left alone", !fresh.deletionsFinished && !!(await users.byId(gone.id)) && !(await marker(gone.id)).erased, JSON.stringify(fresh));
+
+  await age(gone.id, STUCK_MS + 60_000);
+  const startedAt = (await marker(gone.id)).at;
+  const done = await runCleanup();
+  const m1 = await marker(gone.id);
+  ok("deletion: the clean-up finishes one that stopped", done.deletionsFinished === 1 && !(done.failedSteps || []).length, JSON.stringify(done));
+  ok("deletion: account record and email index gone", !(await users.byId(gone.id)) && !(await storage.getJSON(`users/email/${hash("stop@example.com")}.json`)) && !(await users.byEmail("stop@example.com")));
+  ok("deletion: shoots, photos and review gone", !(await shoots.getMeta(sid)) && (await storage.list(`idx/${gone.id}/`)).length === 0 && (await storage.list(`media/${sid}/`)).length === 0 && !(await storage.getJSON(`reviews/${gone.id}.json`)));
+  ok("deletion: marker marked finished, start time kept", m1?.cancelled === true && m1.erased === true && m1.at === startedAt && !!m1.erasedAt, JSON.stringify(m1));
+  ok("deletion: the session is signed out (/api/me)", !(await signedIn(gone)));
+  ok("deletion: free usage kept under the email hash, as the route does", !!(await storage.getJSON(`users/deleted/${hash("stop@example.com")}.json`)));
+
+  const again = await runCleanup();
+  ok("deletion: running the clean-up again is harmless", again.deletionsFinished === 0 && !(again.failedSteps || []).length && JSON.stringify(await marker(gone.id)) === JSON.stringify(m1), JSON.stringify(again));
+  let twice = null;
+  try {
+    const { finishDeletion } = await import("../../lib/account-deletion.js");
+    await finishDeletion(gone.id);
+  } catch (err) {
+    twice = err;
+  }
+  ok("deletion: finishing an already finished deletion is harmless", !twice && (await marker(gone.id))?.erased === true && !(await users.byId(gone.id)), twice?.message);
+
+  ok("deletion: an account without a marker is untouched", !!(await users.byId(kept.id)) && !(await marker(kept.id)) && !!(await shoots.getMeta("sht_zzDelKeep101")) && !!(await storage.getJSON(`reviews/${kept.id}.json`)) && !!(await signedIn(kept)));
+
+  // A marker from before markers recorded a start time counts as old; one
+  // whose account record had already gone is still finished and marked.
+  await storage.putJSON("cancelled/users/usr_zzDelOld01.json", { cancelled: true });
+  await storage.putJSON("idx/usr_zzDelOld01/sht_zzDelOld0101", {});
+  const legacy = await runCleanup();
+  const m2 = await marker("usr_zzDelOld01");
+  ok("deletion: an old marker without a start time (no account record) is finished", legacy.deletionsFinished === 1 && m2?.erased === true && (await storage.list("idx/usr_zzDelOld01/")).length === 0, JSON.stringify({ legacy, m2 }));
+}
+
 fs.rmSync(dir, { recursive: true, force: true });
 const passed = results.filter(Boolean).length;
 console.log(`\n${passed}/${results.length} passed`);

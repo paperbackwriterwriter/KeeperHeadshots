@@ -32,13 +32,14 @@ import { reviewsSection } from "./public/js/shared/reviews.js";
 import { planFor, ownerEmail, creditSource, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, CHOOSE_PACKAGE, EMAIL_UNCONFIRMED } from "./lib/plan.js";
 import { browserDetails, gpc, metaPixelId, track as trackMetaEvent } from "./lib/meta.js";
 import { runCleanup } from "./lib/cleanup.js";
+import { finishDeletion } from "./lib/account-deletion.js";
 import { runBackup } from "./lib/backup.js";
 import { BUILD, BUILD_FILES } from "./lib/build.js";
 import { contactEnabled, validate as validateContact, atLimit as contactAtLimit, botAtLimit as contactBotAtLimit, noteBotFail as noteContactBotFail, rateLimited, submit as submitContact } from "./lib/contact.js";
 import { JOBS as EXAMPLE_JOBS, status as exampleStatus, generate as generateExample, generateSquare as generateExampleSquare, generateSet as generateExampleSet, exampleImage, sheet as exampleSheet } from "./lib/examples.js";
 import crypto from "node:crypto";
 import { withCounter, readCounter, overLimit, hashId, DAY_MS } from "./lib/ratelimit.js";
-import { recordStep, funnelReport, STEPS, countedAccount } from "./lib/stats.js";
+import { recordStep, funnelReport, countedAccount } from "./lib/stats.js";
 import * as teams from "./lib/teams.js";
 import { billingEnabled, createCheckout, confirm as confirmCheckout, sync as syncPurchases, handleWebhook, stripePublishableKey, stripeMode, isSignatureError } from "./lib/billing.js";
 
@@ -1860,20 +1861,9 @@ app.post("/api/account/delete", requireUser, async (req, res) => {
       return res.status(401).json({ error: "That password isn't right.", fields: { password: "That password isn't right." } });
     }
   }
-  // Revoke work before listing: concurrent uploads, develops and late workers
-  // must not restore photos after their account has requested erasure.
-  await users.beginRemoval(req.user.id);
-  const list = await shoots.forUser(req.user.id);
-  // An undeveloped team shoot goes back to its team; your own team closes.
-  for (const meta of list) if (meta.team && !(meta.shots || []).length) await teams.returnSeat(meta).catch((err) => console.error("[team] return seat", meta.id, err.message));
-  if (req.user.teamId) await teams.removeTeam(req.user.teamId);
-  // Teams they were a member of keep the seat, not their name or address.
-  await teams.forgetMemberEverywhere(req.user.id);
-  await showcase.removeForUser(req.user.id);
-  await reviews.remove(req.user.id);
-  await users.remove(req.user);
-  // The funnel keeps its day totals; the per-person "already counted" markers go.
-  await del(STEPS.map((step) => `stats/seen/${step}/${req.user.id}.json`)).catch(noteStats);
+  // The marker first, then everything the account holds (lib/account-deletion.js;
+  // the daily clean-up finishes a deletion that stops partway).
+  await finishDeletion(req.user.id, req.user);
   clearSession(res);
   clearReauth(res);
   console.log("[account] deleted", req.user.id);
