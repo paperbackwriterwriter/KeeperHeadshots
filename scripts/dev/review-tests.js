@@ -20,6 +20,7 @@ delete process.env.SMTP_PASS;
 const storage = await import("../../lib/storage.js");
 const { users, shoots } = await import("../../lib/store.js");
 const reviews = await import("../../lib/reviews.js");
+const { publicUser } = await import("../../lib/auth.js");
 const { dueReminder, runReminders, reviewSkipReason } = await import("../../lib/reminders.js");
 const { reminderEmail } = await import("../../lib/mail.js");
 
@@ -137,6 +138,8 @@ const fails = async (fn) => { try { await fn(); return null; } catch (err) { ret
   const freebie = await person("freebie", { purchases: [{ ...bought[0], amount: 0 }] });
   const legacy = await person("legacy", { purchases: [{ sessionId: "cs_old", packageId: "starter", shoots: 3 }] });
   ok("a purchase made entirely with a 100%-off code doesn't allow a review; an old record with no amount does (15 Nov)", !reviews.canReview(freebie) && reviews.canReview(legacy));
+  // 20 Nov: the Account page links to the review page only for accounts that can review.
+  ok("the account says whether it can review (the Account page's review link)", publicUser(freebie).canReview === false && publicUser(legacy).canReview === true);
   ok("bad ratings, names, links, long text and missing permission are refused", JSON.stringify(checks) === JSON.stringify(["rating", "rating", "rating", "rating", "name", "name", "name", "name", "text", "text", "text", "consent", "consent"]), JSON.stringify(checks));
   const ok1 = await fails(() => reviews.submit(u, { rating: 5, text: "Great service.Highly recommend. Quick turnaround.Loved it", name: "Wren", consent: true }));
   const ips = [await bad({ text: "go to 203.0.113.9 now" }), await bad({ text: "shop at keeper-deals.co today" }), await bad({ text: "evil\u3002com" })];

@@ -59,7 +59,7 @@ export function renderAccount({ root, navigate }) {
       </dl>
     </section>
     ${u.plan?.tier === "owner" ? html`<p class="small" style="margin-top:12px"><a class="link" href="/app/funnel" data-link>Sales funnel</a>: sign-ups, photo checks, shoots and purchases by day. <a class="link" href="/app/showcase" data-link>Customer results</a>: headshots offered for the home page. <a class="link" href="/app/reviews" data-link>Customer reviews</a>: ratings and reviews to approve (owner only).</p>` : ""}
-    ${u.purchased && !u.demo ? html`<p class="small" style="margin-top:12px"><a class="link" href="/app/review" data-link>Review Keeper Headshots</a>: rate us and say a few words about your headshots.</p>` : ""}
+    ${u.canReview ? html`<p class="small" style="margin-top:12px"><a class="link" href="/app/review" data-link>Review Keeper Headshots</a>: rate us and say a few words about your headshots.</p>` : ""}
     ${u.demo || u.mailboxConfirmed !== false
       ? ""
       : html`<section class="panel prefs" data-verify-panel aria-labelledby="verify-title">

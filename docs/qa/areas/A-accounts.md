@@ -138,6 +138,20 @@ All 110 items above were re-checked on 11 Nov. Fixed since 3 Nov and confirmed: 
 | N9 | Account names get the same cleaning as team and shoot names: invisible characters removed, a name with nothing visible refused (sign-up, name edit, Google fallback) | API | Was accepted (a blank name in invitation subjects); fixed 11 Nov |
 | N10 | Google delete re-check needs Google's sign-in time within 5 minutes (missing or old → stale; another account → failed) | google-tests | OK |
 
+### Added at the nightly re-check of 20 Nov 2026
+
+All 120 items were re-checked on 20 Nov: pass or known (A1-04, A1-06, A1-07, A1-10, A1-12). Storage time-outs were simulated in-process (a write that lands, then throws StorageTimeoutError). New items:
+
+| Id | Item | How | Result (20 Nov) |
+|---|---|---|---|
+| N11 | Review removed on account deletion and on each takeover path (reset, Google, "No"), paid and unpaid | review-tests + probe | OK |
+| N12 | Storage time-outs on sign-up, code, link "No", reset, Google, sign-in, deletion: message, retry, nothing half-made | in-process harness | A20-1 to A20-5, open |
+| N13 | /api/me settles stale photo-check and extra-looks holds (stale, fresh, read failure, account being deleted) | probe | OK |
+| N14 | keepCredit in publicUser (empty for ordinary accounts, refunds subtracted) | probe | OK |
+| N15 | Account page reminder copy matches lib/reminders.js | read | OK |
+| N16 | The Account page review link only for accounts that can review | probe | 100%-off buyer was linked to a page that refuses them (A20-6); fixed 20 Nov |
+| N17 | Run note: demo-tests needs a stack without Stripe keys (qa-stack's mock Stripe breaks its checkout step) | — | note |
+
 ## 2. Findings
 
 ### A1-01 (high) bug, or owner decision: reset or Google sign-in from a second device wipes a paying customer's own unconfirmed account
@@ -201,3 +215,12 @@ All 110 items above were re-checked on 11 Nov. Fixed since 3 Nov and confirmed: 
 - Repro (reproduced, t10, with the cancelled/users marker written by hand, which is the state during a deletion or after one that failed partway). Password sign-in -> 200 and /api/me returns the user, but other calls -> 409. Google callback -> raw JSON page `410 {"error":"This shoot or account has been deleted."}`. Password reset -> 410 with the same text ("shoot or account").
 - Code: server.js:390-404 (the catch passes on non-GoogleError errors), 644, 690.
 - Fix: in the callback, treat `err.status===410` as back("failed"). Answer reset with "invalid". Refuse sign-in, or have /api/me report null, when `accountDeleting`.
+
+**Found 20 Nov:**
+- **A20-1** (medium, open): an account deletion that stops partway (a storage time-out in users.remove) is never finished: /api/me still returns the account, other routes answer 409 "being deleted", and nothing resumes cancelled/users/* (lib/cleanup.js). Only pressing Delete again finishes it. Fix: the nightly cleanup finishes deletions whose marker has no `erased`; the Account page offers "Finish deleting".
+- **A20-2** (low, open): a reset that saved but timed out answers the retry "This reset link isn't valid or has already been used" though the new password works. Fix: on a 503, re-read and treat passwordChangedAt === at as success.
+- **A20-3** (low, open): a sign-up whose address claim timed out leaves an orphan account record and uses up the inbox's daily allowance. Fix: delete the record and give back the count on failure; sweep orphans.
+- **A20-4** (low, open): a storage time-out during the Google callback shows a raw JSON 503 page. Fix: catch 5xx in the callback and send the person back with google=failed (needs a test hook for a storage failure).
+- **A20-5** (low, open): "No, it wasn't me" that saved but timed out leads to "You're already confirmed / Sign in" though the password was removed. Fix: show the "Set a password" link in that case.
+- **A20-6** (low, fixed 20 Nov): the Account page linked a buyer whose only order was 100% off to the review page, which refuses them. publicUser now carries canReview and the link uses it. Test: review-tests.
+Unverified (20 Nov): app.js accountSig leaves out keepCredit (a stale "pick counted" note until reload); an unconfirmed unpaid account sees reminders ticked though it gets none; a sign-in can wait about 40 s before a storage failure answers.
