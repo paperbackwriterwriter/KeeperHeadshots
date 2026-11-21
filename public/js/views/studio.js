@@ -1033,7 +1033,10 @@ export async function renderStudio(ctx, id) {
     // A preview whose pick isn't bought yet: buying is the only way to download.
     // Once the pick is kept, it (and only it) downloads as usual.
     const gated = locked && !!best && !isKept(s, best.id);
-    const avgLikeness = r ? (done.reduce((a, t) => a + (grade(t)?.likeness || 0), 0) / Math.max(1, done.length)).toFixed(1) : "—";
+    // Graded frames only: a grading that didn't finish leaves some without a
+    // grade, and counting them as 0 dragged the average down (21 Nov).
+    const graded = done.map(grade).filter(Boolean);
+    const avgLikeness = graded.length ? (graded.reduce((a, g) => a + (g.likeness || 0), 0) / graded.length).toFixed(1) : "—";
     const counts = { all: done.length, keeper: keepers, solid: done.filter((t) => grade(t)?.grade === "solid").length, retake: done.filter((t) => grade(t)?.grade === "retake").length };
     let filter = "all";
     // Sort by score (best first) when graded, otherwise by frame order.

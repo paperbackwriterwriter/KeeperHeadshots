@@ -623,7 +623,9 @@ function heroCycle() {
   dots.forEach((d) => d.addEventListener("click", () => { show(Number(d.dataset.set), true); start(); }));
   const togglePause = () => {
     paused = !paused;
-    if (!paused && autoShown >= autoLimit) (autoLimit = Infinity), start();
+    // The visitor chose Play: no limit from here (21 Nov: pressed before the
+    // rotation stopped, or by a reduced-motion visitor, it stopped again after 3).
+    if (!paused) (autoLimit = Infinity), start();
     setPauseUI();
   };
   pauseBtn.addEventListener("click", togglePause);

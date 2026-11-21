@@ -299,6 +299,45 @@ try {
     pass("the hero rotates through 3 people, then stops; Play carries on");
     await context.close();
   }
+  // 21 Nov: pressing Play before the rotation stops (here: a reduced-motion
+  // visitor, who starts paused) carries on past the third person too.
+  {
+    const context = await contextFor({ width: 1280, adVisitor: false });
+    const page = await context.newPage();
+    await page.clock.install();
+    await page.goto(BASE + "/");
+    await page.locator("#heroSheet").waitFor();
+    const shown = () => page.evaluate(() => [...document.querySelectorAll(".sheet-dot")].findIndex((d) => d.getAttribute("aria-pressed") === "true"));
+    // (The page's own markup says "Pause"; the script, once running, starts it paused.)
+    await page.waitForFunction(() => document.querySelector("#heroPause").getAttribute("aria-label") === "Play examples");
+    await page.locator("#heroPause").click();
+    const seen = [await shown()];
+    for (let n = 0; n < 4; n++) {
+      await page.clock.runFor(8000);
+      for (let k = 0; k < 10; k++) {
+        await page.clock.runFor(100);
+        await page.waitForTimeout(30);
+      }
+      seen.push(await shown());
+    }
+    assert.deepEqual(seen, [0, 1, 2, 3, 4], JSON.stringify(seen));
+    assert.equal(await page.locator("#heroPause").getAttribute("aria-label"), "Pause examples");
+    pass("Play pressed before the rotation stops carries on past the third person");
+    await context.close();
+  }
+  // 21 Nov: the Facebook-to-Chrome checkout link lands a signed-out visitor on
+  // sign-in (its copy says so); an ordinary buy link still goes to sign-up.
+  {
+    const context = await contextFor({ width: 390, adVisitor: false });
+    const page = await context.newPage();
+    await page.goto(BASE + "/app/buy/starter?from=fb");
+    await page.waitForURL(/\/signin\?next=/);
+    assert.equal(new URL(page.url()).searchParams.get("next"), "/app/buy/starter?from=fb");
+    await page.goto(BASE + "/app/buy/starter");
+    await page.waitForURL(/\/signup\?next=/);
+    pass("the Chrome checkout link lands on sign-in; an ordinary buy link on sign-up");
+    await context.close();
+  }
   console.log(`${passed} homepage cases passed`);
 } finally {
   await browser?.close();

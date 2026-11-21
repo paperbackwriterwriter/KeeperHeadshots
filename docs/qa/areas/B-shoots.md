@@ -135,9 +135,27 @@ Counts: ~95 inventory items checked; findings: 0 high, 0 medium, 7 low (6 bug, 1
 | B-N29 | Photo-check and button row at 641-720 px: no three-and-one wrap (B3-6, open, cosmetic). |
 | B-N30 | Team shoot's team name and shoot names with invisible characters are cleaned in the list and the shoot page. |
 
+## Added at the nightly re-check, 21 Nov
+All rows above (inventory and B-N1 to B-N30) were re-checked on 21 Nov: pass or known (B2-6, B2-7, B3-1 rest, B3-3, B3-5, B-N13, B-N19 decision). B-N25's behaviour passes but no suite asserts it yet (B21-2).
+| Item | Check |
+|---|---|
+| B-N31 | Partial grading: "Avg. likeness" uses only graded frames (B21-1, fixed 21 Nov); sort order and filters likewise (sorting an ungraded frame last is fine). |
+| B-N32 | A suite asserts /resume within 15 s -> 429 retry_soon, not counted; a double click counts once (B21-2, open). |
+| B-N33 | /check during an AI outage: checkDay back to 0 and no u.checking record left (extends B-N10). |
+| B-N34 | Keep-plus on a legacy preview: extra looks develop, all frames regraded, resumes reset; square and every size 200; a selfie's size 404; a stranger 404. |
+| B-N35 | Retry grading after the stale-review sweep ("Grading timed out") doesn't use a regrade. |
+| B-N36 | Viewer on a legacy preview: "Download this photo" (keep) only, to /app/buy/keep with the shoot and shot; media at most 1024 px with no-cache. |
+| B-N37 | A /resume and a regrade started at the same moment don't leave frames pending on a done shoot with no Retry (unverified, millisecond race). |
+| B-N38 | A develop whose plan write times out but lands doesn't refund the charge (unverified; same class as C's /more-looks item). |
+
 **B3-1** (done 16 Nov at the owner's request: storage time limits in lib/storage.js; photo check and grading have a 150 s budget in lib/ai.js. Still open: a whole-run deadline, B-N21, and lib/backup-target.js's own Blob calls. Cause of 10 Nov still not proven; the Blob SDK retries a TimeoutError up to 10 times with growing pauses, which fits.) No time limit on storage calls (lib/storage.js) or on photo-check and review AI calls (lib/ai.js, SDK default 120 s with one retry); a hung call becomes a 300 s kill, which fits 10 Nov. Recovery after a kill is by the 6-minute sweeps. Option: `abortSignal` on every blob call plus a run deadline of about 280 s.
 **B3-2** low-medium (done 16 Nov, with B3-4). /more-looks takes the paid look before adding looks, with no recovery record (millisecond window). **B3-3** low. A dead review worker's claim isn't retaken for 6 minutes. **B3-4** low. /check counts the free check before the AI call and returns it only in the catch. **B3-5** low UX. Viewer panel scrolls at phone-sideways heights; download button half cut off. **B3-6** cosmetic. Button row wraps 3+1 at 641-700 px.
 
 **17 Nov (owner report):** a finished shoot showed a write-up but "0 keepers, 0.0 likeness" and "Not graded yet" on every frame: the grading returned no grade matching the shoot's frame numbers (cause not shown in the logs). lib/pipeline.js now treats a grading with no matching grades as unfinished (reviewError, "Retry grading"; earlier grades kept) and logs the frames returned. Test: showcase-tests (mock /mock-review-empty).
 
 **18 Nov review of the 17 Nov grading change (fixed):** a grading with grades for only some frames counted as finished (ungraded frames dragged the page's average down, missing from filters): it now keeps the grades that came back, logs the missing frames and shows "N of your headshots weren't graded" with Retry; retrying a grading that didn't finish no longer uses up one of the 2 regrades. Tests: showcase-tests (mock /mock-review-partial). Open (low): after a failed regrade the dashboard cover switches to frame 01 while the old grades stay; the schema allows an empty grades list (minItems 1 would prevent it); likely causes of empty grades: the model writing the summary but declining per-frame likeness judgments, or renumbering frames when some failed (gaps such as 1,3,6), which could also attach grades to the wrong frames.
+
+**Found 21 Nov:**
+- **B21-1** (low-medium, fixed 21 Nov): on a partly graded shoot the scoreboard's "Avg. likeness" counted each ungraded frame as 0 (3 graded frames averaging 8.7 showed 6.5). Now only graded frames count. Test: hardening-tests.
+- **B21-2** (low, open, test gap): the 15-second retry guard (429 retry_soon) behaves correctly but no suite asserts it. Add a step to reshoot-tests or check-gate-tests (store edit to status "error", resume twice).
+

@@ -982,6 +982,8 @@ if (process.env.DATA_DIR) {
   // 18 Nov: the keep-pick credit note wraps (it overflowed a 320 px phone),
   // and the shoot's lead line doesn't promise scores when grading failed.
   ok("the 'Get all' button's credit note can wrap (one label, not side-by-side pieces)", /data-link><span>Get all [^\n]*plus\.note \? html` <span>\(\$\{plus\.note\}\)<\/span>` : ""\}<\/span><\/a>/.test(studioSrc));
+  // 21 Nov: the average likeness counts graded frames only.
+  ok("the average likeness leaves out frames without a grade", /const graded = done\.map\(grade\)\.filter\(Boolean\);/.test(studioSrc) && /graded\.reduce\(\(a, g\) => a \+ \(g\.likeness \|\| 0\), 0\) \/ graded\.length/.test(studioSrc));
   ok("an unfinished grading's shoot says so above the frames", /s\.reviewError \? "Every frame is below\. Grading didn't finish/.test(studioSrc));
   ok("preview offer buttons show the crossed-out full price, kept with the sale price", (studioSrc.match(/<span class="nowrap">\$\{wasPrice\(KEEP_ONE\)\} \$\{usd\(KEEP_ONE\.price\)\}<\/span>/g) || []).length === 2 && /<span class="nowrap">\$\{wasPrice\(KEEP_ALL\)\} \$\{usd\((?:KEEP_ALL|plus)\.price\)\}<\/span>/.test(studioSrc)); // (plus: less a keep pick's credit, 16 Nov)
   const legalSrc = fs.readFileSync(new URL("../../public/js/views/legal.js", import.meta.url), "utf8");

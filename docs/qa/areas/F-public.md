@@ -182,3 +182,6 @@ Every item above was re-checked on 16 Nov (all pass or are known; "no watermark"
 (F3 not used.)
 
 Known items met (the admin wording was fixed 3-9 Nov): meta descriptions ~170 chars; /examples/ images 404 locally; desktop nav has no Contact link.
+
+**21 Nov review of the 20 Nov owner changes (fixed):** (1) the home hero's Play lifted the 3-person limit only after the rotation had stopped: a reduced-motion visitor (who starts paused), or anyone pressing Pause then Play early, got 2 more people and a stop again. Play now always continues. Test: homepage-tests. (2) The Android Facebook-app "Open in Chrome to pay" offer says "You'll sign in to your Keeper account there", but Chrome (no session) went to "Create your account". The link now carries from=fb and lands on sign-in; an ordinary buy link still goes to sign-up. Test: homepage-tests. Not tested on a real Android device.
+

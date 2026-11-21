@@ -243,8 +243,11 @@ async function render({ restoreY = null, sessionChecked = false, focusRetry = fa
     showRefundNotice();
   }
   // Sign-in comes back to the same page, query included (e.g. /app/buy/pro?x).
-  // Buying a package is how new customers start, so that goes to sign-up.
-  if (route.auth && !state.user) return navigate(`/${path.startsWith("/app/buy/") ? "signup" : "signin"}?next=${encodeURIComponent(path + location.search)}`, { replace: true });
+  // Buying a package is how new customers start, so that goes to sign-up,
+  // except from the "Open in Chrome to pay" link (buy.js chromeHref, from=fb):
+  // that buyer already has an account.
+  const newBuyer = path.startsWith("/app/buy/") && new URLSearchParams(location.search).get("from") !== "fb";
+  if (route.auth && !state.user) return navigate(`/${newBuyer ? "signup" : "signin"}?next=${encodeURIComponent(path + location.search)}`, { replace: true });
   // The demo's signup links must leave its shared session before opening
   // the guest-only form. Keep the URL (including a chosen package) intact.
   if (path === "/signup" && state.user?.demo) {

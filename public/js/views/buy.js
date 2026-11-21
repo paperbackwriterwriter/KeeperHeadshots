@@ -54,7 +54,11 @@ const stayHere = () => {
 // Android follows the fallback: the same page as a plain link.
 function chromeHref() {
   const fallback = encodeURIComponent(location.href);
-  return `intent://${location.host}${location.pathname}${location.search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${fallback};end`;
+  // from=fb: Chrome has no Keeper session yet, and this buyer already has an
+  // account, so app.js sends them to sign-in rather than sign-up (21 Nov).
+  const q = new URLSearchParams(location.search);
+  q.set("from", "fb");
+  return `intent://${location.host}${location.pathname}?${q}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${fallback};end`;
 }
 
 // On previews and local copies Stripe runs in test mode: say so, with the
