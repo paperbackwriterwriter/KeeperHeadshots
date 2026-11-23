@@ -33,7 +33,8 @@ const errors = [];
 const origError = console.error;
 console.error = (...a) => errors.push(a.join(" "));
 const mode = (env, key, pk) => {
-  process.env.VERCEL_ENV = env;
+  if (env === undefined) delete process.env.VERCEL_ENV;
+  else process.env.VERCEL_ENV = env;
   process.env.STRIPE_SECRET_KEY = key;
   process.env.STRIPE_PUBLISHABLE_KEY = pk || "";
   return { on: billing.billingEnabled(), pk: billing.stripePublishableKey(), mode: billing.stripeMode() };
@@ -43,12 +44,17 @@ const prodTest = mode("production", "sk_test_abc", "pk_test_abc");
 const prevTest = mode("preview", "sk_test_abc", "pk_test_abc");
 const prevLive = mode("preview", "sk_live_abc", "pk_live_abc");
 const mixed = mode("preview", "sk_test_abc", "pk_live_abc");
+const localLive = mode(undefined, "sk_live_abc", "pk_live_abc");
+const localTest = mode(undefined, "sk_test_abc", "pk_test_abc");
 console.error = origError;
 ok("live key works on production", prodLive.on && prodLive.pk === "pk_live_abc" && prodLive.mode === "live");
 ok("test key is refused on production", !prodTest.on && !prodTest.pk);
 ok("test key works on previews", prevTest.on && prevTest.pk === "pk_test_abc" && prevTest.mode === "test");
 ok("live key is refused on previews, and it's reported", !prevLive.on && errors.some((e) => /live-mode Stripe key is set on preview/.test(e)));
 ok("publishable key of the other mode isn't used", mixed.on && mixed.pk === null);
+// 23 Nov: a local copy (no VERCEL_ENV) takes test keys only, as previews do.
+ok("live key is refused on a local copy, and it's reported", !localLive.on && errors.some((e) => /live-mode Stripe key is set on a local copy/.test(e)));
+ok("test key works on a local copy", localTest.on && localTest.mode === "test");
 
 fs.rmSync(dir, { recursive: true, force: true });
 const passed = results.filter(Boolean).length;

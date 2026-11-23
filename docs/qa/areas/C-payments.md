@@ -134,6 +134,22 @@ Counts: 81 items checked; 0 high, 0 medium, 7 low (1 owner decision, 6 bugs); 1 
 | 102 | Adaptive pricing: sessions stay in USD; a non-USD event would be booked as USD cents (informational; check the webhook endpoint's API version in Stripe). |
 | 103 | The app sends no purchase receipt or refund email; Stripe's receipt setting is the only one. |
 
+## Added at the nightly re-check, 23 Nov
+All 103 items above were re-checked on 23 Nov: 98 pass, 5 known (C3-1, C3-2, C3-3, item 81).
+| Item | Check |
+|---|---|
+| 104 | Android Facebook app: the Chrome offer shows before any checkout; the intent link keeps the query and adds from=fb, its fallback is the same page; "Continue here" starts checkout and is remembered in the tab; Facebook on iPhone and plain Android Chrome get no offer; axe clean at 390. |
+| 105 | Signed out, /app/buy/<pkg>?from=fb goes to sign-in and back to the buy page. |
+| 106 | Embedded summary per package: was $29/$39/$49, now $14.50/$19.50/$24.50; other-package links at sale prices; guarantee note; axe clean at 1280. |
+| 107 | keepPlusPrice: one pick $3; a half-price pick $5.25; two picks or $7+ the $0.50 floor; a refunded pick the full $7.50. |
+| 108 | A 100%-off code on Executive (like KEEPERTEAM): 12 shoots, no Purchase, not charged, can't review. |
+| 109 | A storage time-out that lands during the purchase webhook, confirm or sync: booked once, one Purchase, `added` stored (C23-1, open). |
+| 110 | A storage time-out that lands during a refund: the clean-up (shared headshot, review, invitations, refunds record) still happens on the retry (C23-2, open). |
+| 111 | Confirm fails after payment: the buyer is told the payment went through and can retry (C23-3, open). |
+| 112 | Stripe key mode per environment, including a live key on a local copy (C23-4, fixed 23 Nov). |
+| 113 | Hosted checkout carries the branding with the icon; embedded without the icon. |
+| 114 | 40 checkouts started at once: exactly 30 succeed. |
+
 **C4-1** low, bug (fixed 16 Nov at the owner's request: a purchase records `paidOff`, the shoots that settled debt; its refund puts that debt back for the earlier refunded packages' seats still on credit (`settledBack`, part of `owedAdded`, so a won dispute returns it); `creditLots` sizes it without those shoots; billing-team-refund-tests). Admin buys A, a member joins (not developed), A refunded (seat unpaid, owes 1), admin buys B (debt settled, seat paid), B refunded in full: seat still paid. lib/billing.js reconcileRefund only re-adds debt for seats whose paidBy is the refunded session. Fix: record how many shoots a purchase settled and let its refund re-add up to that many.
 **C4-2** low, bug (fixed 16 Nov at the owner's request: the payment record stores `added`, which `confirm` returns when the webhook granted first; older records return null and show the package's count). dashboard.js passes no count to the purchase note when the webhook granted first, so an admin who owed 2 and buys Starter reads "3 shoots added" but gets 1. Fix: store the added count on the payment record and return it from confirm.
 Unverified: a failed or cancelled refund never gives shoots back; a crash between the account update and the funnel booking leaves the sale unbooked; a refunded keep re-locks with no notice; keep then keep-plus gets no credit (owner question); a second dispute after a won one takes nothing.
@@ -143,3 +159,11 @@ Unverified: a failed or cancelled refund never gives shoots back; a crash betwee
 Promotion code KEEPERTEAM (16 Nov, owner request): 100% off any package, no use limit, no expiry, for the owner's company; Stripe coupon "Keeper team (free)". Nightly: report its redemption count (GetPromotionCodes code=KEEPERTEAM, times_redeemed).
 
 **17 Nov review of the 16 Nov changes (fixed):** (1) a team seat returned between the debt-settling package and its refund left the admin a free shoot (the returned credit was claimed by no package): reconcileRefund now also takes what the package settled back from unclaimed credits (`settledTaken`, part of `creditsTaken`, so a won dispute returns it); (2) refunding a "Keep your pick" that counted toward a "Keep them all" is logged as an error for the owner (the keep-all stays). Tests: billing-team-refund-tests. Open (low): settleCheck decides "finished" from the shoot as it is later (a re-run or new selfie can make a finished check look unfinished: one usage count given back); /more-looks gives the looks back if adding them timed out but landed; older seats without paidBy can be counted twice in debtSeats; lib/backup-target.js has no time limits; each storage time-out is logged as an error (alert email).
+
+**Found 23 Nov:**
+- **C23-1** (low, open): a purchase write that times out but lands is granted on Stripe's retry but never booked in the funnel, sends no Meta Purchase and stores no `added`; a later refund is still subtracted (lib/billing.js fulfil `granted`). Fix: treat "purchase already there, payment record not granted" as resumed and book it then.
+- **C23-2** (low, open; breaks the /refunds promise when it happens): a refund write that times out but lands returns early on the retry, so the shared headshot, the review and open invitations stay and no refunds record is written. Fix: write the refunds record last as a "clean-up done" marker and run the clean-up when it's missing.
+- **C23-3** (low, open, UX): a confirm that fails after payment shows only "That's taking longer than usual. Please try again." with nothing to retry (the URL is already /app). Fix: keep the session in the URL until confirm succeeds, or say the payment went through with a Try again.
+- **C23-4** (low, fixed 23 Nov): a live Stripe key was accepted on a local copy (no VERCEL_ENV), contrary to "test-mode keys only on previews and local copies". Test: env-tests.
+Unverified (23 Nov): on Android without Chrome the intent fallback may show the Chrome offer again; a failed showcase/review/invitation clean-up after a refund is logged once and never retried; a funnel booking that lands but times out leaves revenueCounted false; KEEPERTEAM also applies to the keep offers unless restricted in Stripe (owner's decision); receipts go to the email given at the first checkout, which may be unconfirmed.
+
