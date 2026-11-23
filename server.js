@@ -31,7 +31,7 @@ import { customersSection } from "./public/js/shared/customers.js";
 import { reviewsSection } from "./public/js/shared/reviews.js";
 import { planFor, ownerEmail, creditSource, PlanError, FREE, DEMO_READ_ONLY, NO_SHOOTS_LEFT, CHOOSE_PACKAGE, EMAIL_UNCONFIRMED } from "./lib/plan.js";
 import { browserDetails, gpc, metaPixelId, track as trackMetaEvent } from "./lib/meta.js";
-import { runCleanup } from "./lib/cleanup.js";
+import { runCleanup, finishStuckDeletions } from "./lib/cleanup.js";
 import { finishDeletion } from "./lib/account-deletion.js";
 import { runBackup } from "./lib/backup.js";
 import { BUILD, BUILD_FILES } from "./lib/build.js";
@@ -2506,6 +2506,13 @@ app.post("/api/unsubscribe", express.urlencoded({ extended: false, limit: "2kb" 
 app.get("/api/cron/shoots", cronOnly, async (req, res) => {
   const report = await runDueShootJobs();
   if (report.jobs) console.log("[shoot-cron]", JSON.stringify(report));
+  // Every 10 minutes: finish account deletions that stopped partway, so the
+  // privacy policy's "within a day" always holds (owner, 23 Nov). One list
+  // call when nothing is pending.
+  if (new Date().getUTCMinutes() % 10 === 0 || req.query.deletions === "1") {
+    report.deletions = await finishStuckDeletions({ until: Date.now() + 60_000 }).catch((err) => (console.error("[shoot-cron] deletions", err.message), { finished: 0, errors: 1 }));
+    if (report.deletions.finished || report.deletions.errors) console.log("[shoot-cron] deletions", JSON.stringify(report.deletions));
+  }
   res.json(report);
 });
 

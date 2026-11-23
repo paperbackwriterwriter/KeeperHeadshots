@@ -203,6 +203,37 @@ ok("a damaged record doesn't stop the run", bad.errors >= 1 && bad.finished === 
   const legacy = await runCleanup();
   const m2 = await marker("usr_zzDelOld01");
   ok("deletion: an old marker without a start time (no account record) is finished", legacy.deletionsFinished === 1 && m2?.erased === true && (await storage.list("idx/usr_zzDelOld01/")).length === 0, JSON.stringify({ legacy, m2 }));
+  ok("deletion: a finished deletion leaves nothing pending", (await storage.list("deletions/pending/")).length === 0, JSON.stringify(await storage.list("deletions/pending/")));
+
+  // 23 Nov (owner): the shoots cron checks every 10 minutes, from the pending
+  // list, so "within a day" always holds.
+  const { finishStuckDeletions } = await import("../../lib/cleanup.js");
+  const late = await account("usr_zzDelLate1", "late@example.com");
+  const lateSid = "sht_zzDelLate101";
+  thrown = 0;
+  fsp.rm = async (p, ...rest) => {
+    if (!thrown && String(p) === path.join(dir, "shoots", `${lateSid}.json`)) {
+      thrown++;
+      throw new storage.StorageTimeoutError("del", p, 20000);
+    }
+    return realRm(p, ...rest);
+  };
+  try { await users.remove(late); } catch {} finally { fsp.rm = realRm; }
+  ok("deletion: a deletion that stopped is listed as pending", !!(await storage.getJSON("deletions/pending/usr_zzDelLate1.json")) && !(await marker(late.id)).erased);
+  const early = await finishStuckDeletions();
+  ok("deletion: the 10-minute check leaves one under 10 minutes old", early.finished === 0 && !!(await users.byId(late.id)), JSON.stringify(early));
+  await age(late.id, STUCK_MS + 60_000);
+  const reads = [];
+  const realRead = fsp.readFile;
+  fsp.readFile = async (p, ...rest) => (reads.push(String(p)), realRead(p, ...rest));
+  let quick;
+  try { quick = await finishStuckDeletions(); } finally { fsp.readFile = realRead; }
+  ok("deletion: the 10-minute check finishes it", quick.finished === 1 && !(await users.byId(late.id)) && (await marker(late.id))?.erased === true && !(await storage.getJSON("deletions/pending/usr_zzDelLate1.json")), JSON.stringify(quick));
+  ok("deletion: the 10-minute check reads only pending deletions' markers", !reads.some((r) => /cancelled\/users\/usr_zzDel(Stop|Old)/.test(r)), reads.filter((r) => r.includes("cancelled/users")).join(" "));
+  // A pending entry left behind by a finished deletion is tidied away.
+  await storage.putJSON("deletions/pending/usr_zzDelStop1.json", { at: new Date().toISOString() });
+  const tidy = await finishStuckDeletions();
+  ok("deletion: a stale pending entry is removed, nothing finished twice", tidy.finished === 0 && !(await storage.getJSON("deletions/pending/usr_zzDelStop1.json")), JSON.stringify(tidy));
 }
 
 fs.rmSync(dir, { recursive: true, force: true });

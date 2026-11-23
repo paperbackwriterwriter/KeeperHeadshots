@@ -447,6 +447,68 @@ try {
     assert.equal(notes.length, 1, logged.join("\n"));
     assert.match(notes[0], /refund cs_kc_pick: this "Keep your pick" counted \$4\.50 toward "Keep them all" cs_kc_all/);
   });
+  // 23 Nov (owner): a storage write that times out but lands. The account
+  // write is made to land, then report a time-out, once.
+  const landThenTimeOut = (uid) => {
+    const original = users.update;
+    let armed = true;
+    users.update = async (id, fn) => {
+      const out = await original.call(users, id, fn);
+      if (armed && id === uid) {
+        armed = false;
+        users.update = original;
+        throw Object.assign(new Error("Storage timed out"), { status: 503, code: "storage_timeout" });
+      }
+      return out;
+    };
+  };
+  const today = () => `stats/days/${new Date().toISOString().slice(0, 10)}.json`;
+
+  await test("a purchase whose account write timed out but landed is booked once on the retry", async () => {
+    const uid = "usr_land_buy";
+    await person(uid, "land-buy@example.com");
+    const before = (await getJSON(today())) || {};
+    const s = {
+      id: "cs_land_buy", object: "checkout.session", payment_status: "paid", status: "complete", amount_total: 1450, currency: "usd",
+      client_reference_id: uid, metadata: { userId: uid, packageId: "starter", shoots: "3" }, total_details: {},
+      payment_intent: { id: "pi_cs_land_buy", object: "payment_intent", latest_charge: { id: "ch_cs_land_buy", object: "charge", amount: 1450, amount_refunded: 0 } },
+    };
+    sessions.set(s.id, s);
+    landThenTimeOut(uid);
+    await assert.rejects(send("checkout.session.completed", s));
+    assert.equal((await users.byId(uid)).credits, 3, "the grant landed");
+    await send("checkout.session.completed", s); // Stripe's retry
+    await send("checkout.session.completed", s); // and a repeat
+    const rec = await getJSON("payments/cs_land_buy.json");
+    assert.equal(rec.granted, true);
+    assert.equal(rec.added, 3);
+    assert.equal(rec.revenueCounted, true, JSON.stringify(rec));
+    const after = await getJSON(today());
+    assert.equal((after.purchases || 0) - (before.purchases || 0), 1, "booked once");
+    assert.equal((after.revenue || 0) - (before.revenue || 0), 1450);
+    assert.equal((await users.byId(uid)).credits, 3, "nothing granted twice");
+  });
+
+  await test("a refund whose account write timed out but landed still finishes its clean-up on the retry", async () => {
+    const uid = "usr_land_refund";
+    await person(uid, "land-refund@example.com");
+    await buy(uid, "cs_land_refund", "2026-10-01T00:00:00Z");
+    landThenTimeOut(uid);
+    const s = sessions.get("cs_land_refund");
+    s.payment_intent.latest_charge.amount_refunded = 2900;
+    const event = { id: s.payment_intent.latest_charge.id, object: "charge", payment_intent: s.payment_intent.id, amount: 2900, amount_refunded: 2900 };
+    await assert.rejects(send("charge.refunded", event));
+    let u = await users.byId(uid);
+    assert.equal(u.credits, 0, "the refund landed");
+    assert.ok(u.purchases[0].refunded);
+    assert.equal(await getJSON("refunds/cs_land_refund.json"), null, "its clean-up didn't run");
+    await send("charge.refunded", event); // Stripe's retry
+    const done = await getJSON("refunds/cs_land_refund.json");
+    assert.ok(done && done.revoked && done.removed === 3, JSON.stringify(done));
+    u = await users.byId(uid);
+    assert.equal(u.credits, 0);
+    assert.equal(u.refunds.filter((r) => r.sessionId === "cs_land_refund").length, 1, "nothing taken twice");
+  });
 } finally {
   stripeStub.close();
   await fs.rm(dir, { recursive: true, force: true });

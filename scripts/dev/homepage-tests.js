@@ -245,6 +245,26 @@ try {
     pass(`checkout return, ${label}: ${want ? "one Purchase" : "no Purchase"}`);
     await context.close();
   }
+  // 23 Nov (owner): a confirm that fails after paying says the payment went
+  // through and offers Try again, which then adds it.
+  {
+    const context = await contextFor({ width: 1280, signedIn: true });
+    const user = (await (await context.request.get(BASE + "/api/me")).json()).user;
+    let calls = 0;
+    await context.route("**/api/billing/confirm", (route) => (++calls === 1
+      ? route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "That's taking longer than usual. Please try again." }) })
+      : route.fulfill({ contentType: "application/json", body: JSON.stringify({ granted: true, paid: true, packageId: "starter", added: 3, user }) })));
+    const page = await context.newPage();
+    await page.goto(BASE + "/app?checkout=success&session_id=cs_test_retry");
+    await page.locator("#confirmRetry").waitFor();
+    assert.match(await page.locator("main h1").innerText(), /Your payment went through/);
+    await page.locator("#confirmRetry").click();
+    await page.locator(".toast.success").first().waitFor();
+    assert.match(await page.locator(".toast.success").first().innerText(), /3 shoots added/);
+    assert.equal(calls, 2);
+    pass("a confirm that fails after paying says so and Try again adds it");
+    await context.close();
+  }
   // A sign-up completed on a page that doesn't load the SDK (a Google sign-up's
   // return to /app, a code typed there) still reaches Meta from the browser.
   {

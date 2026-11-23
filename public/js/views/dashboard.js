@@ -93,15 +93,26 @@ async function handleCheckoutReturn(navigate, root) {
     toast("Checkout cancelled. You haven't been charged.", "info");
     return false;
   }
-  // Something on screen while the payment is confirmed (a second or two).
-  root.innerHTML = html`<main id="main" class="container app-main"><div class="empty" aria-busy="true"><div style="display:flex;justify-content:center">${spinner()}</div><h1 class="display h-2">Confirming your payment…</h1></div></main>`.v;
-  return (await confirmPurchase(q.get("session_id"))) !== null;
+  for (;;) {
+    // Something on screen while the payment is confirmed (a second or two).
+    root.innerHTML = html`<main id="main" class="container app-main"><div class="empty" aria-busy="true"><div style="display:flex;justify-content:center">${spinner()}</div><h1 class="display h-2">Confirming your payment…</h1></div></main>`.v;
+    const res = await confirmPurchase(q.get("session_id"), { retry: true });
+    if (res !== RETRY) return res !== null;
+    // Stripe sent them back paid, but adding it failed (storage slow, or
+    // offline): say so, with a way to try again (owner, 23 Nov).
+    root.innerHTML = html`<main id="main" class="container app-main"><div class="empty" role="alert"><h1 class="display h-2" tabindex="-1">Your payment went through.</h1><p class="lede">We're still adding it to your account. This usually takes a moment.</p><div style="display:flex;justify-content:center"><button class="btn btn-flash" type="button" id="confirmRetry">Try again</button></div></div></main>`.v;
+    await new Promise((resolve) => root.querySelector("#confirmRetry").addEventListener("click", resolve, { once: true }));
+  }
 }
+
+// confirmPurchase(…, { retry: true }) returns this when the confirm failed for
+// a reason worth trying again (a server error or no connection).
+const RETRY = Symbol("retry");
 
 // Confirms a checkout Stripe sent the customer back from (the dashboard, or
 // a shoot's page for a preview offer): updates the account, sends the Pixel
 // Purchase and says what was bought. Returns the result, or null on failure.
-export async function confirmPurchase(sessionId) {
+export async function confirmPurchase(sessionId, { retry = false } = {}) {
   try {
     const res = await api("/api/billing/confirm", { method: "POST", body: { sessionId } });
     state.user = res.user;
@@ -125,6 +136,7 @@ export async function confirmPurchase(sessionId) {
     } else toast("Your payment is still processing. Your order will appear as soon as it clears.", "info", 7000);
     return res;
   } catch (err) {
+    if (retry && (!err.status || err.status >= 500)) return RETRY;
     toast(err.message, "error", 7000);
     return null;
   }
