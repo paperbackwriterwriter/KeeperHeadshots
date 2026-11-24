@@ -304,6 +304,53 @@ let gina;
   ok("…and then to the address (dots as spaces)", (await g("/api/me")).j.user?.name === `jo ann-${run}`, (await g("/api/me")).j.user?.name);
 }
 
+// 8. A storage time-out during the callback (A20-4): back to the sign-up page
+// with google=failed, not a raw JSON 503 page; trying again then works. Run
+// on an in-process app with its own throwaway store (and the same mock
+// Google), so a write can land and then throw StorageTimeoutError.
+{
+  const os = await import("node:os"), path = await import("node:path"), fsp = (await import("node:fs/promises")).default;
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "keeper-google-timeout-"));
+  for (const key of Object.keys(process.env)) if (/^(BLOB_|BACKUP_|ANTHROPIC_|GEMINI_|RESEND_|META_|STRIPE_|GOOGLE_|TURNSTILE_|SMTP_|IMPROVMX_|STORAGE_NAMESPACE$)/.test(key)) delete process.env[key];
+  Object.assign(process.env, {
+    DATA_DIR: dir, SESSION_SECRET: "google-timeout-secret-google-timeout", VERCEL: "1", NODE_ENV: "test",
+    GOOGLE_CLIENT_ID: "ci-client.apps.googleusercontent.com", GOOGLE_CLIENT_SECRET: "gs-ci-secret", GOOGLE_AUTH_URL: `${M}/google/auth`, GOOGLE_TOKEN_URL: `${M}/google/token`,
+  });
+  const { default: app } = await import("../../server.js");
+  const { StorageTimeoutError } = await import("../../lib/storage.js");
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((resolve) => server.once("listening", resolve));
+  const L = `http://127.0.0.1:${server.address().port}`;
+  const claims = { sub: `g-slow-${run}`, email: `slow-${run}@example.com`, name: "Slow Google" };
+  const attempt = async (f) => {
+    const start = await f(`${L}/api/auth/google?mode=signup`);
+    const q = new URL(start.location).searchParams;
+    return f(`${L}/api/auth/google/callback?${new URLSearchParams({ state: q.get("state"), code: code({ nonce: q.get("nonce"), challenge: q.get("code_challenge"), ...claims }) })}`);
+  };
+  const realRename = fsp.rename;
+  // The new account's record lands, then the write reports a time-out.
+  fsp.rename = async (from, to) => {
+    if (!to.startsWith(path.join(dir, "users", "id") + path.sep)) return realRename(from, to);
+    fsp.rename = realRename;
+    await realRename(from, to);
+    throw new StorageTimeoutError("write", path.relative(dir, to), 20000);
+  };
+  const f = client();
+  let cb;
+  try {
+    cb = await attempt(f);
+  } finally {
+    fsp.rename = realRename;
+  }
+  ok("a storage time-out in the callback goes back to sign-up with google=failed", cb.status === 302 && cb.location === "/signup?google=failed", `${cb.status} ${cb.location} ${JSON.stringify(cb.j)}`);
+  ok("…isn't cached, and signs no one in", /no-store/.test(cb.r.headers.get("cache-control") || "") && !f.jar.has("ahg_session"));
+  const again = await attempt(f);
+  ok("…and trying again makes the account", again.status === 302 && again.location === "/app/new?auth=google-new" && (await f(`${L}/api/me`)).j.user?.email === claims.email, `${again.status} ${again.location}`);
+  server.closeAllConnections();
+  await new Promise((resolve) => server.close(resolve));
+  await fsp.rm(dir, { recursive: true, force: true, maxRetries: 5 });
+}
+
 const passed = results.filter(Boolean).length;
 console.log(`${passed}/${results.length} passed`);
 process.exit(passed === results.length ? 0 : 1);

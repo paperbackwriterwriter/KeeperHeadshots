@@ -12,7 +12,7 @@ import { ogImage } from "./lib/og.js";
 import * as showcase from "./lib/showcase.js";
 import * as reviews from "./lib/reviews.js";
 import { CONTACT_TO } from "./lib/contact.js";
-import { knownDevice, originDevice, markOrigin, newOriginId, hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailCode, checkEmailCode, emailVerified, ownsMailbox, resetToken, checkResetToken, markReauth, reauthed, clearReauth } from "./lib/auth.js";
+import { knownDevice, originDevice, markOrigin, newOriginId, hashPassword, verifyPassword, setSession, clearSession, revokeSession, currentUser, requireUser, publicUser, emailToken, checkEmailToken, emailCode, checkEmailCode, emailVerified, ownsMailbox, resetToken, checkResetToken, resetFingerprint, markReauth, reauthed, clearReauth } from "./lib/auth.js";
 import { mailEnabled, sendMail, verificationEmail, passwordResetEmail, teamInviteEmail, MAIL_FROM, ADDRESS_LIKE, isEmailAddress } from "./lib/mail.js";
 import { checkHuman, turnstileSiteKey } from "./lib/turnstile.js";
 import * as google from "./lib/google.js";
@@ -221,6 +221,11 @@ app.post("/api/auth/signup", async (req, res) => {
     emailVerified: false,
     verifySends: [Date.now()],
     originDevice: newOriginId(),
+  }).catch(async (err) => {
+    // Nothing was made (a storage time-out, say: users.create removes its
+    // record), so the inbox gets this sign-up back (A20-3).
+    await withCounter("signupmail", canonicalEmail(email), DAY_MS, (r) => void (r.n = Math.max(0, (r.n || 0) - 1))).catch(() => {});
+    throw err;
   });
   if (!user) return exists(); // the same address signed up a moment ago
   setSession(res, user);
@@ -326,15 +331,17 @@ app.get("/api/auth/google", async (req, res) => {
   res.set("Cache-Control", "no-store").redirect(302, url);
 });
 
+// Back to where the Google sign-in started, which says why (google=<code>).
+const googleBack = (res, flow, code) =>
+  flow?.reauth
+    ? res.redirect(302, `/app/account?reauth=${code === "cancelled" ? "cancelled" : "failed"}`)
+    : res.redirect(302, `${flow?.signup ? "/signup" : "/signin"}?google=${code}${safeNextPath(flow?.next) ? `&next=${encodeURIComponent(flow.next)}` : ""}`);
 app.get("/api/auth/google/callback", async (req, res) => {
   if (!google.googleEnabled()) return res.status(404).end();
   const flow = google.readFlow(req.cookies?.[google.STATE_COOKIE]);
   res.clearCookie(google.STATE_COOKIE, googleCookie);
   res.set("Cache-Control", "no-store");
-  const back = (code) =>
-    flow?.reauth
-      ? res.redirect(302, `/app/account?reauth=${code === "cancelled" ? "cancelled" : "failed"}`)
-      : res.redirect(302, `${flow?.signup ? "/signup" : "/signin"}?google=${code}${safeNextPath(flow?.next) ? `&next=${encodeURIComponent(flow.next)}` : ""}`);
+  const back = (code) => googleBack(res, flow, code);
   // Pressing Cancel on Google's page comes back with error=access_denied.
   if (req.query.error) return back("cancelled");
   if (!flow || !google.stateMatches(flow, req.query.state)) return back("expired");
@@ -454,12 +461,23 @@ app.get("/api/auth/google/callback", async (req, res) => {
   const dest = next || (created ? "/app/new" : "/app");
   res.redirect(302, `${dest}${dest.includes("?") ? "&" : "?"}auth=${created ? "google-new" : passwordDropped ? "google-secured" : newlyVerified ? "google-verified" : "google"}`);
 });
+// A storage failure (a time-out, say) part-way through the callback: back to
+// the sign-in page's "couldn't sign you in with Google" (google=failed), not a
+// raw JSON error page (A20-4).
+app.use("/api/auth/google/callback", (err, req, res, next) => {
+  if (err?.status < 500 || res.headersSent) return next(err);
+  console.warn("[google] callback failed", err?.message);
+  res.set("Cache-Control", "no-store");
+  googleBack(res, google.readFlow(req.cookies?.[google.STATE_COOKIE]), "failed");
+});
 
 app.post("/api/auth/verify", async (req, res) => {
   const { user, error } = await checkEmailToken(req.body?.token);
   if (error === "invalid") return res.status(400).json({ error: "This confirmation link isn't valid. Make sure you copied the whole link, or ask for a new one.", code: "invalid" });
   const me = await currentUser(req);
-  if (ownsMailbox(user)) return res.json({ status: "already", user: me ? publicUser(me) : null });
+  // (No password and no Google: a "No, it wasn't me" that saved but timed
+  // out. The page offers to set a password, since signing in can't work: A20-5.)
+  if (ownsMailbox(user)) return res.json({ status: "already", user: me ? publicUser(me) : null, ...(!user.password && !user.googleSub && me?.id !== user.id ? { setPassword: true, email: user.email } : {}) });
   // The link confirms the address; it never signs anyone in. (Signing in from
   // it would let someone send their own unclicked link to another person and
   // have that person work, and upload photos, inside the sender's account.)
@@ -656,10 +674,14 @@ app.post("/api/auth/password/forgot", async (req, res) => {
 // The reset page checks its link when it opens, so an expired or used link
 // says so straight away rather than after a new password has been typed.
 // Nothing changes here; the link is only used by the reset itself.
+// The link already changed the password (lib/auth.js checkResetToken "used"):
+// a retry of a reset that saved but timed out, say (A20-2).
+const resetChanged = (res) => res.status(400).json({ error: "Your password was already changed with this link. Sign in with your new password.", code: "changed" });
 app.post("/api/auth/password/reset/check", async (req, res) => {
   if (await overLimit("resetcheck", req.ip || "unknown", 60)) return res.status(429).json({ error: "Too many attempts. Please wait a little and try again." });
   const { user, error } = await checkResetToken(req.body?.token);
   if (error === "expired") return res.status(410).json({ error: "This reset link has expired. Ask for a new one below.", code: "expired" });
+  if (error === "used") return resetChanged(res);
   if (error) return res.status(400).json({ error: "This reset link isn't valid or has already been used. Ask for a new one below.", code: "invalid" });
   // No password yet (made with Google, or one removed in a takeover): the page says "set", not "change".
   res.json({ ok: true, firstPassword: !user?.password });
@@ -672,6 +694,7 @@ app.post("/api/auth/password/reset", async (req, res) => {
   const invalid = () => res.status(400).json({ error: "This reset link isn't valid or has already been used. Ask for a new one below.", code: "invalid" });
   const { user, error } = await checkResetToken(token);
   if (error === "expired") return res.status(410).json({ error: "This reset link has expired. Ask for a new one below.", code: "expired" });
+  if (error === "used") return resetChanged(res);
   if (error) return invalid();
   const hash = await hashPassword(String(password));
   const at = new Date().toISOString();
@@ -689,6 +712,7 @@ app.post("/api/auth/password/reset", async (req, res) => {
     if (used) return;
     u.password = hash;
     u.passwordChangedAt = at;
+    u.resetUsed = { token: resetFingerprint(token), at };
     u.sessionVersion = (u.sessionVersion || 0) + 1;
     delete u.signinFails; // replaced by the shared counter below
     u.resetSends = [];
@@ -703,6 +727,13 @@ app.post("/api/auth/password/reset", async (req, res) => {
       }
     } else if (!sameDevice) u.deviceEpoch = (u.deviceEpoch || 0) + 1; // the browsers that knew the old password stop counting as known devices
     delete u.emailVerifiedVia;
+  }).catch(async (err) => {
+    // A write that timed out may still have saved (lib/storage.js): if the
+    // account now holds this reset, it worked (A20-2).
+    if (!(err?.status >= 500)) throw err;
+    const now = await users.byId(user.id).catch(() => null);
+    if (now?.passwordChangedAt !== at || now.password !== hash) throw err;
+    return now;
   });
   if (used) return invalid();
   if (purge) await purgeForTakeover(user.id).catch((err) => console.error("[takeover] purge (resumed tonight)", user.id, err.message));

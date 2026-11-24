@@ -138,6 +138,46 @@ try {
     assert.equal(publicUser({ ...base, refunds: [{ sessionId: "cs_1", shootsRemoved: 3, creditsTaken: 0, owedAdded: 0, at }] }).refundNotice, 0);
     assert.equal(publicUser({ ...base, refunds: [{ sessionId: "cs_1", shootsRemoved: 2, at }] }).refundNoticeAt, at);
   });
+  await test("\"No, it wasn't me\" that saved but timed out: opening the link again offers to set a password, not to sign in", async () => {
+    // (An in-process app on this store, so the write can land and then throw
+    // StorageTimeoutError, as a slow Blob write does: A20-5.)
+    for (const key of Object.keys(process.env)) if (/^(ANTHROPIC_|GEMINI_|RESEND_|META_|GOOGLE_|TURNSTILE_|SMTP_|IMPROVMX_)/.test(key)) delete process.env[key];
+    Object.assign(process.env, { VERCEL: "1", NODE_ENV: "test" });
+    const { default: app } = await import("../../server.js");
+    const { StorageTimeoutError } = await import("../../lib/storage.js");
+    const { emailToken, hashPassword } = await import("../../lib/auth.js");
+    const server = app.listen(0, "127.0.0.1");
+    await new Promise((resolve) => server.once("listening", resolve));
+    const verify = (body) => fetch(`http://127.0.0.1:${server.address().port}/api/auth/verify`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then(async (r) => ({ status: r.status, j: await r.json() }));
+    const fsp = (await import("node:fs/promises")).default;
+    const realRename = fsp.rename;
+    try {
+      const user = await users.create({ id: "usr_takeover10", email: "notme@example.com", name: "Not Me", password: await hashPassword("someone-elses1"), emailVerified: false, originDevice: "elsewhere", createdAt: new Date().toISOString(), usage: {} });
+      const token = emailToken(user);
+      const record = path.join(dir, "users", "id", `${user.id}.json`);
+      fsp.rename = async (from, to) => {
+        if (to !== record) return realRename(from, to);
+        fsp.rename = realRename;
+        await realRename(from, to); // lands…
+        throw new StorageTimeoutError("write", `users/id/${user.id}.json`, 20000); // …but reports a time-out
+      };
+      assert.equal((await verify({ token, created: false })).status, 503, "the person sees a time-out");
+      fsp.rename = realRename;
+      const saved = await users.byId(user.id);
+      assert.ok(!saved.password && saved.emailVerified, "the password was removed");
+      const again = await verify({ token });
+      assert.equal(again.j.status, "already");
+      assert.equal(again.j.setPassword, true, JSON.stringify(again.j));
+      assert.equal(again.j.email, "notme@example.com");
+      // An account that can sign in gets no such offer.
+      const fine = await users.create({ id: "usr_takeover11", email: "fine@example.com", name: "Fine", password: await hashPassword("password-1234"), emailVerified: true, createdAt: new Date().toISOString(), usage: {} });
+      assert.ok(!(await verify({ token: emailToken(fine) })).j.setPassword);
+    } finally {
+      fsp.rename = realRename;
+      server.closeAllConnections();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
 } finally {
   await fs.rm(dir, { recursive: true, force: true });
 }

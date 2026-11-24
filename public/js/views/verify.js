@@ -58,7 +58,7 @@ export async function renderVerify({ root, navigate }) {
       return fail(err);
     }
     if (res.status === "ask") return ask(res.purges);
-    history.replaceState({ verified: { status: res.status, email: res.email, purged: res.purged } }, "", "/verify");
+    history.replaceState({ verified: { status: res.status, email: res.email, purged: res.purged, setPassword: res.setPassword } }, "", "/verify");
     if (res.status === "secured") return secured(res);
     done(res);
   }
@@ -103,14 +103,19 @@ export async function renderVerify({ root, navigate }) {
     if (res.user) state.user = res.user;
     if (res.status === "verified" && res.eventId) pixel("CompleteRegistration", {}, res.eventId);
     const free = state.user?.plan?.freeShootAvailable;
+    // Confirmed, but the account has no way to sign in ("No, it wasn't me"
+    // that saved but timed out, A20-5): the reset path, as after "No".
+    const setPassword = !!res.setPassword && !state.user;
     shell(html`
       <div class="verify-icon verify-icon-ok">${icon("mail-check")}</div>
       <h1 class="display h-2">${res.status === "verified" ? "Email confirmed." : "You're already confirmed."}</h1>
-      <p class="lede">${free ? "Your free preview shoot is unlocked: up to 2 looks and 4 headshots, each checked for likeness before you see it." : "Thanks for confirming your email address."}</p>
+      <p class="lede">${free ? "Your free preview shoot is unlocked: up to 2 looks and 4 headshots, each checked for likeness before you see it." : setPassword ? "The account has no password yet. Set your own password to sign in." : "Thanks for confirming your email address."}</p>
       <div class="verify-actions">
         ${state.user
           ? html`<a class="btn btn-flash btn-lg" href="${free ? "/app/new" : "/app"}" data-link>${free ? "Start your free shoot" : "Go to your shoots"} ${icon("arrow-right")}</a>`
-          : html`<a class="btn btn-flash btn-lg" href="/signin?next=/app/new" data-link>Sign in to start ${icon("arrow-right")}</a>`}
+          : setPassword
+            ? html`<a class="btn btn-flash btn-lg" href="/forgot-password?email=${encodeURIComponent(res.email || "")}" data-link>${icon("lock")} Set a password ${icon("arrow-right")}</a>`
+            : html`<a class="btn btn-flash btn-lg" href="/signin?next=/app/new" data-link>Sign in to start ${icon("arrow-right")}</a>`}
       </div>`);
   }
 }

@@ -199,6 +199,7 @@ ok("a damaged record doesn't stop the run", bad.errors >= 1 && bad.finished === 
   // A marker from before markers recorded a start time counts as old; one
   // whose account record had already gone is still finished and marked.
   await storage.putJSON("cancelled/users/usr_zzDelOld01.json", { cancelled: true });
+  await storage.putJSON("deletions/pending/usr_zzDelOld01.json", {});
   await storage.putJSON("idx/usr_zzDelOld01/sht_zzDelOld0101", {});
   const legacy = await runCleanup();
   const m2 = await marker("usr_zzDelOld01");
@@ -234,6 +235,14 @@ ok("a damaged record doesn't stop the run", bad.errors >= 1 && bad.finished === 
   await storage.putJSON("deletions/pending/usr_zzDelStop1.json", { at: new Date().toISOString() });
   const tidy = await finishStuckDeletions();
   ok("deletion: a stale pending entry is removed, nothing finished twice", tidy.finished === 0 && !(await storage.getJSON("deletions/pending/usr_zzDelStop1.json")), JSON.stringify(tidy));
+
+  // 24 Nov (owner): the daily clean-up reads the pending list, not every
+  // marker ever written.
+  const nightlyReads = [];
+  fsp.readFile = async (p, ...rest) => (nightlyReads.push(String(p)), realRead(p, ...rest));
+  let nightly;
+  try { nightly = await runCleanup(); } finally { fsp.readFile = realRead; }
+  ok("deletion: the daily clean-up doesn't read finished deletions' markers", nightly.deletionsFinished === 0 && !nightlyReads.some((r) => /cancelled\/users\/usr_zzDel(Stop|Old|Late)/.test(r)), nightlyReads.filter((r) => r.includes("cancelled/users/")).join(" "));
 }
 
 fs.rmSync(dir, { recursive: true, force: true });

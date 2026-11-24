@@ -1042,6 +1042,55 @@ if (process.env.DATA_DIR) {
   ok("a name with a joiner between letters is still accepted", hindi.status === 201 && hindi.j?.user?.name === "\u0915\u094d\u200d\u0937 \u0930\u093e\u091c", `${hindi.status} ${hindi.j?.user?.name}`);
 }
 
+// 22. A sign-up whose address claim timed out (A20-3) leaves no account record
+// behind and gives the inbox its sign-up back; signing up again then works.
+// Run last, on an in-process app sharing this run's store (DATA_DIR, or a
+// throwaway one), so the claim can throw StorageTimeoutError as a slow Blob
+// write does.
+{
+  const os = await import("node:os"), path = await import("node:path"), crypto = await import("node:crypto"), fsp = (await import("node:fs/promises")).default;
+  const temp = process.env.DATA_DIR ? null : await fsp.mkdtemp(path.join(os.tmpdir(), "keeper-signup-timeout-"));
+  for (const key of Object.keys(process.env)) if (/^(BLOB_|BACKUP_|ANTHROPIC_|GEMINI_|RESEND_|META_|STRIPE_|GOOGLE_|TURNSTILE_|SMTP_|IMPROVMX_|SIGNUP_LIMIT_EXEMPT_IPS$|STORAGE_NAMESPACE$)/.test(key)) delete process.env[key];
+  Object.assign(process.env, { ...(temp ? { DATA_DIR: temp } : {}), SESSION_SECRET: "signup-timeout-secret-signup-timeout", VERCEL: "1", NODE_ENV: "test" });
+  const { default: app } = await import("../../server.js");
+  const { StorageTimeoutError } = await import("../../lib/storage.js");
+  const { canonicalEmail } = await import("../../lib/store.js");
+  const { readCounter, DAY_MS } = await import("../../lib/ratelimit.js");
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((resolve) => server.once("listening", resolve));
+  const signup = (email) => fetch(`http://127.0.0.1:${server.address().port}/api/auth/signup`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "Slow Claim", email, password: "password123" }) }).then((r) => r.status);
+  const email = `slow.claim${t}@gmail.com`;
+  const claim = path.join("users", "email", `${crypto.createHash("sha256").update(email).digest("hex")}.json`);
+  const records = [];
+  const realWriteFile = fsp.writeFile, realRename = fsp.rename;
+  // Note where the account record goes; the write-once address claim reports
+  // a time-out (and didn't land).
+  fsp.rename = async (from, to) => {
+    if (String(to).includes(`${path.sep}users${path.sep}id${path.sep}`)) records.push(String(to));
+    return realRename(from, to);
+  };
+  fsp.writeFile = async (p, body, opts) => {
+    if (!String(p).endsWith(claim) || opts?.flag !== "wx") return realWriteFile(p, body, opts);
+    fsp.writeFile = realWriteFile;
+    throw new StorageTimeoutError("write", claim, 20000);
+  };
+  let first;
+  try {
+    first = await signup(email);
+  } finally {
+    fsp.writeFile = realWriteFile;
+    fsp.rename = realRename;
+  }
+  const left = records.filter((p) => fs.existsSync(p)).length;
+  const used = (await readCounter("signupmail", canonicalEmail(email), DAY_MS)).n || 0;
+  ok("a sign-up whose address claim timed out leaves no account record and gives the inbox its sign-up back", first === 503 && records.length === 1 && left === 0 && used === 0, `status=${first} records=${records.length} left=${left} counted=${used}`);
+  const again = await signup(email);
+  ok("\u2026and signing up again with that address works", again === 201 && (await readCounter("signupmail", canonicalEmail(email), DAY_MS)).n === 1, `status=${again}`);
+  server.closeAllConnections();
+  await new Promise((resolve) => server.close(resolve));
+  if (temp) await fsp.rm(temp, { recursive: true, force: true, maxRetries: 5 });
+}
+
 const passed = results.filter((r) => r[1]).length;
 console.log(`\n${passed}/${results.length} passed`);
 process.exit(passed === results.length ? 0 : 1);

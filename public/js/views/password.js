@@ -91,16 +91,20 @@ export async function renderReset({ root, navigate, setTitle }) {
   // Keep the token out of the address bar and browser history.
   history.replaceState({}, "", "/reset");
 
-  const failed = (message) =>
+  // (changed: the link already changed the password, e.g. a retry of a reset
+  // that saved but timed out, A20-2.)
+  const failed = (message, changed = false) =>
     shell(
       root,
       html`
-      <div class="verify-icon verify-icon-warn">${icon("circle-alert")}</div>
-      <h1 class="display h-2">We couldn't use that link.</h1>
+      <div class="verify-icon ${changed ? "verify-icon-ok" : "verify-icon-warn"}">${icon(changed ? "shield-check" : "circle-alert")}</div>
+      <h1 class="display h-2">${changed ? "Your password was changed." : "We couldn't use that link."}</h1>
       <p class="lede">${message}</p>
       <div class="verify-actions">
-        <a class="btn btn-flash btn-lg" href="/forgot-password" data-link>Send a new link ${icon("arrow-right")}</a>
-        <a class="btn btn-ghost btn-lg" href="/signin" data-link>Back to sign in</a>
+        ${changed
+          ? html`<a class="btn btn-flash btn-lg" href="/signin" data-link>Sign in ${icon("arrow-right")}</a>`
+          : html`<a class="btn btn-flash btn-lg" href="/forgot-password" data-link>Send a new link ${icon("arrow-right")}</a>
+        <a class="btn btn-ghost btn-lg" href="/signin" data-link>Back to sign in</a>`}
       </div>`,
     );
 
@@ -111,7 +115,7 @@ export async function renderReset({ root, navigate, setTitle }) {
   try {
     firstPassword = !!(await api("/api/auth/password/reset/check", { method: "POST", body: { token } })).firstPassword;
   } catch (err) {
-    return failed(err.message);
+    return failed(err.message, err.data?.code === "changed");
   }
 
   if (firstPassword) setTitle?.("Choose a password");
@@ -161,7 +165,7 @@ export async function renderReset({ root, navigate, setTitle }) {
     } catch (err) {
       restore();
       if (err.data?.fields?.password) return showFieldError(pw, err.data.fields.password);
-      if (err.data?.code === "invalid" || err.data?.code === "expired") return failed(err.message);
+      if (err.data?.code === "invalid" || err.data?.code === "expired" || err.data?.code === "changed") return failed(err.message, err.data.code === "changed");
       return showAlert(alertBox, err.message);
     }
     state.user = res.user;

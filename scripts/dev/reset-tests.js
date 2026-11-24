@@ -97,6 +97,52 @@ ok("signout-all: other devices signed out", (await other("/api/shoots")).status 
 const me = await fresh("/api/me");
 ok("reset: confirms the email address", me.j?.user?.emailVerified === true);
 
+// A reset whose write saved but reported a storage time-out (A20-2). Run on an
+// in-process app with its own throwaway store, so the write can land and then
+// throw StorageTimeoutError, as a slow Blob write does.
+{
+  const os = await import("node:os"), path = await import("node:path"), fsp = (await import("node:fs/promises")).default;
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "keeper-reset-timeout-"));
+  for (const key of Object.keys(process.env)) if (/^(BLOB_|BACKUP_|ANTHROPIC_|GEMINI_|RESEND_|META_|STRIPE_|GOOGLE_|TURNSTILE_|SMTP_|IMPROVMX_|STORAGE_NAMESPACE$)/.test(key)) delete process.env[key];
+  Object.assign(process.env, { DATA_DIR: dir, SESSION_SECRET: "reset-timeout-secret-reset-timeout", VERCEL: "1", NODE_ENV: "test" });
+  const { default: app } = await import("../../server.js");
+  const { StorageTimeoutError } = await import("../../lib/storage.js");
+  const { users, id } = await import("../../lib/store.js");
+  const { resetToken, hashPassword } = await import("../../lib/auth.js");
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((resolve) => server.once("listening", resolve));
+  const L = `http://127.0.0.1:${server.address().port}`;
+  const local = async (p, body) => {
+    const r = await fetch(L + p, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    return { status: r.status, j: await r.json().catch(() => null), cookie: r.headers.get("set-cookie") || "" };
+  };
+  const slow = await users.create({ id: id("usr"), name: "Slow Reset", email: `slowreset${Date.now()}@x.com`, password: await hashPassword("old-password1"), emailVerified: true, createdAt: new Date().toISOString() });
+  const slowToken = resetToken(slow);
+  const record = path.join(dir, "users", "id", `${slow.id}.json`);
+  const realRename = fsp.rename;
+  fsp.rename = async (from, to) => {
+    if (to !== record) return realRename(from, to);
+    fsp.rename = realRename;
+    await realRename(from, to); // lands…
+    throw new StorageTimeoutError("write", `users/id/${slow.id}.json`, 20000); // …but reports a time-out
+  };
+  let first;
+  try {
+    first = await local("/api/auth/password/reset", { token: slowToken, password: "slow-password1" });
+  } finally {
+    fsp.rename = realRename;
+  }
+  ok("reset that saved but timed out: answered as done, and signed in", first.status === 200 && first.j?.user?.id === slow.id && /ahg_session=/.test(first.cookie), `${first.status} ${JSON.stringify(first.j)}`);
+  const retry = await local("/api/auth/password/reset", { token: slowToken, password: "slow-password1" });
+  ok("reset that saved but timed out: a retry says the password was changed, not that the link isn't valid", retry.j?.code === "changed" && /password was/i.test(retry.j?.error || "") && !/isn't valid/.test(retry.j?.error || ""), `${retry.status} ${JSON.stringify(retry.j)}`);
+  const reopened = await local("/api/auth/password/reset/check", { token: slowToken });
+  ok("reset that saved but timed out: reopening the link says so too", reopened.j?.code === "changed", `${reopened.status} ${JSON.stringify(reopened.j)}`);
+  ok("reset that saved but timed out: the new password works", (await local("/api/auth/signin", { email: slow.email, password: "slow-password1" })).status === 200);
+  server.closeAllConnections();
+  await new Promise((resolve) => server.close(resolve));
+  await fsp.rm(dir, { recursive: true, force: true, maxRetries: 5 });
+}
+
 const failed = results.filter(([, pass]) => !pass).length;
 console.log(`\n${results.length - failed}/${results.length} passed`);
 process.exit(failed ? 1 : 0);
