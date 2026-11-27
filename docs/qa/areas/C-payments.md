@@ -145,7 +145,7 @@ All 103 items above were re-checked on 23 Nov: 98 pass, 5 known (C3-1, C3-2, C3-
 | 108 | A 100%-off code on Executive (like KEEPERTEAM): 12 shoots, no Purchase, not charged, can't review. |
 | 109 | A storage time-out that lands during the purchase webhook, confirm or sync: booked once, one Purchase, `added` stored (C23-1, fixed 23 Nov; billing-team-refund-tests). |
 | 110 | A storage time-out that lands during a refund: the clean-up (shared headshot, review, invitations, refunds record) still happens on the retry (C23-2, fixed 23 Nov; billing-team-refund-tests). |
-| 111 | Confirm fails after payment: the buyer is told the payment went through and can retry (C23-3, fixed 23 Nov; homepage-tests). |
+| 111 | Confirm fails after payment (server error or offline): "We couldn't confirm your payment yet" with Try again, on the dashboard, shoot page and team page returns (C23-3, fixed 23 Nov; wording and other pages 27 Nov, owner; homepage-tests). |
 | 112 | Stripe key mode per environment, including a live key on a local copy (C23-4, fixed 23 Nov). |
 | 113 | Hosted checkout carries the branding with the icon; embedded without the icon. |
 | 114 | 40 checkouts started at once: exactly 30 succeed. |
@@ -163,7 +163,7 @@ Promotion code KEEPERTEAM (16 Nov, owner request): 100% off any package, no use 
 **Found 23 Nov:**
 - **C23-1** (low, fixed 23 Nov, owner's go-ahead): a purchase write that times out but lands is granted on Stripe's retry but never booked in the funnel, sends no Meta Purchase and stores no `added`; a later refund is still subtracted (lib/billing.js fulfil `granted`). Fix: treat "purchase already there, payment record not granted" as resumed and book it then.
 - **C23-2** (low, fixed 23 Nov, owner's go-ahead; it broke the /refunds promise when it happened): a refund write that times out but lands returns early on the retry, so the shared headshot, the review and open invitations stay and no refunds record is written. Fix: write the refunds record last as a "clean-up done" marker and run the clean-up when it's missing.
-- **C23-3** (low, fixed 23 Nov, owner's go-ahead; now "Your payment went through" with Try again on the dashboard return): a confirm that fails after payment shows only "That's taking longer than usual. Please try again." with nothing to retry (the URL is already /app). Fix: keep the session in the URL until confirm succeeds, or say the payment went through with a Try again.
+- **C23-3** (low, fixed 23 Nov, owner's go-ahead; now "We couldn't confirm your payment yet" with Try again on the dashboard, shoot and team page returns; 27 Nov: not "went through", since Stripe may be down or the payment processing): a confirm that fails after payment shows only "That's taking longer than usual. Please try again." with nothing to retry (the URL is already /app). Fix: keep the session in the URL until confirm succeeds, or say the payment went through with a Try again.
 - **C23-4** (low, fixed 23 Nov): a live Stripe key was accepted on a local copy (no VERCEL_ENV), contrary to "test-mode keys only on previews and local copies". Test: env-tests.
 Unverified (23 Nov): on Android without Chrome the intent fallback may show the Chrome offer again; a failed showcase/review/invitation clean-up after a refund is logged once and never retried; a funnel booking that lands but times out leaves revenueCounted false; KEEPERTEAM also applies to the keep offers unless restricted in Stripe (owner's decision); receipts go to the email given at the first checkout, which may be unconfirmed.
 

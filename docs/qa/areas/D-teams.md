@@ -174,8 +174,8 @@ No regressions in items 1-82 (77 pass, 4 known or decided, 1 note); item 16 part
 | 83 | accept(): the shoot save fails after the join is recorded: the invitation goes back to waiting and a retry makes a real shoot (D27-1, fixed 27 Nov; billing-team-refund-tests). |
 | 84 | accept(): the member's account write fails: the retry records joinedTeam and the invitation confirmation (D27-1, fixed 27 Nov; billing-team-refund-tests). |
 | 85 | invite(): the link write fails or times out: no row is left, the address can be invited again, cancelling gives back one credit (D27-2, fixed 27 Nov; the link is now written first; billing-team-refund-tests). |
-| 86 | Cancel, return or lapse whose give-back write fails: the credit is lost and the retry says "only invites that haven't been accepted" (D27-4, open, low). |
-| 87 | invite(): the charge write times out but lands: a credit is lost and no invitation made (D27-5, open, low). |
+| 86 | Cancel, return or lapse whose give-back write fails: given back on the retry or by the nightly clean-up, exactly once (D27-4, fixed 27 Nov, owner; billing-team-refund-tests). |
+| 87 | invite(): the charge write times out but lands: the invitation is still made, for one credit (D27-5, fixed 27 Nov, owner; billing-team-refund-tests). |
 | 88 | The 30-second refresh keeps addresses typed in the invite box after focus moves on (D27-3, fixed 27 Nov; checked in a browser with a fake clock; team-tests source check). Focus after a repaint is the known H8 class. |
 | 89 | A Google account with another Gmail spelling accepts (confirmed through Google): OK. |
 | 90 | Google sign-up from /join comes back to /join and accepts: OK. |
@@ -184,7 +184,7 @@ No regressions in items 1-82 (77 pass, 4 known or decided, 1 note); item 16 part
 | 93 | A partial refund withdraws the newest open invitation; a full refund marks the taken seat unpaid; buying again gives the net `added`: OK. |
 | 94 | Team setup, team page (refund note), settings form, the 4 join states and /team-headshots: axe at 390 and 1280, light and dark, 32 views clean, no sideways scroll. |
 | 95 | The invitation email's HTML escapes &, quotes and <> in team and admin names: OK. |
-| 96 | A team free reshoot counts as the member's own shoot for reminders (gets "review", blocks "start your shoot"): D27-6, open, low (confirms the 14 Nov suspicion). |
+| 96 | A team free reshoot counts as the member's own shoot for reminders (got "review", blocked "start your shoot"): D27-6, fixed 27 Nov, owner (review-tests). |
 
 Also found in the review of 0d35078/d0e4bd1 and fixed 27 Nov: two clean-ups of one refund running at once withdrew two invitations and gave the admin a free credit (settleDebt now claims each seat's debt from the account first; billing-team-refund-tests).
-Unverified: a non-PlanError storage failure mid-batch of invites fails the whole request (those already made are emailed; resending reports them as "already on the team"); a team-file write that times out but lands during release or accept; a won dispute doesn't bring back invitations a refund withdrew.
+Unverified (still): a non-PlanError storage failure mid-batch of invites fails the whole request (those already made are emailed; resending reports them as "already on the team"); a team-file write that times out but lands during release or accept; a won dispute doesn't bring back invitations a refund withdrew.

@@ -93,15 +93,25 @@ async function handleCheckoutReturn(navigate, root) {
     toast("Checkout cancelled. You haven't been charged.", "info");
     return false;
   }
+  return (await confirmOnReturn(root, q.get("session_id"))) !== null;
+}
+
+// Back from Stripe Checkout (the dashboard, a shoot's page, the team page):
+// "Confirming your payment…" while it's confirmed and, when that fails for a
+// reason worth trying again (a server error or no connection), a screen with
+// Try again (owner, 23 Nov). It doesn't say the payment went through: Stripe
+// may be down, or the payment still processing (owner, 27 Nov). stillHere():
+// false once the person has left the page. Returns the result, or null.
+export async function confirmOnReturn(root, sessionId, stillHere = () => true) {
   for (;;) {
     // Something on screen while the payment is confirmed (a second or two).
     root.innerHTML = html`<main id="main" class="container app-main"><div class="empty" aria-busy="true"><div style="display:flex;justify-content:center">${spinner()}</div><h1 class="display h-2">Confirming your payment…</h1></div></main>`.v;
-    const res = await confirmPurchase(q.get("session_id"), { retry: true });
-    if (res !== RETRY) return res !== null;
-    // Stripe sent them back paid, but adding it failed (storage slow, or
-    // offline): say so, with a way to try again (owner, 23 Nov).
-    root.innerHTML = html`<main id="main" class="container app-main"><div class="empty" role="alert"><h1 class="display h-2" tabindex="-1">Your payment went through.</h1><p class="lede">We're still adding it to your account. This usually takes a moment.</p><div style="display:flex;justify-content:center"><button class="btn btn-flash" type="button" id="confirmRetry">Try again</button></div></div></main>`.v;
+    const res = await confirmPurchase(sessionId, { retry: true });
+    if (res !== RETRY) return res;
+    if (!stillHere()) return null;
+    root.innerHTML = html`<main id="main" class="container app-main"><div class="empty" role="alert"><h1 class="display h-2" tabindex="-1">We couldn't confirm your payment yet.</h1><p class="lede">It may still be processing, or our server was briefly busy. You won't be charged twice. Try again in a moment.</p><div style="display:flex;justify-content:center"><button class="btn btn-flash" type="button" id="confirmRetry">Try again</button></div></div></main>`.v;
     await new Promise((resolve) => root.querySelector("#confirmRetry").addEventListener("click", resolve, { once: true }));
+    if (!stillHere()) return null;
   }
 }
 

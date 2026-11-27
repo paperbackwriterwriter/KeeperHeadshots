@@ -5,7 +5,7 @@ import { $, $$, html, raw, icon, api, state, toast, media, squareMedia, sizeMedi
 import { BACKDROPS, OUTFITS, MAX_LOOKS as MAX_LOOKS_ALL, MAX_RESUMES, MIN_CHECK_SCORE, RECOMMENDED_CHECK_SCORE, TAKES_PER_LOOK, MAX_SELFIES, PACKAGES, PREVIEW_OFFERS, FROM_PRICE, lookFor, usd, keepPlusPrice, keepCreditFor } from "../shared/catalog.js";
 import { wasPrice } from "./price.js";
 import { portraitDataURL } from "../shared/portrait.js";
-import { aiBanner, planBanner, confirmPurchase } from "./dashboard.js";
+import { aiBanner, planBanner, confirmOnReturn } from "./dashboard.js";
 import { currentFormat, formatPicker, formatHrefs, formatName, saveFormat, downloadAll, guardDownloadLinks } from "./format.js";
 import { mountShare } from "./share.js";
 
@@ -88,8 +88,7 @@ export async function renderStudio(ctx, id) {
     history.replaceState(history.state, "", location.pathname);
     if (outcome === "cancelled") toast("Checkout cancelled. You haven't been charged.", "info");
     else {
-      root.innerHTML = html`<main id="main" class="container app-main"><div class="empty" aria-busy="true"><div style="display:flex;justify-content:center">${spinner()}</div><h1 class="display h-2">Confirming your payment…</h1></div></main>`.v;
-      await confirmPurchase(q.get("session_id"));
+      await confirmOnReturn(root, q.get("session_id"), () => !disposed);
       if (disposed) return;
     }
   }

@@ -623,6 +623,51 @@ try {
     const m = await users.byId("usr_acc_m2");
     assert.ok(m.joinedTeam && m.emailVerified === true && m.emailVerifiedVia === "invite", JSON.stringify(m));
   });
+
+  // 27 Nov (D27-4): a cancel whose give-back write fails gives it back on the
+  // retry (or the nightly clean-up), exactly once.
+  await test("a cancel whose give-back failed gives the shoot back on the retry, once", async () => {
+    const uid = "usr_giveback";
+    await person(uid, "giveback@example.com");
+    await buy(uid, "cs_giveback", "2026-10-16T00:00:00Z");
+    await teams.saveTeam(await users.byId(uid), { name: "Give Team", looks: [look] });
+    const a = (await teams.invite(await users.byId(uid), "gb1@example.com")).invite;
+    const b = (await teams.invite(await users.byId(uid), "gb2@example.com")).invite;
+    assert.equal((await users.byId(uid)).credits, 1);
+    landThenTimeOut(uid); // the give-back lands, then reports a time-out
+    await assert.rejects(teams.cancelInvite(await users.byId(uid), a.id));
+    assert.equal((await users.byId(uid)).credits, 2, "it landed");
+    assert.equal(await teams.cancelInvite(await users.byId(uid), a.id), true, "the retry succeeds");
+    assert.equal((await users.byId(uid)).credits, 2, "not given back twice");
+    const realUpdate = users.update;
+    users.update = async (id, fn) => { if (id === uid) { users.update = realUpdate; throw Object.assign(new Error("Storage timed out"), { status: 503 }); } return realUpdate.call(users, id, fn); };
+    try { await assert.rejects(teams.cancelInvite(await users.byId(uid), b.id)); } finally { users.update = realUpdate; }
+    assert.equal((await users.byId(uid)).credits, 2, "this one didn't land");
+    const team = await getJSON(`teams/${(await users.byId(uid)).teamId}.json`);
+    assert.equal(team.invites[b.id].giveBackDue, true);
+    assert.equal(await teams.finishGiveBacks(team), 1, "the nightly clean-up finishes it");
+    assert.equal((await users.byId(uid)).credits, 3);
+    assert.ok(!(await getJSON(`teams/${team.id}.json`)).invites[b.id].giveBackDue);
+    assert.equal(await teams.cancelInvite(await users.byId(uid), b.id), false, "nothing left to do");
+    assert.equal((await users.byId(uid)).credits, 3);
+  });
+
+  // 27 Nov (D27-5): an invite whose charge landed before a time-out goes ahead.
+  await test("an invite whose charge timed out but landed is still made, for one credit", async () => {
+    const uid = "usr_charge_land";
+    await person(uid, "charge-land@example.com");
+    await buy(uid, "cs_charge_land", "2026-10-17T00:00:00Z");
+    await teams.saveTeam(await users.byId(uid), { name: "Charge Team", looks: [look] });
+    landThenTimeOut(uid);
+    const { invite } = await teams.invite(await users.byId(uid), "cl1@example.com");
+    assert.equal((await users.byId(uid)).credits, 2, "one credit spent");
+    const team = await getJSON(`teams/${(await users.byId(uid)).teamId}.json`);
+    assert.equal(team.invites[invite.id].status, "invited");
+    const realUpdate = users.update;
+    users.update = async (id, fn) => { if (id === uid) { users.update = realUpdate; throw Object.assign(new Error("Storage timed out"), { status: 503 }); } return realUpdate.call(users, id, fn); };
+    try { await assert.rejects(teams.invite(await users.byId(uid), "cl2@example.com")); } finally { users.update = realUpdate; }
+    assert.equal((await users.byId(uid)).credits, 2, "a charge that didn't land costs nothing");
+  });
 } finally {
   stripeStub.close();
   await fs.rm(dir, { recursive: true, force: true });

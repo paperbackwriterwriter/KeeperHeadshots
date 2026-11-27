@@ -257,12 +257,33 @@ try {
     const page = await context.newPage();
     await page.goto(BASE + "/app?checkout=success&session_id=cs_test_retry");
     await page.locator("#confirmRetry").waitFor();
-    assert.match(await page.locator("main h1").innerText(), /Your payment went through/);
+    // (Not "went through": Stripe may be down or the payment processing; 27 Nov.)
+    assert.match(await page.locator("main h1").innerText(), /We couldn't confirm your payment yet/);
     await page.locator("#confirmRetry").click();
     await page.locator(".toast.success").first().waitFor();
     assert.match(await page.locator(".toast.success").first().innerText(), /3 shoots added/);
     assert.equal(calls, 2);
     pass("a confirm that fails after paying says so and Try again adds it");
+    await context.close();
+  }
+  // 27 Nov (owner): the same Try again on a shoot page's and the team page's
+  // return from checkout (a preview offer, a package bought for the team).
+  for (const [label, path] of [["team page", "/app/team"], ["shoot page", "/app/shoot/sht_retry_missing"]]) {
+    const context = await contextFor({ width: 390, signedIn: true });
+    const user = (await (await context.request.get(BASE + "/api/me")).json()).user;
+    let calls = 0;
+    await context.route("**/api/billing/confirm", (route) => (++calls === 1
+      ? route.abort("internetdisconnected")
+      : route.fulfill({ contentType: "application/json", body: JSON.stringify({ granted: true, paid: true, packageId: "starter", added: 3, user }) })));
+    const page = await context.newPage();
+    await page.goto(`${BASE}${path}?checkout=success&session_id=cs_test_retry_${calls}`);
+    await page.locator("#confirmRetry").waitFor();
+    assert.match(await page.locator("main h1").innerText(), /We couldn't confirm your payment yet/);
+    await page.locator("#confirmRetry").click();
+    await page.locator(".toast.success").first().waitFor();
+    assert.match(await page.locator(".toast.success").first().innerText(), /3 shoots added/);
+    assert.equal(calls, 2);
+    pass(`${label}: a confirm that fails offline offers Try again, which adds it`);
     await context.close();
   }
   // A sign-up completed on a page that doesn't load the SDK (a Google sign-up's

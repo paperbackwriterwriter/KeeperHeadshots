@@ -259,6 +259,12 @@ async function account(email, name = "QA Person") {
     const after = await g("/api/review/mine");
     ok("a full refund takes the customer's review down", after.j?.review === null && after.j?.eligible === false && !(await anon("/api/reviews")).j?.reviews?.some((r) => r.text === "Before the refund"), JSON.stringify(after.j));
   }
+  // 27 Nov (D27-6): a team shoot's free reshoot (no team field of its own) is
+  // the team's too: a member who also bought gets "start", not "review".
+  const reshot = await person("reshot", { purchases: [{ ...bought[0], at: ago(5) }], credits: 3, joinedTeam: "team_z" });
+  const teamOrig = await doneShoot(reshot, 5, { team: { id: "team_z", name: "Acme" }, paidWith: "team" });
+  await doneShoot(reshot, 5, { reshootOf: teamOrig });
+  ok("a team shoot's free reshoot isn't the member's own: 'start', not 'review'", (await dueReminder(await fresh(reshot)))?.kind === "start", JSON.stringify(await dueReminder(await fresh(reshot))));
   const del = await f("/api/account/delete", { method: "POST", body: JSON.stringify({ password: "password123" }) });
   const after = await owner("/api/owner/reviews");
   ok("deleting the account deletes the review", del.status === 200 && !after.j?.reviews?.some((r) => r.id === meId), `${del.status} ${JSON.stringify(del.j).slice(0, 120)}`);

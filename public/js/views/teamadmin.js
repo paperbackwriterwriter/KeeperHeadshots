@@ -1,7 +1,7 @@
 import { $, $$, html, raw, icon, api, state, toast, busy, media, squareMedia, sizeMedia } from "../core.js";
 import { BACKDROPS, OUTFITS, MAX_LOOKS, PACKAGES } from "../shared/catalog.js";
 import { downloadAll } from "./format.js";
-import { planBanner, confirmPurchase } from "./dashboard.js";
+import { planBanner, confirmOnReturn } from "./dashboard.js";
 
 // /app/team: a team admin sets the team's look, invites colleagues by email
 // (each invite uses one of their shoots) and collects each person's chosen
@@ -55,7 +55,7 @@ export async function renderTeamAdmin({ root, navigate }) {
   if (outcome) {
     navigate("/app/team", { replace: true, silent: true });
     if (outcome === "cancelled") toast("Checkout cancelled. You haven't been charged.", "info");
-    else await confirmPurchase(q.get("session_id"));
+    else await confirmOnReturn(root, q.get("session_id"), () => !disposed);
   }
   const load = async () => {
     data = await api("/api/team");
