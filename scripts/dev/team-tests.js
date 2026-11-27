@@ -697,6 +697,9 @@ let final;
   const join = read("public/js/views/join.js");
   ok("the join page says to confirm (or ask for a new invitation) before offering to start", join.indexOf('inv.confirmNeeded === "code"') > 0 && join.indexOf('inv.confirmNeeded === "exact"') > 0 && join.indexOf('inv.confirmNeeded === "code"') < join.indexOf('id="accept"') && join.includes('href="/app/account"') && join.includes("to cancel it and invite ${me.email} instead"));
   ok("a withdrawn invitation whose address was invited again isn't shown", admin.includes("const reinvited = (t, m) => m.status === \"withdrawn\" && !!m.reinvited;") && admin.includes("const shownMembers = (t) => t.members.filter((m) => !reinvited(t, m));") && admin.includes("${shownMembers(t).map((m) =>") && admin.includes("People <span class=\"mono muted\">${shownMembers(t).length}</span>") && /m\.status === "withdrawn" && !reinvited\(t, m\)/.test(admin));
+  // 27 Nov (D27-3): the 30-second refresh repaints the invite box empty, so it
+  // waits while addresses are typed there (also when focus has moved on).
+  ok("the team page's refresh keeps addresses typed in the invite box", /setInterval\(async \(\) => \{\s*(\/\/[^\n]*\n\s*)*if \(document\.hidden \|\| document\.activeElement\?\.id === "emails" \|\| \$\("#emails"\)\?\.value\.trim\(\)\) return;/.test(admin));
   ok("the team page describes what a refund changed", admin.includes("Your refund changed your team.") && admin.includes("Withdrawn · refund") && admin.includes("Unpaid since your refund"));
   const copy = ["public/js/views/team.js", "public/js/shared/faq.js", "public/js/views/account.js", "public/js/views/teamadmin.js", "lib/prerendered.js"].map(read).join("\n");
   ok("no page promises the admin everyone's finished headshots", !/everyone's finished headshots|Download everyone's headshots|download everyone's headshots|you'll see their finished headshots/.test(copy));

@@ -346,6 +346,30 @@ let gina;
   ok("…isn't cached, and signs no one in", /no-store/.test(cb.r.headers.get("cache-control") || "") && !f.jar.has("ahg_session"));
   const again = await attempt(f);
   ok("…and trying again makes the account", again.status === 302 && again.location === "/app/new?auth=google-new" && (await f(`${L}/api/me`)).j.user?.email === claims.email, `${again.status} ${again.location}`);
+  // 27 Nov (V4): an error with no status is a bug: still the friendly page,
+  // but logged as an error (the owner's alert), not a warning.
+  const bugClaims = { sub: `g-bug-${run}`, email: `bug-${run}@example.com`, name: "Bug Google" };
+  fsp.rename = async (from, to) => {
+    if (!to.startsWith(path.join(dir, "users", "id") + path.sep)) return realRename(from, to);
+    fsp.rename = realRename;
+    throw new TypeError("Cannot read properties of undefined");
+  };
+  const logged = { error: [], warn: [] };
+  const realError = console.error, realWarn = console.warn;
+  console.error = (...a) => logged.error.push(a.map(String).join(" "));
+  console.warn = (...a) => logged.warn.push(a.map(String).join(" "));
+  let bug;
+  try {
+    const fb = client();
+    const start = await fb(`${L}/api/auth/google?mode=signup`);
+    const q = new URL(start.location).searchParams;
+    bug = await fb(`${L}/api/auth/google/callback?${new URLSearchParams({ state: q.get("state"), code: code({ nonce: q.get("nonce"), challenge: q.get("code_challenge"), ...bugClaims }) })}`);
+  } finally {
+    fsp.rename = realRename;
+    console.error = realError;
+    console.warn = realWarn;
+  }
+  ok("a bug in the callback still goes back with google=failed, logged as an error", bug.status === 302 && /google=failed/.test(bug.location || "") && logged.error.some((l) => /\[google\] callback failed/.test(l) && /TypeError/.test(l)) && !logged.warn.some((l) => /\[google\] callback failed/.test(l)), `${bug.status} ${bug.location} ${JSON.stringify(logged)}`);
   server.closeAllConnections();
   await new Promise((resolve) => server.close(resolve));
   await fsp.rm(dir, { recursive: true, force: true, maxRetries: 5 });

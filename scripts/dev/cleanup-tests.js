@@ -243,6 +243,40 @@ ok("a damaged record doesn't stop the run", bad.errors >= 1 && bad.finished === 
   let nightly;
   try { nightly = await runCleanup(); } finally { fsp.readFile = realRead; }
   ok("deletion: the daily clean-up doesn't read finished deletions' markers", nightly.deletionsFinished === 0 && !nightlyReads.some((r) => /cancelled\/users\/usr_zzDel(Stop|Old|Late)/.test(r)), nightlyReads.filter((r) => r.includes("cancelled/users/")).join(" "));
+
+  // 27 Nov (V1): a deletion is listed before its marker is written, so a
+  // marker never exists with nothing to finish it.
+  const realRename = fsp.rename;
+  const failWrite = (key, land) => {
+    let armed = true;
+    fsp.rename = async (from, to, ...rest) => {
+      if (armed && String(to) === path.join(dir, key)) {
+        armed = false;
+        if (land) await realRename(from, to, ...rest);
+        throw new storage.StorageTimeoutError("put", key, 20000);
+      }
+      return realRename(from, to, ...rest);
+    };
+  };
+  const unlisted = await account("usr_zzDelList1", "list@example.com");
+  failWrite("deletions/pending/usr_zzDelList1.json", false);
+  let listErr = null;
+  try { await users.remove(unlisted); } catch (err) { listErr = err; } finally { fsp.rename = realRename; }
+  ok("deletion: when listing it fails, it hasn't started (no marker, account kept)", listErr && !(await marker(unlisted.id)) && !!(await users.byId(unlisted.id)), listErr?.message);
+  const landed = await account("usr_zzDelLand1", "land@example.com");
+  failWrite("cancelled/users/usr_zzDelLand1.json", true);
+  try { await users.remove(landed); } catch {} finally { fsp.rename = realRename; }
+  await age(landed.id, STUCK_MS + 60_000);
+  const landedRun = await runCleanup();
+  ok("deletion: a marker whose write timed out but landed is still finished by the clean-up", landedRun.deletionsFinished >= 1 && !(await users.byId(landed.id)) && (await marker(landed.id))?.erased === true, JSON.stringify(landedRun));
+  const nomark = await account("usr_zzDelNoMk1", "nomark@example.com");
+  failWrite("cancelled/users/usr_zzDelNoMk1.json", false);
+  try { await users.remove(nomark); } catch {} finally { fsp.rename = realRename; }
+  await finishStuckDeletions();
+  ok("deletion: a fresh pending entry whose marker isn't there yet is kept", !!(await storage.getJSON("deletions/pending/usr_zzDelNoMk1.json")));
+  await storage.putJSON("deletions/pending/usr_zzDelNoMk1.json", { at: new Date(Date.now() - STUCK_MS - 60_000).toISOString() });
+  await finishStuckDeletions();
+  ok("deletion: an old pending entry with no marker is tidied, the account left alone", !(await storage.getJSON("deletions/pending/usr_zzDelNoMk1.json")) && !!(await users.byId(nomark.id)));
 }
 
 fs.rmSync(dir, { recursive: true, force: true });

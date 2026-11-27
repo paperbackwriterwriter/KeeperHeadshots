@@ -302,7 +302,8 @@ export async function renderTeamAdmin({ root, navigate }) {
   paintTeam();
   // Progress changes while people upload and develop; refresh now and then.
   const timer = setInterval(async () => {
-    if (document.hidden || document.activeElement?.id === "emails") return;
+    // (Nor while addresses are typed in the invite box: repainting empties it.)
+    if (document.hidden || document.activeElement?.id === "emails" || $("#emails")?.value.trim()) return;
     try {
       const before = JSON.stringify(data);
       await load();

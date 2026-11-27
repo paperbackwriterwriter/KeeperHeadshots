@@ -466,7 +466,10 @@ app.get("/api/auth/google/callback", async (req, res) => {
 // raw JSON error page (A20-4).
 app.use("/api/auth/google/callback", (err, req, res, next) => {
   if (err?.status < 500 || res.headersSent) return next(err);
-  console.warn("[google] callback failed", err?.message);
+  // A storage failure is a warning; anything without a status is a bug, logged
+  // as an error so the owner hears of it (27 Nov).
+  if (err?.status >= 500) console.warn("[google] callback failed", err.message);
+  else console.error("[google] callback failed", err);
   res.set("Cache-Control", "no-store");
   googleBack(res, google.readFlow(req.cookies?.[google.STATE_COOKIE]), "failed");
 });

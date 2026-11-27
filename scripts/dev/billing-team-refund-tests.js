@@ -509,6 +509,120 @@ try {
     assert.equal(u.credits, 0);
     assert.equal(u.refunds.filter((r) => r.sessionId === "cs_land_refund").length, 1, "nothing taken twice");
   });
+
+  // 27 Nov (V2): refunded before the resumed grant ran: nothing booked.
+  await test("a sale refunded before its timed-out grant resumes isn't booked as revenue", async () => {
+    const uid = "usr_land_then_refund";
+    await person(uid, "land-then-refund@example.com");
+    const before = (await getJSON(today())) || {};
+    const s = {
+      id: "cs_land_then_refund", object: "checkout.session", payment_status: "paid", status: "complete", amount_total: 1450, currency: "usd",
+      client_reference_id: uid, metadata: { userId: uid, packageId: "starter", shoots: "3" }, total_details: {},
+      payment_intent: { id: "pi_cs_land_then_refund", object: "payment_intent", latest_charge: { id: "ch_cs_land_then_refund", object: "charge", amount: 1450, amount_refunded: 0 } },
+    };
+    sessions.set(s.id, s);
+    landThenTimeOut(uid);
+    await assert.rejects(send("checkout.session.completed", s));
+    s.payment_intent.latest_charge.amount_refunded = 1450;
+    await send("charge.refunded", { id: s.payment_intent.latest_charge.id, object: "charge", payment_intent: s.payment_intent.id, amount: 1450, amount_refunded: 1450 });
+    await send("checkout.session.completed", s); // Stripe's retry
+    const rec = await getJSON("payments/cs_land_then_refund.json");
+    assert.equal(rec.granted, true);
+    assert.equal(rec.revenueCounted, false, JSON.stringify(rec));
+    assert.ok(!rec.bookClaimed, JSON.stringify(rec));
+    const after = (await getJSON(today())) || {};
+    assert.equal((after.purchases || 0) - (before.purchases || 0), 0, "not booked");
+    assert.equal((after.revenue || 0) - (before.revenue || 0), 0, "no revenue");
+    assert.equal((await users.byId(uid)).credits || 0, 0, "the refund still took the shoots");
+  });
+
+  // 27 Nov (V3): two clean-ups of one refund at once settle one seat once.
+  await test("two debt settlements at once withdraw one invitation and give no credit", async () => {
+    const uid = "usr_settle_race";
+    await person(uid, "settle-race@example.com");
+    await buy(uid, "cs_settle_race", "2026-10-12T00:00:00Z");
+    await teams.saveTeam(await users.byId(uid), { name: "Race Team", looks: [look] });
+    for (const i of [1, 2, 3]) await teams.invite(await users.byId(uid), `race${i}@example.com`);
+    await users.update(uid, (u) => void (u.creditsOwed = 1));
+    const n = await Promise.all([teams.settleDebt(uid), teams.settleDebt(uid)]);
+    const team = await teams.getTeam((await users.byId(uid)).teamId);
+    const cancelled = Object.values(team.invites).filter((i) => i.status === "cancelled").length;
+    const u = await users.byId(uid);
+    assert.equal(cancelled, 1, JSON.stringify(n));
+    assert.equal(n[0] + n[1], 1);
+    assert.ok(!u.creditsOwed, "debt settled");
+    assert.equal(u.credits || 0, 0, "no free credit");
+  });
+
+  // 27 Nov (D27-2): an invitation whose link couldn't be saved leaves no row.
+  await test("a failed invitation leaves no row, can be sent again and costs nothing", async () => {
+    const uid = "usr_inv_fail";
+    await person(uid, "inv-fail@example.com");
+    await buy(uid, "cs_inv_fail", "2026-10-13T00:00:00Z");
+    await teams.saveTeam(await users.byId(uid), { name: "Fail Team", looks: [look] });
+    const realWrite = fs.writeFile;
+    let armed = true;
+    fs.writeFile = async (p, body, opts, ...rest) => {
+      if (armed && String(p).includes(`${path.sep}invites${path.sep}`)) {
+        armed = false;
+        await realWrite(p, body, opts, ...rest); // lands, then times out
+        throw Object.assign(new Error("Storage timed out"), { status: 503 });
+      }
+      return realWrite(p, body, opts, ...rest);
+    };
+    try { await assert.rejects(teams.invite(await users.byId(uid), "fail1@example.com")); } finally { fs.writeFile = realWrite; }
+    let team = await teams.getTeam((await users.byId(uid)).teamId);
+    assert.equal(Object.keys(team.invites || {}).length, 0, JSON.stringify(team.invites));
+    assert.equal((await users.byId(uid)).credits, 3, "the credit came back");
+    const { invite } = await teams.invite(await users.byId(uid), "fail1@example.com");
+    assert.equal((await users.byId(uid)).credits, 2);
+    await teams.cancelInvite(await users.byId(uid), invite.id);
+    assert.equal((await users.byId(uid)).credits, 3, "cancelling gives back one credit, not two");
+  });
+
+  // 27 Nov (D27-1): accepting when the shoot or the account couldn't be saved.
+  await test("an accept whose shoot couldn't be saved can be retried and makes a real shoot", async () => {
+    const uid = "usr_acc_fail";
+    await person(uid, "acc-fail@example.com");
+    await buy(uid, "cs_acc_fail", "2026-10-14T00:00:00Z");
+    await teams.saveTeam(await users.byId(uid), { name: "Accept Team", looks: [look] });
+    const { invite } = await teams.invite(await users.byId(uid), "acc1@example.com");
+    await users.create({ id: "usr_acc_m1", email: "acc1@example.com", name: "m1", createdAt: new Date().toISOString(), emailVerified: false, usage: {} });
+    const member = await users.byId("usr_acc_m1");
+    const realCreate = shoots.create;
+    shoots.create = async () => { shoots.create = realCreate; throw Object.assign(new Error("Storage timed out"), { status: 503 }); };
+    try { await assert.rejects(teams.accept(member, invite.token)); } finally { shoots.create = realCreate; }
+    let team = await teams.getTeam((await users.byId(uid)).teamId);
+    assert.equal(team.invites[invite.id].status, "invited", "back to waiting");
+    landThenTimeOut("usr_acc_m1"); // and this time the member's account write times out after landing
+    await assert.rejects(teams.accept(member, invite.token));
+    const { shootId } = await teams.accept(member, invite.token);
+    assert.ok(await shoots.getMeta(shootId), "the shoot exists");
+    team = await teams.getTeam((await users.byId(uid)).teamId);
+    assert.equal(team.invites[invite.id].shootId, shootId);
+    assert.equal((await users.byId(uid)).credits, 2, "one credit spent, none lost");
+    const m = await users.byId("usr_acc_m1");
+    assert.equal(m.joinedTeam, team.id);
+    assert.equal(m.emailVerifiedVia, "invite");
+  });
+
+  await test("an accept whose account write failed records the join on the retry", async () => {
+    const uid = "usr_acc_fail2";
+    await person(uid, "acc-fail2@example.com");
+    await buy(uid, "cs_acc_fail2", "2026-10-15T00:00:00Z");
+    await teams.saveTeam(await users.byId(uid), { name: "Accept Team 2", looks: [look] });
+    const { invite } = await teams.invite(await users.byId(uid), "acc2@example.com");
+    await users.create({ id: "usr_acc_m2", email: "acc2@example.com", name: "m2", createdAt: new Date().toISOString(), emailVerified: false, usage: {} });
+    const member = await users.byId("usr_acc_m2");
+    const realUpdate = users.update;
+    users.update = async (id, fn) => { if (id === "usr_acc_m2") { users.update = realUpdate; throw Object.assign(new Error("Storage timed out"), { status: 503 }); } return realUpdate.call(users, id, fn); };
+    try { await assert.rejects(teams.accept(member, invite.token)); } finally { users.update = realUpdate; }
+    assert.ok(!(await users.byId("usr_acc_m2")).joinedTeam, "not recorded yet");
+    const { shootId } = await teams.accept(member, invite.token);
+    assert.ok(await shoots.getMeta(shootId));
+    const m = await users.byId("usr_acc_m2");
+    assert.ok(m.joinedTeam && m.emailVerified === true && m.emailVerifiedVia === "invite", JSON.stringify(m));
+  });
 } finally {
   stripeStub.close();
   await fs.rm(dir, { recursive: true, force: true });

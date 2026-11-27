@@ -197,7 +197,15 @@ Low, left for later:
   notice a sign-in elsewhere (A1-10); inconsistent answers while an account is
   being deleted (A1-12).
 - Teams: renamed admin's old name on join/studio (D-07); invitations lapse only
-  when something triggers it (D-06, partly fixed 3 Nov).
+  when something triggers it (D-06, partly fixed 3 Nov). A cancel, return or lapse whose
+  give-back write fails loses the credit (D27-4); an invite's charge that times
+  out but lands loses a credit (D27-5); a team free reshoot counts as the
+  member's own shoot for reminders (D27-6).
+- 27 Nov review (unconfirmed): the "Your payment went through" screen shows for
+  any 5xx (also a Stripe outage or a delayed payment method); Try again only on
+  the dashboard return, not the studio or team page returns (C-111 partly); a
+  slow shoots cron run can skip a 10-minute deletion check; `deletions/` isn't in
+  the backup.
 - Shoots: a stuck check past its lease is only recovered by polling (B2-7).
 - UX: header doesn't collapse when text is enlarged on a short page (H8-11);
   blank page while a slow session request loads (H8-12).
